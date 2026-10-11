@@ -1,0 +1,21 @@
+# Repository yamllint rules: the default configuration, with only 5 style relaxations.
+# The substantive traps stay blocking (duplicate keys, "yes"/"on" values, indentation).
+# Run with --strict by pre-commit.
+
+extends: default
+
+# Written by Copier (nstack init, nstack update), never by hand: its lines follow the
+# project name and the template path. check-yaml still loads it.
+ignore: |
+  .copier-answers.yml
+
+rules:
+  line-length:
+    max: 120                    # prose in comments and in the issue forms
+  braces:
+    max-spaces-inside: 1        # `{ required: true }`, the GitHub issue form convention
+  document-start: disable       # `---` absent from GitHub and Dependabot files
+  comments:
+    min-spaces-from-content: 1  # aligned comments in the templates
+  truthy:
+    check-keys: false           # the `on:` key of GitHub workflows; values stay checked

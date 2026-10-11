@@ -1,0 +1,28 @@
+# Tooling updates: GitHub actions and pre-commit hooks, one pull request per ecosystem.
+# The 7-day delay avoids adopting a version published the day before, giving a
+# compromise time to be spotted. Every PR goes through the same mandatory checks.
+# NapkinStack does not go through Dependabot: its version comes from .copier-answers.yml
+# and changes through nstack update.
+
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      pre-commit:
+        patterns: ["*"]

@@ -1,0 +1,40 @@
+name: Bug
+description: Incorrect behaviour in production or in test
+labels: ["bug"]
+body:
+  - type: input
+    id: module
+    attributes:
+      label: Module concerned
+    validations: { required: true }
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs observed behaviour
+    validations: { required: true }
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal steps. If it is not reproducible, say so — that is information.
+    validations: { required: true }
+
+  - type: input
+    id: impact
+    attributes:
+      label: Impact
+      description: Who is affected, since when, and how badly.
+    validations: { required: true }
+
+  - type: checkboxes
+    id: guardrail
+    attributes:
+      label: Feedback loop (docs/os/10-measurement.md §4)
+      description: Fixing the bug is not enough — improve the system that let it through.
+      options:
+        - label: A test reproducing the bug will be added (it must fail BEFORE the fix)
+          required: true
+        - label: I have identified why the system did not catch it
+          required: true

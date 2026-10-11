@@ -1,0 +1,36 @@
+name: Technical debt
+description: Identified debt, with its cost and its trigger
+labels: ["debt"]
+body:
+  - type: input
+    id: module
+    attributes:
+      label: Module concerned
+    validations: { required: true }
+
+  - type: textarea
+    id: debt
+    attributes:
+      label: Nature of the debt
+    validations: { required: true }
+
+  - type: textarea
+    id: cost
+    attributes:
+      label: Current cost
+      description: What it costs TODAY. Without an observed cost, it is not priority debt.
+    validations: { required: true }
+
+  - type: textarea
+    id: trigger
+    attributes:
+      label: Trigger for dealing with it
+      description: What will make it a priority? Without a trigger, it will never be dealt with.
+    validations: { required: true }
+
+  - type: checkboxes
+    id: automatable
+    attributes:
+      label: Automation backlog (docs/os/07-governance.md §9)
+      options:
+        - label: This debt comes from a rule living in the prompt that should be automated

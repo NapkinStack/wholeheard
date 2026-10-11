@@ -1,0 +1,74 @@
+# Repository hooks: immediate feedback before every commit.
+# Bypassable (--no-verify), therefore never a guarantee: CI runs the same
+# configuration (the "Hooks and secrets" job). Install with: pre-commit install
+#
+# Updates: Dependabot (.github/dependabot.yml). It does not know the version of
+# gitleaks-history: align it with the one of the gitleaks hook.
+# pre-commit autoupdate only sees tags on the default branch: do not use it.
+
+minimum_pre_commit_version: "3.0.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+      # Also outside a git merge: Copier writes its update conflicts straight into the
+      # files (ADR-0001). The configuration its documentation recommends.
+      - id: check-merge-conflict
+        args: [--assume-in-merge]
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      # Actually loads the YAML: refuses duplicate keys, which PyYAML accepts silently.
+      - id: check-yaml
+
+  # YAML style and traps ("yes"/"on" values, indentation). --strict: warnings block
+  # too. Rules: .yamllint.yaml
+  - repo: https://github.com/adrienverge/yamllint
+    rev: cba56bcde1fdd01c1deb3f945e69764c291a6530  # frozen: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict]
+
+  # GitHub files validated against their schemas, bundled in the tool: offline.
+  # The workflows are covered by actionlint.
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 12e63946db2c5cfcc9030fac21c3883ba88c6ed8  # frozen: 0.38.0
+    hooks:
+      - id: check-dependabot
+      - id: check-github-issue-forms
+      - id: check-github-issue-config
+
+  # Workflow security. Offline, so local and CI results are identical.
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: fa412071e4f5d44d44f9e365f4676f9df92456a2  # frozen: v1.30.1
+    hooks:
+      - id: zizmor
+        args: [--no-progress, --offline]
+
+  # Workflow validity. shellcheck disabled: absent locally, present on GitHub runners,
+  # it would give different results.
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
+    hooks:
+      - id: actionlint
+        args: [-shellcheck=, -pyflakes=]
+
+  # At commit time: only scans the staged changes.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # frozen: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      # In CI: the whole git history. --redact, because CI logs are public.
+      - id: gitleaks-history
+        name: Secrets in the whole git history
+        language: golang
+        additional_dependencies: [github.com/zricethezav/gitleaks/v8@v8.30.1]
+        entry: gitleaks git --redact --verbose
+        pass_filenames: false
+        always_run: true
+        stages: [manual]

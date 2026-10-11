@@ -1,0 +1,44 @@
+name: Commits on main
+
+# What reached this branch outside a pull request, recorded (W1, PDR-0006).
+#
+# This workflow RECORDS; it never refuses. What refuses a merge is the ruleset, and on a
+# repository whose plan cannot enforce one, nothing refuses at all — which is exactly when
+# this record is the only thing that will ever mention a commit pushed straight to main.
+# On a guarded repository it is cheap and catches a bypass by an administrator.
+#
+# It says nothing about what predates its own arrival, nor about the commit that created the
+# repository: a record that greets a project by failing on itself teaches people to ignore it.
+#
+# Rights: none beyond reading. The token reads how each commit arrived and nothing else, so
+# the project's automation stays read-only (checklist rule G10).
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  landed:
+    name: Commits on main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+
+      - name: NapkinStack, the project version
+        run: bash .nstack/install-engine.sh
+
+      # The pushed range. A branch's first push carries no "before": the tip alone is read.
+      - name: How each commit arrived
+        env:
+          SPAN: ${{ github.event.before }}..${{ github.event.after }}
+          GH_TOKEN: ${{ github.token }}
+        run: nstack landed --span "$SPAN"

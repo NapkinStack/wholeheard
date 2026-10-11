@@ -1,0 +1,79 @@
+# Mapping from playbooks to Claude Code skills.
+#
+# The playbooks in `playbooks/` are the SOURCE OF TRUTH: plain markdown, portable,
+# usable by any agent. The skills are derived from them.
+# This file holds nothing but the frontmatter to add — never any content.
+#
+# Rules for `description` (it is what triggers the skill):
+#   - says WHAT and WHEN, in the third person
+#   - no behavioural instruction: those go in the body of the playbook
+#   - uses the keywords an agent will actually meet in a task
+#
+# A playbook with no entry here fails `nstack skills --check`.
+
+skills:
+  security:
+    source: playbooks/security.md
+    description: >
+      The project's security rules: authentication, authorisation, secrets, input
+      validation, personal data, dependencies and high-risk actions. This skill should
+      be used when a task touches authn/authz, secrets, sensitive data, external input,
+      a file upload or a network exposure.
+
+  tests:
+    source: playbooks/tests.md
+    description: >
+      The project's test strategy: choosing the test level, writing the oracle, edge
+      cases, doubles and handling flaky tests. This skill should be used when the test
+      strategy is not obvious, when an area is untested, when a test is unstable or when
+      a behaviour is hard to isolate.
+
+  data-migration:
+    source: playbooks/data-migration.md
+    description: >
+      The project's rules on data and migrations: schema expand/contract, backfill,
+      data deletion, data ownership by module. This skill should be used when a task
+      touches a data schema, a migration, a transformation or the deletion of existing
+      data.
+
+  ux:
+    source: playbooks/ux.md
+    description: >
+      The project's UX/UI rules: the primacy of convention and of the design system,
+      the eight states of an interface, error messages, accessibility, perceived
+      performance and mobile behaviour. This skill should be used when a task touches a
+      surface visible to the user.
+
+  operations:
+    source: playbooks/operations.md
+    description: >
+      The project's operations and reliability rules: timeouts, retries, structured
+      logs, metrics, alerts, health checks, rollback and controlled degradation. This
+      skill should be used when a task touches observability, error handling, deployment
+      or a call to an external dependency.
+
+  discovery:
+    source: playbooks/discovery.md
+    description: >
+      The project's discovery rules: turning an idea into a decision — intake, sourced
+      market research, definition, the value hypothesis and no-gos, a challenge by another
+      session (pre-mortem, four risks), then go, clarify or kill. This skill should be used
+      when a project starts from an idea, when an idea must be tested or challenged before
+      a charter, or when a discovery document is to be challenged or decided.
+
+  framing:
+    source: playbooks/framing.md
+    description: >
+      The project's framing rules: interviewing the decider, writing the charter, planning
+      a bounded cycle with its deliverables, acceptance criteria and appetite, handling new
+      ideas, and closing a cycle at its end or at its circuit breaker. This skill should be
+      used when a task asks to frame a project, start a project from an idea or a
+      specification, plan or re-plan a cycle, or write a cycle's closure.
+
+  verification:
+    source: playbooks/verification.md
+    description: >
+      The project's rules for verifying a change: the verifier's posture, running a test
+      sheet against the running change, the evidence expected for each result, and what
+      to report. This skill should be used when a task asks to verify, test or accept a
+      change someone else wrote, or to fill in the results of a pull request's test sheet.

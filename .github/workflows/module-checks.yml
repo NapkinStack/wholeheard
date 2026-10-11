@@ -1,0 +1,148 @@
+name: Modules
+
+# Runs the standard verbs on the changed modules only: nstack reads their commands
+# from the module's MANIFEST.yaml, assuming no stack (P1). A module is a folder holding a
+# MANIFEST.yaml, contracts/ included: nstack lists them, the workflow defines nothing.
+# The level of validation is proportionate to the criticality declared in the MANIFEST
+# (docs/os/07-governance.md §6).
+#
+# `Module checks` is the required check: a matrix job carries each module's name, which no
+# ruleset can require in advance, so this job fails whenever one of them failed.
+#
+# A change to a contract version also runs the checks of the module that provides it and of
+# every module that declares it in consumes: the contract tests of both sides, which is what
+# docs/os/03-contracts.md section 5 promises.
+#
+# Module names come from the paths the pull request changed: they are never inserted
+# into a script, only read from an environment variable.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Changed modules
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.list.outputs.modules }}
+      any: ${{ steps.list.outputs.any }}
+      base: ${{ steps.list.outputs.base }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+
+      - name: NapkinStack, the project version
+        run: bash .nstack/install-engine.sh
+
+      - id: list
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if ! git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
+            if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+              echo "::error::Base $BASE of the pull request not found: its modules cannot be listed." \
+                "Action: run the jobs again; the checkout fetches the whole history."
+              exit 1
+            fi
+            # The first push of a branch has no previous commit: every file is new.
+            BASE=$(git rev-list --max-parents=0 HEAD | tail -1)
+          fi
+          MODS=$(nstack modules --root . --changed-since "$BASE" --with-contract-sides --json)
+          echo "modules=$MODS" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          if [ "$MODS" = '[]' ]; then echo "any=false" >> "$GITHUB_OUTPUT";
+          else echo "any=true" >> "$GITHUB_OUTPUT"; fi
+          echo "Modules with a file changed: $MODS"
+
+  validate:
+    name: ${{ matrix.module.name }}
+    needs: discover
+    if: needs.discover.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.discover.outputs.modules) }}
+    env:
+      MODULE: ${{ matrix.module.name }}
+      FOLDER: ${{ matrix.module.folder }}
+      BASE: ${{ needs.discover.outputs.base }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+
+      - name: NapkinStack, the project version
+        run: bash .nstack/install-engine.sh
+
+      - name: Declared criticality
+        id: crit
+        run: |
+          LEVEL=$(yq '.module.criticality // "standard"' "$FOLDER/MANIFEST.yaml")
+          echo "level=$LEVEL" >> "$GITHUB_OUTPUT"
+          echo "Criticality: $LEVEL"
+
+      - name: bootstrap
+        run: nstack bootstrap "$MODULE"
+
+      # All levels — docs/os/05-workflow.md §7
+      - name: check
+        run: nstack check "$MODULE"
+
+      - name: test
+        run: nstack test "$MODULE"
+
+      # A contract version someone relies on changes only with the merged proof (V1,
+      # docs/os/03-contracts.md §4). The step runs even when an earlier one failed: a pull
+      # request that breaks a frozen version AND a test would otherwise meet V1 a round trip
+      # later, once the tests are green (D46).
+      - name: compat
+        if: ${{ !cancelled() }}
+        run: nstack compat "$MODULE" --base "$BASE"
+
+      # Levels high and critical — not wired up yet (D9)
+      - name: Integration tests
+        if: steps.crit.outputs.level == 'high' || steps.crit.outputs.level == 'critical'
+        run: |
+          echo "Not wired up: integration tests (D9)"
+
+      # Optional verb: the module's end-to-end scenarios, when declared (docs/os/09-platform.md §2).
+      - name: e2e
+        run: nstack e2e "$MODULE"
+
+      # The evidence the test sheet links to (docs/os/05-workflow.md §7), kept even on failure.
+      - name: Evidence of the scenarios
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: evidence-${{ matrix.module.name }}
+          path: ${{ matrix.module.folder }}/.evidence/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30
+
+  checks:
+    name: Module checks
+    needs: [discover, validate]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every changed module passed
+        env:
+          DISCOVERED: ${{ needs.discover.result }}
+          VALIDATED: ${{ needs.validate.result }}
+        run: |
+          echo "Changed modules: $DISCOVERED. Their checks: $VALIDATED."
+          [ "$DISCOVERED" = success ] && { [ "$VALIDATED" = success ] || [ "$VALIDATED" = skipped ]; }

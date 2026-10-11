@@ -1,0 +1,29 @@
+module:
+  name: contracts
+  responsibility: >
+    Defines and versions the interface contracts between modules.
+  owner: NapkinStack/maintainers
+  contact: "https://github.com/NapkinStack/summit/discussions"
+  lifecycle: active
+  criticality: high
+  user_facing: false
+
+provides: []
+consumes: []
+data:
+  owns: []
+  shared: []
+dependencies: []
+
+# Declared with the first contract: check and test are required once this folder holds one
+# (fitness M7), and compat once a version is consumed or stable (nstack compat, V1). The
+# tools are the project's, named in docs/tooling-profile.md.
+commands:
+#  check:     # validates every contract document against its format
+#  test:      # the contract tests, run on both sides (docs/os/03-contracts.md §5)
+#  compat:    # exits 0 when $NSTACK_HEAD_PATH is compatible with $NSTACK_BASE_PATH
+
+docs:
+  readme: README.md
+  agents: AGENTS.md
+  runbook: docs/runbook.md

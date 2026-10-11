@@ -1,0 +1,93 @@
+name: Governance
+
+# Architecture fitness functions, pull request scope, hooks and secrets.
+# These checks are NOT BYPASSABLE: that is what separates a rule from a pious wish
+# (docs/os/07-governance.md).
+#
+# To do once: Settings → Rules → Rulesets → require these checks on the main branch.
+# Without that, CI informs but guarantees nothing.
+#
+# Security, verified by zizmor: a read-only token, actions pinned by SHA and kept up to
+# date by Dependabot, no token left in .git/config, and values coming from the context
+# passed through env: instead of being inserted into the scripts.
+#
+# Tooling: uv, the only prerequisite. nstack and pre-commit are installed at the
+# project's NapkinStack version (_commit in .copier-answers.yml), which only changes
+# through nstack update.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  architecture:
+    name: Fitness functions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+
+      - name: NapkinStack, the project version
+        run: bash .nstack/install-engine.sh
+
+      - name: Manifests, boundaries, skills, plan, hygiene
+        run: nstack fitness --root .
+
+  scope:
+    name: PR scope and review budget
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 fetches every branch: no authenticated git fetch to do.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+
+      - name: NapkinStack, the project version
+        run: bash .nstack/install-engine.sh
+
+      - name: One PR = one module
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          BASE_REF: ${{ github.base_ref }}
+        run: nstack pr-scope --root . --base "origin/$BASE_REF"
+
+  hooks:
+    name: Hooks and secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml', '.copier-answers.yml') }}
+
+      - name: NapkinStack, the project version
+        run: bash .nstack/install-engine.sh
+
+      # The same configuration as the local hooks. The "gitleaks" hook only scans the
+      # staged changes, empty in CI: the next step covers the secrets.
+      - name: Hooks on every file
+        env:
+          SKIP: gitleaks
+        run: pre-commit run --all-files --show-diff-on-failure
+
+      # Rule S1: no secret in the repository. Output redacted, the logs are public.
+      - name: Secrets in the whole git history
+        run: pre-commit run gitleaks-history --hook-stage manual --all-files

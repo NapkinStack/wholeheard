@@ -1,0 +1,19 @@
+# Ties every change to an owner (docs/os/07-governance.md §7).
+# Updated automatically by nstack new-module.
+
+# Default owner: every path the rules below do not name. With the code owner review
+# required, a human approval covers every file (docs/os/07-governance.md §7).
+*                              @NapkinStack/maintainers
+
+# Foundation: any change to the OS itself goes through an ADR.
+/AGENTS.md                     @NapkinStack/maintainers
+/playbooks/                    @NapkinStack/maintainers
+/docs/os/                      @NapkinStack/maintainers
+/.nstack/                      @NapkinStack/maintainers
+/.github/                      @NapkinStack/maintainers
+/.copier-answers.yml           @NapkinStack/maintainers
+
+# Contracts: the most critical boundary in the system, never orphaned.
+/contracts/                    @NapkinStack/maintainers
+
+# Modules — one line per module, added by the scaffolding.

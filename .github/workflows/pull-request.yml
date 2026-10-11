@@ -1,0 +1,38 @@
+name: Pull request
+
+# The rules read from the pull request's description: the test sheet
+# (docs/os/05-workflow.md §7) and the cycle (docs/project/README.md). Editing the
+# description or a label re-evaluates them on the same head commit.
+#
+# The description is untrusted input: it reaches nstack through env:, never a script.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  description:
+    name: Test sheet and cycle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+
+      - name: NapkinStack, the project version
+        run: bash .nstack/install-engine.sh
+
+      - name: Test sheet and cycle
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_REF: ${{ github.base_ref }}
+        run: nstack pr-check --root . --base "origin/$BASE_REF"

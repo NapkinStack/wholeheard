@@ -1,0 +1,39 @@
+name: Architecture
+description: Boundary, contract, coupling, structuring decision
+labels: ["architecture"]
+body:
+  - type: textarea
+    id: signal
+    attributes:
+      label: Signal observed
+      description: |
+        Which coupling signal triggered this issue?
+        (docs/os/02-modules.md §9) — recurring cross-module PRs, a cycle detected,
+        modules always deployed together, an agent unable to work through the contract…
+    validations: { required: true }
+
+  - type: input
+    id: modules
+    attributes:
+      label: Modules concerned
+    validations: { required: true }
+
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Prior art
+      description: |
+        How is this problem solved elsewhere? Minimum two references.
+        (docs/os/06-decisions.md §2)
+    validations: { required: true }
+
+  - type: checkboxes
+    id: outcome
+    attributes:
+      label: Expected outcome
+      options:
+        - label: ADR
+        - label: Merging modules
+        - label: Re-splitting
+        - label: Contract change (expand/contract)
+        - label: A new fitness function

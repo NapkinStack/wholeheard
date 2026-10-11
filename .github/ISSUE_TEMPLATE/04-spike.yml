@@ -1,0 +1,26 @@
+name: Spike / Investigation
+description: Resolve an uncertainty. The deliverable is knowledge, not code.
+labels: ["spike"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question to answer
+      description: A closed question. If it is open-ended, the spike will never finish.
+    validations: { required: true }
+
+  - type: input
+    id: timebox
+    attributes:
+      label: Timebox
+      placeholder: "2 days"
+    validations: { required: true }
+
+  - type: textarea
+    id: deliverable
+    attributes:
+      label: Expected deliverable
+      description: |
+        A documented answer, an ADR, a throwaway prototype.
+        The code produced here is NOT destined for production.
+    validations: { required: true }

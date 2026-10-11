@@ -1,0 +1,106 @@
+name: Feature
+description: A new user capability
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue must be understandable by another human **or an agent** with no
+        spoken conversation. Otherwise it is not *Ready*.
+
+  - type: input
+    id: module
+    attributes:
+      label: Target module
+      description: EXACTLY ONE. If the task touches two, split it (docs/os/02-modules.md §7).
+      placeholder: modules/billing
+    validations: { required: true }
+
+  - type: input
+    id: deliverable
+    attributes:
+      label: Deliverable
+      description: >-
+        The deliverable of the current cycle this issue delivers (docs/project/cycles/).
+        Empty only for work outside the cycle.
+      placeholder: D1
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What the user must be able to do. One sentence.
+    validations: { required: true }
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why now. Link to the PDR or the ADR when the decision is taken.
+    validations: { required: true }
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What is explicitly NOT done here. This is the section that prevents drift.
+    validations: { required: true }
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Testable — they are the task's oracle (docs/os/05-workflow.md §3).
+      value: |
+        - [ ] Given <context>, when <action>, then <observable result>
+        - [ ] Given <error>, when <action>, then <expected behaviour>
+    validations: { required: true }
+
+  - type: checkboxes
+    id: cases
+    attributes:
+      label: Cases to cover
+      options:
+        - label: Nominal journey
+        - label: Edge cases
+        - label: Invalid input
+        - label: Permissions
+        - label: Empty state / first use (when there is UI)
+        - label: External dependency error
+
+  - type: dropdown
+    id: contracts
+    attributes:
+      label: Contracts
+      options:
+        - No contract affected
+        - Contract consumed (existing)
+        - Contract provided changed → a separate issue, expand/contract
+    validations: { required: true }
+
+  - type: checkboxes
+    id: playbooks
+    attributes:
+      label: Playbooks to load
+      options:
+        - label: security.md — authn/authz, secrets, personal data, external input
+        - label: data-migration.md — schema or existing data
+        - label: ux.md — user-facing surface
+        - label: tests.md — a test strategy that is not obvious
+        - label: operations.md — logs, retries, timeouts, rollback
+
+  - type: checkboxes
+    id: dor
+    attributes:
+      label: Definition of Ready
+      options:
+        - label: Goal understandable with no spoken exchange
+          required: true
+        - label: A single target module
+          required: true
+        - label: Scope and out of scope explicit
+          required: true
+        - label: Testable acceptance criteria
+          required: true
+        - label: Fits the review budget — otherwise split it now
+          required: true
