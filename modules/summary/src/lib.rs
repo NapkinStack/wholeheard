@@ -30,7 +30,11 @@ fn refused<T>(why: impl Into<String>) -> Result<T, Refused> {
 /// The segments of a transcript, in the order of the meeting. A line still being written —
 /// no line feed yet — is left out; a type or a field this version does not know is skipped.
 pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
-    let whole = text.rfind('\n').map_or("", |end| &text[..end]);
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    let Some(end) = text.rfind('\n') else {
+        return refused("the transcript holds no whole line yet: it is only being started, or it is empty");
+    };
+    let whole = &text[..end];
     let mut lines = whole.lines().filter(|line| !line.trim().is_empty());
     let header: serde_json::Value = lines.next().and_then(|line| serde_json::from_str(line).ok()).unwrap_or_default();
     if header["type"] != "header" || header["contract"] != TRANSCRIPT {
@@ -54,6 +58,11 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
         ) else {
             return refused("the transcript holds a segment without its speaker, its times or its text");
         };
+        if text.contains(['\n', '\r']) {
+            return refused(format!(
+                "the transcript holds a segment whose text is on more than one line, at {start}"
+            ));
+        }
         if !matches!(speaker, "me" | "others") || end < start {
             return refused(format!(
                 "the transcript holds a segment this version refuses: speaker {speaker}, {start} to {end}"
@@ -114,41 +123,131 @@ pub struct Made<'a> {
     pub context: Option<&'a str>,
 }
 
-/// The minutes file for a provider's answer — or the reason the answer is not minutes.
-pub fn minutes(answer: &str, made: &Made) -> Result<String, Refused> {
-    let body = answer.trim();
-    let sections: Vec<&str> = body.lines().filter(|line| line.starts_with("## ")).collect();
-    if !body.starts_with("## ") || sections.len() != 3 {
-        return refused(format!(
-            "the provider's answer is not minutes: {} section(s) of second level where three are expected",
-            sections.len()
-        ));
+/// Minutes this module accepted: the only thing [`write_minutes`] writes.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Minutes(String);
+
+impl Minutes {
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
-    if body
-        .split("\n## ")
-        .any(|section| section.lines().skip(1).all(|line| line.trim().is_empty()))
+}
+
+/// The level of a heading written with number signs, as Markdown reads the line; 0 otherwise.
+fn heading(line: &str) -> usize {
+    let indent = line.len() - line.trim_start_matches(' ').len();
+    let marks = line.trim_start_matches(' ');
+    let level = marks.len() - marks.trim_start_matches('#').len();
+    let after = &marks[level..];
+    if indent <= 3 && (1..=6).contains(&level) && (after.is_empty() || after.starts_with([' ', '\t'])) {
+        level
+    } else {
+        0
+    }
+}
+
+/// Why an answer is not three sections of second level and nothing else — `None` when it is.
+fn not_minutes(body: &str) -> Option<String> {
+    let lines: Vec<&str> = body.lines().collect();
+    if lines
+        .iter()
+        .any(|line| line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~"))
     {
-        return refused("the provider's answer is not minutes: a section is empty");
+        return Some("it holds a block of code".into());
     }
-    // A JSON string is a YAML string: quoted, escaped, on one line.
-    let quoted = |text: &str| serde_json::Value::from(text).to_string();
+    if heading(lines.first().copied().unwrap_or("")) != 2 {
+        return Some("it does not open on its first section".into());
+    }
+    // A line of dashes or equals signs under a line of text is a title too.
+    let underlined = lines.windows(2).any(|pair| {
+        let mark = pair[1].trim();
+        !pair[0].trim().is_empty()
+            && !mark.is_empty()
+            && (mark.chars().all(|c| c == '=') || (mark.len() >= 2 && mark.chars().all(|c| c == '-')))
+    });
+    if underlined || lines.iter().any(|line| heading(line) == 1) {
+        return Some("it holds a title above its sections".into());
+    }
+    let titles: Vec<&str> = lines.iter().copied().filter(|line| heading(line) == 2).collect();
+    if titles.len() != 3 {
+        return Some(format!("{} section(s) of second level where three are expected", titles.len()));
+    }
+    if titles.iter().any(|title| title.trim().trim_matches('#').trim().is_empty()) {
+        return Some("a section has no title".into());
+    }
+    let mut said = [false; 3];
+    let mut section = 0;
+    for line in &lines[1..] {
+        match heading(line) {
+            2 => section += 1,
+            0 if !line.trim().is_empty() => said[section] = true,
+            _ => {}
+        }
+    }
+    said.contains(&false).then(|| "a section is empty".into())
+}
+
+/// A text as one YAML string: quoted, on one line, with every character a YAML reader
+/// refuses or reads otherwise written as its escape.
+fn quoted(text: &str) -> String {
+    let mut out = String::from("\"");
+    for character in text.chars() {
+        match character {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() || matches!(c, '\u{2028}' | '\u{2029}' | '\u{feff}' | '\u{fffe}' | '\u{ffff}') => {
+                out.push_str(&format!("\\u{:04X}", c as u32))
+            }
+            c => out.push(c),
+        }
+    }
+    out + "\""
+}
+
+/// `2026-10-13T15:12:40+02:00`, or with `Z`: nothing else is written as the time.
+fn is_a_time(at: &str) -> bool {
+    let shape = |text: &str, shape: &str| {
+        text.len() == shape.len()
+            && text
+                .bytes()
+                .zip(shape.bytes())
+                .all(|(c, s)| if s == b'0' { c.is_ascii_digit() } else { c == s })
+    };
+    match at.len() {
+        20 => shape(at, "0000-00-00T00:00:00Z"),
+        25 => shape(&at[..19], "0000-00-00T00:00:00") && matches!(&at[19..20], "+" | "-") && shape(&at[20..], "00:00"),
+        _ => false,
+    }
+}
+
+/// The minutes file for a provider's answer — or the reason the answer is not minutes.
+pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
+    let body = answer.trim();
+    if let Some(why) = not_minutes(body) {
+        return refused(format!("the provider's answer is not minutes: {why}"));
+    }
+    if !is_a_time(made.at) {
+        return refused("the minutes cannot be dated: the time given is not a time");
+    }
     let context = made
         .context
         .map(str::trim)
         .filter(|context| !context.is_empty())
         .map_or("null".into(), quoted);
-    Ok(format!(
+    Ok(Minutes(format!(
         "---\ncontract: {MINUTES}\nmade: {}\nprovider: {}\nmodel: {}\ncontext: {context}\n---\n\n{body}\n",
         made.at,
         quoted(made.provider),
         quoted(made.model),
-    ))
+    )))
 }
 
 /// Puts the minutes in the session's folder: under their name only once they are whole. The
 /// minutes that were there are replaced; a failure before the last step leaves them as they were.
-pub fn write_minutes(folder: &Path, minutes: &str) -> io::Result<()> {
+pub fn write_minutes(folder: &Path, minutes: &Minutes) -> io::Result<()> {
     let draft = folder.join("minutes.md.part");
-    fs::write(&draft, minutes)?;
+    fs::write(&draft, minutes.as_str())?;
     fs::rename(draft, folder.join("minutes.md"))
 }
