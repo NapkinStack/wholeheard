@@ -9,9 +9,13 @@ prints what the cycle asks to be recorded: the setup time, the processing time a
 meeting's length, and the minutes themselves, for a human to count the actions that are
 missing, wrong or invented. Nothing leaves the machine except the two model downloads.
 
-    python3 d2.py MEETING.(wav|mp3|m4a|…) [--model mistral] [--whisper large-v3-turbo]
+    uv run --with faster-whisper python3 d2.py MEETING.(wav|mp3|m4a|…) \
+        [--model mistral] [--whisper large-v3-turbo] [--reference TRANSCRIPT.txt]
 
-Needs on the path: ffmpeg, whisper-cli (package whisper-cpp), and a running `ollama serve`.
+Needs: ffmpeg on the path, a running `ollama serve`, and a local Whisper engine — the Python
+one named above, which `uv` fetches for this run, or a `whisper-cli` on the path. Fedora's
+`whisper-cpp` package ships the library and no program: found on the first run, 2026-10-12.
+`--reference` compares the transcript with a human one, word for word.
 The audio and everything made from it stay in a folder beside the audio file: delete it
 afterwards, and never commit it (docs/project/rules/security.md, rule 2).
 """
@@ -20,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -69,6 +74,33 @@ def ollama(path: str, body: dict | None = None, timeout: int = 3600) -> dict:
         return json.load(response)
 
 
+def samples_of(wav: Path):
+    """The converted file as numbers. The engine's own decoder broke on its audio library, 2026-10-12."""
+    import wave
+
+    import numpy
+
+    with wave.open(str(wav), "rb") as audio:  # 16 kHz, one channel, 16 bits: what ffmpeg wrote
+        return numpy.frombuffer(audio.readframes(audio.getnframes()), dtype=numpy.int16).astype(numpy.float32) / 32768
+
+
+def words_of(text: str) -> list[str]:
+    """Words only, lower case: timestamps, speakers' numbers and punctuation are not speech."""
+    text = re.sub(r"\[\d\d:\d\d\](\s*\d+:)?", " ", text).lower().replace("_", " ").replace("+", " ")
+    return re.findall(r"[a-zàâäçéèêëîïôöùûüÿœæ0-9]+", text)
+
+
+def word_errors(reference: str, heard: str) -> float:
+    """Word error rate, in per cent: the edits that turn what was heard into the reference."""
+    ref, hyp = words_of(reference), words_of(heard)
+    row = list(range(len(hyp) + 1))
+    for i, a in enumerate(ref, 1):
+        previous, row[0] = row[0], i
+        for j, b in enumerate(hyp, 1):
+            previous, row[j] = row[j], min(row[j] + 1, row[j - 1] + 1, previous + (a != b))
+    return 100 * row[-1] / max(len(ref), 1)
+
+
 def minutes(clock_time: float) -> str:
     return f"{int(clock_time // 60)} min {int(clock_time % 60):02d} s"
 
@@ -78,13 +110,21 @@ def main() -> None:
     parser.add_argument("audio", type=Path)
     parser.add_argument("--model", default="mistral", help="the local model that writes the minutes (ollama)")
     parser.add_argument("--whisper", default="large-v3-turbo", help="the Whisper model that transcribes")
+    parser.add_argument("--reference", type=Path, help="a human transcript of the same audio, to compare with")
     args = parser.parse_args()
 
     whisper = shutil.which("whisper-cli") or shutil.which("whisper-cpp")
-    for name, found in (("ffmpeg", shutil.which("ffmpeg")), ("whisper-cli", whisper)):
-        if not found:
-            sys.exit(f"FAIL [d2] {name} is not on the path.\n      Action: sudo dnf install "
-                     f"{'whisper-cpp' if name == 'whisper-cli' else name}")
+    try:
+        import faster_whisper  # noqa: F401 — present when run through `uv run --with faster-whisper`
+        engine = "faster-whisper"
+    except ImportError:
+        engine = "whisper-cli" if whisper else None
+    if not shutil.which("ffmpeg"):
+        sys.exit("FAIL [d2] ffmpeg is not on the path.\n      Action: sudo dnf install ffmpeg")
+    if engine is None:
+        sys.exit("FAIL [d2] no local Whisper engine: neither the Python one nor a whisper-cli program.\n"
+                 "      Action: run this script as  uv run --with faster-whisper python3 "
+                 f"{Path(__file__).name} …  — the distribution's whisper-cpp package holds the library only.")
     try:
         have = {model["name"].split(":")[0] for model in ollama("/api/tags", timeout=5).get("models", [])}
     except (urllib.error.URLError, OSError):
@@ -98,7 +138,7 @@ def main() -> None:
     setup = 0.0
 
     weights = work.parent / f"ggml-{args.whisper}.bin"
-    if not weights.is_file():
+    if engine == "whisper-cli" and not weights.is_file():
         print(f"Setup       : downloading the transcription model {args.whisper} …", flush=True)
         setup += clock("download", ["curl", "-L", "--fail", "--progress-bar", "-o", str(weights),
                                     WHISPER_MODELS.format(name=args.whisper)])
@@ -109,8 +149,21 @@ def main() -> None:
     print("Transcribing: this is the long step …", flush=True)
     wav = work / "audio-16k.wav"
     convert = clock("ffmpeg", ["ffmpeg", "-y", "-loglevel", "error", "-i", str(args.audio), "-ar", "16000", "-ac", "1", str(wav)])
-    transcribe = clock("whisper", [whisper, "-m", str(weights), "-f", str(wav), "-l", "fr", "-otxt",
-                                   "-of", str(work / "transcript"), "-np"], stdout=subprocess.DEVNULL)
+    if engine == "faster-whisper":
+        from faster_whisper import WhisperModel
+
+        start = time.monotonic()
+        model = WhisperModel(args.whisper, device="cpu", compute_type="int8")  # fetched the first time
+        loaded = time.monotonic() - start
+        start = time.monotonic()
+        segments, _ = model.transcribe(samples_of(wav), language="fr", vad_filter=True)
+        lines = [f"[{int(s.start // 60):02d}:{int(s.start % 60):02d}] {s.text.strip()}" for s in segments]
+        transcribe = time.monotonic() - start
+        setup += loaded  # the first load includes the download; later ones are seconds
+        (work / "transcript.txt").write_text("\n".join(lines), encoding="utf-8")
+    else:
+        transcribe = clock("whisper", [whisper, "-m", str(weights), "-f", str(wav), "-l", "fr", "-otxt",
+                                       "-of", str(work / "transcript"), "-np"], stdout=subprocess.DEVNULL)
     transcript = (work / "transcript.txt").read_text(encoding="utf-8").strip()
 
     print("Summarising : …", flush=True)
@@ -126,9 +179,13 @@ def main() -> None:
     # means the model saw only the beginning — the silent failure the idea file's R7 forbids.
     cut = read and read < words
     processing = convert + transcribe + summarise
+    accuracy = "no reference given"
+    if args.reference and args.reference.is_file():
+        accuracy = f"{word_errors(args.reference.read_text(encoding='utf-8'), transcript):.0f} % of the words differ (substituted, missing or added)"
     print(f"""
 D2 — to paste into the cycle
-  Machine            : this laptop, models {args.whisper} and {args.model}
+  Machine            : this laptop, engine {engine}, models {args.whisper} and {args.model}
+  Against a human    : {accuracy}
   Meeting            : {minutes(length)} of audio, {words} words transcribed
   Setup (downloads)  : {minutes(setup) if setup else "nothing to download this time"}   threshold: under 15 min, packages included
   Transcription      : {minutes(convert + transcribe)}

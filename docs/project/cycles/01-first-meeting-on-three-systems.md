@@ -238,6 +238,60 @@ Three of these are the desktop's rules, not the toolkit's: a drawn interface wou
 same tray, the same portal and the same refusal to steal the focus. The one that was the
 web view's own risk — the window — is the one that simply worked.
 
+### D2 — first run, on a public sample (2026-10-12)
+
+```mermaid
+flowchart LR
+    A["A French meeting<br/>5 min, 4 speakers<br/>public corpus"]:::in --> T["Transcription, local<br/>1 min 50 s — 36 % of its length"]:::ok
+    T --> S["Minutes, local model<br/>4 min 28 s — 89 % of its length"]:::ko
+    S --> Q["Actions read against<br/>what was agreed:<br/>4 of 7 wrong"]:::ko
+
+    classDef in fill:#374151,color:#fff
+    classDef ok fill:#065f46,color:#fff
+    classDef ko fill:#7c2d12,color:#fff
+```
+
+**Legend** — grey: the input · green: under its threshold · red: over it.
+
+The decider chose not to wait for a meeting of their own. The sample is five minutes of a
+planning meeting from [SUMM-RE](https://huggingface.co/datasets/linagora/SUMM-RE) (CC BY-SA
+4.0), with a human transcript. **It is not the hour the criterion asks for**: what follows is
+a first reading, and the verdict is the decider's.
+
+| Measure | Result | Threshold |
+|---|---|---|
+| Machine | The decider's laptop: 16 threads, 23 GB, integrated graphics — the model ran on the processor alone | — |
+| Engines | `faster-whisper` with `large-v3-turbo`; `mistral` 7B through Ollama | — |
+| Setup | **70 min 15 s**, nearly all of it two downloads (6 GB) | under 15 min — **over** |
+| Transcription | 1 min 50 s, 36 % of the meeting's length | — |
+| Minutes | 4 min 28 s, 89 % of the meeting's length | — |
+| Processing, total | **125 %** of the meeting's length | under 50 % — **over** |
+| Transcript against the human one | 27 % of the words differ — overstated: the human one writes hesitations, numbers in letters and overlapping speech | — |
+| Actions missing, wrong or invented | **4 of 7 wrong**, read by the agent, to be confirmed by the decider | at most 1 in 5 — **over** |
+
+What the minutes got wrong: the meeting **decided** its date and the minutes list it as an
+action to do; a deadline is invented; and twice the owner is a person the meeting talks
+*about*, not a participant. The transcript does not say who speaks, so the model guesses.
+
+**Does knowing who speaks fix it?** Tried the same day, each speaker's track transcribed
+apart, same model, one run each:
+
+| The transcript says | Actions written | Wrong | What is lost |
+|---|---|---|---|
+| Nothing about who speaks | 7 | 4 | The decided date |
+| Each of the four speakers | 3 | 2 — the owners | Two actions, the fallback date |
+| **Me / Others**, as the product records | 5 | 1 | Deadlines; it writes *not specified* rather than guess |
+
+One run each is no measurement: the third row may be luck. What it suggests is worth a
+criterion in D5 — **minutes that say *not specified* instead of naming someone**.
+
+**What was learned about the tools**, for the engine D4 and D5 will choose:
+
+- The distribution's `whisper-cpp` package holds the library and no program.
+- The Python engine's own decoder broke on its audio library; it was handed raw samples.
+- That engine's voice detector tried to send telemetry to its publisher at start.
+- A meeting of an hour is about 37,000 tokens: over the 32,768 this model was given.
+
 **D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
 quality. Writing them today would be writing them around the answer hoped for.
