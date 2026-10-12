@@ -35,6 +35,11 @@ problem, what the product does — and ask the decider to correct it. Record the
 the front matter. Until the decider confirms the paragraph, mark it *unconfirmed*: the round
 cannot be decided while it is.
 
+Ask, once, **in which language the project writes** — its documents, its code, its commit
+messages. The idea file may be in one language and the framework's forms in another; nobody
+notices until half the documents are in each. The answer is the project's first rule: one
+line of `docs/project/rules/always.md`, written now, with the idea file left as it was given.
+
 ## 2. Research
 
 With the research tools of `.nstack/tooling-profile.md` — or, when that row is empty, the tools
@@ -49,6 +54,11 @@ Each finding goes in the evidence table, with what it changes for the idea and i
 Prefer the primary source; mark figures a company reports about itself, and claims seen only
 in a search excerpt. A claim without a source goes to *Assumptions*. Stop when each of the
 four points has at least one sourced finding, or an explicit "not found".
+
+**A legal or regulatory claim is read at its primary source — the text itself, the
+regulator's page — or it is an assumption.** A summary of a law by someone who sells a
+product under it is not a source, and a rule the design will rest on is the last thing to
+take second-hand: say "not read" rather than mark it as seen elsewhere.
 
 ## 3. Define
 

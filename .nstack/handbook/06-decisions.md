@@ -357,7 +357,7 @@ grey: owed — asked of a human, read by no check.
 | Charter — `docs/project/charter.md` | Users, problem, constraints, success criteria | The framing | The decider alone (§4) |
 | Front page, whole — `README.md` | What it is, how to run it, where its decisions live | The charter is **accepted** | Each cycle's closure |
 | Security policy — `SECURITY.md` | How to report a vulnerability, who answers, how fast | Creation, as a default; reviewed when the charter is accepted — it says what data the product holds | A change of channel or of maintainers |
-| The project's own rules — `docs/project/rules/` | What this project adds to a playbook, and how each rule is checked | The charter is accepted: its constraints are the first ones | The decision or the incident that adds a rule; a check that replaces one |
+| The project's own rules — `docs/project/rules/` | What this project adds to a playbook, and how each rule is checked | The first decision that binds how the work is done — the language, at a discovery's intake; the charter's constraints, at its acceptance | The decision or the incident that adds a rule; a check that replaces one |
 | The project's tools — `.nstack/tooling-profile.md` | Which tool serves which capability | A tool is chosen | The decision that replaces one |
 | A cycle — `docs/project/cycles/` | One goal, its deliverables, its end date, its closure | The charter is accepted | The decider alone |
 | Module map — `modules/README.md` | The modules, and the contracts between them | A module holds its **first file of code** | The pull request that creates, merges or retires a module |

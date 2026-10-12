@@ -164,8 +164,9 @@ only by who works in that module. In italics, one rule of each level on one subj
 **A nearer level adds or tightens; it never repeats.** A project's rule on security is read
 *with* the security playbook, not instead of it: `docs/project/rules/security.md`, loaded by
 the same trigger. `docs/project/rules/always.md` holds the few that apply to every task. The
-folder is empty at creation — a project has no rule of its own before it has a charter — and
-each file is born the day a constraint, a decision or an incident gives it a first line.
+folder is empty at creation, and each file is born the day a constraint, a decision or an
+incident gives it a first line — as early as a discovery's intake, where a project settles
+the language it writes in.
 
 **The framework never names a stack, a tool or a business domain.** A project rule is
 written in a project document, never in the kernel or a playbook: the framework's files

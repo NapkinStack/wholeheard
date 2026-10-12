@@ -54,7 +54,7 @@ mention such a commit, and where a ruleset does refuse, it catches a bypass.
 
 ```bash
 # 1. Tooling at the project's NapkinStack version (prerequisite: uv)
-uv tool install "napkinstack==0.6.2-23-gf5dbede" --with-executables-from pre-commit
+uv tool install "napkinstack==0.6.2-24-gcf6fbfe" --with-executables-from pre-commit
 
 # 2. Hooks, once per clone
 pre-commit install
