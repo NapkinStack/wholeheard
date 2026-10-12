@@ -87,9 +87,9 @@ known, once the repository is opened. Nothing measures it yet.
 | A recording is made that a participant did not know about | A criminal offence for the user, in France; the end of the product's reason to exist | Accepted by the decider as the user's responsibility (constraints). By the handbook's own rule — a module that "touches someone's personal data is `critical`" (`docs/os/05-workflow.md` §7) — the capture module would be **critical**. **The decider declares it `standard` for now, and `critical` before the repository is opened** (2026-10-12): three users who agreed, a private repository, one builder. A deviation from the handbook's rule, taken knowingly; the day strangers install Summit it ends |
 | A recording or a transcript leaves the machine without the user choosing it | The one promise the product keeps against a bot, broken | `playbooks/security.md` applies from the first cycle; a rule of the project is proposed (`rules/security.md`) |
 | A recording is lost: a crash, a full disk | A meeting that cannot be held again | Part of the capture module's criticality |
-| The nearest product works after all | Nothing to build; perhaps a contribution | The first spike of the first cycle: one hour |
-| Three systems, tested on one | Two of three users never get a working build | The second spike: a two-day probe on the three machines, before any feature |
-| An all-local result in French is not worth keeping | "Everything stays on the machine" stops being a reason to use it | The third spike: half a day, by hand |
+| The nearest product works after all | Nothing to build; perhaps a contribution | **Not tested, by the decider's choice** (2026-10-12): "on ne le fait pas, on a déjà acté le dev Summit". The spike the discovery carried is dropped, and the objection it answered stays open: nobody ran the nearest product's Linux build |
+| Three systems, tested on one | Two of three users never get a working build | The first deliverable of the first cycle: a two-day probe on the three machines, before any feature |
+| An all-local result in French is not worth keeping | "Everything stays on the machine" stops being a reason to use it | The second deliverable of the first cycle: half a day, by hand |
 | The scope of the idea does not fit the time the decider wants to spend | A cycle that ends on nothing usable | The appetite is asked, and the scope is cut to it — never the reverse |
 
 ## Vocabulary
@@ -128,8 +128,8 @@ The framer's, accepted with the discovery:
 
 **Not blocking:**
 
-- Does the project pay for signing on macOS and Windows? Decided after the second spike of
-  the first cycle, on what it records.
+- Does the project pay for signing on macOS and Windows? Decided after the first cycle's
+  probe (D1), on what it records.
 - May the reminder to announce the recording be switched off? The idea file says yes (C7);
   since the announcement is now the only thing that makes a recording lawful, the framer
   would say no.
