@@ -160,6 +160,7 @@ D1 records.
 | 2026-10-12 | Fedora 44, GNOME on Wayland, PipeWire 1.6 | `d1-capture`, 20 s, by the decider | A file with sound, 20.0 s; loudest sample at 100 % of full scale — it clipped | **A file of silence**, 20.0 s, opened on the default output with no error | Not met. Not yet known whether anything was playing: the probe now plays a test note of its own and tries a second way to open the output |
 | 2026-10-12 | Same | `d1-capture`, 10 s, `--tone`, by the decider | Heard | **Heard**: the probe's own note, which the decider heard on the loudspeakers | **Met with a test note, not with a call.** The first run's silence was nothing playing: the decider had not spoken and no sound was running. Which of the two ways heard it was not reported. Still to record: a real call; and whether "me" stays free of the others' voices when they come out of loudspeakers the microphone can hear |
 | 2026-10-12 | Same | `d1-capture`, 60 s, by the decider, meant as the real call | "A file with sound", 59.9 s, loudest sample at 100 % — **a verdict the file does not support**: read back, the two channels rest at −19 % and −33 % of full scale for the whole minute, the 100 % is a click in the first 45 ms, and what moves around the resting level is 1 % with a few peaks to 25 %. Measured from zero, a silent room passes | **Two files of exact zeros**, 5,754,880 samples each, on both ways of opening the output | **Not met, and not a call's failure**: the same minute, read sample by sample, shows that nothing reached the loudspeakers. Checked next by the framer, microphone closed (`--others-only`): a note played by **another program** is heard on both ways, and silence is reported when nothing plays. So the capture hears what other programs play; whether a call was running, and on which output, is the decider's to say. The machine's configured output is a Bluetooth headset that was not connected. The probe now measures a file around its resting level, first second left out |
+| 2026-10-12 | Same | `d1-capture`, 60 s, by the decider, **during a WhatsApp call in Firefox** | A file with sound, 60.0 s: loudest sample 16.6 % around a resting level of −32.7 % — the same offset as the run before. Read back: a noise floor of 0.6 % and about 3 s of the minute clearly above it. **Weak**; whether the decider's voice is intelligible in it is theirs to hear | **Heard on both ways**, 60 s, the two files the same sound; 12 samples of 5.7 million at full scale, mean level 5 % | **Met on Fedora with a real call.** The others spoke for about 8 s of the minute, and the microphone's level does not follow theirs (correlation 0.08): no trace of them in "me" on this run — on which output they were heard was not reported, so loudspeakers bleeding into the microphone stays untested |
 
 | Date | System | Run | Window | Theme and font | Tray icon | Global shortcut |
 |---|---|---|---|---|---|---|
@@ -181,7 +182,7 @@ flowchart LR
     T -.- T1["only with an extension<br/>the user installs"]:::note
     K -.- K1["only through the portal,<br/>for an installed application,<br/>after the user allows it"]:::note
     F -.- F1["from the shortcut: yes, with the<br/>portal's token · from the tray's<br/>menu: refused, a notification"]:::note
-    A -.- A1["heard on a test note;<br/>a real call still to record"]:::note
+    A -.- A1["a real call recorded;<br/>the microphone weak and off-centre,<br/>bleed from loudspeakers untested"]:::note
 
     classDef yes fill:#065f46,color:#fff
     classDef part fill:#1e3a8a,color:#fff
@@ -242,8 +243,8 @@ fifth principle rather than fighting it:
   error. Not tested yet — it is the first thing the real call should try.
 
 **D1 is not closed.** Windows and macOS wait for builds the decider chose to set up later
-(2026-10-12: "on mettra les workflows plus tard"), and a real call is still to record on
-Fedora. D3 cannot be accepted on a system D1 has not answered for.
+(2026-10-12: "on mettra les workflows plus tard"). **Fedora's half is answered**: window,
+tray, shortcut, and the two files of a real call. D3 cannot be accepted on a system D1 has not answered for.
 
 Three of these are the desktop's rules, not the toolkit's: a drawn interface would meet the
 same tray, the same portal and the same refusal to steal the focus. The one that was the
