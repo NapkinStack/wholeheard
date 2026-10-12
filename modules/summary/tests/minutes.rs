@@ -313,6 +313,14 @@ fn a_transcript_holds_its_header_first_and_each_segment_once() {
     let segment = r#"{"type": "segment", "speaker": "me", "start": 1.0, "end": 2.0, "text": "Bonjour."}"#;
     // Said twice — a step run again badly — it is read once; an empty line between two is no line.
     assert_eq!(read_transcript(&transcript(&[segment, "", segment])).unwrap().len(), 1);
+    let at_zero = segment.replace("1.0", "0.0").replace("2.0", "1.0");
+    let at_minus_zero = at_zero.replace(r#""start": 0.0"#, r#""start": -0.0"#);
+    assert_eq!(
+        read_transcript(&transcript(&[&at_zero, &at_minus_zero, &at_zero.replace("0.0,", "0e0,")]))
+            .unwrap()
+            .len(),
+        1
+    );
     for (text, expected) in [
         (format!("\n{}", transcript(&[segment])), "does not name transcript/v1"),
         (transcript(&[&segment.replace("1.0", "-1.0")]), "speaker me, -1 to 2"),

@@ -70,7 +70,8 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
             ));
         }
         // A segment is known by its speaker and its start: said twice, it is read once.
-        if known.insert((speaker == "me", start.to_bits())) {
+        // Adding zero makes the two zeros one: -0.0 and 0.0 are the same start.
+        if known.insert((speaker == "me", (start + 0.0).to_bits())) {
             segments.push(Segment {
                 speaker: speaker.into(),
                 start,
