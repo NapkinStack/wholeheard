@@ -103,14 +103,55 @@ found, each one the operating system's doing rather than a toolkit's.
 **On this workstation (read 2026-10-12):** Flutter and Dart are installed; no Rust toolchain;
 `ffmpeg`, `pw-record` and `pactl` are present; the session is GNOME on Wayland.
 
-**Two candidates for the probe**, as the handbook asks before any structuring choice:
+**The two candidates, read at their sources (2026-10-12), and the one the probe starts
+with.** The decider asked for a thorough reading, with two weights: the interface comes
+first, and the software must be of quality. *Read* means the page itself; *secondary* a
+search summary.
 
-| | Flutter — the decider's candidate | A Rust core with a web view (Tauri) |
-|---|---|---|
-| Installed here | Yes | No |
-| Tray, shortcut | Plugins exist for both; GNOME and Wayland limits as above | Built in; its shortcut library read by the challenger as "Linux (X11 Only)" |
-| System's sound | Plugins too young to rely on: native code behind a channel | Direct access to each system's audio interface from the core |
-| What it costs to probe | Half a day to a first window on Fedora | Installing a toolchain first |
+```mermaid
+flowchart LR
+    subgraph Core["What Summit is, whatever shows it"]
+        C["A core that runs with no window:<br/>capture, transcribe, summarise, export"]:::core
+    end
+    C --> U1["A web interface in the system's own view<br/>(Tauri) — same toolchain as the core"]:::chosen
+    C -.-> U2["A drawn interface (Flutter)<br/>— a second toolchain, joined to the core"]:::kept
+    U1 -. "if it fails on Fedora:<br/>the core stays, the shell changes" .-> U2
+
+    classDef core fill:#374151,color:#fff
+    classDef chosen fill:#065f46,color:#fff
+    classDef kept fill:#1e3a8a,color:#fff
+```
+
+**Legend** — grey: the part every step and every right-click needs, with no window at all ·
+green: the shell the probe starts with · blue: the shell kept in reserve, which the probe
+can still fall back to.
+
+| Criterion | Flutter | Rust core with a web view (Tauri v2) | Source |
+|---|---|---|---|
+| **The system's sound, on three systems** — the hard part | Packages too young: one at version 0.0.2 with 38 downloads, another without macOS or Linux. Native code per system, written by hand | One audio library with a host per system: WASAPI, CoreAudio — "loopback recording requires 14.6+" — and PipeWire or PulseAudio as optional hosts | [cpal](https://github.com/RustAudio/cpal), *read*; Flutter packages *secondary* |
+| **Running a step with no window** — a right-click on a file, the idea's §8 | The interface toolkit is the application; a headless step is a second program | The core is a program of its own; the window is one of its clients | The idea file, §8 |
+| **What the nearest products chose** | None found | Both: Meetily — "built with Tauri", "a Rust-based backend" — and Anarlog — "Tauri v2 desktop app: React and TypeScript UI, Rust backend" | Their repositories, *read* |
+| **The interface: quality and the system's look** — the decider's first weight | Draws every pixel itself: identical on the three systems, and not the system's controls or fonts unless rebuilt | The system's own web view: the system's fonts and light or dark theme come for free; three engines to test — Chromium on Windows, WebKit on macOS, WebKitGTK on Linux | [Tauri, webview versions](https://v2.tauri.app/reference/webview-versions/), *read* |
+| **Linux rendering** — where the nearest products are weakest | A GTK embedder, no web engine in between | Its own documentation lists blank windows and crashes, "most often NVIDIA GPUs" | [Tauri, Linux graphics](https://v2.tauri.app/develop/debug/linux-graphics/), *secondary* |
+| **Global shortcut under Wayland** | Its package needs `keybinder-3.0`, an X11 library, and was published two years ago | Its plugin's page says nothing of Wayland; its library was read by the challenger as X11 only. A wrapper of the desktop portal exists for Rust | [hotkey_manager](https://pub.dev/packages/hotkey_manager), [ashpd](https://docs.rs/ashpd/latest/ashpd/desktop/global_shortcuts/index.html), *read* |
+| **Tray** | Needs an extension under GNOME | Needs the same; and on Linux "the event is not emitted even though the icon is shown" — a menu on right click only | [Tauri, system tray](https://v2.tauri.app/learn/system-tray/), *read* |
+| **Toolchains for one builder** | Dart, plus native code in three languages for the capture | Rust, plus a web interface | — |
+
+**On the decider's workstation, read the same day:** an AMD graphics card, not the one
+Tauri's page warns about; WebKitGTK 2.54; GNOME 50, which has the shortcuts portal; PipeWire
+1.6; **no tray extension installed** — the icon will not show there with either candidate.
+
+**The probe starts with the Rust core and the web view.** In order of weight: the capture
+is the part that can sink the product, and one library covers the three systems; every step
+must run without a window, so the core exists whichever shell is chosen, and one toolchain
+is what one builder can hold; the two nearest products made this choice; and the idea asks
+for the system's look, which a web view inherits and a drawn interface has to imitate. What
+it costs is known: three web engines instead of one renderer, and Linux is where that engine
+is weakest. **So D1 tests exactly that**, on the decider's Fedora first — a window that
+renders badly there ends the web view, not the core, and the drawn shell takes its place.
+
+This is the choice **for the probe**. The decision for the product is an ADR, written on what
+D1 records.
 
 **D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
