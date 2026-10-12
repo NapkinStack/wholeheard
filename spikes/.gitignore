@@ -1,3 +1,4 @@
 # Throwaway probes: nothing built, and no recording, enters the repository.
 target/
 *.wav
+gen/
