@@ -6,13 +6,15 @@
 //! 16,000 samples a second, centred, and on disk as soon as it is heard.
 
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{self, Seek, SeekFrom, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 /// Samples per second of every audio file of a session.
 pub const RATE: u32 = 16_000;
+/// The contract's name, as `session.json` carries it.
+pub const CONTRACT: &str = "session-audio/v1";
 /// Below this share of full scale, a source is silent.
 pub const SILENCE: f32 = 0.001;
 
@@ -179,4 +181,83 @@ fn header(riff: u32, data: u32) -> [u8; HEADER as usize] {
     bytes[36..40].copy_from_slice(b"data");
     bytes[40..44].copy_from_slice(&data.to_le_bytes());
     bytes
+}
+
+/// Says when a source has been silent for too long, and when it is heard again — once each.
+pub struct Watch {
+    quiet_for: f64,
+    limit: f64,
+    told: bool,
+}
+
+/// What a [`Watch`] has to say after a stretch of sound.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Heard {
+    Nothing,
+    Silent,
+    Again,
+}
+
+impl Watch {
+    pub fn new(limit_seconds: f64) -> Self {
+        Self {
+            quiet_for: 0.0,
+            limit: limit_seconds,
+            told: false,
+        }
+    }
+
+    /// `loudest` is the loudest sample of the last `seconds`.
+    pub fn after(&mut self, seconds: f64, loudest: f32) -> Heard {
+        if loudest > SILENCE {
+            self.quiet_for = 0.0;
+            return if std::mem::take(&mut self.told) {
+                Heard::Again
+            } else {
+                Heard::Nothing
+            };
+        }
+        self.quiet_for += seconds;
+        if self.quiet_for >= self.limit && !self.told {
+            self.told = true;
+            return Heard::Silent;
+        }
+        Heard::Nothing
+    }
+}
+
+/// Creates the session's folder, named by the local day and hour — `2026-10-13_14-05`; a
+/// second session in the same minute takes `-2`.
+pub fn new_folder(sessions: &Path, day_and_hour: &str) -> io::Result<PathBuf> {
+    fs::create_dir_all(sessions)?;
+    for attempt in 1..1000 {
+        let name = if attempt == 1 {
+            day_and_hour.to_string()
+        } else {
+            format!("{day_and_hour}-{attempt}")
+        };
+        let folder = sessions.join(name);
+        match fs::create_dir(&folder) {
+            Ok(()) => return Ok(folder),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Err(io::Error::new(io::ErrorKind::AlreadyExists, "too many sessions in the same minute"))
+}
+
+/// Writes `session.json`, whole or not at all. `stopped` absent means: still recording, or
+/// ended by a crash.
+pub fn write_session(folder: &Path, started: &str, stopped: Option<&str>, me: &str, others: &str) -> io::Result<()> {
+    let mut session = serde_json::json!({
+        "contract": CONTRACT,
+        "started": started,
+        "sources": { "me": { "device": me }, "others": { "device": others } },
+    });
+    if let Some(stopped) = stopped {
+        session["stopped"] = stopped.into();
+    }
+    let draft = folder.join("session.json.part");
+    fs::write(&draft, serde_json::to_vec_pretty(&session)?)?;
+    fs::rename(draft, folder.join("session.json"))
 }
