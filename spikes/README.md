@@ -22,7 +22,9 @@ On a Linux desktop the portal gives a global shortcut only to an application it 
 Install the probe's desktop entry once, and remove it when the spike is over:
 
 ```bash
-install -Dm644 dev.summit.d1shell.desktop ~/.local/share/applications/dev.summit.d1shell.desktop
+# the entry must name the program by its full path: the desktop discards one it cannot find
+sed "s|^Exec=.*|Exec=$PWD/target/release/d1-shell|" dev.summit.d1shell.desktop \
+  > ~/.local/share/applications/dev.summit.d1shell.desktop
 rm ~/.local/share/applications/dev.summit.d1shell.desktop    # afterwards
 ```
 
