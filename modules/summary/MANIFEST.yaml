@@ -13,7 +13,7 @@ module:
   contact: "@NapkinStack/maintainers"
 
   # proposed | active | maintenance | deprecated | retired   (.nstack/handbook/02-modules.md §6)
-  lifecycle: proposed
+  lifecycle: active
 
   # What does a failure of this module cost? nothing, thrown away | a user's patience |
   # a day of work | a key, an order, money, personal data. The decider settles it; what
@@ -35,7 +35,11 @@ module:
   #   removal_date: YYYY-MM-DD
 
 # Contracts PROVIDED by this module. `path` holds its document (B7).
-provides: []
+provides:
+  - contract: minutes
+    version: v1
+    path: contracts/minutes/v1
+    stability: experimental      # experimental | stable | deprecated
 #  - contract: summary-api
 #    version: v1
 #    path: contracts/summary-api/v1
@@ -45,7 +49,10 @@ provides: []
 # Contracts CONSUMED - this is the DECLARED graph.
 # CI compares it with the contracts this module's files read: one read and not declared
 # fails (B1), one declared and never read is reported (B4), one nobody provides fails (B6).
-consumes: []
+consumes:
+  - contract: transcript
+    version: v1
+    module: transcription
 #  - contract: identity-api
 #    version: v1
 #    module: identity
@@ -57,7 +64,11 @@ data:
 
 # Significant external dependencies.
 # Each one declares its exit strategy (.nstack/handbook/06-decisions.md §3).
-dependencies: []
+dependencies:
+  - name: serde_json
+    purpose: Reads the transcript's lines and quotes the minutes' front matter
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One parser of lines and one quoting function in src/lib.rs; any JSON library replaces it.
 #  - name:
 #    purpose:
 #    adr:
@@ -68,11 +79,8 @@ dependencies: []
 # No stack is imposed. check and test are required once the module holds more than its
 # description (fitness M7): declare them before its first file of code.
 commands:
-#  check:                        # under 2 min: format, lint, types
-#  test:                         # NEVER starts another module
-#  bootstrap:                    # optional: make the module usable from a fresh clone
-#  run:                          # optional: local start, with doubles for the dependencies
-#  e2e:                          # optional: end-to-end scenarios; evidence written to .evidence/
+  check: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
+  test: cargo test --locked
 
 docs:
   readme: README.md

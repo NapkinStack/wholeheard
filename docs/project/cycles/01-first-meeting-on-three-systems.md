@@ -404,6 +404,54 @@ One run each; the count is the agent's, for the decider to confirm.
 What it does not answer: a meeting of an hour; a recording of the decider's own; cost, which
 was cents for the six runs and is not measured here.
 
+### D4 — a native engine tried before the engine is chosen (2026-10-13)
+
+ADR-0002 left the transcription engine to its own decision: D2's probe used a Python one,
+and the core is Rust. Tried: whisper.cpp linked into a Rust program (`spikes/d4-engine`), on
+the same public five-minute sample, the same model family, the decider's laptop, processor only.
+
+| | Python engine, D2 | Native engine, linked into Rust |
+|---|---|---|
+| Model | `large-v3-turbo`, 8-bit | `large-v3-turbo`, 5-bit, 574 MB |
+| Words that differ from the human transcript | 26.8 % | 28.0 % |
+| Time, as a share of the sample's length | 36 % | **82 %** on 8 threads — 220 % on 16, the number the system reports |
+| Model loaded in | not measured apart | 0.4 s |
+| To build it | `uv` fetches it | A C++ compiler and CMake; no system package |
+| To ship it | A Python runtime beside a Rust program | One program |
+
+One run each. **What it answers:** the native engine hears as well — 1.2 points apart, inside
+what the count itself overstates. **It does not meet D4's second criterion**, half the
+sample's length: it is 2.3 times slower than the Python engine on this processor. And the
+number of threads is not a detail — one per logical core made it 2.7 times slower than one
+per physical core.
+
+**Not tried**, each of which could change the answer: the graphics card (a Vulkan build needs
+three system packages only the decider can install); a model stored on 8 bits or unquantised;
+a smaller model, faster and less exact; a voice detector that skips silence, which the Python
+engine has and this probe has not.
+
+```mermaid
+flowchart LR
+    Q["Which engine<br/>for D4?"]:::ask --> P["The Python engine:<br/>meets both thresholds today"]:::yes
+    Q --> N["The native engine, processor only:<br/>as exact, too slow"]:::no
+    Q --> G["The native engine on the graphics card,<br/>or with a voice detector: not tried"]:::open
+    P -.- P1["a runtime to ship with the program;<br/>its detector's library tries telemetry (D2)"]:::note
+    N -.- N1["one program, nothing to ship beside it"]:::note
+
+    classDef ask fill:#1e3a8a,color:#fff
+    classDef yes fill:#065f46,color:#fff
+    classDef no fill:#7c2d12,color:#fff
+    classDef open fill:#92400e,color:#fff
+    classDef note fill:#374151,color:#fff
+```
+
+**Legend** — blue: the question · green: meets D4's thresholds as measured · red: does not ·
+orange: not measured · grey: what each costs or spares.
+
+**The engine is not chosen here**: it is a decision of the `transcription` module, with its
+record, once the two orange leads are tried or set aside by the decider.
+The decider's fourth orientation, below, changes the question it answers.
+
 ### Three orientations from the decider (2026-10-12)
 
 ```mermaid
@@ -451,6 +499,49 @@ cycle builds anyway, and no line of live code:
 
 Each is also what resilience asks: a crash leaves a readable audio and a transcript true up
 to its last segment.
+
+### A fourth orientation — the best engine of each system (2026-10-13)
+
+The decider, on reading the native engine's trial: each system may have a speech-to-text of
+its own, made for it and fast on it; Whisper works on Fedora, and the product must be able to
+take the best of each world.
+
+```mermaid
+flowchart LR
+    A["me.wav · others.wav<br/>context.txt"]:::file --> C["transcription: the step<br/>spans, context, run again,<br/>the transcript's file"]:::core
+    C -->|"one question: this span of sound,<br/>this language, this context"| E{"The engine<br/>of this configuration"}
+    E --> W["Whisper<br/>runs on the three systems:<br/>the one every install has"]:::base
+    E -.-> M["An engine of the system,<br/>where it has a better one"]:::own
+    W --> T["transcript.jsonl<br/>the same file, whoever heard"]:::file
+    M -.-> T
+
+    classDef file fill:#374151,color:#fff
+    classDef core fill:#065f46,color:#fff
+    classDef base fill:#1e3a8a,color:#fff
+    classDef own fill:#92400e,color:#fff
+```
+
+**Legend** — grey: the session's files · green: what is written once, for every engine · blue:
+the engine every system can run · orange: an engine one system has and the others do not.
+Dotted: not built in this cycle.
+
+What it fixes for D4, from its first line of code:
+
+| | |
+|---|---|
+| **The contract is the constant** | `transcript/v1` is the same file whoever heard; its header already names the engine and the model. Nothing downstream knows which one ran |
+| **The engine is a setting, like the provider of the minutes** | The step is written once — spans, context, running again, the file. The engine answers one question behind one interface, and is chosen by configuration, with a default per system |
+| **One engine runs everywhere** | Whisper, so that no system is left without a transcript. A system's own engine is added where it is better, never required |
+| **An engine is admitted by the same sheet** | D4's criteria — words that differ, time, context received — are read per system, with that system's engine. A new engine passes the contract's tests and that sheet, or does not ship |
+| **What it changes in the trial above** | The question is no longer which engine wins everywhere, but which one Fedora uses: the one that meets D4's thresholds there |
+
+**What this cycle builds**: the step, the interface, and the one engine Fedora needs.
+**Named, not read**: what Windows and macOS offer on the machine — their speech frameworks,
+the runtimes made for their processors' accelerators. Each is a reading and a trial of its
+own, on the colleagues' machines, in a later cycle.
+
+**What it costs, known**: as many engines to try and to keep working as there are, on machines
+the decider does not have. The interface is what keeps that cost in one place.
 
 **D3 to D6 are `ready`** (2026-10-12): their acceptance criteria, in the front matter, were
 written once D1 had answered for Fedora and D2 on a local and on an online provider. Each
