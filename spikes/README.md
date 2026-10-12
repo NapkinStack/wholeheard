@@ -12,11 +12,18 @@ Throwaway probes of the first cycle. Their product is what they record in the cy
 ## Running `d2-local-minutes`
 
 It needs a meeting of about an hour, in French, **recorded for the purpose with people who
-agreed**, as one audio file; `whisper-cli` (package `whisper-cpp`); and `ollama serve` running.
+agreed**, as one audio file; `ffmpeg`, `uv`, and `ollama serve` running.
 
 ```bash
-python3 spikes/d2-local-minutes/d2.py path/to/meeting.m4a
+uv run --with faster-whisper python3 spikes/d2-local-minutes/d2.py path/to/meeting.m4a \
+    --reference path/to/human-transcript.txt   # optional: counts the words that differ
 ```
+
+| Found on the first run, Fedora 44 | What the probe does about it |
+|---|---|
+| The `whisper-cpp` package holds the library and no program | Transcribes with the Python engine `uv` fetches for the run; a `whisper-cli` on the path still serves |
+| That engine's decoder breaks on its own audio library | Hands it the samples `ffmpeg` already converted |
+| Its voice detector's library tries to send telemetry to its publisher | Nothing: recorded, to weigh when the product's engine is chosen |
 
 **No meeting at hand?** The decider chose not to wait for one (2026-10-12). A public corpus
 of French meetings serves instead: [SUMM-RE](https://huggingface.co/datasets/linagora/SUMM-RE),
