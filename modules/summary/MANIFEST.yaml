@@ -77,6 +77,10 @@ dependencies:
     purpose: The time the minutes are dated by, held as a time and not as a text
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One field of Made and one formatting call in src/lib.rs.
+  - name: ureq
+    purpose: The one connection of the module, to the provider the user configured
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One function, Provider::ask in src/provider.rs; any blocking HTTP client replaces it.
 #  - name:
 #    purpose:
 #    adr:
