@@ -9,10 +9,11 @@
 //! It records for a few seconds, then prints what D1 asks to be recorded: per source, whether
 //! a file was written, how long it is, and whether it holds sound or silence.
 //!
-//!     d1-capture [seconds] [folder] [--tone]     defaults: 10 seconds, the current folder
+//!     d1-capture [seconds] [folder] [--tone] [--others-only]     defaults: 10 seconds, the current folder
 //!
 //! `--tone` plays a quiet note on the default output during the run: with it, silence in
-//! "others" cannot mean that nothing was playing.
+//! "others" cannot mean that nothing was playing. `--others-only` leaves the microphone
+//! closed: it answers whether a sound another program plays is heard.
 //!
 //! Run it during a real call, with people who know they are recorded, and delete the files
 //! afterwards: no recording of a real meeting enters the repository (rules/security.md, 2).
@@ -22,7 +23,7 @@ use std::{
     io::BufWriter,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU32, AtomicU64, Ordering},
+        atomic::{AtomicU64, Ordering},
         Arc, Mutex,
     },
     time::Duration,
@@ -30,7 +31,7 @@ use std::{
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    Device, FromSample, Sample, SampleFormat, Stream, SupportedStreamConfig,
+    Device, Sample, SampleFormat, Stream, SupportedStreamConfig,
 };
 
 type Writer = Arc<Mutex<Option<hound::WavWriter<BufWriter<File>>>>>;
@@ -44,7 +45,6 @@ struct Take {
     sample_rate: u32,
     channels: u16,
     samples: Arc<AtomicU64>,
-    peak: Arc<AtomicU32>, // the loudest sample seen, as the bits of an f32 in 0..=1
     writer: Writer,
     _stream: Stream,
 }
@@ -52,6 +52,7 @@ struct Take {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let tone = args.iter().any(|a| a == "--tone");
+    let others_only = args.iter().any(|a| a == "--others-only");
     let mut rest = args.iter().filter(|a| !a.starts_with("--"));
     let seconds: u64 = rest.next().and_then(|s| s.parse().ok()).unwrap_or(10);
     let folder = PathBuf::from(rest.next().cloned().unwrap_or_else(|| ".".into()));
@@ -75,18 +76,22 @@ fn main() {
 
     // "others" is tried on every way this host offers to hear what plays: the first run on
     // Fedora opened the default output and got twenty seconds of zeros, with no error.
-    let mut takes: Vec<(&'static str, Result<Take, String>)> = vec![(
-        "me",
-        host.default_input_device()
-            .ok_or_else(|| "no default input device".to_string())
-            .and_then(|device| open("me", &device, false, &folder)),
-    )];
+    let mut takes: Vec<(&'static str, Result<Take, String>)> = Vec::new();
+    if !others_only {
+        takes.push((
+            "me",
+            host.default_input_device()
+                .ok_or_else(|| "no default input device".to_string())
+                .and_then(|device| open("me", &device, false, &folder)),
+        ));
+    }
+    let before = takes.len();
     for (name, id) in [("others-sink", "pipewire:sink_default"), ("others-out", "pipewire:output_default")] {
         if let Some(device) = id.parse().ok().and_then(|id| host.device_by_id(&id)) {
             takes.push((name, open(name, &device, true, &folder)));
         }
     }
-    if takes.len() == 1 {
+    if takes.len() == before {
         takes.push((
             "others",
             host.default_output_device()
@@ -126,6 +131,10 @@ fn main() {
             }
         }
         report(name, &outcome);
+    }
+    if others_only {
+        println!("\nThe system's sound alone: {}", if others_heard { "HEARD" } else { "NOT HEARD — see above" });
+        std::process::exit(if others_heard { 0 } else { 2 });
     }
     let both = me_heard && others_heard;
     println!(
@@ -193,15 +202,14 @@ fn open(name: &'static str, device: &Device, playback: bool, folder: &Path) -> R
         hound::WavWriter::create(&path, spec).map_err(|error| format!("{}: {error}", path.display()))?,
     )));
     let samples = Arc::new(AtomicU64::new(0));
-    let peak = Arc::new(AtomicU32::new(0f32.to_bits()));
     let errors = move |error: cpal::Error| eprintln!("  [{name}] stream: {error}");
 
     macro_rules! stream {
         ($t:ty) => {{
-            let (writer, samples, peak) = (writer.clone(), samples.clone(), peak.clone());
+            let (writer, samples) = (writer.clone(), samples.clone());
             device.build_input_stream(
                 config.clone().into(),
-                move |data: &[$t], _: &_| write::<$t>(data, &writer, &samples, &peak),
+                move |data: &[$t], _: &_| write::<$t>(data, &writer, &samples),
                 errors,
                 None,
             )
@@ -225,28 +233,54 @@ fn open(name: &'static str, device: &Device, playback: bool, folder: &Path) -> R
         sample_rate: spec.sample_rate,
         channels: spec.channels,
         samples,
-        peak,
         writer,
         _stream: stream,
     })
 }
 
-fn write<T>(data: &[T], writer: &Writer, samples: &AtomicU64, peak: &AtomicU32)
+fn write<T>(data: &[T], writer: &Writer, samples: &AtomicU64)
 where
     T: Sample + hound::Sample,
-    f32: FromSample<T>,
 {
-    let mut loudest = f32::from_bits(peak.load(Ordering::Relaxed));
     if let Ok(mut guard) = writer.try_lock() {
         if let Some(writer) = guard.as_mut() {
             for &sample in data {
-                loudest = loudest.max(f32::from_sample(sample).abs());
                 let _ = writer.write_sample(sample);
             }
             samples.fetch_add(data.len() as u64, Ordering::Relaxed);
         }
     }
-    peak.store(loudest.to_bits(), Ordering::Relaxed);
+}
+
+/// What the file holds, read back from it: the level each channel rests at, and the loudest
+/// departure from that level, both as a share of full scale. The first second is left out.
+/// A microphone on Fedora rested at a fifth and a third of full scale and opened on a click
+/// at full scale: measured from zero, a silent room was "a file with sound".
+fn measure(path: &Path) -> Option<(f32, f32)> {
+    let mut reader = hound::WavReader::open(path).ok()?;
+    let spec = reader.spec();
+    let channels = usize::from(spec.channels.max(1));
+    let scale = match spec.sample_format {
+        hound::SampleFormat::Float => 1.0,
+        hound::SampleFormat::Int => (1u64 << (spec.bits_per_sample - 1)) as f32,
+    };
+    let all: Vec<f32> = match spec.sample_format {
+        hound::SampleFormat::Float => reader.samples::<f32>().filter_map(Result::ok).collect(),
+        hound::SampleFormat::Int => reader.samples::<i32>().filter_map(Result::ok).map(|s| s as f32 / scale).collect(),
+    };
+    let skipped = (spec.sample_rate as usize * channels).min(all.len() / 2);
+    let kept = &all[skipped - skipped % channels..];
+    let (mut rest, mut swing) = (0f32, 0f32);
+    for channel in 0..channels {
+        let of_channel = || kept.iter().skip(channel).step_by(channels);
+        let count = of_channel().count().max(1);
+        let level = (of_channel().map(|&s| f64::from(s)).sum::<f64>() / count as f64) as f32;
+        if level.abs() > rest.abs() {
+            rest = level;
+        }
+        swing = of_channel().fold(swing, |loudest, &s| loudest.max((s - level).abs()));
+    }
+    Some((rest, swing))
 }
 
 /// One line of D1's record for a source.
@@ -256,15 +290,15 @@ struct Outcome {
 }
 
 fn finish(take: Take) -> Outcome {
-    let Take { name, path, device, config, sample_rate, channels, samples, peak, writer, _stream } = take;
+    let Take { name, path, device, config, sample_rate, channels, samples, writer, _stream } = take;
     drop(_stream);
     let written = writer.lock().ok().and_then(|mut guard| guard.take()).map(|w| w.finalize().is_ok());
     let frames = samples.load(Ordering::Relaxed) / u64::from(channels.max(1));
     let seconds = frames as f64 / f64::from(sample_rate.max(1));
-    let peak = f32::from_bits(peak.load(Ordering::Relaxed));
-    // Below one thousandth of full scale is a file of silence: the permission was refused,
-    // nothing was playing, or the capture reached the wrong device.
-    let heard = written == Some(true) && frames > 0 && peak > 0.001;
+    let (rest, swing) = measure(&path).unwrap_or((0.0, 0.0));
+    // Below one thousandth of full scale around its resting level is a file of silence: the
+    // permission was refused, nothing was playing, or the capture reached the wrong device.
+    let heard = written == Some(true) && frames > 0 && swing > 0.001;
     let verdict = match (written, frames, heard) {
         (Some(true), 0, _) => "a file with no sound in it: the stream delivered nothing",
         (Some(true), _, false) => "a file of SILENCE: permission refused, nothing playing, or the wrong device",
@@ -273,9 +307,10 @@ fn finish(take: Take) -> Outcome {
     };
     Outcome {
         line: format!(
-            "{name:<7}: {verdict}\n          file   {}\n          device {device}\n          format {config}\n          length {seconds:.1} s, loudest sample {:.1} % of full scale",
+            "{name:<7}: {verdict}\n          file   {}\n          device {device}\n          format {config}\n          length {seconds:.1} s, loudest sample {:.1} % of full scale around a resting level of {:.1} %",
             path.display(),
-            peak * 100.0
+            swing * 100.0,
+            rest * 100.0
         ),
         heard,
     }

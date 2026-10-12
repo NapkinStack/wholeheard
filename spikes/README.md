@@ -79,6 +79,8 @@ cargo run --release -- 20 /tmp --tone
 
 `--tone` plays a quiet note on the default output for the whole run, so that silence in the
 system's sound cannot mean that nothing was playing.
+`--others-only` leaves the microphone closed: played against a sound from another program,
+it says whether the system's sound is heard at all, with nobody recorded.
 
 It records for 20 seconds into `/tmp/me.wav` and `/tmp/others.wav`, then says for each
 whether it holds sound or silence. **Delete the two files afterwards**: no recording of a
