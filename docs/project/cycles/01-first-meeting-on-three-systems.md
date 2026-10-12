@@ -1,6 +1,6 @@
 ---
 goal: "On Linux, Windows and macOS, a user records a meeting and gets its transcript and its minutes as files on their machine"
-status: proposed          # proposed | accepted | closed | stopped — the decider accepts
+status: accepted          # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 2         # the time the decider WANTS to spend, not an estimate
 start: 2026-10-13         # YYYY-MM-DD
 end: 2026-10-27           # start + appetite: the first day the cycle is over — the circuit breaker

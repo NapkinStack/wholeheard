@@ -7,11 +7,27 @@ Summit records a conversation, transcribes it and writes its minutes on Linux, W
 
 ## What it is
 
-<A diagram of the product, with its legend: who uses it, what it does for them, what it talks to. Then three lines at most.>
+```mermaid
+flowchart LR
+    U["You<br/>Linux, Windows, macOS"]:::user --> C["Capture"]:::step --> T["Transcribe"]:::step --> R["Summarise"]:::step --> E["Export"]:::step
+    T -. "only if you chose it" .-> P["A service<br/>with your own key"]:::out
+    R -. "only if you chose it" .-> P
+
+    classDef user fill:#1e3a8a,color:#fff
+    classDef step fill:#065f46,color:#fff
+    classDef out fill:#7c2d12,color:#fff
+```
+
+**Legend** — blue: you, on your own machine · green: Summit's four steps, each usable
+alone · red: what is outside your machine, reached only when you choose it.
+
+No bot joins your meeting and no account is asked for. **You tell the other participants
+that you are recording**: Summit shows them nothing.
 
 ## Run it
 
-<How to start it and see it work, from a fresh clone.>
+Nothing runs yet. The first cycle (13 to 27 October 2026) delivers a first recorded meeting, with its
+transcript and its minutes, on the three systems: [`docs/project/cycles/`](docs/project/cycles/).
 
 ## Contribute
 

@@ -1,8 +1,7 @@
 # Rules of this project — security
 
 > Read with the security playbook. These rules add to what every project shares, or tighten
-> it; they never repeat it. *Proposed with the charter, 2026-10-12; in force once the charter
-> is accepted.*
+> it; they never repeat it. *In force since the charter was accepted, 2026-10-12.*
 
 | # | Rule | Why | Checked by |
 |---|---|---|---|

@@ -6,3 +6,4 @@ ones after them. What a record holds and how it is named:
 
 | No. | Title | Status | Criterion to check on |
 |---|---|---|---|
+| [0001](./0001-split-summit-into-four-modules.md) | Split Summit into four modules, one per step | Accepted (2026-10-12) | End of the second cycle: a step replaced or run alone without a change elsewhere |

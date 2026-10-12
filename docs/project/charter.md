@@ -1,5 +1,5 @@
 ---
-status: proposed              # proposed | accepted — the decider accepts
+status: accepted              # proposed | accepted — the decider accepts
 decider: "@napkinstack-admin"   # the human who validates the charter and the cycles
 success_criteria:             # when the goal is reached: measurable, dated or relative to a named event
   - "From the day Summit installs on the decider's Fedora, the decider records every meeting with it for two consecutive weeks and does not go back to a bot"
