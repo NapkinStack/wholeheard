@@ -363,11 +363,12 @@ recommendation to clarify first.
 **The reasons:** not given. The decider answered "go" and nothing else. This section records
 that rather than invent one.
 
-**Why each objection does not block it:** not answered yet. What follows is the framer's
-proposal for the framing, for the decider to accept or strike — a go carries its objections
-into the first cycle, it does not dissolve them.
+**Why each objection does not block it:** none is answered; each is carried. The table below
+was the framer's proposal, and the decider accepted it as a whole on 2026-10-12 ("fais
+suivant tes recommandations") — a go carries its objections into the first cycle, it does
+not dissolve them.
 
-| Objection of section 5 | Proposed for the first cycle |
+| Objection of section 5 | Carried into the first cycle as |
 |---|---|
 | The reason to build was never established: Anarlog's AppImage was not tried on Fedora | **A spike, first**: one hour. It can still end the project, or turn it into a contribution |
 | Three systems, a tray, a shortcut and two-source capture, in two weeks, tested on one | **A spike**: the two-day probe of section 5, on the three machines, before any feature |
