@@ -87,9 +87,11 @@ fn main() {
                 Err(error) => (false, format!("refused: {error}")),
             };
 
-            let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyR);
+            // Super+Alt+M: the first choice, Ctrl+Alt+R, reloads a page in one application and opens a
+            // folder in another — with no global shortcut active, the focused window takes the keys.
+            let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::ALT), Code::KeyM);
             *probe.shortcut.lock().unwrap() = match app.global_shortcut().register(shortcut) {
-                Ok(()) => (true, "Ctrl+Alt+R accepted by the system's shortcut library".into()),
+                Ok(()) => (true, "Super+Alt+M accepted by the system's shortcut library".into()),
                 Err(error) => (false, format!("refused: {error}")),
             };
             *probe.portal.lock().unwrap() = (false, "not tried on this system: the portal is a Linux desktop's".into());
@@ -126,7 +128,7 @@ async fn portal(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error 
 
     let shortcuts = GlobalShortcuts::new().await?;
     let session = shortcuts.create_session(Default::default()).await?;
-    let wanted = NewShortcut::new("record", "Start or stop a recording").preferred_trigger("CTRL+ALT+r");
+    let wanted = NewShortcut::new("record", "Start or stop a recording").preferred_trigger("LOGO+ALT+m");
     let bound = shortcuts.bind_shortcuts(&session, &[wanted], None, Default::default()).await?.response()?;
     let got: Vec<String> = bound
         .shortcuts()
