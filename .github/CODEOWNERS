@@ -17,3 +17,7 @@
 /contracts/                    @NapkinStack/maintainers
 
 # Modules — one line per module, added by the scaffolding.
+/modules/capture/              @NapkinStack/maintainers
+/modules/transcription/        @NapkinStack/maintainers
+/modules/summary/              @NapkinStack/maintainers
+/modules/export/               @NapkinStack/maintainers
