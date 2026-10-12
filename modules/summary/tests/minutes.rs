@@ -150,6 +150,7 @@ fn an_answer_that_is_not_minutes_is_refused_before_anything_is_written() {
         ("## A\n\nx\n\n## B\n\n### rien\n\n## C\n\n- z\n", "a section is empty"),
         ("```markdown\n## A\n\nx\n\n## B\n\nx\n\n## C\n\nx\n```", "a block of code"),
         ("", "0 section(s)"),
+        ("## A\rx\r## B\ry\r\r```\r## C\r`c`", "a block of code"),
         (
             "### Voici le compte rendu\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n",
             "does not open on its first section",
@@ -306,6 +307,9 @@ fn minutes_a_model_may_reasonably_write_are_accepted() {
             minutes(answer, &made(None))
         );
     }
+    // Whatever ended its lines, the file is written with one kind of line end.
+    let written = minutes("## A\r\n\r\nx\r\n\r\n## B\r\ry\r\r## C\n\nz\r\n", &made(None)).unwrap();
+    assert!(!written.as_str().contains('\r') && written.as_str().ends_with("## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n"));
 }
 
 #[test]

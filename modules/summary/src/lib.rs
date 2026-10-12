@@ -225,7 +225,10 @@ fn quoted(text: &str) -> String {
 
 /// The minutes file for a provider's answer — or the reason the answer is not minutes.
 pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
-    let body = answer.trim().trim_start_matches('\u{feff}').trim();
+    // One way to end a line, before anything reads it: readers do not agree on a lone
+    // carriage return, and the file is written with the line ends it was judged with.
+    let unified = answer.replace("\r\n", "\n").replace('\r', "\n");
+    let body = unified.trim().trim_start_matches('\u{feff}').trim();
     if let Some(why) = not_minutes(body) {
         return refused(format!("the provider's answer is not minutes: {why}"));
     }
