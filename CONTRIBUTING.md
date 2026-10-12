@@ -4,7 +4,7 @@
 
 1. Pick a **ready** deliverable of the current cycle (`docs/project/cycles/`) — or an issue,
    for what nobody planned: a defect, a debt. A project with no accepted charter has no
-   cycle yet: pick the work, the other rules apply (`docs/project/README.md`).
+   cycle yet: pick the work, the other rules apply (`.nstack/handbook/project.md`).
 2. Identify **the** target module — exactly one.
 3. Read its `MANIFEST.yaml`, then its `AGENTS.md`.
 4. `nstack bootstrap <name> && nstack check <name>`
@@ -33,16 +33,16 @@ flowchart LR
 **Legend** — grey: on the workstation, bypassable · green: GitHub side · red: a stop.
 
 Only barriers 1 and 2 act **before** publication. A secret caught by CI is already
-public: that is an incident, and it is revoked immediately (`playbooks/security.md`).
+public: that is an incident, and it is revoked immediately (`.nstack/playbooks/security.md`).
 
 ## While you work
 
 - **Write the oracle first**, watch it fail, then implement
-  (`docs/os/05-workflow.md` §3).
+  (`.nstack/handbook/05-workflow.md` §3).
 - **Minimal change.** No opportunistic refactoring: it gets its own pull request.
 - **Stay in the module.** Need another one? Go through its contract. The contract is not
   enough? That is a contract change, so an expand/contract sequence
-  (`docs/os/03-contracts.md` §4) — never a single pull request.
+  (`.nstack/handbook/03-contracts.md` §4) — never a single pull request.
 - `nstack fitness` before every commit.
 
 ## Opening the pull request
@@ -51,12 +51,12 @@ The template applies the Definition of Done. Three things not to skate over:
 
 - **The summary** — `DONE / VERIFIED / ASSUMED / NOT VERIFIED / RISKS`.
   A summary with nothing under `ASSUMED` and `NOT VERIFIED` is almost always incomplete.
-- **The test sheet** — when one is due (`docs/os/05-workflow.md` §7: a module a user sees,
+- **The test sheet** — when one is due (`.nstack/handbook/05-workflow.md` §7: a module a user sees,
   from `standard` up, and every `high` or `critical` one): scenarios written before the code,
   results filled in by a verifier who is not you, each with its evidence
-  (`playbooks/verification.md`).
+  (`.nstack/playbooks/verification.md`).
 - **The signals to report** — that is how the system improves
-  (`docs/os/10-measurement.md`).
+  (`.nstack/handbook/10-measurement.md`).
 
 ## Exceptions
 

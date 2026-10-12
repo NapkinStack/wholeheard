@@ -12,17 +12,17 @@ module:
   owner: "NapkinStack/maintainers"          # a GitHub team, organisation/team; a user only without an organisation
   contact: "@NapkinStack/maintainers"
 
-  # proposed | active | maintenance | deprecated | retired   (docs/os/02-modules.md §6)
+  # proposed | active | maintenance | deprecated | retired   (.nstack/handbook/02-modules.md §6)
   lifecycle: proposed
 
   # What does a failure of this module cost? nothing, thrown away | a user's patience |
   # a day of work | a key, an order, money, personal data. The decider settles it; what
-  # each value requires is the table in docs/os/05-workflow.md §7.
+  # each value requires is the table in .nstack/handbook/05-workflow.md §7.
   # prototype | standard | high | critical
   criticality: "standard"
 
   # Does a user see this module? true requires a test sheet on its pull requests from
-  # standard up (docs/os/05-workflow.md §7).
+  # standard up (.nstack/handbook/05-workflow.md §7).
   user_facing: true
 
   # The module's name in the code, when it differs from the folder (package, namespace).
@@ -56,7 +56,7 @@ data:
   shared: []                     # any exception requires a named ADR
 
 # Significant external dependencies.
-# Each one declares its exit strategy (docs/os/06-decisions.md §3).
+# Each one declares its exit strategy (.nstack/handbook/06-decisions.md §3).
 dependencies: []
 #  - name:
 #    purpose:
@@ -64,7 +64,7 @@ dependencies: []
 #    exit_strategy:
 
 # Standard verbs: the same names everywhere, running this module's stack commands
-# (docs/os/09-platform.md §2). `nstack <verb> <module>` runs them from this folder.
+# (.nstack/handbook/09-platform.md §2). `nstack <verb> <module>` runs them from this folder.
 # No stack is imposed. check and test are required once the module holds more than its
 # description (fitness M7): declare them before its first file of code.
 commands:

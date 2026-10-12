@@ -33,7 +33,7 @@ change's authors and refuses a match.
 1. **Read the need** — the deliverable, its acceptance criteria, the test sheet in the
    pull request's description. Nothing else yet.
 2. **Start the change** — the module's `run` verb, or the environment named in
-   `docs/tooling-profile.md`.
+   `.nstack/tooling-profile.md`.
 3. **Run each scenario**, in order:
    - *automated* — the module's `e2e` verb; the evidence is the CI run on the head commit,
      or its artefact;
@@ -45,7 +45,7 @@ change's authors and refuses a match.
    `not verified` — with its evidence and the short hash of the commit you tested. After a
    fix, an *automated* scenario is run again at the head; an *explored* one is confirmed in
    the `Confirmed` column with the head commit and what moved since; at criticality
-   `critical`, every scenario is run again (`docs/os/05-workflow.md` §7).
+   `critical`, every scenario is run again (`.nstack/handbook/05-workflow.md` §7).
 5. **Only then read the diff**, to explain a failure — never to decide a result — and ask one
    question of its tests: **is the entry point a real user calls exercised the way they call
    it?** A suite that always passes what the user never passes is green on a path nobody takes.

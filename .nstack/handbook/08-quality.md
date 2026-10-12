@@ -1,7 +1,7 @@
 # 08 — Quality and risk
 
 > This document is the **reference**. The matching operational rules live in
-> `playbooks/`, loaded on demand by an agent.
+> `.nstack/playbooks/`, loaded on demand by an agent.
 
 ---
 
@@ -153,7 +153,7 @@ rate limiting · isolation · backups · disaster recovery
 - The checks that can be automated are **built into the delivery cycle**, not run
   occasionally.
 
-The operational detail is in `playbooks/security.md`, loaded as soon as a task touches
+The operational detail is in `.nstack/playbooks/security.md`, loaded as soon as a task touches
 authentication, authorisation, secrets, personal data or external input.
 
 ---
@@ -189,7 +189,7 @@ rows of the table, and where a cell here and the table differ, the table decides
 > non-idempotent operation duplicates. A retry without backoff turns a local incident
 > into a general outage. A retry that masks an error prevents it being detected.
 
-Detail: `playbooks/operations.md`.
+Detail: `.nstack/playbooks/operations.md`.
 
 ---
 
@@ -217,7 +217,7 @@ integrity · security · observability
 The schema evolves through the same expand/contract logic as contracts
 (`03-contracts.md`): add, let both coexist, migrate, remove. Never rename in place.
 
-Detail: `playbooks/data-migration.md`.
+Detail: `.nstack/playbooks/data-migration.md`.
 
 ---
 

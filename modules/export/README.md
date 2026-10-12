@@ -12,7 +12,7 @@ Delivers the files of a session to where the user wants them.
 
 The standard verbs — `bootstrap`, `check`, `test`, `run` — are declared in the `commands`
 section of the [manifest](./MANIFEST.yaml), for this module's stack. What each one must do:
-`docs/os/09-platform.md` §2.
+`.nstack/handbook/09-platform.md` §2.
 
 ## Contracts
 

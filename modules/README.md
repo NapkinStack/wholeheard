@@ -17,5 +17,5 @@ Why four, and what each one is for: [`docs/adr/0001`](../docs/adr/0001-split-sum
 Brought current by the pull request that creates, merges or retires a module.
 
 What a module is, when to split one and what its folder holds:
-[`docs/os/02-modules.md`](../docs/os/02-modules.md). Creating one:
-[`docs/os/INSTALL.md`](../docs/os/INSTALL.md).
+[`.nstack/handbook/02-modules.md`](../.nstack/handbook/02-modules.md). Creating one:
+[`.nstack/handbook/INSTALL.md`](../.nstack/handbook/INSTALL.md).

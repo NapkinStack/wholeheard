@@ -1,6 +1,6 @@
 # Mapping from playbooks to Claude Code skills.
 #
-# The playbooks in `playbooks/` are the SOURCE OF TRUTH: plain markdown, portable,
+# The playbooks in `.nstack/playbooks/` are the SOURCE OF TRUTH: plain markdown, portable,
 # usable by any agent. The skills are derived from them.
 # This file holds nothing but the frontmatter to add — never any content.
 #
@@ -13,7 +13,7 @@
 
 skills:
   security:
-    source: playbooks/security.md
+    source: .nstack/playbooks/security.md
     description: >
       The project's security rules: authentication, authorisation, secrets, input
       validation, personal data, dependencies and high-risk actions. This skill should
@@ -21,7 +21,7 @@ skills:
       a file upload or a network exposure.
 
   tests:
-    source: playbooks/tests.md
+    source: .nstack/playbooks/tests.md
     description: >
       The project's test strategy: choosing the test level, writing the oracle, edge
       cases, doubles and handling flaky tests. This skill should be used when the test
@@ -29,7 +29,7 @@ skills:
       a behaviour is hard to isolate.
 
   data-migration:
-    source: playbooks/data-migration.md
+    source: .nstack/playbooks/data-migration.md
     description: >
       The project's rules on data and migrations: schema expand/contract, backfill,
       data deletion, data ownership by module. This skill should be used when a task
@@ -37,7 +37,7 @@ skills:
       data.
 
   ux:
-    source: playbooks/ux.md
+    source: .nstack/playbooks/ux.md
     description: >
       The project's UX/UI rules: the primacy of convention and of the design system,
       the eight states of an interface, error messages, accessibility, perceived
@@ -45,7 +45,7 @@ skills:
       surface visible to the user.
 
   operations:
-    source: playbooks/operations.md
+    source: .nstack/playbooks/operations.md
     description: >
       The project's operations and reliability rules: timeouts, retries, structured
       logs, metrics, alerts, health checks, rollback and controlled degradation. This
@@ -53,7 +53,7 @@ skills:
       or a call to an external dependency.
 
   discovery:
-    source: playbooks/discovery.md
+    source: .nstack/playbooks/discovery.md
     description: >
       The project's discovery rules: turning an idea into a decision — intake, sourced
       market research, definition, the value hypothesis and no-gos, a challenge by another
@@ -62,7 +62,7 @@ skills:
       a charter, or when a discovery document is to be challenged or decided.
 
   framing:
-    source: playbooks/framing.md
+    source: .nstack/playbooks/framing.md
     description: >
       The project's framing rules: interviewing the decider, writing the charter, planning
       a bounded cycle with its deliverables, acceptance criteria and appetite, handling new
@@ -71,7 +71,7 @@ skills:
       specification, plan or re-plan a cycle, or write a cycle's closure.
 
   documentation:
-    source: playbooks/documentation.md
+    source: .nstack/playbooks/documentation.md
     description: >
       The project's rules for writing a document: a diagram with its legend first, a few
       lines after it, a source for every outside claim, a date on every decision, and
@@ -80,7 +80,7 @@ skills:
       or a pull request description.
 
   verification:
-    source: playbooks/verification.md
+    source: .nstack/playbooks/verification.md
     description: >
       The project's rules for verifying a change: the verifier's posture, running a test
       sheet against the running change, the evidence expected for each result, and what

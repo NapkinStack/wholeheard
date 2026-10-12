@@ -31,6 +31,6 @@ body:
   - type: checkboxes
     id: automatable
     attributes:
-      label: Automation backlog (docs/os/07-governance.md §9)
+      label: Automation backlog (.nstack/handbook/07-governance.md §9)
       options:
         - label: This debt comes from a rule living in the prompt that should be automated

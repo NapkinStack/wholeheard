@@ -1,7 +1,7 @@
 name: Pull request
 
 # The rules read from the pull request's description: the test sheet
-# (docs/os/05-workflow.md §7) and the cycle (docs/project/README.md). Editing the
+# (.nstack/handbook/05-workflow.md §7) and the cycle (.nstack/handbook/project.md). Editing the
 # description or a label re-evaluates them on the same head commit.
 #
 # The description is untrusted input: it reaches nstack through env:, never a script.

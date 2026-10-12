@@ -7,7 +7,7 @@ success_criteria:             # when the goal is reached: measurable, dated or r
 
 # Charter — <project name: project_name in .copier-answers.yml>
 
-> Written once, at the first framing (`playbooks/framing.md`), copied to `charter.md`;
+> Written once, at the first framing (`.nstack/playbooks/framing.md`), copied to `docs/project/charter.md`;
 > changed only through a PDR. Every agent session reads it.
 
 ## Users and their problem

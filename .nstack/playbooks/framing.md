@@ -27,7 +27,7 @@ replaces the kernel's working loop (§2); its closing summary (§8) still applie
 | Interview the decider, one subject at a time | Decide in their place, or fill a gap with an invention |
 | Propose the field's convention by default, marked *(framer, to confirm)* with its source | Propose more than the need |
 | List the open questions, blocking apart | Let a charter or a cycle be accepted with a blocking question open |
-| Keep the first cycle small | Split into many modules on day one (`docs/os/02-modules.md` §3) |
+| Keep the first cycle small | Split into many modules on day one (`.nstack/handbook/02-modules.md` §3) |
 
 A proposal without a source is an open question, not a proposal. The documents you write
 carry the project, not the conversation: every later session reads them, and reads nothing
@@ -49,7 +49,7 @@ subject at a time, asking only what you cannot infer:
 | Users | Who uses it, in what situation, with what problem? | The users and their problem |
 | Outcome | What must be true for the project to be finished? | Success criteria, measurable, dated — or relative to a named event, such as launch day, that a later framing dates |
 | Constraints | Law, money, security, data, platforms, deadlines | The constraints |
-| Risks | What could make it fail, or cause harm? | The risks, and the criticality they imply — what a failure of each module would cost, which the decider settles and `docs/os/05-workflow.md` §7 prices |
+| Risks | What could make it fail, or cause harm? | The risks, and the criticality they imply — what a failure of each module would cost, which the decider settles and `.nstack/handbook/05-workflow.md` §7 prices |
 | Vocabulary | The domain's words, and what each one means | The vocabulary |
 | Not this project | What it will deliberately not do | Out of scope |
 
@@ -60,12 +60,12 @@ decider.
 
 **A constraint that binds how the work is done becomes a rule of the project**, proposed
 with the charter: one line of `docs/project/rules/<subject>.md`, from
-`docs/project/rules/_TEMPLATE.md` — the subject is the playbook it completes, `always` when
+`.nstack/forms/rules.md` — the subject is the playbook it completes, `always` when
 it applies to every task. It names its source in the charter and how it is checked. Never
 write it into a playbook or the kernel: those are every project's, and the next update
 would conflict on it.
 
-Write `docs/project/charter.md` from `docs/project/_CHARTER_TEMPLATE.md`, with
+Write `docs/project/charter.md` from `.nstack/forms/charter.md`, with
 `status: proposed` and the open questions at the end, then run the fitness functions.
 "Finished" means the charter's goal is reached: framing stops; running what was built may go
 on.
@@ -89,18 +89,18 @@ on.
    A criterion nobody can meet is not met. It is answered with something that looks like proof,
    and that answer is reviewed and merged like the rest.
 3. **Unknowns** — a blocking unknown becomes a *spike* deliverable, whose output is
-   knowledge (`docs/os/05-workflow.md` §3). After a discovery's go, the tests the decider kept
+   knowledge (`.nstack/handbook/05-workflow.md` §3). After a discovery's go, the tests the decider kept
    are the first cycle's spikes. A spike's criteria name what is recorded and the threshold it
    is read against; a refuted result is still a delivered one.
 4. **Modules** — name each deliverable's module; a spike run outside the code — a sign-up
    form, interviews — has none (`module: null`). Propose a new module only against the tree of
-   `docs/os/02-modules.md` §3: one module is often enough to start.
+   `.nstack/handbook/02-modules.md` §3: one module is often enough to start.
 5. **Appetite** — ask the decider how many weeks they **want** to spend, not how long it
    will take. When the deliverables do not fit, cut the scope; never stretch the appetite.
 6. **Out of scope and later** — out of scope is not done even if time remains; *later* holds
    the candidates for the next framing.
 
-Write `docs/project/cycles/NN-<slug>.md` from `docs/project/cycles/_TEMPLATE.md`, with
+Write `docs/project/cycles/NN-<slug>.md` from `.nstack/forms/cycle.md`, with
 `status: proposed` and `end` = `start` + the appetite, then run the fitness functions.
 
 ## 3. Hand over to the decider
@@ -115,7 +115,7 @@ module scaffolding, declared user-facing when a user sees them.
 `README.md`: a diagram of who uses the product and what it talks to, how to run what exists,
 and the sentence when no discovery wrote it. Until then that page holds its sentence at most;
 from then on the plan check refuses an accepted charter over a form left as it came
-(`docs/os/06-decisions.md` §10, `documentation.md`).
+(`.nstack/handbook/06-decisions.md` §10, `documentation.md`).
 
 ## 4. During the cycle
 

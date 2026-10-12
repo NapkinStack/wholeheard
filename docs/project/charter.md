@@ -9,7 +9,7 @@ success_criteria:             # when the goal is reached: measurable, dated or r
 
 # Charter — Summit
 
-> Written at the first framing (`playbooks/framing.md`), from the discovery decided **go** on
+> Written at the first framing (`.nstack/playbooks/framing.md`), from the discovery decided **go** on
 > 2026-10-12 (`discovery.md`); changed only through a PDR. Every agent session reads it.
 > *(framer, to confirm)* marks what the framer proposes and the decider has not confirmed.
 
@@ -84,8 +84,8 @@ known, once the repository is opened. Nothing measures it yet.
 
 | Risk | What it would cost | What follows |
 |---|---|---|
-| A recording is made that a participant did not know about | A criminal offence for the user, in France; the end of the product's reason to exist | Accepted by the decider as the user's responsibility (constraints). By the handbook's own rule — a module that "touches someone's personal data is `critical`" (`docs/os/05-workflow.md` §7) — the capture module would be **critical**. **The decider declares it `standard` for now, and `critical` before the repository is opened** (2026-10-12): three users who agreed, a private repository, one builder. A deviation from the handbook's rule, taken knowingly; the day strangers install Summit it ends |
-| A recording or a transcript leaves the machine without the user choosing it | The one promise the product keeps against a bot, broken | `playbooks/security.md` applies from the first cycle; a rule of the project is proposed (`rules/security.md`) |
+| A recording is made that a participant did not know about | A criminal offence for the user, in France; the end of the product's reason to exist | Accepted by the decider as the user's responsibility (constraints). By the handbook's own rule — a module that "touches someone's personal data is `critical`" (`.nstack/handbook/05-workflow.md` §7) — the capture module would be **critical**. **The decider declares it `standard` for now, and `critical` before the repository is opened** (2026-10-12): three users who agreed, a private repository, one builder. A deviation from the handbook's rule, taken knowingly; the day strangers install Summit it ends |
+| A recording or a transcript leaves the machine without the user choosing it | The one promise the product keeps against a bot, broken | `.nstack/playbooks/security.md` applies from the first cycle; a rule of the project is proposed (`rules/security.md`) |
 | A recording is lost: a crash, a full disk | A meeting that cannot be held again | Part of the capture module's criticality |
 | The nearest product works after all | Nothing to build; perhaps a contribution | **Not tested, by the decider's choice** (2026-10-12): "on ne le fait pas, on a déjà acté le dev Summit". The spike the discovery carried is dropped, and the objection it answered stays open: nobody ran the nearest product's Linux build |
 | Three systems, tested on one | Two of three users never get a working build | The first deliverable of the first cycle: a two-day probe on the three machines, before any feature |

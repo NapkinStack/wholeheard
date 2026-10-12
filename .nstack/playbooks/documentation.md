@@ -69,7 +69,7 @@ the project's.
 ## Which document, and when
 
 Each document of a project has the event that makes it writable; before it, its form stays
-a form. The table is `docs/os/06-decisions.md` §10 — read that one section before writing a
+a form. The table is `.nstack/handbook/06-decisions.md` §10 — read that one section before writing a
 document the project does not hold yet, and never fill a form with what nobody has decided.
 
 ---

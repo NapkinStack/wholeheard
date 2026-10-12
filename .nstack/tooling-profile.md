@@ -33,7 +33,7 @@ and above all **the ability to be automated**. A tool useful only interactively 
 become a guarantee.
 
 > Never add a tool because it is popular. The Prior Art Gate applies to tools too
-> (`docs/os/06-decisions.md`).
+> (`.nstack/handbook/06-decisions.md`).
 
 ## Replacement rule
 

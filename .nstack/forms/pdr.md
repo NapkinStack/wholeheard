@@ -32,7 +32,7 @@ prevents gradual drift.>
 ## Prior art
 
 > **Mandatory section.** Minimum two named references.
-> (`docs/os/06-decisions.md` §2)
+> (`.nstack/handbook/06-decisions.md` §2)
 
 **How is this problem solved elsewhere?**
 
@@ -78,7 +78,7 @@ knowing it.>
 **Permissions:** <who can do what>
 
 **Acceptance criteria** *(testable — this is the task's oracle,
-`docs/os/05-workflow.md` §3)*:
+`.nstack/handbook/05-workflow.md` §3)*:
 
 - [ ] Given <context>, when <action>, then <observable result>
 - [ ] …
@@ -90,7 +90,7 @@ knowing it.>
 > Fill this in only when the feature is genuinely complex: many actors, a state machine,
 > a permission matrix. Otherwise, delete this section.
 >
-> It replaces the old FDR format (`docs/os/06-decisions.md` §4).
+> It replaces the old FDR format (`.nstack/handbook/06-decisions.md` §4).
 
 **Actors:**
 **States and transitions:**

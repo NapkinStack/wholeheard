@@ -25,7 +25,7 @@ Turns the audio of a session into a timestamped transcript.
 ## Known traps
 
 <What has already broken here. Every entry should become a test - see
-docs/os/10-measurement.md §4.>
+.nstack/handbook/10-measurement.md §4.>
 
 ## Areas not to change without approval
 

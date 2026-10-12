@@ -244,7 +244,7 @@ quality. Writing them today would be writing them around the answer hoped for.
 
 **Four modules, decided by the decider** (2026-10-12: "on découpe les 4 modules"), one per
 step of the idea file: `capture`, `transcription`, `summary`, `export`. The framer had
-proposed two, on the handbook's advice not to split on day one (`docs/os/02-modules.md` §3);
+proposed two, on the handbook's advice not to split on day one (`.nstack/handbook/02-modules.md` §3);
 the decider's reason is the product's second principle — each step independent, with its own
 provider, usable alone. What it costs is known and accepted: four modules know each other
 only through contracts, so **the session's files are contracts** — the audio `capture`

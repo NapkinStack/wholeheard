@@ -10,7 +10,7 @@
 
 ## Entry rule: convention wins
 
-This is the ground where the Prior Art Gate (`docs/os/06-decisions.md`) pays off most.
+This is the ground where the Prior Art Gate (`.nstack/handbook/06-decisions.md`) pays off most.
 
 > For an interface pattern, the value of the convention comes **precisely from the fact
 > that the user already knows it**. An unrequested interface innovation is a learning

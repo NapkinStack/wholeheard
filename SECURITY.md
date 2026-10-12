@@ -20,4 +20,4 @@ enough.
 
 ## The rules this project's code follows
 
-[`playbooks/security.md`](playbooks/security.md).
+[`.nstack/playbooks/security.md`](.nstack/playbooks/security.md).

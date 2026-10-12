@@ -82,7 +82,7 @@ This is the most frequent source of vulnerabilities, and the easiest to test.
 
 | Situation | Action | Verification |
 |---|---|---|
-| New dependency | Niche filter (`docs/os/06-decisions.md` §3) + declared in the manifest | Review: undeclared dependency (to automate) |
+| New dependency | Niche filter (`.nstack/handbook/06-decisions.md` §3) + declared in the manifest | Review: undeclared dependency (to automate) |
 | Reported vulnerability | Handle it by severity and real exposure, not by score alone | Automated analysis in CI |
 | Unmaintained dependency | Open a *Technical debt* issue with the exit strategy | Dependency review |
 

@@ -4,5 +4,5 @@ The **only** channel of communication between modules, and a module in its own r
 owner, a manifest, its own tests.
 
 How a contract is versioned, evolved and retired:
-[`docs/os/03-contracts.md`](../docs/os/03-contracts.md). What this folder holds:
-[`docs/os/09-platform.md`](../docs/os/09-platform.md) §3.
+[`.nstack/handbook/03-contracts.md`](../.nstack/handbook/03-contracts.md). What this folder holds:
+[`.nstack/handbook/09-platform.md`](../.nstack/handbook/09-platform.md) §3.

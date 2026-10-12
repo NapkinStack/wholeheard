@@ -41,7 +41,7 @@ that could have been a unit test costs a hundred times more, breaks ten times mo
 often, and diagnoses ten times worse.
 
 A scenario replayable end to end belongs in the module's `e2e` command, and its evidence in
-`.evidence/`: CI keeps it for the test sheet (`docs/os/05-workflow.md` §7).
+`.evidence/`: CI keeps it for the test sheet (`.nstack/handbook/05-workflow.md` §7).
 
 ---
 
@@ -152,7 +152,7 @@ Fixed waits (`sleep`) are the most widespread cause of flakiness: wait for an
 | Signal | Reading |
 |---|---|
 | A test breaks at every refactor with no behaviour change | It tests the implementation, not the behaviour |
-| You have to start another module to test | Bad boundary (`docs/os/02-modules.md` §9) |
+| You have to start another module to test | Bad boundary (`.nstack/handbook/02-modules.md` §9) |
 | The test is longer than the code it tests | The code is probably too coupled |
 | Nobody understands what this test tests | Delete it or rewrite it; it protects nothing |
 | The suite takes more than 10 minutes | It will be bypassed — making it fast is a priority task |

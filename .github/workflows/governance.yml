@@ -2,7 +2,7 @@ name: Governance
 
 # Architecture fitness functions, pull request scope, hooks and secrets.
 # These checks are NOT BYPASSABLE: that is what separates a rule from a pious wish
-# (docs/os/07-governance.md).
+# (.nstack/handbook/07-governance.md).
 #
 # To do once: Settings → Rules → Rulesets → require these checks on the main branch.
 # Without that, CI informs but guarantees nothing.

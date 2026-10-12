@@ -1,16 +1,16 @@
-# Project
+# The project's own folder — `docs/project/`
 
-What the framework cannot know about this project: who it is for, when it is finished,
+It holds what the framework cannot know about this project: who it is for, when it is finished,
 and what is being delivered now. Every agent session reads the charter and the current
 cycle before working (`AGENTS.md` §4).
 
 | File | Holds | Written by | Accepted by |
 |---|---|---|---|
-| `discovery.md` | An idea tested: evidence, value hypothesis, challenge, decision | The framer, then the challenger (`playbooks/discovery.md`) | The decider |
-| `charter.md` | Users, problem, constraints, risks, success criteria, out of scope | The framer (`playbooks/framing.md`) | The decider |
+| `discovery.md` | An idea tested: evidence, value hypothesis, challenge, decision | The framer, then the challenger (`.nstack/playbooks/discovery.md`) | The decider |
+| `charter.md` | Users, problem, constraints, risks, success criteria, out of scope | The framer (`.nstack/playbooks/framing.md`) | The decider |
 | `cycles/NN-<slug>.md` | One goal, a finite list of deliverables, an appetite, an end date, the closure | The framer | The decider |
 | `rules/<subject>.md`, `rules/always.md` | The project's own rules, read with the playbook of the same name; absent until the project has one | Whoever meets the constraint, the decision or the incident | The foundation team |
-| `_DISCOVERY_TEMPLATE.md`, `_CHARTER_TEMPLATE.md`, `cycles/_TEMPLATE.md`, `rules/_TEMPLATE.md` | The templates | — | — |
+| `.nstack/forms/` — `discovery.md`, `charter.md`, `cycle.md`, `rules.md` | The forms these files are copied from; they are the framework's and live in its folder | — | — |
 
 ```mermaid
 flowchart LR
@@ -61,5 +61,5 @@ missing.
 | The plan, a fitness function | Every push | Formats; one accepted cycle at a time, under an accepted charter; `end` = `start` + the appetite; acceptance criteria once a deliverable is ready; closures recorded; a discovery decided with its decider and date, a charter only after a go. A charter, a cycle or a deliverable still holding the template's words is refused |
 | The pull request check | Every pull request changing a module beyond its description — manifest, `AGENTS.md`, `README.md`, `docs/`; not a framework update — **once the charter is accepted** | An accepted cycle; not past its end date; a ready or in-progress deliverable named — or the `out-of-cycle` label with its justification |
 
-The charter changes only through a PDR (`docs/os/06-decisions.md` §4). A cycle is never
+The charter changes only through a PDR (`.nstack/handbook/06-decisions.md` §4). A cycle is never
 extended: past its end date, delivery work stops until the decider records a decision.
