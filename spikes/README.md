@@ -7,6 +7,20 @@ Throwaway probes of the first cycle. Their product is what they record in the cy
 |---|---|---|
 | [`d1-capture/`](d1-capture/) | D1, first half | Can one program write the microphone and the system's sound as two files, on the three systems, with the same code? |
 | [`d1-shell/`](d1-shell/) | D1, second half | Does a web-view application get a window that renders, a tray icon, and a global shortcut that fires while another window has the focus? |
+| [`d2-local-minutes/`](d2-local-minutes/) | D2 | Are all-local minutes of a French meeting worth keeping, on the decider's laptop? |
+
+## Running `d2-local-minutes`
+
+It needs a meeting of about an hour, in French, **recorded for the purpose with people who
+agreed**, as one audio file; `whisper-cli` (package `whisper-cpp`); and `ollama serve` running.
+
+```bash
+python3 spikes/d2-local-minutes/d2.py path/to/meeting.m4a
+```
+
+It downloads two models the first time and counts that as setup, transcribes, writes the
+minutes, and prints the lines the cycle records. The count that decides — actions missing,
+wrong or invented — is a human's, read against what was really agreed.
 
 ## Running `d1-shell`
 

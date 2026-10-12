@@ -192,6 +192,10 @@ flowchart LR
 works under a condition the user must meet · red: refused by the desktop · grey: the
 condition or the reason.
 
+**D1 is not closed.** Windows and macOS wait for builds the decider chose to set up later
+(2026-10-12: "on mettra les workflows plus tard"), and a real call is still to record on
+Fedora. D3 cannot be accepted on a system D1 has not answered for.
+
 Three of these are the desktop's rules, not the toolkit's: a drawn interface would meet the
 same tray, the same portal and the same refusal to steal the focus. The one that was the
 web view's own risk — the window — is the one that simply worked.

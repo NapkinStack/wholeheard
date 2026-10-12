@@ -2,3 +2,6 @@
 target/
 *.wav
 gen/
+*.bin
+*-d2/
+__pycache__/
