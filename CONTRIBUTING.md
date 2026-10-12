@@ -3,7 +3,8 @@
 ## Before you start
 
 1. Pick a **ready** deliverable of the current cycle (`docs/project/cycles/`) — or an issue,
-   for what nobody planned: a defect, a debt.
+   for what nobody planned: a defect, a debt. A project with no accepted charter has no
+   cycle yet: pick the work, the other rules apply (`docs/project/README.md`).
 2. Identify **the** target module — exactly one.
 3. Read its `MANIFEST.yaml`, then its `AGENTS.md`.
 4. `nstack bootstrap <name> && nstack check <name>`

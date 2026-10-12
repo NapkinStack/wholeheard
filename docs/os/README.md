@@ -73,7 +73,7 @@ preserving them.
 │   │   └── 10-measurement.md     Metrics, feedback loop, decision review
 │   ├── tooling-profile.md        Capabilities → the tools of the moment
 │   ├── adr/, pdr/                Decisions, and their _TEMPLATE.md models
-│   └── architecture/, runbooks/
+│   └── architecture/, runbooks/  Absent until a decision or an incident needs them
 │
 ├── playbooks/                    ← instruction modules loaded on demand
 ├── modules/                      The code: one unit of parallelism per folder

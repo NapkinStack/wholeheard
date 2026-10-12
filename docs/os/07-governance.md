@@ -202,6 +202,12 @@ and leaves a counted trace.
 
 ## 6. Proportionate governance
 
+**Two things are read before any rule fires, and neither is declared by whoever is judged.**
+The project's *stage* — unframed until its charter is accepted, framed after — decides
+whether the three rules that bound work inside a cycle apply at all
+(`docs/project/README.md`). The module's *criticality* decides which checks a change pays
+for, in either stage. One never stands in for the other.
+
 The level of requirement depends on the **criticality declared in the manifest**, not on
 a uniform rule. Never impose the ceremony of a critical system on a small module; never
 treat a critical system like a prototype.

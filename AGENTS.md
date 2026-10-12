@@ -186,7 +186,7 @@ An important decision never stays only inside a conversation with an AI.
 ## 7. Definition of Ready / Done
 
 **Ready** — do not start a significant task without: a deliverable of the current cycle,
-ready; an understandable goal, scope and out of scope, testable acceptance criteria, known
+ready, once the project is framed; an understandable goal, scope and out of scope, testable acceptance criteria, known
 dependencies, the target module identified. If a piece of information is missing without
 being blocking: move forward with an **explicitly stated assumption**.
 

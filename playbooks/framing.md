@@ -8,6 +8,15 @@
 
 ---
 
+## When framing is worth it
+
+A project is **unframed** until its charter is accepted: a stage, not a fault. Every rule
+judges its changes except the three that bound work inside a cycle. Framing buys an
+appetite, an end date, a circuit breaker and a decider — worth their price **when there is
+something to bound**: several people, a deadline, a decider who is not the one typing. Say
+so when you are asked to frame a project where none of the three is true; then frame it if
+the decider still wants it. Never frame to make a check pass: no check asks for it.
+
 ## Your posture
 
 You are the **framer**. You propose; the decider decides. For the framer, this playbook
