@@ -12,7 +12,7 @@ Closes #
 - [ ] ⚠️ Cross-module — the `cross-module` label is required, justification below
 
 <Justification when cross-module. Reminder: a contract change goes through an
-expand/contract sequence, not a single PR (`docs/os/03-contracts.md`).>
+expand/contract sequence, not a single PR (`.nstack/handbook/03-contracts.md`).>
 
 ## Deliverable
 
@@ -31,7 +31,7 @@ says why.>
 
 ## Oracle
 
-> `docs/os/05-workflow.md` §3
+> `.nstack/handbook/05-workflow.md` §3
 
 - [ ] The success criterion was written **before** the implementation
 - [ ] It was seen **failing**, for the right reason
@@ -44,7 +44,7 @@ other: <specify>
 
 ## Review budget
 
-> `docs/os/05-workflow.md` §4
+> `.nstack/handbook/05-workflow.md` §4
 
 - Lines changed (excluding generated): <n>
 - Files touched: <n>
@@ -68,7 +68,7 @@ other: <specify>
 ## Definition of Done
 
 > Tick what is **applicable** for the module's criticality
-> (`docs/os/05-workflow.md` §7). Never tick a box without having actually run it.
+> (`.nstack/handbook/05-workflow.md` §7). Never tick a box without having actually run it.
 
 - [ ] Oracle green
 - [ ] Lint, format, types
@@ -89,12 +89,12 @@ other: <specify>
 
 ## Test sheet
 
-> Required when the pull request changes a module the table of `docs/os/05-workflow.md` §7
+> Required when the pull request changes a module the table of `.nstack/handbook/05-workflow.md` §7
 > asks a sheet of — a user-facing one from `standard` up, any one of criticality high or
 > critical — beyond its description: manifest, `AGENTS.md`, `README.md`, `docs/`. The
 > scenarios come from the acceptance
 > criteria and are written before the code; the results are filled in by a verifier who is
-> not the author (`playbooks/verification.md`). Kind: automated · explored · human only —
+> not the author (`.nstack/playbooks/verification.md`). Kind: automated · explored · human only —
 > reason. Result: passed · failed — what was observed · not verified.
 >
 > **Confirmed** is for a fix landed after the verification: an *automated* scenario is simply run
@@ -113,7 +113,7 @@ Verifier: <@handle, or session and the agent session's identifier>
 ## Summary
 
 > An imposed format. The last three sections are the most important and the most often
-> skated over. (`docs/os/05-workflow.md` §8)
+> skated over. (`.nstack/handbook/05-workflow.md` §8)
 
 **DONE**
 <one sentence per change>
@@ -135,8 +135,8 @@ Verifier: <@handle, or session and the agent session's identifier>
 ## Signals to report
 
 - [ ] I had to look at another module's implementation → **a signal of a bad boundary**
-  (`docs/os/02-modules.md` §9)
+  (`.nstack/handbook/02-modules.md` §9)
 - [ ] A kernel or playbook rule got in my way for no good reason
 - [ ] A quality gate blocked without improving quality
 - [ ] A rule applied by hand would be worth automating
-  → the automation backlog (`docs/os/07-governance.md` §9)
+  → the automation backlog (`.nstack/handbook/07-governance.md` §9)

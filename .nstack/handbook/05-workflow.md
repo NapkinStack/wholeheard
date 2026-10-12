@@ -82,7 +82,7 @@ This is not a marginal case, and it is not an excuse to skip the step. It is a d
 |---|---|
 | The acceptance criterion is subjective | Restate it as an observable behaviour |
 | The task is exploratory | Requalify it as a *spike*: the deliverable is knowledge, not code. Its criteria name what is recorded and the threshold read against it, and **a refuted result is a delivered one** |
-| It waits on someone outside the project | It is a dependency with a date, not a deliverable (`playbooks/framing.md`) |
+| It waits on someone outside the project | It is a dependency with a date, not a deliverable (`.nstack/playbooks/framing.md`) |
 | The area is untestable | Make it testable first — that is a task in its own right |
 | The need is vague | Back to framing; it was not *Ready* |
 
@@ -261,7 +261,7 @@ criticality are read before and after the change, and the stricter applies:
 
 - **Written before the code**, from the acceptance criteria: it is part of the oracle.
 - **Run by a verifier who is not the author**: another agent session with a fresh
-  context, or a human (`playbooks/verification.md`). The session that wrote the code
+  context, or a human (`.nstack/playbooks/verification.md`). The session that wrote the code
   shares its misunderstandings. CI compares the verifier's name with the change's authors —
   the pull request's, the commits' GitHub accounts (read from their noreply addresses), and
   the sessions their `Agent-Session` trailers name — and refuses a match: a declaration
@@ -340,10 +340,10 @@ never verifies its own work, and never approves it.
 
 | Posture | Held by | Mission | Never | Produces |
 |---|---|---|---|---|
-| **Framer** | An agent | Interview the decider; propose the charter, the cycle, the deliverables and their criteria, the modules | Decide; propose more than the need; split on day one without a reason | Proposals (`playbooks/framing.md`) |
+| **Framer** | An agent | Interview the decider; propose the charter, the cycle, the deliverables and their criteria, the modules | Decide; propose more than the need; split on day one without a reason | Proposals (`.nstack/playbooks/framing.md`) |
 | **Author** | An agent | Deliver one deliverable, in one module, within its criteria | Widen the scope; verify or approve its own work | The pull request and its oracle |
-| **Challenger** | An agent session other than the framer's, or a human | Attack a discovery: pre-mortem, the four risks, counter-evidence | Rewrite the document; soften an objection | Objections with their evidence (`playbooks/discovery.md`) |
-| **Verifier** | An agent session other than the author's, or a human | Run the test sheet against the change, before reading the diff | Fix the code; report a preference as a gap | Results and evidence (`playbooks/verification.md`) |
+| **Challenger** | An agent session other than the framer's, or a human | Attack a discovery: pre-mortem, the four risks, counter-evidence | Rewrite the document; soften an objection | Objections with their evidence (`.nstack/playbooks/discovery.md`) |
+| **Verifier** | An agent session other than the author's, or a human | Run the test sheet against the change, before reading the diff | Fix the code; report a preference as a gap | Results and evidence (`.nstack/playbooks/verification.md`) |
 | **Approver** | A human code owner | Decide the merge on the evidence | Approve without the sheet where one is required | The approval |
 | **Decider** | The human who owns the project | Validate the charter, the cycle and its appetite; accept a change of scope; choose at the circuit breaker | Extend a cycle silently | Decisions recorded in `docs/project/` |
 | **Owners** | The foundation team, a module's owner | Own the project's rules, or one module | Write a project rule into a framework file | The project's and the module's documents |

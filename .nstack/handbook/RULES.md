@@ -59,13 +59,13 @@ a family, a number a rule; a retired rule's number is never reused.
 
 | Code | Refuses | Why |
 |---|---|---|
-| `C1` | A framing document whose front matter cannot be read | `docs/project/README.md` |
-| `C2` | A charter with an unknown status, no single decider or no success criterion | `docs/project/README.md` |
-| `C3` | A cycle with no goal, no appetite, or an end that is not its start plus its appetite | `docs/project/README.md` |
+| `C1` | A framing document whose front matter cannot be read | `.nstack/handbook/project.md` |
+| `C2` | A charter with an unknown status, no single decider or no success criterion | `.nstack/handbook/project.md` |
+| `C3` | A cycle with no goal, no appetite, or an end that is not its start plus its appetite | `.nstack/handbook/project.md` |
 | `C4` | A deliverable with no id, title or state — or ready without acceptance criteria | `05-workflow.md` §3 |
-| `C5` | Two accepted cycles, or an accepted cycle under a charter that is not | `docs/project/README.md` |
-| `C6` | A closed or stopped cycle with no outcome or no end date | `docs/project/README.md` |
-| `C7` | A discovery decided with no decider, date or challenger — or a charter with no go before it | `docs/project/README.md` |
+| `C5` | Two accepted cycles, or an accepted cycle under a charter that is not | `.nstack/handbook/project.md` |
+| `C6` | A closed or stopped cycle with no outcome or no end date | `.nstack/handbook/project.md` |
+| `C7` | A discovery decided with no decider, date or challenger — or a charter with no go before it | `.nstack/handbook/project.md` |
 | `C8` | A document left as its form once its moment has come: the front page's sentence at a go, the whole front page at an accepted charter, the module map once a module holds code | `06-decisions.md` §10 |
 
 ## H — hygiene
@@ -98,10 +98,10 @@ it has no cycle, K1 to K3 say nothing there, and every other rule applies.
 
 | Code | Refuses | Why |
 |---|---|---|
-| `K1` | In a framed project, delivery work with no accepted cycle | `docs/project/README.md` |
-| `K2` | Delivery work after the cycle's end date: the circuit breaker | `docs/project/README.md` |
-| `K3` | Delivery work that names no ready or in-progress deliverable | `docs/project/README.md` |
-| `K4` | The out-of-cycle label with no justification | `docs/project/README.md` |
+| `K1` | In a framed project, delivery work with no accepted cycle | `.nstack/handbook/project.md` |
+| `K2` | Delivery work after the cycle's end date: the circuit breaker | `.nstack/handbook/project.md` |
+| `K3` | Delivery work that names no ready or in-progress deliverable | `.nstack/handbook/project.md` |
+| `K4` | The out-of-cycle label with no justification | `.nstack/handbook/project.md` |
 
 ## V — a contract version someone relies on
 
@@ -127,7 +127,7 @@ it has no cycle, K1 to K3 say nothing there, and every other rule applies.
 
 ## G — the forge's settings
 
-The sixteen lines of the checklist, in its order (`INSTALL.md`, "To do once on GitHub").
+The eighteen lines of the checklist, in its order (`INSTALL.md`, "To do once on GitHub").
 
 | Code | Reports as a gap | Why |
 |---|---|---|
@@ -147,3 +147,5 @@ The sixteen lines of the checklist, in its order (`INSTALL.md`, "To do once on G
 | `G14` | Auto-merge not available | `07-governance.md` §7 |
 | `G15` | A merge method other than squash | `07-governance.md` §7 |
 | `G16` | Merged branches kept | `07-governance.md` §7 |
+| `G17` | The main branch can be deleted | `07-governance.md` §7 |
+| `G18` | The main branch's history can be rewritten by a force push | `07-governance.md` §7 |

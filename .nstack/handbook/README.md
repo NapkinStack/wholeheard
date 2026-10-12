@@ -55,29 +55,33 @@ preserving them.
 ├── AGENTS.md                     ← THE KERNEL: resident, loaded for every task
 ├── CONTRIBUTING.md, SECURITY.md
 │
-├── docs/
-│   ├── os/                       ← this handbook
-│   │   ├── README.md             you are here
-│   │   ├── INSTALL.md            The foundation's manual: install, forge settings, updates
-│   │   ├── RULES.md              Every code a check prints, and where its reason is written
-│   │   ├── 00-overview.md        OS architecture, the 4 layers, glossary
-│   │   ├── 01-principles.md      Non-negotiable principles and anti-patterns
-│   │   ├── 02-modules.md         Boundaries, manifest, lifecycle, one PR = one module
-│   │   ├── 03-contracts.md       Versioning, expand/contract, contract tests
-│   │   ├── 04-ai-context.md      Context firewall, context budget, crossing over
-│   │   ├── 05-workflow.md        Verification-first loop, DoR/DoD, review budget
-│   │   ├── 06-decisions.md       ADR/PDR, Prior Art Gate, dated success criteria
-│   │   ├── 07-governance.md      Where a rule lives, fitness functions, CI, quality gates
-│   │   ├── 08-quality.md         Tests, security, reliability, data, UX, QA, UAT
-│   │   ├── 09-platform.md        Standard verbs, layout, tooling, onboarding
-│   │   └── 10-measurement.md     Metrics, feedback loop, decision review
-│   ├── tooling-profile.md        Capabilities → the tools of the moment
-│   ├── adr/, pdr/                Decisions, and their _TEMPLATE.md models
+├── docs/                         ← THE PROJECT'S: nothing here is the framework's
+│   ├── project/                  Discovery, charter, cycles, the project's own rules — born with the first of them
+│   ├── adr/, pdr/                Decisions, and their index
 │   └── architecture/, runbooks/  Absent until a decision or an incident needs them
-│
-├── playbooks/                    ← instruction modules loaded on demand
 ├── modules/                      The code: one unit of parallelism per folder
 ├── contracts/                    The only channel between modules
+│
+├── .nstack/                      ← THE FRAMEWORK'S: its one folder, received through updates
+│   ├── playbooks/                Instruction modules loaded on demand
+│   ├── forms/                    The forms the commands and the playbooks copy: charter, cycle, decision…
+│   ├── tooling-profile.md        Capabilities → the tools of the moment
+│   └── handbook/                 ← this handbook
+│       ├── README.md             you are here
+│       ├── INSTALL.md            The foundation's manual: install, forge settings, updates
+│       ├── RULES.md              Every code a check prints, and where its reason is written
+│       ├── project.md            What docs/project/ holds, and the two stages of a project
+│       ├── 00-overview.md        OS architecture, the 4 layers, glossary
+│       ├── 01-principles.md      Non-negotiable principles and anti-patterns
+│       ├── 02-modules.md         Boundaries, manifest, lifecycle, one PR = one module
+│       ├── 03-contracts.md       Versioning, expand/contract, contract tests
+│       ├── 04-ai-context.md      Context firewall, context budget, crossing over
+│       ├── 05-workflow.md        Verification-first loop, DoR/DoD, review budget
+│       ├── 06-decisions.md       ADR/PDR, Prior Art Gate, dated success criteria
+│       ├── 07-governance.md      Where a rule lives, fitness functions, CI, quality gates
+│       ├── 08-quality.md         Tests, security, reliability, data, UX, QA, UAT
+│       ├── 09-platform.md        Standard verbs, layout, tooling, onboarding
+│       └── 10-measurement.md     Metrics, feedback loop, decision review
 └── .github/                      CI, CODEOWNERS, issue and pull request templates
 ```
 
@@ -92,7 +96,7 @@ What an agent loads is:
 
 - `AGENTS.md` (the kernel, always);
 - the `AGENTS.md` of the module concerned (always);
-- one or more `playbooks/` (only when triggered).
+- one or more `.nstack/playbooks/` (only when triggered).
 
 If you need to put a rule in the kernel, re-read `07-governance.md` § "Where does this
 rule live?" first. The answer is very often "in CI", not "in the prompt".

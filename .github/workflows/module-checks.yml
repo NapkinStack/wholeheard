@@ -4,14 +4,14 @@ name: Modules
 # from the module's MANIFEST.yaml, assuming no stack (P1). A module is a folder holding a
 # MANIFEST.yaml, contracts/ included: nstack lists them, the workflow defines nothing.
 # The level of validation is proportionate to the criticality declared in the MANIFEST
-# (docs/os/07-governance.md §6).
+# (.nstack/handbook/07-governance.md §6).
 #
 # `Module checks` is the required check: a matrix job carries each module's name, which no
 # ruleset can require in advance, so this job fails whenever one of them failed.
 #
 # A change to a contract version also runs the checks of the module that provides it and of
 # every module that declares it in consumes: the contract tests of both sides, which is what
-# docs/os/03-contracts.md section 5 promises.
+# .nstack/handbook/03-contracts.md section 5 promises.
 #
 # Module names come from the paths the pull request changed: they are never inserted
 # into a script, only read from an environment variable.
@@ -88,7 +88,7 @@ jobs:
         run: bash .nstack/install-engine.sh
 
       # Printed, not branched on: what the value requires is judged by the rules that read the
-      # matrix of docs/os/05-workflow.md §7, and never twice. A run says under which value it
+      # matrix of .nstack/handbook/05-workflow.md §7, and never twice. A run says under which value it
       # judged, as every other verdict does.
       - name: Declared criticality
         run: |
@@ -102,7 +102,7 @@ jobs:
       - name: bootstrap
         run: nstack bootstrap "$MODULE"
 
-      # All levels — docs/os/05-workflow.md §7
+      # All levels — .nstack/handbook/05-workflow.md §7
       - name: check
         run: nstack check "$MODULE"
 
@@ -110,18 +110,18 @@ jobs:
         run: nstack test "$MODULE"
 
       # A contract version someone relies on changes only with the merged proof (V1,
-      # docs/os/03-contracts.md §4). The step runs even when an earlier one failed: a pull
+      # .nstack/handbook/03-contracts.md §4). The step runs even when an earlier one failed: a pull
       # request that breaks a frozen version AND a test would otherwise meet V1 a round trip
       # later, once the tests are green.
       - name: compat
         if: ${{ !cancelled() }}
         run: nstack compat "$MODULE" --base "$BASE"
 
-      # Optional verb: the module's end-to-end scenarios, when declared (docs/os/09-platform.md §2).
+      # Optional verb: the module's end-to-end scenarios, when declared (.nstack/handbook/09-platform.md §2).
       - name: e2e
         run: nstack e2e "$MODULE"
 
-      # The evidence the test sheet links to (docs/os/05-workflow.md §7), kept even on failure.
+      # The evidence the test sheet links to (.nstack/handbook/05-workflow.md §7), kept even on failure.
       - name: Evidence of the scenarios
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

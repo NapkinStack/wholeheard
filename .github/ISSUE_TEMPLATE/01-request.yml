@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         A request is **not work yet**. The next framing makes it a deliverable of a cycle,
-        or refuses it with a reason (docs/os/06-decisions.md §9). Work a cycle already
+        or refuses it with a reason (.nstack/handbook/06-decisions.md §9). Work a cycle already
         plans is described there, once — not here.
 
   - type: textarea

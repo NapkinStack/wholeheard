@@ -141,7 +141,7 @@ flowchart TD
 - **A deployment is not finished at deploy time**: it is finished when observability
   confirms the expected behaviour.
 - **Backward compatibility is mandatory**: during the deployment two versions coexist. An
-  incompatible change is split up (`docs/os/03-contracts.md`).
+  incompatible change is split up (`.nstack/handbook/03-contracts.md`).
 
 ---
 

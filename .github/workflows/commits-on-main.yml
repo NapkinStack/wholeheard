@@ -1,6 +1,6 @@
 name: Commits on main
 
-# What reached this branch outside a pull request, recorded (rule W1, docs/os/RULES.md).
+# What reached this branch outside a pull request, recorded (rule W1, .nstack/handbook/RULES.md).
 #
 # This workflow RECORDS; it never refuses. What refuses a merge is the ruleset, and on a
 # repository whose plan cannot enforce one, nothing refuses at all — which is exactly when

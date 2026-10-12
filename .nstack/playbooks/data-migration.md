@@ -22,7 +22,7 @@
 
 ## 1. Expand / Contract applied to the schema
 
-The same logic as contracts (`docs/os/03-contracts.md`), for the same reason: the old and
+The same logic as contracts (`.nstack/handbook/03-contracts.md`), for the same reason: the old and
 the new code coexist during the deployment.
 
 ```mermaid

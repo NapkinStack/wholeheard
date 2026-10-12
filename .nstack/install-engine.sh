@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs the NapkinStack engine this project records, for CI (docs/os/INSTALL.md).
+# Installs the NapkinStack engine this project records, for CI (.nstack/handbook/INSTALL.md).
 #
 # A published version (_commit: vX.Y.Z) comes from PyPI, the only published channel.
 # Anything else comes from the framework's repository at that commit, and is

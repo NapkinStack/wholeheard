@@ -28,7 +28,7 @@ budget, deadline, compliance. Distinguish real constraints from preferences.>
 ## Prior art
 
 > **Mandatory section.** Minimum two named references. A missing section or a missing
-> reference → refused in review, pending an automated check. (`docs/os/06-decisions.md` §2)
+> reference → refused in review, pending an automated check. (`.nstack/handbook/06-decisions.md` §2)
 
 **Dominant convention of the field:** <what is the standard answer to this problem?>
 
@@ -98,7 +98,7 @@ What we do if it is not: <correct · supersede · roll back>
 **Impacts on other modules or contracts:**
 
 **Rule to automate:** <which fitness function or check follows from this decision? If
-none is possible, explain why. `docs/os/07-governance.md` §2>
+none is possible, explain why. `.nstack/handbook/07-governance.md` §2>
 
 ---
 

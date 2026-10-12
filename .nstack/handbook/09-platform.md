@@ -32,7 +32,7 @@ flowchart TB
     classDef module fill:#065f46,color:#fff
 ```
 
-**Legend** — blue: the engine, an external tool named in `docs/tooling-profile.md` · dark
+**Legend** — blue: the engine, an external tool named in `.nstack/tooling-profile.md` · dark
 grey: the foundation, which the project owns and adapts · light grey: a `platform/`
 module, only when the project builds its own shared mechanisms · green: the teams'
 modules. Solid line: generation and rules; dotted: execution or use.
@@ -91,32 +91,12 @@ project/
 ├── CONTRIBUTING.md
 ├── SECURITY.md
 │
-├── docs/
-│   ├── os/                        # this documentation, and INSTALL.md, the foundation's manual
-│   ├── architecture/              # how the whole is deployed — created by the first decision that needs it
-│   ├── project/                   # the discovery, the charter and the cycles: what the framework cannot know
+├── docs/                          # the project's own, and nothing else
+│   ├── project/                   # the discovery, the charter, the cycles, the project's rules
 │   ├── adr/                       # cross-cutting technical decisions
 │   ├── pdr/                       # product decisions
-│   ├── runbooks/                  # what to do when the whole fails — created by the first incident
-│   └── tooling-profile.md         # mapping capabilities → the tools of the moment
-│
-├── playbooks/                     # AI instruction modules, loaded on demand
-│   ├── discovery.md
-│   ├── framing.md
-│   ├── security.md
-│   ├── tests.md
-│   ├── verification.md
-│   ├── documentation.md
-│   ├── data-migration.md
-│   ├── ux.md
-│   └── operations.md
-│
-├── contracts/                     # ← a module in its own right, dedicated owner
-│   ├── MANIFEST.yaml
-│   ├── <contract>/
-│   │   ├── v1/
-│   │   └── v2/
-│   └── tests/
+│   ├── architecture/              # how the whole is deployed — created by the first decision that needs it
+│   └── runbooks/                  # what to do when the whole fails — created by the first incident
 │
 ├── modules/                       # empty at creation
 │   ├── <module-a>/
@@ -128,6 +108,20 @@ project/
 │   │   └── tests/
 │   └── <module-b>/
 │       └── …
+│
+├── contracts/                     # ← a module in its own right, dedicated owner
+│   ├── MANIFEST.yaml
+│   ├── <contract>/
+│   │   ├── v1/
+│   │   └── v2/
+│   └── tests/
+│
+├── .nstack/                       # the framework's one folder: everything in it arrives by update
+│   ├── playbooks/                 # AI instruction modules, loaded on demand
+│   ├── forms/                     # what a command or a playbook copies: charter, cycle, decision, rules
+│   ├── handbook/                  # this documentation, INSTALL.md and RULES.md
+│   ├── tooling-profile.md         # mapping capabilities → the tools of the moment
+│   └── skills.yaml                # playbooks exposed as skills
 │
 └── .github/
     ├── ISSUE_TEMPLATE/
@@ -221,7 +215,7 @@ playbooks, runs the verbs and proposes changes, which CI accepts or refuses exac
 would from any other contributor.
 
 The OS therefore declares **capabilities**, and a *tooling profile*
-(`docs/tooling-profile.md`) maps them onto the tools of the moment. Changing tool then
+(`.nstack/tooling-profile.md`) maps them onto the tools of the moment. Changing tool then
 happens without touching the OS.
 
 | Capability | What it is for |

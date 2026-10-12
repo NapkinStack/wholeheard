@@ -9,7 +9,7 @@ round: 1
 
 # Discovery
 
-> Started by the engine's `discover` command, run by your agent (`playbooks/discovery.md`).
+> Started by the engine's `discover` command, run by your agent (`.nstack/playbooks/discovery.md`).
 > One document, a decision at the end of each round.
 
 ## 1. Intake

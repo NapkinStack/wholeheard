@@ -17,7 +17,7 @@ deliverables:
 
 # Cycle NN — <title>
 
-> Copied to `NN-<slug>.md` at framing (`playbooks/framing.md`). One accepted cycle at a
+> Copied to `docs/project/cycles/NN-<slug>.md` at framing (`.nstack/playbooks/framing.md`). One accepted cycle at a
 > time; no automatic extension.
 
 ## Goal

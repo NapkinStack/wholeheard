@@ -31,7 +31,7 @@ body:
   - type: checkboxes
     id: guardrail
     attributes:
-      label: Feedback loop (docs/os/10-measurement.md §4)
+      label: Feedback loop (.nstack/handbook/10-measurement.md §4)
       description: Fixing the bug is not enough — improve the system that let it through.
       options:
         - label: A test reproducing the bug will be added (it must fail BEFORE the fix)

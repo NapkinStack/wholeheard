@@ -47,14 +47,14 @@ How many modules does Summit start with?
 ## Prior art
 
 **Dominant convention of the field:** start with one module and split when a boundary has
-shown itself — this project's own handbook says so (`docs/os/02-modules.md` §3), and it is
+shown itself — this project's own handbook says so (`.nstack/handbook/02-modules.md` §3), and it is
 the common advice for a new codebase.
 
 **References examined:**
 
 | Reference | What it does | What we keep from it |
 |---|---|---|
-| This framework's handbook, `docs/os/02-modules.md` §3 | "Never create artificially small modules"; a decision tree that refuses a split when the capability is not coherent, cannot be tested alone, or has no owner | The test each of the four must pass, below |
+| This framework's handbook, `.nstack/handbook/02-modules.md` §3 | "Never create artificially small modules"; a decision tree that refuses a split when the capability is not coherent, cannot be tested alone, or has no owner | The test each of the four must pass, below |
 | The Unix pipeline — small programs, each doing one thing, joined by a plain format | A step is replaceable because what it reads and writes is a file anyone can produce | The session's files as the contracts: a step neither knows nor cares who wrote its input |
 | The idea file, §6, "Import et export entre les étapes" | A corrected transcript, re-imported, replaces the original for the next step | The requirement that makes the boundary real rather than decorative |
 

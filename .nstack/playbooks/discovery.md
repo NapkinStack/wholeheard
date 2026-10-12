@@ -37,7 +37,7 @@ cannot be decided while it is.
 
 ## 2. Research
 
-With the research tools of `docs/tooling-profile.md` — or, when that row is empty, the tools
+With the research tools of `.nstack/tooling-profile.md` — or, when that row is empty, the tools
 at hand, named in the document — look for:
 
 - what users do today instead, including nothing;

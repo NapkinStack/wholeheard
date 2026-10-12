@@ -24,7 +24,7 @@ write, the **challenger**; to verify a change you did not write, the **verifier*
 loads its playbook (§4). You never verify, challenge or approve your own work.
 
 **Identity.** You work under your own GitHub identity, never with a human's credentials,
-and you never approve a pull request (`docs/os/07-governance.md` §7). Every commit you make
+and you never approve a pull request (`.nstack/handbook/07-governance.md` §7). Every commit you make
 carries the trailer `Agent-Session: <an identifier of this session>`; as a verifier, you
 sign the sheet `Verifier: session <that identifier>`, and CI refuses one among the authors.
 
@@ -61,7 +61,7 @@ directly, run the local checks, summarise. No ceremony.
 2.  Scope        identify THE module concerned (§4)
 3.  Inventory    existing code, tests, contracts and decisions — in that module
 4.  Oracle       write the executable success criterion, watch it FAIL
-                 a sheet is due (docs/os/05-workflow.md §7): write it too
+                 a sheet is due (.nstack/handbook/05-workflow.md §7): write it too
 5.  Size         does the batch fit the review budget? if not, split it
 6.  Implement    the minimal change
 7.  Validate     actually run the local checks
@@ -87,7 +87,7 @@ You **stop and report** in these cases, without looking for a way around:
 | A quality gate blocks | Stop. Never a workaround, a `skip`, a `--no-verify` or a disabled test. |
 | Potentially destructive action | Stop. See §5. |
 | A blocking piece of information is missing after searching | Ask for clarification. Once, precisely. |
-| A module's criticality has to be chosen | Propose it with what it costs, and let the decider settle it: it is a product decision (`docs/os/05-workflow.md` §7). |
+| A module's criticality has to be chosen | Propose it with what it costs, and let the decider settle it: it is a product decision (`.nstack/handbook/05-workflow.md` §7). |
 
 A red CI is never a detail. A bypassed gate is an incident.
 
@@ -112,7 +112,7 @@ kernel (this file)
 One session, one working tree: never share a checkout with another session — each works in
 its own copy of the repository.
 
-**Playbooks — triggers.** Load `playbooks/<x>.md` if and only if:
+**Playbooks — triggers.** Load `.nstack/playbooks/<x>.md` if and only if:
 
 | You are touching… | Load |
 |---|---|
@@ -133,7 +133,7 @@ its own copy of the repository.
 3. check whether the existing **contract** is enough — in 80 % of cases, it is;
 4. if the contract is enough: stay in your module, consume the contract;
 5. if the contract is not enough: this is a **contract change**. It goes through an
-   expand/contract sequence (`docs/os/03-contracts.md`), never a single PR.
+   expand/contract sequence (`.nstack/handbook/03-contracts.md`), never a single PR.
 
 Being unable to work through the contract alone is a **signal of a bad boundary**.
 Report it, do not work around it.
@@ -177,7 +177,7 @@ without an exit strategy.
 
 A structuring decision produces an **ADR** (technical) or a **PDR** (product), with a
 *prior art* section and, when building something bespoke, a **dated success criterion**.
-Detail: `docs/os/06-decisions.md`.
+Detail: `.nstack/handbook/06-decisions.md`.
 
 An important decision never stays only inside a conversation with an AI.
 
@@ -194,7 +194,7 @@ being blocking: move forward with an **explicitly stated assumption**.
 oracle green, local checks green, contracts validated, the test sheet run by a verifier
 when one is due, affected documentation up to date, diff self-reviewed,
 summary produced. The level required depends on the criticality declared in the module's
-manifest (`docs/os/05-workflow.md` §7).
+manifest (`.nstack/handbook/05-workflow.md` §7).
 
 ---
 

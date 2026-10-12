@@ -302,7 +302,7 @@ Every important piece of information has one identifiable source, and only one.
 | Real behaviour | Code and tests |
 | Quality rules | Versioned CI |
 | Infrastructure | Versioned configuration |
-| Security | `playbooks/security.md` for the rules, the project's `SECURITY.md` for its policy, automated checks |
+| Security | `.nstack/playbooks/security.md` for the rules, the project's `SECURITY.md` for its policy, automated checks |
 | Operations | Runbooks |
 
 > **Never leave an important decision only inside a conversation with an AI.** A
@@ -358,7 +358,7 @@ grey: owed — asked of a human, read by no check.
 | Front page, whole — `README.md` | What it is, how to run it, where its decisions live | The charter is **accepted** | Each cycle's closure |
 | Security policy — `SECURITY.md` | How to report a vulnerability, who answers, how fast | Creation, as a default; reviewed when the charter is accepted — it says what data the product holds | A change of channel or of maintainers |
 | The project's own rules — `docs/project/rules/` | What this project adds to a playbook, and how each rule is checked | The charter is accepted: its constraints are the first ones | The decision or the incident that adds a rule; a check that replaces one |
-| The project's tools — `docs/tooling-profile.md` | Which tool serves which capability | A tool is chosen | The decision that replaces one |
+| The project's tools — `.nstack/tooling-profile.md` | Which tool serves which capability | A tool is chosen | The decision that replaces one |
 | A cycle — `docs/project/cycles/` | One goal, its deliverables, its end date, its closure | The charter is accepted | The decider alone |
 | Module map — `modules/README.md` | The modules, and the contracts between them | A module holds its **first file of code** | The pull request that creates, merges or retires a module |
 | A module's `README.md` and runbook | What it is for, how to start it, how to operate it | The module is created | The pull request that changes its behaviour |
@@ -370,7 +370,7 @@ a sentence written then is invented. Each form waits for the event of its row, a
 that asked for it earlier would be paid in counterfeit.
 
 **The standard** these documents are written to — shape first, a source, a date, current or
-deleted — is `playbooks/documentation.md`: a playbook, because the handbook is never loaded
+deleted — is `.nstack/playbooks/documentation.md`: a playbook, because the handbook is never loaded
 into an agent's context and agents write most of these documents.
 
 **What a machine reads, and what is owed.** Three moments are readable from the repository

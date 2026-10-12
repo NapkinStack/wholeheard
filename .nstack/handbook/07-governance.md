@@ -65,7 +65,7 @@ nearer (`00-overview.md` §5):
 | The tree ends on… | A rule every project shares | A rule of this project | A rule of one module |
 |---|---|---|---|
 | `J` — every task | The kernel | `docs/project/rules/always.md` | The module's `AGENTS.md` |
-| `K` — by trigger | `playbooks/<subject>.md` | `docs/project/rules/<subject>.md` | The module's `AGENTS.md` |
+| `K` — by trigger | `.nstack/playbooks/<subject>.md` | `docs/project/rules/<subject>.md` | The module's `AGENTS.md` |
 | `D` — a check | The framework's checks | The project's own CI | The module's `check` and `test` |
 
 Node `L` holds at every level: a project rule that a check now enforces leaves
@@ -205,7 +205,7 @@ and leaves a counted trace.
 **Two things are read before any rule fires, and neither is declared by whoever is judged.**
 The project's *stage* — unframed until its charter is accepted, framed after — decides
 whether the three rules that bound work inside a cycle apply at all
-(`docs/project/README.md`). The module's *criticality* decides which checks a change pays
+(`.nstack/handbook/project.md`). The module's *criticality* decides which checks a change pays
 for, in either stage. One never stands in for the other.
 
 The level of requirement depends on the **criticality declared in the manifest**, not on
