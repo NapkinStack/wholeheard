@@ -1,6 +1,6 @@
 # ADR-0002 — A Rust core of programs that run alone, and a web-view shell that starts them
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-10-12
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: project
