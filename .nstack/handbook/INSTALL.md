@@ -54,7 +54,7 @@ mention such a commit, and where a ruleset does refuse, it catches a bypass.
 
 ```bash
 # 1. Tooling at the project's NapkinStack version (prerequisite: uv)
-uv tool install "napkinstack==0.6.2-24-gcf6fbfe" --with-executables-from pre-commit
+uv tool install "napkinstack==0.7.2" --with-executables-from pre-commit
 
 # 2. Hooks, once per clone
 pre-commit install
@@ -85,9 +85,38 @@ The merge keeps the project's adaptations and never touches the modules' code. A
 stays marked in the file, uncommitted: the team decides, and both the hook and CI reject
 any remaining marker.
 
-A fix to NapkinStack itself can be tried here before it is released: `nstack update --ref
-<commit>` pins the unpublished commit, CI installs it from the framework's repository, and
-every run says so until a published version replaces it.
+## When the framework is wrong
+
+A message that misleads, a check that misjudges, a page that contradicts a command: it is not
+worked around here, it is fixed where it lives — and this project is the proof.
+
+```mermaid
+flowchart LR
+    D["A defect met<br/>in this project"]:::pr --> C["The framework's sources,<br/>cloned beside the project"]:::fw
+    C --> T["A failing test,<br/>then the fix"]:::fw
+    T --> J["This project, judged<br/>by the sources"]:::pr
+    J --> P["A pull request<br/>to the framework"]:::fw
+    P -->|"merged"| U["nstack update --ref,<br/>then the next version"]:::pr
+
+    classDef pr fill:#065f46,color:#fff
+    classDef fw fill:#1e3a8a,color:#fff
+```
+
+**Legend** — green: in this project · blue: in the framework's repository.
+
+```bash
+git clone <the framework's repository> ../framework    # its address: _src_path in .copier-answers.yml
+uv run --project ../framework nstack fitness --root .  # this project, judged by the sources
+```
+
+Any command runs that way, with nothing installed. The rest is the framework's own page:
+its `CONTRIBUTING.md` says how a fix is tested, proposed and reviewed. Once merged,
+`nstack update --ref <commit>` lets this project run on the fix before it is released: CI
+installs that commit, and every run says an unpublished framework judged it, until a
+published version replaces it.
+
+**A private project stays private.** The framework's repository is public: what is reported
+there describes the defect, never the project — no name, no domain, no content.
 
 ## To do once on GitHub — otherwise nothing is guaranteed
 
