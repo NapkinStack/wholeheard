@@ -18,6 +18,14 @@ cargo run --release
 A window opens and says what the system gave it. Nothing is recorded. It needs no Node: its
 page is one static file.
 
+On a Linux desktop the portal gives a global shortcut only to an application it can name.
+Install the probe's desktop entry once, and remove it when the spike is over:
+
+```bash
+install -Dm644 dev.summit.d1shell.desktop ~/.local/share/applications/dev.summit.d1shell.desktop
+rm ~/.local/share/applications/dev.summit.d1shell.desktop    # afterwards
+```
+
 ## Running `d1-capture`
 
 During a real call, with people who know they are recorded:

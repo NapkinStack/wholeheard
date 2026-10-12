@@ -118,6 +118,12 @@ async fn portal(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error 
     use ashpd::desktop::global_shortcuts::{GlobalShortcuts, NewShortcut};
     use futures_util::StreamExt;
 
+    // An application that is not sandboxed must say who it is before the portal answers:
+    // the first try was refused with "An app id is required". The desktop accepts the name
+    // only when a desktop entry of that name is installed — `dev.summit.d1shell.desktop`.
+    let id: ashpd::AppID = "dev.summit.d1shell".parse()?;
+    ashpd::register_host_app(id).await.map_err(|error| format!("could not declare the application's id: {error}"))?;
+
     let shortcuts = GlobalShortcuts::new().await?;
     let session = shortcuts.create_session(Default::default()).await?;
     let wanted = NewShortcut::new("record", "Start or stop a recording").preferred_trigger("CTRL+ALT+r");
