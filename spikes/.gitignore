@@ -1,0 +1,7 @@
+# Throwaway probes: nothing built, and no recording, enters the repository.
+target/
+*.wav
+gen/
+*.bin
+*-d2/
+__pycache__/

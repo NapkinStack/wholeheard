@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Summit D1 probe
+Comment=A throwaway probe of what the desktop gives an application
+Exec=d1-shell
+Icon=applications-other
+Terminal=false
+NoDisplay=true
