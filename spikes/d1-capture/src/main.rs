@@ -9,7 +9,10 @@
 //! It records for a few seconds, then prints what D1 asks to be recorded: per source, whether
 //! a file was written, how long it is, and whether it holds sound or silence.
 //!
-//!     d1-capture [seconds] [folder]        defaults: 10 seconds, the current folder
+//!     d1-capture [seconds] [folder] [--tone]     defaults: 10 seconds, the current folder
+//!
+//! `--tone` plays a quiet note on the default output during the run: with it, silence in
+//! "others" cannot mean that nothing was playing.
 //!
 //! Run it during a real call, with people who know they are recorded, and delete the files
 //! afterwards: no recording of a real meeting enters the repository (rules/security.md, 2).
@@ -47,41 +50,115 @@ struct Take {
 }
 
 fn main() {
-    let mut args = std::env::args().skip(1);
-    let seconds: u64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(10);
-    let folder = PathBuf::from(args.next().unwrap_or_else(|| ".".into()));
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let tone = args.iter().any(|a| a == "--tone");
+    let mut rest = args.iter().filter(|a| !a.starts_with("--"));
+    let seconds: u64 = rest.next().and_then(|s| s.parse().ok()).unwrap_or(10);
+    let folder = PathBuf::from(rest.next().cloned().unwrap_or_else(|| ".".into()));
 
     let host = pick_host();
     println!("System      : {} {}", std::env::consts::OS, std::env::consts::ARCH);
     println!("Audio host  : {}", host.id().name());
-
-    let me = host
-        .default_input_device()
-        .ok_or_else(|| "no default input device".to_string())
-        .and_then(|device| open("me", &device, false, &folder));
-    let others = host
-        .default_output_device()
-        .ok_or_else(|| "no default output device".to_string())
-        .and_then(|device| open("others", &device, true, &folder));
-
-    if me.is_err() && others.is_err() {
-        report("me", &me);
-        report("others", &others);
-        std::process::exit(1);
+    println!("Devices     :");
+    if let Ok(devices) = host.devices() {
+        for device in devices {
+            let id = device.id().map(|id| id.to_string()).unwrap_or_else(|_| "unnamed".into());
+            let way = match (device.supports_input(), device.supports_output()) {
+                (true, true) => "in+out",
+                (true, false) => "in",
+                (false, true) => "out",
+                _ => "?",
+            };
+            println!("  {way:<6} {id}");
+        }
     }
-    println!("Recording   : {seconds} s — speak, and let the other side of the call speak");
+
+    // "others" is tried on every way this host offers to hear what plays: the first run on
+    // Fedora opened the default output and got twenty seconds of zeros, with no error.
+    let mut takes: Vec<(&'static str, Result<Take, String>)> = vec![(
+        "me",
+        host.default_input_device()
+            .ok_or_else(|| "no default input device".to_string())
+            .and_then(|device| open("me", &device, false, &folder)),
+    )];
+    for (name, id) in [("others-sink", "pipewire:sink_default"), ("others-out", "pipewire:output_default")] {
+        if let Some(device) = id.parse().ok().and_then(|id| host.device_by_id(&id)) {
+            takes.push((name, open(name, &device, true, &folder)));
+        }
+    }
+    if takes.len() == 1 {
+        takes.push((
+            "others",
+            host.default_output_device()
+                .ok_or_else(|| "no default output device".to_string())
+                .and_then(|device| open("others", &device, true, &folder)),
+        ));
+    }
+
+    // A known sound, so that silence in "others" cannot mean "nothing was playing".
+    let _tone = if tone {
+        match host.default_output_device().ok_or_else(|| "no default output".to_string()).and_then(|d| play_tone(&d)) {
+            Ok(stream) => {
+                println!("Tone        : a quiet 440 Hz note plays on the default output for the whole run");
+                Some(stream)
+            }
+            Err(reason) => {
+                println!("Tone        : NOT PLAYED — {reason}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    println!("Recording   : {seconds} s");
     std::thread::sleep(Duration::from_secs(seconds));
 
-    let me = me.map(finish);
-    let others = others.map(finish);
-    report("me", &me);
-    report("others", &others);
-    let both = matches!((&me, &others), (Ok(a), Ok(b)) if a.heard && b.heard);
+    let mut me_heard = false;
+    let mut others_heard = false;
+    for (name, take) in takes {
+        let outcome = take.map(finish);
+        if let Ok(outcome) = &outcome {
+            if name == "me" {
+                me_heard = outcome.heard;
+            } else {
+                others_heard |= outcome.heard;
+            }
+        }
+        report(name, &outcome);
+    }
+    let both = me_heard && others_heard;
     println!(
         "\nD1, two files of a real call: {}",
         if both { "MET on this system" } else { "NOT MET on this system — see above" }
     );
     std::process::exit(if both { 0 } else { 2 });
+}
+
+/// A sine at a tenth of full scale on the default output, until the stream is dropped.
+fn play_tone(device: &Device) -> Result<Stream, String> {
+    let config = device.default_output_config().map_err(|e| format!("no output configuration ({e})"))?;
+    let (rate, channels) = (config.sample_rate() as f32, config.channels() as usize);
+    let mut phase = 0f32;
+    let errors = |error: cpal::Error| eprintln!("  [tone] stream: {error}");
+    let stream = match config.sample_format() {
+        SampleFormat::F32 => device.build_output_stream(
+            config.into(),
+            move |data: &mut [f32], _: &_| {
+                for frame in data.chunks_mut(channels.max(1)) {
+                    let value = (phase * std::f32::consts::TAU).sin() * 0.1;
+                    phase = (phase + 440.0 / rate) % 1.0;
+                    frame.fill(value);
+                }
+            },
+            errors,
+            None,
+        ),
+        other => return Err(format!("output format {other} not handled by this probe")),
+    }
+    .map_err(|e| format!("the tone could not be opened ({e})"))?;
+    stream.play().map_err(|e| format!("the tone could not start ({e})"))?;
+    Ok(stream)
 }
 
 /// PipeWire when the build has it and the session runs it; the system's default otherwise.

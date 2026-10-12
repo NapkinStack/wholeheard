@@ -153,6 +153,12 @@ renders badly there ends the web view, not the core, and the drawn shell takes i
 This is the choice **for the probe**. The decision for the product is an ADR, written on what
 D1 records.
 
+**D1 — what the probe recorded.** One row per run; a refuted run is a recorded answer.
+
+| Date | System | Run | Microphone | System's sound | Read |
+|---|---|---|---|---|---|
+| 2026-10-12 | Fedora 44, GNOME on Wayland, PipeWire 1.6 | `d1-capture`, 20 s, by the decider | A file with sound, 20.0 s; loudest sample at 100 % of full scale — it clipped | **A file of silence**, 20.0 s, opened on the default output with no error | Not met. Not yet known whether anything was playing: the probe now plays a test note of its own and tries a second way to open the output |
+
 **D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
 quality. Writing them today would be writing them around the answer hoped for.
