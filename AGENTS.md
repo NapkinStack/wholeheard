@@ -61,7 +61,7 @@ directly, run the local checks, summarise. No ceremony.
 2.  Scope        identify THE module concerned (§4)
 3.  Inventory    existing code, tests, contracts and decisions — in that module
 4.  Oracle       write the executable success criterion, watch it FAIL
-                 a user sees the change: write its test sheet too
+                 a sheet is due (docs/os/05-workflow.md §7): write it too
 5.  Size         does the batch fit the review budget? if not, split it
 6.  Implement    the minimal change
 7.  Validate     actually run the local checks
@@ -87,6 +87,7 @@ You **stop and report** in these cases, without looking for a way around:
 | A quality gate blocks | Stop. Never a workaround, a `skip`, a `--no-verify` or a disabled test. |
 | Potentially destructive action | Stop. See §5. |
 | A blocking piece of information is missing after searching | Ask for clarification. Once, precisely. |
+| A module's criticality has to be chosen | Propose it with what it costs, and let the decider settle it: it is a product decision (`docs/os/05-workflow.md` §7). |
 
 A red CI is never a detail. A bypassed gate is an incident.
 
@@ -101,6 +102,7 @@ Load, in this order, and nothing more:
 ```
 kernel (this file)
   → the charter and the current cycle (docs/project/)
+  → the project's own rules (docs/project/rules/): always.md, then <x>.md with playbook <x>
   → AGENTS.md of the module concerned
   → triggered playbook(s)
   → code, tests and docs LOCAL to the module
@@ -122,6 +124,7 @@ its own copy of the repository.
 | a non-trivial test strategy, a flaky test | `tests.md` |
 | logs, metrics, alerts, retries, timeouts, rollback | `operations.md` |
 | verifying a change you did not write, filling in a test sheet | `verification.md` |
+| a document a human will read: writing or changing one | `documentation.md` |
 
 **Crossing a boundary.** If the task requires changing a second module:
 
@@ -189,9 +192,9 @@ being blocking: move forward with an **explicitly stated assumption**.
 
 **Done** — a task is finished when the *applicable* validations have actually passed:
 oracle green, local checks green, contracts validated, the test sheet run by a verifier
-when a user sees the change, affected documentation up to date, diff self-reviewed,
+when one is due, affected documentation up to date, diff self-reviewed,
 summary produced. The level required depends on the criticality declared in the module's
-manifest (`docs/os/07-governance.md` § proportionate governance).
+manifest (`docs/os/05-workflow.md` §7).
 
 ---
 
@@ -218,6 +221,7 @@ than no summary at all.
 Security and high-risk actions   ← always first
   > the five laws (§1)
   > the module's local AGENTS.md
+  > the project's rules (docs/project/rules/)
   > the triggered playbook
   > this kernel
 ```

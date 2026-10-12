@@ -122,12 +122,12 @@ It **does not replace** unit, integration, security or technical tests. A UAT us
 technical safety net is the symptom of an insufficient test suite — and it arrives too
 late and costs too much for that role.
 
-It starts from the acceptance criteria of the PDR or the issue and from real user
+It starts from the acceptance criteria of the PDR or the deliverable and from real user
 journeys, not from free exploration of the interface.
 
 The test sheet (`05-workflow.md` §7) is the everyday form of acceptance: the acceptance
 criteria turned into scenarios, run by someone other than the author, each with its
-evidence. UAT remains for `critical` modules, on top of it.
+evidence. UAT remains for `critical` modules on top of it, and for `high` ones as needed.
 
 ---
 
@@ -160,7 +160,14 @@ authentication, authorisation, secrets, personal data or external input.
 
 ## 7. Reliability and operations
 
-A module destined for production must be **operable**. Depending on its criticality:
+A module destined for production must be **operable**. This section says **what** operability
+is made of; **when** each capability is required is read from the one table that answers that
+question, `05-workflow.md` §7. Below `standard` — a `prototype` module, thrown away, that
+nothing depends on — none of it is required.
+
+The rows below are **owed to a human**, except the runbook's presence, which M8 checks. They
+are the detail behind the *Observability added*, *Runbook present* and *Rollback verified*
+rows of the table, and where a cell here and the table differ, the table decides.
 
 | Capability | standard | high | critical |
 |---|---|---|---|
@@ -175,7 +182,7 @@ A module destined for production must be **operable**. Depending on its critical
 | Idempotence | case by case | ✔ | ✔ |
 | SLI / SLO | — | as needed | ✔ |
 | Runbook | — | ✔ | ✔ |
-| Tested rollback | — | ✔ | ✔ |
+| Tested rollback | — | per risk | ✔ |
 | Controlled degradation | — | as needed | ✔ |
 
 > **Never add automatic retries without analysing the side effects.** A retry on a

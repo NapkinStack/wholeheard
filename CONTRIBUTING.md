@@ -2,7 +2,8 @@
 
 ## Before you start
 
-1. Pick a **Ready** issue, tied to a deliverable of the current cycle (`docs/project/`).
+1. Pick a **ready** deliverable of the current cycle (`docs/project/cycles/`) — or an issue,
+   for what nobody planned: a defect, a debt.
 2. Identify **the** target module — exactly one.
 3. Read its `MANIFEST.yaml`, then its `AGENTS.md`.
 4. `nstack bootstrap <name> && nstack check <name>`
@@ -31,7 +32,7 @@ flowchart LR
 **Legend** — grey: on the workstation, bypassable · green: GitHub side · red: a stop.
 
 Only barriers 1 and 2 act **before** publication. A secret caught by CI is already
-public: that is an incident, and it is revoked immediately (`SECURITY.md`).
+public: that is an incident, and it is revoked immediately (`playbooks/security.md`).
 
 ## While you work
 
@@ -49,7 +50,8 @@ The template applies the Definition of Done. Three things not to skate over:
 
 - **The summary** — `DONE / VERIFIED / ASSUMED / NOT VERIFIED / RISKS`.
   A summary with nothing under `ASSUMED` and `NOT VERIFIED` is almost always incomplete.
-- **The test sheet** — when a user sees the change: scenarios written before the code,
+- **The test sheet** — when one is due (`docs/os/05-workflow.md` §7: a module a user sees,
+  from `standard` up, and every `high` or `critical` one): scenarios written before the code,
   results filled in by a verifier who is not you, each with its evidence
   (`playbooks/verification.md`).
 - **The signals to report** — that is how the system improves

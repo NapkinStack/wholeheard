@@ -74,14 +74,14 @@ other: <specify>
 - [ ] Lint, format, types
 - [ ] Unit tests
 - [ ] Build
-- [ ] Contract tests *(when there is a contract)*
+- [ ] Contract tests
 - [ ] Fitness functions
-- [ ] Integration tests *(per risk)*
+- [ ] Integration tests
 - [ ] Security analysis
-- [ ] Accessibility *(when there is UI)*
-- [ ] E2E on critical journeys *(criticality high and above)*
-- [ ] Observability added *(criticality high and above)*
-- [ ] Rollback verified *(criticality critical)*
+- [ ] Accessibility
+- [ ] E2E on critical journeys
+- [ ] Observability added
+- [ ] Rollback verified
 - [ ] Affected documentation updated
 - [ ] Diff self-reviewed line by line
 
@@ -89,18 +89,24 @@ other: <specify>
 
 ## Test sheet
 
-> Required when the pull request changes a user-facing module, or one of criticality high
-> or critical, beyond its description — manifest, `AGENTS.md`, `README.md`, `docs/`
-> (`docs/os/05-workflow.md` §7). The scenarios come from the acceptance
+> Required when the pull request changes a module the table of `docs/os/05-workflow.md` §7
+> asks a sheet of — a user-facing one from `standard` up, any one of criticality high or
+> critical — beyond its description: manifest, `AGENTS.md`, `README.md`, `docs/`. The
+> scenarios come from the acceptance
 > criteria and are written before the code; the results are filled in by a verifier who is
 > not the author (`playbooks/verification.md`). Kind: automated · explored · human only —
 > reason. Result: passed · failed — what was observed · not verified.
+>
+> **Confirmed** is for a fix landed after the verification: an *automated* scenario is simply run
+> again at the head, one *explored* by hand keeps its commit and gets the head commit here with
+> what moved since — except at criticality `critical`, where every scenario is run again. Leave
+> it empty when nothing moved — a confirmation is not a round.
 
 Verifier: <@handle, or session and the agent session's identifier>
 
-| # | Given · when · then | Kind | Result | Evidence | Commit |
-|---|---|---|---|---|---|
-| S1 | <Given …, when …, then …> | <automated · explored · human only — reason> | <passed · failed · not verified> | <link> | <commit> |
+| # | Given · when · then | Kind | Result | Evidence | Commit | Confirmed |
+|---|---|---|---|---|---|---|
+| S1 | <Given …, when …, then …> | <automated · explored · human only — reason> | <passed · failed · not verified> | <link> | <commit> | — |
 
 ---
 

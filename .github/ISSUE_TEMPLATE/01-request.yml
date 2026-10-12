@@ -1,0 +1,31 @@
+name: Request
+description: Something asked for that no cycle plans yet
+labels: ["request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A request is **not work yet**. The next framing makes it a deliverable of a cycle,
+        or refuses it with a reason (docs/os/06-decisions.md §9). Work a cycle already
+        plans is described there, once — not here.
+
+  - type: textarea
+    id: need
+    attributes:
+      label: Who asks, and what they cannot do today
+      description: One user, one situation. Not a solution.
+    validations: { required: true }
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: What shows the need is real, with its source. "Nobody asked" is an answer.
+    validations: { required: true }
+
+  - type: textarea
+    id: cost-of-nothing
+    attributes:
+      label: What happens if nothing is done
+      description: And by when. Without it, the request cannot be weighed against the cycle's other work.
+    validations: { required: true }

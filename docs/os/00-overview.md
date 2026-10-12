@@ -139,15 +139,53 @@ delivery: it lengthens the queue and degrades the quality of the review itself.
 
 ### What the framework cannot know: three levels of rules
 
-| Level | Holds | Maintained by |
-|---|---|---|
-| **Framework** — identical in every project, received through updates | Postures, the five laws, the working loop, stopping rules, framing, the test discipline, templates, checks | The framework |
-| **Project** | Users, problem, constraints, success criteria, cycles, the project's decisions, its tools | The foundation team and the decider: `docs/project/`, `docs/adr/`, `docs/pdr/`, `docs/tooling-profile.md` |
-| **Module** | Its capability, commands, contracts, scenarios | Its owner: `MANIFEST.yaml`, local `AGENTS.md` |
+```mermaid
+flowchart LR
+    F["FRAMEWORK<br/>what every project shares<br/><i>No secret in the repository</i>"]:::fw
+    P["PROJECT<br/>what this project adds<br/><i>Health data never leaves the EU</i>"]:::pr
+    M["MODULE<br/>what this module adds<br/><i>The card number is never logged</i>"]:::mo
+    F -->|"completed by"| P -->|"completed by"| M
+
+    classDef fw fill:#374151,color:#fff
+    classDef pr fill:#1e3a8a,color:#fff
+    classDef mo fill:#065f46,color:#fff
+```
+
+**Legend** — grey: received through updates, the same everywhere · blue: written by the
+project, read by every session that works in it · green: written by a module's owner, read
+only by who works in that module. In italics, one rule of each level on one subject, security.
+
+| Level | Holds | Written in | Maintained by |
+|---|---|---|---|
+| **Framework** — identical in every project | Postures, the five laws, the working loop, stopping rules, framing, the test discipline, templates, checks | The kernel and `playbooks/` | The framework, through updates |
+| **Project** | Users, problem, constraints, success criteria, cycles, its decisions, its tools — and **its own rules** on any subject a playbook covers | `docs/project/`, `docs/adr/`, `docs/pdr/`, `docs/tooling-profile.md` — its rules in `docs/project/rules/` | The foundation team and the decider |
+| **Module** | Its capability, commands, contracts, scenarios, its invariants and its traps | `MANIFEST.yaml`, the module's `AGENTS.md` | Its owner |
+
+**A nearer level adds or tightens; it never repeats.** A project's rule on security is read
+*with* the security playbook, not instead of it: `docs/project/rules/security.md`, loaded by
+the same trigger. `docs/project/rules/always.md` holds the few that apply to every task. The
+folder is empty at creation — a project has no rule of its own before it has a charter — and
+each file is born the day a constraint, a decision or an incident gives it a first line.
 
 **The framework never names a stack, a tool or a business domain.** A project rule is
 written in a project document, never in the kernel or a playbook: the framework's files
 keep merging cleanly at every update.
+
+### Method and seat: whose file it is
+
+Every file the framework writes into a project is one of two things, never both.
+
+| | Method | Seat |
+|---|---|---|
+| **Whose** | The framework's | The project's |
+| **At creation** | Written whole | Written as a form: headings, and the place of a diagram |
+| **At an update** | Merged | Never touched again — recreated only when missing |
+| **Which** | Everything else: the kernel, the playbooks, this handbook, the templates, the checks | `README.md`, `SECURITY.md`, `modules/README.md`, `docs/adr/README.md`, `docs/pdr/README.md` |
+
+A file holding the framework's words *and* waiting for the project's belongs to nobody: the
+project does not delete what looks official, and an update conflicts on what the project
+wrote. So a seat carries no manual, and the manual sits in no seat. What each one holds,
+when it becomes writable and what keeps it current: `06-decisions.md` §10.
 
 ---
 
@@ -179,7 +217,7 @@ These terms have a precise meaning in the OS. Using them differently creates amb
 | **Test sheet** | The scenarios of a change, written before the code and run by a verifier who is not the author, each with its evidence (`05-workflow.md` §7). |
 
 > **Note.** The **FDR** (Functional Design Record) format does not exist in this OS. It
-> overlapped the PDR and an issue's acceptance criteria without adding distinct value.
+> overlapped the PDR and a deliverable's acceptance criteria without adding distinct value.
 > For genuinely complex cases, it becomes an **optional section of the PDR**.
 > Justification: `06-decisions.md` § "Why only two formats".
 

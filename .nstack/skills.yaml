@@ -70,6 +70,15 @@ skills:
       used when a task asks to frame a project, start a project from an idea or a
       specification, plan or re-plan a cycle, or write a cycle's closure.
 
+  documentation:
+    source: playbooks/documentation.md
+    description: >
+      The project's rules for writing a document: a diagram with its legend first, a few
+      lines after it, a source for every outside claim, a date on every decision, and
+      documents kept current or deleted. This skill should be used when a task writes or
+      changes a README, a decision record, a charter, a cycle, a module's page, a runbook
+      or a pull request description.
+
   verification:
     source: playbooks/verification.md
     description: >

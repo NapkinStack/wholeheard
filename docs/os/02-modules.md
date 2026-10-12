@@ -141,7 +141,7 @@ modules/<name>/
 ├── README.md            ← for humans: what it is for, how to start
 ├── docs/
 │   ├── adr/             ← local technical decisions
-│   └── runbook.md       ← when the module is operated in production
+│   └── runbook.md       ← criticality high or critical (05-workflow.md §7)
 ├── src/
 └── tests/
 ```

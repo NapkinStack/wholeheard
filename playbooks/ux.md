@@ -2,6 +2,9 @@
 
 > **Trigger.** Load this playbook as soon as the task touches a surface visible to the
 > user.
+>
+> **This project's own rules** on the subject, when it has any: `docs/project/rules/ux.md`
+> — read them with this playbook. They add to it or tighten it.
 
 ---
 

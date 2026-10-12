@@ -64,6 +64,8 @@ are not acceptable justifications.>
 
 ## Decision
 
+<A diagram, with its legend, when the decision changes a structure, a flow or a state. Otherwise delete this line.>
+
 <The option chosen, and **why this one** rather than the others. Not a repeat of the
 description: the argument that settled it.>
 

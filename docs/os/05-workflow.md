@@ -45,7 +45,7 @@ flowchart TD
 
     K --> L["DOCUMENT the<br/>sources of truth affected"]
     L --> M["SUMMARISE: done / verified /<br/>assumed / not verified / risks"]
-    M --> V["VERIFY: a verifier who is not the author<br/>runs the test sheet — user-facing change"]
+    M --> V["VERIFY: a verifier who is not the author<br/>runs the test sheet — when §7 requires one"]
     V --> N["Human review + CI"]
 
     style D fill:#1f2937,color:#fff
@@ -81,7 +81,8 @@ This is not a marginal case, and it is not an excuse to skip the step. It is a d
 | Cause | What to do |
 |---|---|
 | The acceptance criterion is subjective | Restate it as an observable behaviour |
-| The task is exploratory | Requalify it as a *spike*: the deliverable is knowledge, not code |
+| The task is exploratory | Requalify it as a *spike*: the deliverable is knowledge, not code. Its criteria name what is recorded and the threshold read against it, and **a refuted result is a delivered one** |
+| It waits on someone outside the project | It is a dependency with a date, not a deliverable (`playbooks/framing.md`) |
 | The area is untestable | Make it testable first — that is a task in its own right |
 | The need is vague | Back to framing; it was not *Ready* |
 
@@ -97,8 +98,8 @@ generation instead of observing the damage afterwards.
 > The project's real throughput is its verification throughput, not its generation
 > throughput.
 
-The budget is an explicit ceiling, set for the project — `MAX_LINES` and `MAX_FILES` in
-the pull request workflow. Adjusting it per module, by criticality, is not automated: it
+The budget is an explicit ceiling, set for the project — the `MAX_LINES` and `MAX_FILES`
+environment variables of the pull request's scope check, 400 lines and 15 files by default. Adjusting it per module, by criticality, is not automated: it
 is in the automation backlog. It covers:
 
 | Dimension | Indicative ceiling |
@@ -180,29 +181,63 @@ gradual drift and opportunistic refactoring.
 
 ## 7. Definition of Done
 
-A task is finished when the **applicable** validations have actually passed. Which ones
-apply depends on the module's declared criticality (`07-governance.md` § proportionate
-governance).
+A task is finished when the **applicable** validations have actually passed. Which ones apply
+depends on the module's declared `criticality`. **This table is the only place that says
+which** — nothing else in the framework holds a second version of it, and a check that
+refuses a change reads it here.
 
-| Validation | standard | high | critical |
-|---|---|---|---|
-| Oracle green | ✔ | ✔ | ✔ |
-| Lint, format, types | ✔ | ✔ | ✔ |
-| Unit tests | ✔ | ✔ | ✔ |
-| Build | ✔ | ✔ | ✔ |
-| Contract tests | if there is a contract | ✔ | ✔ |
-| Fitness functions | ✔ | ✔ | ✔ |
-| Integration tests | per risk | ✔ | ✔ |
-| Security analysis | ✔ | ✔ | ✔ |
-| Human review | ✔ | ✔ | ✔ + owner |
-| Affected documentation up to date | ✔ | ✔ | ✔ |
-| Accessibility | if UI | if UI | ✔ |
-| Test sheet run by a verifier, with evidence | if user-facing | ✔ | ✔ |
-| E2E on critical journeys | — | ✔ | ✔ |
-| Observability added | — | ✔ | ✔ |
-| Runbook / rollback verified | — | per risk | ✔ |
-| UAT | — | as needed | ✔ |
-| Post-deployment verification | — | per risk | ✔ |
+Each row says who judges it:
+
+- **machine** — a check in CI fails when it is missing. You cannot forget it, and you cannot
+  talk your way past it.
+- **owed** — no check reads it. It is owed to a human, by name, and a row marked *owed* that
+  nobody does is a decision the project took in silence.
+
+The distinction is deliberate. A framework that claims CI verifies a UAT teaches its readers
+to stop believing the rest of the table. **E2E is the honest case to look at**: a check can
+read that a module declares an end-to-end command; it cannot read that the command runs
+end-to-end scenarios rather than the unit suite under another name. A rule a one-line alias
+satisfies teaches the alias, so that row is owed to a human.
+
+| Validation | Judged by | prototype | standard | high | critical |
+|---|---|---|---|---|---|
+| Oracle green | machine | ✔ | ✔ | ✔ | ✔ |
+| Lint, format, types | machine | ✔ | ✔ | ✔ | ✔ |
+| Unit tests | machine | ✔ | ✔ | ✔ | ✔ |
+| Fitness functions | machine | ✔ | ✔ | ✔ | ✔ |
+| A frozen contract version proved compatible (V1) | machine | if there is one | if there is one | if there is one | if there is one |
+| Contract tests | owed | if there is a contract | if there is a contract | ✔ | ✔ |
+| Test sheet run by a verifier, with evidence | machine | — | if user-facing | ✔ | ✔ |
+| Runbook present | machine | — | — | ✔ | ✔ |
+| Every scenario re-run at the head commit | machine | — | — | — | ✔ |
+| Build | owed | ✔ | ✔ | ✔ | ✔ |
+| Integration tests | owed | — | per risk | ✔ | ✔ |
+| Security analysis | owed | — | ✔ | ✔ | ✔ |
+| Affected documentation up to date | owed | — | ✔ | ✔ | ✔ |
+| Accessibility | owed | — | if UI | if UI | ✔ |
+| E2E on critical journeys | owed | — | — | ✔ | ✔ |
+| Observability added | owed | — | — | ✔ | ✔ |
+| Rollback verified | owed | — | — | per risk | ✔ |
+| UAT | owed | — | — | as needed | ✔ |
+| Post-deployment verification | owed | — | — | per risk | ✔ |
+
+**Human review is not in this table.** Who must approve a change is not a property of the
+code's blast radius but of the project's exposure — how many people depend on it, and what
+the forge is able to require. It lives in `07-governance.md` §7, where today it is the same
+for every project: a human code owner.
+
+**One round.** The framework asks for **one** sheet, run by **one** verifier who is not an
+author. It never asks for a second adversarial round, and no check counts them. A project may
+decide to spend more — on a module where it is worth it, recorded in its own ADR — and that is
+the project's decision, never a requirement read out of this table. Rounds without a ceiling
+are not free: **a late round introduces defects of its own**, in changes nobody had asked for.
+
+**What separates `high` from `critical`.** At `high` the sheet is required and the verifier is
+independent. `critical` adds one machine row, the one that costs: **every scenario re-run at
+the head commit** after the last fix — no confirmation stands in for a run. And the owed rows
+that `high` leaves to judgement — rollback, UAT, post-deployment verification, accessibility —
+become due. A module that holds a key, places an order, moves money or touches someone's
+personal data is `critical`; one whose failure costs a day is `high`.
 
 > **Never write "tests passing" if the tests were not actually run.** It is the gravest
 > violation in the system, because it corrupts the one thing everything else rests on.
@@ -210,17 +245,18 @@ governance).
 ### The test sheet
 
 Reading a diff tells nobody whether the product behaves as needed; an agent reads code as
-well as a human. So a pull request that changes what a user sees — or changes a module of
-criticality `high` or `critical` — carries a **test sheet** in its description. Editing
+well as a human. So a pull request that changes a module the table above asks a sheet of —
+one a user sees, from `standard` up, and any module of criticality `high` or `critical` —
+carries a **test sheet** in its description. Editing
 only a module's description — its manifest, `AGENTS.md`, `README.md`, `docs/` — changes no
 behaviour and needs no sheet, a framework update included. The user-visible surface and the
 criticality are read before and after the change, and the stricter applies:
 
-| # | Given · when · then | Kind | Result | Evidence | Commit |
-|---|---|---|---|---|---|
-| S2 | Given an account, when the password is wrong, then a message says what to do and the email stays typed | automated | passed | the CI run's trace | `a1b2c3d` |
-| S5 | Given a 375-pixel-wide phone, when the keyboard opens, then the button stays reachable | explored | failed — the button is hidden | emulator screenshot | `a1b2c3d` |
-| S8 | Given a real mailbox, when a reset is asked, then the email arrives | human only — no test mailbox | not verified | — | — |
+| # | Given · when · then | Kind | Result | Evidence | Commit | Confirmed |
+|---|---|---|---|---|---|---|
+| S2 | Given an account, when the password is wrong, then a message says what to do and the email stays typed | automated | passed | the CI run's trace | `e4f5a6b` | — |
+| S5 | Given a 375-pixel-wide phone, when the keyboard opens, then the button stays reachable | explored | passed | emulator screenshot | `a1b2c3d` | `e4f5a6b` — three fixes under src/, none on this path |
+| S8 | Given a real mailbox, when a reset is asked, then the email arrives | human only — no test mailbox | not verified | — | — | — |
 
 - **Written before the code**, from the acceptance criteria: it is part of the oracle.
 - **Run by a verifier who is not the author**: another agent session with a fresh
@@ -229,14 +265,25 @@ criticality are read before and after the change, and the stricter applies:
   the pull request's, the commits' GitHub accounts (read from their noreply addresses), and
   the sessions their `Agent-Session` trailers name — and refuses a match: a declaration
   checked against the history, not a proof of identity.
-- **No result without evidence**, tied to the commit tested. A new commit sends the
-  scenarios back to be run again.
+- **No result without evidence**, tied to the commit tested. A new commit does not send the
+  whole sheet back:
+  - an **automated** scenario is **run again** at the head — CI replays it when the module
+    declares `e2e`, so it costs nothing; its Commit cell takes the head commit;
+  - one **explored** by hand keeps the commit its evidence was produced on, and the verifier
+    adds a **`Confirmed`** column on the head commit saying **what moved since and why it leaves
+    the result standing**. Reading three fixes is not the same work as driving six scenarios
+    again, and the sheet should not charge the second for the first.
+  - at criticality **`critical`**, nothing stands in for a run: every scenario goes again.
+
+  A confirmation is not a round. A project that wants another adversarial round decides so
+  itself; the sheet never demands one because a fix landed.
 - **Kinds**: *automated* — replayable, run by CI through the module's `e2e` command;
   *explored* — judged by driving the interface; *human only* — what no agent can run, with
   the reason, listed apart for the approver.
 
-The engine's pull request check reads the sheet in CI: missing, unfilled, without evidence, verified on
-another commit, failed. The approver decides on the sheet, and notes what they found that
+**`Confirmed` is optional**: a sheet no fix has disturbed never carries it. The engine's pull
+request check reads the sheet in CI: missing, unfilled, without evidence, verified before the
+head and not confirmed on it, failed. The approver decides on the sheet, and notes what they found that
 the verifier had missed — that measurement decides, one day and module by module, whether
 a verifier agent's approval may count.
 

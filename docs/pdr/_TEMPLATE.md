@@ -67,6 +67,8 @@ knowing it.>
 
 ## Expected behaviour
 
+<A diagram of the journey, with its legend, when there is more than one step. Otherwise delete this line.>
+
 **Nominal journey:**
 
 **Edge cases and degraded states:**

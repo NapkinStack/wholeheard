@@ -47,3 +47,6 @@ cycle.>
 
 <Written at the end: what was delivered, which success criteria moved, what was deferred,
 where the next framing starts.>
+
+**Documents brought current:** <the front page, the module map, a module's page — each with
+its pull request; or "none", and why nothing a reader sees has changed>
