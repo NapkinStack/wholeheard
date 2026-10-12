@@ -415,7 +415,7 @@ the same public five-minute sample, the same model family, the decider's laptop,
 | Model | `large-v3-turbo`, 8-bit | `large-v3-turbo`, 5-bit, 574 MB |
 | Words that differ from the human transcript | 26.8 % | 28.0 % |
 | Time, as a share of the sample's length | 36 % | **82 %** on 8 threads — 220 % on 16, the number the system reports |
-| Model loaded in | counted in the 36 % | 0.4 s |
+| Model loaded in | not measured apart | 0.4 s |
 | To build it | `uv` fetches it | A C++ compiler and CMake; no system package |
 | To ship it | A Python runtime beside a Rust program | One program |
 
