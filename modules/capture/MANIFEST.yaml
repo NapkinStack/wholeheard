@@ -57,7 +57,11 @@ data:
 
 # Significant external dependencies.
 # Each one declares its exit strategy (.nstack/handbook/06-decisions.md §3).
-dependencies: []
+dependencies:
+  - name: serde_json
+    purpose: Writes session.json and the events the program prints
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: Three small objects; written by hand if it had to go.
 #  - name:
 #    purpose:
 #    adr:
