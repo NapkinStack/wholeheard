@@ -323,9 +323,15 @@ and the product says so rather than promise more:
   spelling — names, jargon — and nothing more. Telling speakers apart is another engine's
   work; *"two men and two women"* helps that one, or the minutes, not the words heard.
 
-This cycle listed the context as out of scope. **Proposed, for the decider to confirm**: the
-feature stays out of this cycle, and the contracts `transcription` and `summary` are written
-with an optional context from their first version, so that adding it later breaks nothing.
+**Decided by the decider (2026-10-12): the context ships in this cycle.** It had been listed
+out of scope; it is now part of D4 and D5, whose criteria — written after D1 and D2 — will
+say, for each step, what the user may attach and what the step does with it. The contracts
+`transcription` and `summary` carry it as an optional field from their first version.
+
+The appetite does not move: two weeks, ending 2026-10-27. One more thing to deliver in the
+same time; if it does not fit, the circuit breaker decides what ships, not an extension.
+Custom vocabulary and templates of minutes stay out: a context is free text or a file, and
+nothing more is built around it.
 
 **D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
@@ -361,14 +367,14 @@ Not done in this cycle, even if time remains:
 - Detecting that the microphone is in use; stopping by itself.
 - The first-launch assistant and the ready-made profiles: one configuration file.
 - Costs, the list of sessions, search, the audio player.
-- A context given to a step; custom vocabulary; templates of minutes.
+- Custom vocabulary; templates of minutes — beyond the free context a step takes.
 - Import and export between the steps beyond the files themselves.
 - Signing the builds.
 
 ## Later
 
 Candidates for the next framing, in the order the idea file gives them weight: the context
-menu on files; export to Notion; the context given to a step; detection of the microphone;
+menu on files; export to Notion; detection of the microphone;
 profiles; costs; live transcription.
 
 ## Open questions
