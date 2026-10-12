@@ -358,8 +358,8 @@ always be made again from the files. Dotted: the live path, an addition to the s
    so a crash costs seconds and not the meeting (the charter's first risk). Every later step
    is made from files and can be run again; a provider that fails loses nothing the step
    before it wrote. These become criteria of D3 to D6, not intentions.
-3. **Live transcription, or after the recording — to decide.** The cycle had listed live
-   transcription out of scope; the decider asks for the choice to be made on purpose.
+3. **The transcript comes after the recording in this cycle — and live is prepared now**
+   (decided 2026-10-12), so that adding it later costs as little as possible.
 
 | | After the recording | Live, while recording |
 |---|---|---|
@@ -368,9 +368,18 @@ always be made again from the files. Dotted: the live path, an addition to the s
 | Measured | Local: a third of the meeting's length on this laptop | Not measured: the engine while a call uses the machine; an online one needs a provider that streams |
 | Cost in this cycle | Already D4 | One more thing in two weeks, after the context |
 
-**The framer's recommendation**: after the recording in this cycle, on the design drawn
-above — the transcript is a step fed by files, so feeding it the file *while it grows* is an
-addition later, not a rewrite. Live is then tried as a spike once D3 and D4 hold on Fedora.
+**Decided**: after the recording in this cycle, on the design drawn above; live is tried as a
+spike once D3 and D4 hold on Fedora. *Prepared now* means three constraints on what this
+cycle builds anyway, and no line of live code:
+
+| Constraint, from the first version | Why live then costs little | Lands in |
+|---|---|---|
+| The audio on disk can be read **while it is still being written** | A live engine reads the same file the deferred one reads, a little earlier | D3, the `session-audio` contract |
+| The transcript is a list of **timestamped segments that only grows** — never a text rewritten whole | A partial transcript and a finished one have the same shape; whoever reads it does not care which | D4, the `transcript` contract |
+| The transcription step takes **a span of the audio**, and running it twice on the same span changes nothing | Live is that step called every few seconds; a failed call is called again | D4 |
+
+Each is also what resilience asks: a crash leaves a readable audio and a transcript true up
+to its last segment.
 
 **D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
