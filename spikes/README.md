@@ -18,6 +18,13 @@ agreed**, as one audio file; `whisper-cli` (package `whisper-cpp`); and `ollama 
 python3 spikes/d2-local-minutes/d2.py path/to/meeting.m4a
 ```
 
+**No meeting at hand?** The decider chose not to wait for one (2026-10-12). A public corpus
+of French meetings serves instead: [SUMM-RE](https://huggingface.co/datasets/linagora/SUMM-RE),
+CC BY-SA 4.0 — conversations of about twenty minutes, three or four speakers each on a track
+of their own, with a human transcript to compare against. Its small example, five minutes of
+a meeting that settles the date of an event, is what the probe was first run on; it lives
+outside the repository, in the ignored `temp/` folder.
+
 It downloads two models the first time and counts that as setup, transcribes, writes the
 minutes, and prints the lines the cycle records. The count that decides — actions missing,
 wrong or invented — is a human's, read against what was really agreed.
