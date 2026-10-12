@@ -78,38 +78,151 @@ or one part · blue: the one product that already covers most of the idea · gre
 
 - That users of a local tool accept "a slightly worse result", as the idea's first profile says.
 - That a non-technical person can use Summit "once configured" by someone else.
-- That living in the tray and the context menu, rather than in a window, is something users
-  want — no product of the table does it, which proves a gap, not a demand.
-- That Anarlog's Linux beta is not usable today: nobody tried it here.
+- That being discreet — in the tray and the context menu, never in the user's way — is
+  something users want enough to choose a product for it. No product of the table does it,
+  which proves a gap, not a demand. *(Reworded on 2026-10-12: the decider's aim is not to
+  hide the application, see stage 3.)*
+- That Anarlog's Linux beta is unusable in general: one failed installation on Fedora
+  (stage 3) is one data point, on one distribution.
 
 **Open questions:**
 
 1. With Anarlog covering most of the promise, what is Summit's reason to exist that a user
    would name — and is it enough to build a product rather than contribute to that one?
 2. Who pays for Summit's development, since it charges nothing and selling is out of scope?
-3. Which countries' recording law must the defaults satisfy?
 
 ## 3. Define
 
-**Users and their problem:** <quoted from users: who, how many>
+**Users and their problem:** one person, the decider: "c'est mon propre besoin à cette
+heure-ci" (2026-10-12). No other user has voiced the problem. The three profiles of the idea
+file — the privacy-minded professional, the pragmatist, the tinkerer — are therefore
+**assumptions**, not users.
 
-**Constraints:** <who runs it, budget, platforms, regulation>
+**A need added by the decider at this stage (2026-10-12):** optionally, and where the step
+allows it, attach a context — a text or a file — to a step that uses AI. The framer's
+reading, not a decision:
 
-**Success signals:** <what will be observed, and by when, if the idea is right>
+- *For it*: it is one idea where the file had three — the custom vocabulary (T5), the
+  templates (R4) and the open question on personal notes are each "a context given to a
+  step". An agenda or a list of names given to the summary is what makes Granola's result
+  better than a raw summary; and it costs little to build.
+- *Against it*: a context sent to an online summary is one more thing that leaves the
+  machine, so principle 4 applies to it in full — the interface must say it leaves; a long
+  file adds to the cost and to the length limit (R7); and "where possible" hides that a
+  transcription engine takes a few hundred words of context at most, a summary model a whole
+  document.
+- *Proposed*: keep it, as one concept that replaces T5 and the notes question rather than a
+  fourth feature beside them; decide its place in the first cycle at the framing.
+
+**Constraints:**
+
+- **Who builds and runs it:** the decider alone, with agents. **No budget.** (2026-10-12)
+- **Discreet, not hidden** — the decider's correction of "no window" (2026-10-12): the aim
+  is that Summit never gets in the user's way, not that it is concealed. A window may exist;
+  a user who wants it out of sight can put it there. Principle 5 of the idea file reads
+  "non-intrusive", and "no window to keep open" is one way of it, not the rule.
+- **Platforms:** Fedora for the decider; Windows for one colleague, macOS for the other —
+  the latest version of each system. **The decider tests on Linux only**: Windows and macOS
+  are verified by the two colleagues, on their own machines. (2026-10-12)
+- **Private first, open source later:** the repository stays private until the software has
+  been proven in use; it is opened afterwards. (2026-10-12) Until then the showcase shows
+  nothing, and the forge cannot require an approval on a private repository of this plan —
+  both accepted for now.
+- **Regulation:** France for now; anywhere later, not known in advance. (2026-10-12) So the
+  defaults must be lawful where the rule is strictest, not only in France: a recording is
+  always visible, the reminder to tell the participants is on by default, and nothing
+  records by itself until the user has chosen so.
+
+**What the decider tried (2026-10-12):** asked whether Anarlog or Meetily had been tried and
+what was missing — "testé mais l'installation ne fonctionne pas sous Fedora". One
+observation, on the decider's own workstation; which of the two was tried was not said. It
+agrees with the research: Meetily asks Linux users to build from source, and Anarlog's Linux
+build is a beta whose setup script targets Debian and Ubuntu (*secondary*). So the first
+reason to build is concrete and narrow: **on this Linux, the nearest product does not
+install** — and what the decider would have missed in it once installed is unknown.
+
+**Success signals** — the decider's, 2026-10-12:
+
+| What will be observed | By when |
+|---|---|
+| The decider uses Summit for **all** their meetings, on Fedora | 2026-10-26, two weeks |
+| The decider's colleagues use it on Windows and on macOS: the three platforms, in real use | 2026-10-26 |
+
+**A second purpose, stated by the decider:** the project also serves to make their IT
+company known. That answers who carries the cost — the company, as a showcase — and makes
+"is it open source?" a question of the first order rather than of the last.
 
 **Open questions:**
+
+1. **Two weeks against the scope.** The idea file's first version spans capture of the
+   microphone and of the system's sound on three operating systems, a tray, a context menu, a
+   global shortcut, live transcription, a summary, an export to Notion — by one person with
+   agents. The framer's reading: the date and that scope do not fit together, and one of the
+   two gives way at the framing. Which one is the decider's to say.
+2. What "proven" means for opening the repository: the two success signals above, or more?
+4. *(for the framing)* Two of the three platforms can be verified only by someone else, on
+   their own time: whoever writes the code never sees it run there.
 
 ## 4. Shape
 
-**Value hypothesis:** <why a user would switch — stated so that it can be proven wrong>
+*Drafted by the framer on 2026-10-12; read by the decider the same day.*
 
-**Press release:** <launch day, or a placeholder: the user, the problem, the product, one quote labelled as imagined>
+**Value hypothesis:** a person who cannot install the nearest local note taker on their
+system will, once Summit is installed, use it for **every** meeting — and so will two
+colleagues on Windows and macOS — because it installs in minutes on the three systems, keeps
+everything on the machine by default, lets each step use the provider they choose, and never
+gets in their way. They will not go back to what they do today: **bots that join their
+meetings** (the decider, 2026-10-12).
 
-**Convinces the decider?** <their answer, or an open question>
+What they leave is not nothing, and the hypothesis must beat it: a bot needs no installation,
+works the same on every system, and attends a meeting its owner misses. Summit asks for an
+installation on each machine and for its user to be present. What it offers against that is
+what the idea file says a bot costs — an intruder the other participants see, their words
+held by a third party, a subscription, a model nobody chose.
 
-**No-gos:** <the decider's; the framer's, marked proposed>
+*It is wrong if*, by 2026-10-26: one of the three could not install it without help; or one
+of them held a meeting without it after installing it; or one of them went back to the bot.
+
+**Press release** — a placeholder, dated 2026-10-26, the day of the success signals:
+
+> **Summit: meeting notes that stay on your machine, on any desktop.** Summit records a
+> conversation, transcribes it and writes its minutes — on Linux, Windows and macOS alike.
+> Each of its four steps runs alone and with the provider you choose: a model on your
+> machine, or any OpenAI-compatible service with your own key. Nothing leaves your computer
+> unless you say so, and Summit tells you what leaves and where to. No bot joins your
+> meeting, no account is asked for, and it stays out of your way: a tray icon, a right-click
+> on a file, a notification when it is done. *"The local tool I wanted would not install on
+> my Linux. This one did, and my colleagues on Windows and Mac use the same."* — imagined,
+> from the decider's own account.
+
+**Convinces the decider?** Yes (2026-10-12), read in French, without a change asked.
+
+**No-gos:**
+
+*The decider's, from the idea file:*
+
+- No bot that joins a meeting; no account, no sign-up.
+- No cloud synchronisation, no team collaboration.
+- No provider imposed, no key supplied by Summit.
+- No mobile application.
+- No "ask your notes a question" across meetings.
+- No sales analysis of calls, no CRM integration.
+- Nothing that sells the product: licence, payment, shop.
+
+*The framer's — proposed:*
+
+- **No recording that starts by itself until the user has chosen it, and never one without a
+  visible indicator.** The decider records "anywhere, not known in advance": the default must
+  hold where the law is strictest.
+- **Not a notes editor.** That is what the nearest product is; Summit produces the minutes
+  and hands them over.
+- **No telemetry**, even opt-in, while the repository is private: nobody can read what would
+  be collected.
 
 **Open questions:**
+
+1. Which bots, and what do they cost today? It prices what Summit replaces.
+2. Does the added need — a context given to a step — belong in the first version?
 
 ## 5. Challenge
 
