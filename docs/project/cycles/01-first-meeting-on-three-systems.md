@@ -26,11 +26,15 @@ deliverables:
     state: proposed
   - id: D4
     title: "A user gets a timestamped transcript of a session, naming Me and Others, from an engine on their machine"
-    module: minutes
+    module: transcription
     state: proposed
   - id: D5
-    title: "A user gets the minutes of a session — highlights, actions, key points — from the provider they chose, as a file they can read without Summit"
-    module: minutes
+    title: "A user gets the minutes of a session — highlights, actions, key points — from the provider they chose"
+    module: summary
+    state: proposed
+  - id: D6
+    title: "A user finds the audio, the transcript and the minutes of a session as open files in its folder, readable without Summit"
+    module: export
     state: proposed
 ---
 
@@ -44,7 +48,7 @@ deliverables:
 flowchart LR
     D1["D1 spike<br/>the three systems:<br/>tray, shortcut, two files"]:::spike --> D3["D3<br/>record a meeting"]:::work
     D2["D2 spike<br/>local minutes in French:<br/>worth keeping?"]:::spike --> D5
-    D3 --> D4["D4<br/>transcript"]:::work --> D5["D5<br/>minutes, as files"]:::work
+    D3 --> D4["D4<br/>transcript"]:::work --> D5["D5<br/>minutes"]:::work --> D6["D6<br/>open files<br/>in the session's folder"]:::work
     D1 -. "a system refuted:<br/>the decider re-frames" .-> X["Scope cut,<br/>never the date"]:::stop
 
     classDef spike fill:#1e3a8a,color:#fff
@@ -67,18 +71,28 @@ one of them, D3 cannot be accepted there, and the decider re-frames — the scop
 date is not moved. D1 also records whether an unsigned build opens without help, which is
 what the decision on paying for signing waits for.
 
-**D3, D4 and D5 are `proposed`, not `ready`**: their acceptance criteria are written once D1
+**D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
 quality. Writing them today would be writing them around the answer hoped for.
 
-**Two modules, proposed** *(framer, to confirm)*: `capture` — what records and keeps a
-session, declared `standard` now and `critical` before the repository is opened (charter,
-risks) — and `minutes` — the transcript and the minutes made from a session. The idea file
-describes four independent steps; four modules on day one would be splitting before there is
-anything to split (`docs/os/02-modules.md` §3). Export is the session's folder for now, and
-belongs to neither.
+**Four modules, decided by the decider** (2026-10-12: "on découpe les 4 modules"), one per
+step of the idea file: `capture`, `transcription`, `summary`, `export`. The framer had
+proposed two, on the handbook's advice not to split on day one (`docs/os/02-modules.md` §3);
+the decider's reason is the product's second principle — each step independent, with its own
+provider, usable alone. What it costs is known and accepted: four modules know each other
+only through contracts, so **the session's files are contracts** — the audio `capture`
+provides, the transcript `transcription` provides, the minutes `summary` provides — and their
+first versions are written with D3 to D5. `capture` is declared `standard` now and `critical`
+before the repository is opened (charter, risks); the three others are `standard`. All four
+are user-facing.
 
-**Who verifies.** Both modules are user-facing: each change carries a test sheet run by
+**No technology is chosen here.** D1 asks whether one application can do these three things
+on the three systems; it does not say with what. The decider named one candidate — "certains
+frameworks comme Flutter génèrent des apps natives à partir du même dev" — and that it is
+early to settle it. The choice is a decision of its own, taken after D1 on what it records,
+with its prior art: an ADR, not a line of this cycle.
+
+**Who verifies.** The four modules are user-facing: each change carries a test sheet run by
 someone who is not its author. On Windows and macOS only the two colleagues can run it.
 
 ## Out of scope
@@ -103,14 +117,14 @@ profiles; costs; live transcription.
 
 ## Open questions
 
-**Blocking:** none left once the two modules are confirmed.
+**Blocking:** none left.
 
 **Not blocking:**
 
 - The spike the discovery carried first — running the nearest product's Linux build — was
   dropped by the decider on 2026-10-12. If D1 shows capture on Fedora to be as fragile as the
   challenger found it elsewhere, that question comes back.
-- The colleagues' time is not the decider's to spend: D1 and the test sheets of D3 to D5
+- The colleagues' time is not the decider's to spend: D1 and the test sheets of D3 to D6
   wait on two people outside the build. If a reply takes more than two days, it is named at
   the circuit breaker, not absorbed.
 
