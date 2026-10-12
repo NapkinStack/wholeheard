@@ -1,6 +1,6 @@
 # Summit
 
-<One sentence: what this project does.>
+Summit records a conversation, transcribes it and writes its minutes on Linux, Windows and macOS — four steps, each usable alone and with the provider you choose, on your machine by default — for people who want to keep control of their data and of their costs.
 
 > Installing or updating the foundation this project is built on:
 > [`docs/os/INSTALL.md`](docs/os/INSTALL.md). Delete this line when it no longer serves.

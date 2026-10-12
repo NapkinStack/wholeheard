@@ -1,7 +1,7 @@
 ---
-decision: proposed          # proposed | go | clarify | kill — the decider decides
+decision: go                # proposed | go | clarify | kill — the decider decides
 decider: "@napkinstack-admin" # the human who decides, recorded at intake
-decided_on:                 # YYYY-MM-DD, with the decision
+decided_on: 2026-10-12      # YYYY-MM-DD, with the decision
 challenger: "a separate agent session, 2026-10-12" # stage 5: @human, or the agent session — required for a go
 idea: "docs/project/inputs/Summit-Expression-de-besoin.md"         # the idea as given, kept in docs/project/inputs/
 round: 1
@@ -356,5 +356,25 @@ living in the tray rather than in a window — stage 2's assumption on this stan
 
 ## 6. Decision
 
-<go · clarify · kill; the reasons; for a go, why each objection does not block it, and what
-the first cycle carries: spikes, no-gos.>
+**go** — the decider, 2026-10-12, after section 5 was presented to them unchanged, with the
+challenger's position that this should not be a go as shaped, and the framer's own
+recommendation to clarify first.
+
+**The reasons:** not given. The decider answered "go" and nothing else. This section records
+that rather than invent one.
+
+**Why each objection does not block it:** not answered yet. What follows is the framer's
+proposal for the framing, for the decider to accept or strike — a go carries its objections
+into the first cycle, it does not dissolve them.
+
+| Objection of section 5 | Proposed for the first cycle |
+|---|---|
+| The reason to build was never established: Anarlog's AppImage was not tried on Fedora | **A spike, first**: one hour. It can still end the project, or turn it into a contribution |
+| Three systems, a tray, a shortcut and two-source capture, in two weeks, tested on one | **A spike**: the two-day probe of section 5, on the three machines, before any feature |
+| An all-local result in French may not be worth keeping | **A spike**: half a day, by hand, with no product |
+| A recorder no participant can see | **A no-go to settle in the charter**: what the other participants see or hear, not only the user |
+| Signing on macOS and Windows costs money; "no budget" | **A constraint for the charter**: the decider says yes or no to the cost |
+| 2026-10-26 cannot tell "not wanted" from "not finished" | **The success signals are re-dated at the framing**, from the day the product is in hand |
+| Which product was tried, and with which error | **An open question to the decider**, asked again at the framing |
+
+**No-gos carried:** those of stage 4, the decider's and the framer's three.
