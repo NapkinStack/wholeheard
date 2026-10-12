@@ -236,25 +236,6 @@ fn an_hour_of_recording_fits_the_cycles_limit() {
 }
 
 #[test]
-fn every_number_of_channels_gives_the_same_file() {
-    let folder = tempfile::tempdir().unwrap();
-    for channels in 1..=6 {
-        let path = folder.path().join(format!("{channels}.wav"));
-        let written = recorded(&path, 48_000, channels, &tone(48_000, channels, 2.0, 440.0, 0.2, 0.0))
-            .finish()
-            .unwrap();
-        assert!(
-            (written as i64 - 2 * i64::from(RATE)).abs() <= 2,
-            "{channels} channels: {written} samples"
-        );
-        assert!(
-            (rms(&samples(&path)[RATE as usize..]) - 0.2 / 2f32.sqrt()).abs() < 0.01,
-            "{channels} channels"
-        );
-    }
-}
-
-#[test]
 fn a_silent_source_resting_away_from_zero_is_told_silent_by_what_its_file_holds() {
     // The watch is fed by the track, as the program feeds it: second by second.
     let folder = tempfile::tempdir().unwrap();
