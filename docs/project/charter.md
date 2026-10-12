@@ -62,21 +62,29 @@ known, once the repository is opened. Nothing measures it yet.
   Windows and macOS are verified by the two colleagues, on their machines and their time.
 - **The three systems, latest versions.**
 - **Private repository first**; opened once the software is proven in use. What "proven"
-  means is an open question.
+  means is an open question. **Opening it has a price already set**: the module that captures
+  and keeps recordings becomes `critical` first (risks).
 - **Recording law: France now, anywhere later.** The defaults must hold where the rule is
   strictest. In France the Penal Code, art. 226-1, presumes consent only when the recording
   is made in the sight and knowledge of the people recorded — the other participants, not the
   user (read at Légifrance by the challenger, 2026-10-12).
+- **Summit tells the other participants nothing; the user announces the recording.** Decided
+  by the decider on 2026-10-12: "rien, c'est l'utilisateur qui annonce". The lawfulness of a
+  recording therefore rests on its user, each time. What Summit owes them in return *(framer,
+  to confirm)*: it says so plainly before the first recording, and its reminder at each start
+  is the only trace that the user was told — whether that reminder may be switched off, as
+  the idea file allows (C7), was not decided.
 - **Everything in English** in this repository (`rules/always.md`, rule 1).
 - **Distribution costs money the project does not have**: signing for macOS needs a paid
   developer programme, and an unsigned build meets a warning on Windows (`discovery.md`,
-  stage 5). Whether to pay is an open question, and it is blocking for two of three users.
+  stage 5). **Not paid for now**: the decider decides after the probe on the three machines
+  (2026-10-12), which records whether each colleague opened an unsigned build without help.
 
 ## Risks
 
 | Risk | What it would cost | What follows |
 |---|---|---|
-| A recording is made that a participant did not know about | A criminal offence for the user, in France; the end of the product's reason to exist | The capture module is of criticality **high** *(framer, to confirm)*; what the others see or hear is settled before any capture ships |
+| A recording is made that a participant did not know about | A criminal offence for the user, in France; the end of the product's reason to exist | Accepted by the decider as the user's responsibility (constraints). By the handbook's own rule — a module that "touches someone's personal data is `critical`" (`docs/os/05-workflow.md` §7) — the capture module would be **critical**. **The decider declares it `standard` for now, and `critical` before the repository is opened** (2026-10-12): three users who agreed, a private repository, one builder. A deviation from the handbook's rule, taken knowingly; the day strangers install Summit it ends |
 | A recording or a transcript leaves the machine without the user choosing it | The one promise the product keeps against a bot, broken | `playbooks/security.md` applies from the first cycle; a rule of the project is proposed (`rules/security.md`) |
 | A recording is lost: a crash, a full disk | A meeting that cannot be held again | Part of the capture module's criticality |
 | The nearest product works after all | Nothing to build; perhaps a contribution | The first spike of the first cycle: one hour |
@@ -116,16 +124,15 @@ The framer's, accepted with the discovery:
 
 ## Open questions
 
-**Blocking:**
-
-1. **What do the other participants see or hear when Summit records?** An indicator on the
-   user's own screen is not enough in France, and the reminder can be switched off.
-2. **Does the project pay for signing on macOS and Windows?** If not, how do the two
-   colleagues open the build?
-3. **Is the capture module of criticality high?** The decider settles it.
+**Blocking:** none left.
 
 **Not blocking:**
 
+- Does the project pay for signing on macOS and Windows? Decided after the second spike of
+  the first cycle, on what it records.
+- May the reminder to announce the recording be switched off? The idea file says yes (C7);
+  since the announcement is now the only thing that makes a recording lawful, the framer
+  would say no.
 - Which product was tried on Fedora, and with which error — it shapes the first spike.
 - What "proven in use" means for opening the repository.
 - Whether the context given to a step is in the first version.
