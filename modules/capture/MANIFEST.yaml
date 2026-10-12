@@ -35,7 +35,11 @@ module:
   #   removal_date: YYYY-MM-DD
 
 # Contracts PROVIDED by this module. `path` holds its document (B7).
-provides: []
+provides:
+  - contract: session-audio
+    version: v1
+    path: contracts/session-audio/v1
+    stability: experimental      # experimental | stable | deprecated
 #  - contract: capture-api
 #    version: v1
 #    path: contracts/capture-api/v1
@@ -58,6 +62,20 @@ data:
 # Significant external dependencies.
 # Each one declares its exit strategy (.nstack/handbook/06-decisions.md §3).
 dependencies:
+  - name: cpal
+    purpose: Opens the microphone and what the system plays, with one code on the three systems
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: >
+      Used in src/main.rs only, behind one function that hands samples to the library of
+      this module. A system it fails on gets its own capture there; src/lib.rs does not move.
+  - name: chrono
+    purpose: The local day, hour and offset a session is named and dated by
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: Two calls in src/main.rs; any library that gives the local offset replaces it.
+  - name: ctrlc
+    purpose: Stops a recording cleanly on an interrupt or a termination signal
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One call in src/main.rs; the system's own signal API replaces it.
   - name: serde_json
     purpose: Writes session.json and the events the program prints
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
@@ -72,10 +90,10 @@ dependencies:
 # No stack is imposed. check and test are required once the module holds more than its
 # description (fitness M7): declare them before its first file of code.
 commands:
+  bootstrap: bash scripts/bootstrap.sh
   check: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
   test: cargo test --locked
-#  bootstrap:                    # optional: make the module usable from a fresh clone
-#  run:                          # optional: local start, with doubles for the dependencies
+  run: cargo run --locked --release -- devices
 #  e2e:                          # optional: end-to-end scenarios; evidence written to .evidence/
 
 docs:
