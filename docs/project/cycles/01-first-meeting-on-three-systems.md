@@ -333,6 +333,40 @@ same time; if it does not fit, the circuit breaker decides what ships, not an ex
 Custom vocabulary and templates of minutes stay out: a context is free text or a file, and
 nothing more is built around it.
 
+### D2 — the same transcript, minutes from an online provider (2026-10-12)
+
+The measure the decider asked for before any threshold of quality is written. Same sample,
+same local transcript, same instruction; three models through one OpenAI-compatible provider,
+each without and with the three-line context. Run by the decider, with their own key.
+
+| Model | Context | Time | Actions written | Wrong | Read against the meeting |
+|---|---|---|---|---|---|
+| Local, 7B (the first run) | no | 4 min 28 s | 7 | 4 | Three owners are a person talked about; a deadline invented |
+| A mid-size online model | no | about 3 s | 4 | 1 | The same mistake once: the guest written as owner |
+| The same | **yes** | about 3 s | 3 | 0 | The mistake is gone |
+| A fast, cheap online model | no | about 3 s | 2 | 0 | Right, and short: the smaller actions are left out |
+| The same | yes | about 3 s | 2 | 0 | The same |
+| A large online model | no | 13 s | 7 | 0 | Every action, and it says when an owner *was proposed but did not clearly accept* |
+| The same | yes | 18 s | 8 | 0 | The same, the guest named in full |
+
+Times for the two fastest are read from the files' timestamps, not from the probe's report.
+One run each; the count is the agent's, for the decider to confirm.
+
+**What it answers.**
+
+- **The first run's result was the machine's and the model's**, as the decider read it: on
+  the same transcript, five online runs of six are within the threshold, in seconds.
+- **The context earns its place a second time**: it removed the one wrong owner the mid-size
+  model wrote, exactly as it had for the local one.
+- **Fewer actions is not better minutes.** Two right actions of seven agreed passes *"at most
+  one in five wrong"* and fails the user. D5's criterion must count what is **missing** against
+  what was agreed — which D2's wording already says, and this table is why.
+- **The best minutes say what they do not know**: *"proposed, acceptance not explicit"*. That
+  is the behaviour the *not specified* criterion asks for, met without being asked.
+
+What it does not answer: a meeting of an hour; a recording of the decider's own; cost, which
+was cents for the six runs and is not measured here.
+
 ### Three orientations from the decider (2026-10-12)
 
 ```mermaid
