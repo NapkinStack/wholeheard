@@ -198,6 +198,7 @@ fn a_session_has_its_folder_and_says_whether_it_was_stopped() {
     assert_eq!(recording["contract"], "session-audio/v1");
     assert_eq!(recording["started"], "2026-10-13T14:05:12+02:00");
     assert_eq!(recording["sources"]["me"]["device"], "Digital \"Mic\"");
+    assert_eq!(recording["sources"]["others"]["device"], "Speaker");
     assert!(recording.get("stopped").is_none(), "a session still recording says it was stopped");
 
     write_session(
@@ -232,4 +233,42 @@ fn an_hour_of_recording_fits_the_cycles_limit() {
         an_hour >= 200_000_000,
         "{an_hour} bytes an hour: the files are not what the contract describes"
     );
+}
+
+#[test]
+fn every_number_of_channels_gives_the_same_file() {
+    let folder = tempfile::tempdir().unwrap();
+    for channels in 1..=6 {
+        let path = folder.path().join(format!("{channels}.wav"));
+        let written = recorded(&path, 48_000, channels, &tone(48_000, channels, 2.0, 440.0, 0.2, 0.0))
+            .finish()
+            .unwrap();
+        assert!(
+            (written as i64 - 2 * i64::from(RATE)).abs() <= 2,
+            "{channels} channels: {written} samples"
+        );
+        assert!(
+            (rms(&samples(&path)[RATE as usize..]) - 0.2 / 2f32.sqrt()).abs() < 0.01,
+            "{channels} channels"
+        );
+    }
+}
+
+#[test]
+fn a_silent_source_resting_away_from_zero_is_told_silent_by_what_its_file_holds() {
+    // The watch is fed by the track, as the program feeds it: second by second.
+    let folder = tempfile::tempdir().unwrap();
+    let mut track = Track::create(&folder.path().join("me.wav"), 48_000, 2).unwrap();
+    let mut watch = Watch::new(10.0);
+    let mut said = Vec::new();
+    for second in 0..30 {
+        let level = if (5..20).contains(&second) { 0.0 } else { 0.2 };
+        track.push(&tone(48_000, 2, 1.0, 440.0, level, -0.33)).unwrap();
+        match watch.after(1.0, track.loudest()) {
+            Heard::Nothing => {}
+            event => said.push((second, event)),
+        }
+    }
+    // The second in which the sound stops still holds its tail: the ten seconds start after it.
+    assert_eq!(said, vec![(15, Heard::Silent), (20, Heard::Again)]);
 }
