@@ -21,6 +21,10 @@ struct Probe {
     tray: Mutex<(bool, String)>,
     shortcut: Mutex<(bool, String)>,
     fired: AtomicU32,
+    // The desktop's own way under Wayland: the first run on Fedora showed the shortcut library
+    // accepting Ctrl+Alt+R and never firing it — a refusal would have been more honest.
+    portal: Mutex<(bool, String)>,
+    portal_fired: AtomicU32,
 }
 
 #[tauri::command]
@@ -35,6 +39,9 @@ fn status(probe: tauri::State<Probe>) -> serde_json::Value {
         "tray_ok": tray.0, "tray": tray.1,
         "shortcut_ok": shortcut.0, "shortcut": shortcut.1,
         "fired": probe.fired.load(Ordering::Relaxed),
+        "portal_ok": probe.portal.lock().unwrap().0,
+        "portal": probe.portal.lock().unwrap().1.clone(),
+        "portal_fired": probe.portal_fired.load(Ordering::Relaxed),
     })
 }
 
@@ -85,9 +92,49 @@ fn main() {
                 Ok(()) => (true, "Ctrl+Alt+R accepted by the system's shortcut library".into()),
                 Err(error) => (false, format!("refused: {error}")),
             };
+            *probe.portal.lock().unwrap() = (false, "not tried on this system: the portal is a Linux desktop's".into());
+            #[cfg(target_os = "linux")]
+            {
+                *probe.portal.lock().unwrap() = (false, "asking the desktop…".into());
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let said = portal(&handle).await;
+                    if let Err(error) = said {
+                        *handle.state::<Probe>().portal.lock().unwrap() = (false, format!("refused: {error}"));
+                    }
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![status])
         .run(tauri::generate_context!())
         .expect("the probe could not start");
+}
+
+/// Ask the desktop portal for the same shortcut, and count each time it fires. The desktop
+/// may show a dialog first: binding a shortcut system-wide is the user's to allow.
+#[cfg(target_os = "linux")]
+async fn portal(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use ashpd::desktop::global_shortcuts::{GlobalShortcuts, NewShortcut};
+    use futures_util::StreamExt;
+
+    let shortcuts = GlobalShortcuts::new().await?;
+    let session = shortcuts.create_session(Default::default()).await?;
+    let wanted = NewShortcut::new("record", "Start or stop a recording").preferred_trigger("CTRL+ALT+r");
+    let bound = shortcuts.bind_shortcuts(&session, &[wanted], None, Default::default()).await?.response()?;
+    let got: Vec<String> = bound
+        .shortcuts()
+        .iter()
+        .map(|shortcut| format!("{} = {}", shortcut.id(), shortcut.trigger_description()))
+        .collect();
+    *app.state::<Probe>().portal.lock().unwrap() = if got.is_empty() {
+        (false, "the desktop bound nothing: the dialog was dismissed, or no key was set".into())
+    } else {
+        (true, format!("bound by the desktop: {}", got.join(", ")))
+    };
+    let mut activated = shortcuts.receive_activated().await?;
+    while activated.next().await.is_some() {
+        app.state::<Probe>().portal_fired.fetch_add(1, Ordering::Relaxed);
+    }
+    Ok(())
 }

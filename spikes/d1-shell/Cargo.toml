@@ -10,3 +10,7 @@ tauri-plugin-global-shortcut = "2.4.1"
 
 [build-dependencies]
 tauri-build = "2.7.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "global_shortcuts"] }
+futures-util = "0.3.34"
