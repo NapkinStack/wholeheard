@@ -60,7 +60,7 @@ preserving them.
 │   ├── adr/, pdr/                Decisions, and their index
 │   └── architecture/, runbooks/  Absent until a decision or an incident needs them
 ├── modules/                      The code: one unit of parallelism per folder
-├── contracts/                    The only channel between modules
+├── contracts/                    The only channel between modules — created by the first contract
 │
 ├── .nstack/                      ← THE FRAMEWORK'S: its one folder, received through updates
 │   ├── playbooks/                Instruction modules loaded on demand

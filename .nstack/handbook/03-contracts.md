@@ -21,6 +21,12 @@ cannot be orphaned.
 Like any module it therefore has an owner, a manifest, its own tests, its own rules of
 change, and a high criticality by default.
 
+**It does not exist before the first contract.** A project with one module, or with modules
+that do not talk to each other yet, has no boundary to write down. The command that creates
+a contract creates the module the first time — manifest, owner, runbook — and a page for the
+contract's first version; the module stays green on pages alone, and owes its `check` and
+`test` commands the day a contract gains a schema or a test.
+
 **Properties required of a contract:**
 
 | Property | Verification |

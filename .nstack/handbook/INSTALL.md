@@ -54,7 +54,7 @@ mention such a commit, and where a ruleset does refuse, it catches a bypass.
 
 ```bash
 # 1. Tooling at the project's NapkinStack version (prerequisite: uv)
-uv tool install "napkinstack==0.6.2-22-g40e27e7" --with-executables-from pre-commit
+uv tool install "napkinstack==0.6.2-23-gf5dbede" --with-executables-from pre-commit
 
 # 2. Hooks, once per clone
 pre-commit install
@@ -172,7 +172,7 @@ token, the GitHub part stays "not verified", never compliant.
 |---|---|---|
 | `AGENTS.md` | **The kernel**: the rules loaded for every task | Agents, every time |
 | `modules/` | The code — one unit of parallelism per folder | Humans and agents, scoped |
-| `contracts/` | The **only** channel between modules | Producers and consumers |
+| `contracts/` | The **only** channel between modules. Created by the first contract, not before | Producers and consumers |
 | `docs/project/` | **The discovery, the charter and the cycles**: who it is for, what is delivered now. Born with the first of them | Everyone, agents first |
 | `.nstack/` | **The framework's one folder.** Everything in it arrives by update; nothing outside it does, but the kernel and what the forge reads at the root | The foundation team |
 | `.nstack/playbooks/` | Rules loaded **by trigger** (security, data, UX…) | Agents, when triggered |
@@ -199,6 +199,7 @@ nstack skills        # generates the Claude Code skills from the playbooks
 nstack doctor        # the workstation and the forge's settings, read-only
 nstack settings      # the calls that would bring the forge's settings to the checklist
 nstack new-module <name> <owner> <criticality>
+nstack new-contract <name>   # a contract, and the first time the module that holds them all
 nstack check [module]   # MANIFEST commands: check, test, bootstrap; default: all
 nstack run <module>     # local start, when commands.run is declared
 nstack e2e [module]     # end-to-end scenarios, when commands.e2e is declared

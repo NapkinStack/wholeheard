@@ -109,7 +109,7 @@ project/
 │   └── <module-b>/
 │       └── …
 │
-├── contracts/                     # ← a module in its own right, dedicated owner
+├── contracts/                     # ← a module in its own right, dedicated owner; created by the first contract
 │   ├── MANIFEST.yaml
 │   ├── <contract>/
 │   │   ├── v1/
