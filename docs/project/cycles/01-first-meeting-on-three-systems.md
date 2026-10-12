@@ -450,6 +450,7 @@ orange: not measured · grey: what each costs or spares.
 
 **The engine is not chosen here**: it is a decision of the `transcription` module, with its
 record, once the two orange leads are tried or set aside by the decider.
+The decider's fourth orientation, below, changes the question it answers.
 
 ### Three orientations from the decider (2026-10-12)
 
@@ -498,6 +499,49 @@ cycle builds anyway, and no line of live code:
 
 Each is also what resilience asks: a crash leaves a readable audio and a transcript true up
 to its last segment.
+
+### A fourth orientation — the best engine of each system (2026-10-13)
+
+The decider, on reading the native engine's trial: each system may have a speech-to-text of
+its own, made for it and fast on it; Whisper works on Fedora, and the product must be able to
+take the best of each world.
+
+```mermaid
+flowchart LR
+    A["me.wav · others.wav<br/>context.txt"]:::file --> C["transcription: the step<br/>spans, context, run again,<br/>the transcript's file"]:::core
+    C -->|"one question: this span of sound,<br/>this language, this context"| E{"The engine<br/>of this configuration"}
+    E --> W["Whisper<br/>runs on the three systems:<br/>the one every install has"]:::base
+    E -.-> M["An engine of the system,<br/>where it has a better one"]:::own
+    W --> T["transcript.jsonl<br/>the same file, whoever heard"]:::file
+    M -.-> T
+
+    classDef file fill:#374151,color:#fff
+    classDef core fill:#065f46,color:#fff
+    classDef base fill:#1e3a8a,color:#fff
+    classDef own fill:#92400e,color:#fff
+```
+
+**Legend** — grey: the session's files · green: what is written once, for every engine · blue:
+the engine every system can run · orange: an engine one system has and the others do not.
+Dotted: not built in this cycle.
+
+What it fixes for D4, from its first line of code:
+
+| | |
+|---|---|
+| **The contract is the constant** | `transcript/v1` is the same file whoever heard; its header already names the engine and the model. Nothing downstream knows which one ran |
+| **The engine is a setting, like the provider of the minutes** | The step is written once — spans, context, running again, the file. The engine answers one question behind one interface, and is chosen by configuration, with a default per system |
+| **One engine runs everywhere** | Whisper, so that no system is left without a transcript. A system's own engine is added where it is better, never required |
+| **An engine is admitted by the same sheet** | D4's criteria — words that differ, time, context received — are read per system, with that system's engine. A new engine passes the contract's tests and that sheet, or does not ship |
+| **What it changes in the trial above** | The question is no longer which engine wins everywhere, but which one Fedora uses: the one that meets D4's thresholds there |
+
+**What this cycle builds**: the step, the interface, and the one engine Fedora needs.
+**Named, not read**: what Windows and macOS offer on the machine — their speech frameworks,
+the runtimes made for their processors' accelerators. Each is a reading and a trial of its
+own, on the colleagues' machines, in a later cycle.
+
+**What it costs, known**: as many engines to try and to keep working as there are, on machines
+the decider does not have. The interface is what keeps that cost in one place.
 
 **D3 to D6 are `ready`** (2026-10-12): their acceptance criteria, in the front matter, were
 written once D1 had answered for Fedora and D2 on a local and on an online provider. Each

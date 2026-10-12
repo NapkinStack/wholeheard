@@ -54,11 +54,11 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     );
     let answer = provider.ask(&asked)?;
 
-    let at = chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
+    let at = chrono::Local::now().fixed_offset();
     let written = minutes(
         &answer,
         &Made {
-            at: &at,
+            at,
             provider: &provider.host(),
             model,
             context: context.as_deref(),

@@ -17,9 +17,13 @@ fn transcript(lines: &[&str]) -> String {
 
 const ANSWER: &str = "## Points forts\n\nLa date est fixée au 3 juin.\n\n## Actions\n\n- Réserver la salle — non précisé — non précisé\n\n## Points clés\n\n- Une réponse est attendue pour le 26 avril.\n";
 
+fn at(time: &str) -> chrono::DateTime<chrono::FixedOffset> {
+    chrono::DateTime::parse_from_rfc3339(time).unwrap()
+}
+
 fn made(context: Option<&'static str>) -> Made<'static> {
     Made {
-        at: "2026-10-13T15:12:40+02:00",
+        at: at("2026-10-13T15:12:40+02:00"),
         provider: "local",
         model: "a-model",
         context,
@@ -132,7 +136,7 @@ fn an_answer_that_is_not_minutes_is_refused_before_anything_is_written() {
         ("## A\n\nx\n\n## B\n\nx\n\n## C\n\nx\n\n  ## D\n\nw\n", "4 section(s)"),
         (
             "## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n\nRemarque\n---\n\nencore\n",
-            "a title above its sections",
+            "4 section(s)",
         ),
         (
             "## A\n\nx\n\n# Grand titre\n\n## B\n\n- a\n\n## C\n\n- z\n",
@@ -145,7 +149,48 @@ fn an_answer_that_is_not_minutes_is_refused_before_anything_is_written() {
         ),
         ("## A\n\nx\n\n## B\n\n### rien\n\n## C\n\n- z\n", "a section is empty"),
         ("```markdown\n## A\n\nx\n\n## B\n\nx\n\n## C\n\nx\n```", "a block of code"),
-        ("", "does not open on its first section"),
+        ("", "0 section(s)"),
+        ("## A\rx\r## B\ry\r\r```\r## C\r`c`", "a block of code"),
+        (
+            "### Voici le compte rendu\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n",
+            "does not open on its first section",
+        ),
+        (
+            "🎉🎉🎉\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n",
+            "does not open on its first section",
+        ),
+        ("- …\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n", "does not open on its first section"),
+        ("> …\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n", "does not open on its first section"),
+        (
+            "![](logo.png)\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n",
+            "does not open on its first section",
+        ),
+        ("## A\n\n\u{3164}\n\n## B\n\ny\n\n## C\n\nz\n", "a section is empty"),
+        (
+            "## A\n\nx\n\n## B\n\n- \u{115f}\u{1160}\u{ffa0}\n\n## C\n\nz\n",
+            "a section is empty",
+        ),
+        ("## \u{3164}\n\nx\n\n## B\n\ny\n\n## C\n\nz\n", "a section has no title"),
+        ("---\n\n## A\n\nx\n\n## B\n\nx\n\n## C\n\nx\n", "does not open on its first section"),
+        (
+            "## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n\n> ## Quatre\n> x\n",
+            "a title inside a quotation or a list",
+        ),
+        (
+            "## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n- ## Quatre\n",
+            "a title inside a quotation or a list",
+        ),
+        (
+            "## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n\n    ## Quatre\n",
+            "a title inside a quotation or a list",
+        ),
+        ("## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n\nQuatre\n-\n", "4 section(s)"),
+        ("## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n\n    du code\n", "a block of code"),
+        ("## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n\n<h2>Quatre</h2>\n", "it holds HTML"),
+        ("## A\n\nx\n\n## B\n\n<!-- rien -->\n\n## C\n\nz\n", "it holds HTML"),
+        ("## A\n\nx\n\n## B\n\n***\n\n## C\n\nz\n", "a section is empty"),
+        ("## A\n\nx\n\n## B\n\n\u{200b}\n\n## C\n\nz\n", "a section is empty"),
+        ("## A\n\nx\n\n## ****\n\ny\n\n## C\n\nz\n", "a section has no title"),
     ] {
         let Err(Refused(why)) = minutes(answer, &made(None)) else {
             panic!("accepted: {answer}")
@@ -181,7 +226,7 @@ fn the_front_matter_reads_back_whatever_the_context_and_the_model_hold() {
     let written = minutes(
         ANSWER,
         &Made {
-            at: "2026-10-13T15:12:40Z",
+            at: at("2026-10-13T15:12:40.987654321Z"),
             provider: "local",
             model: "m:7b-\"q4\"\n# x: y",
             context: Some(hostile),
@@ -203,25 +248,20 @@ fn the_front_matter_reads_back_whatever_the_context_and_the_model_hold() {
 }
 
 #[test]
-fn a_time_that_is_not_a_time_never_reaches_the_front_matter() {
-    for at in [
-        "2026-10-13T15:12:40+02:00\nprovider: a-key",
-        "yesterday",
-        "2026-10-13 15:12:40+02:00",
-        "",
+fn the_time_is_written_to_the_second_with_its_offset() {
+    // A time is one by its type; a fraction of a second, or another way to write the offset, is not kept.
+    for (given, written) in [
+        ("2026-10-13T15:12:40.123456789+02:00", "made: 2026-10-13T15:12:40+02:00"),
+        ("2026-02-28T23:59:59-05:45", "made: 2026-02-28T23:59:59-05:45"),
+        ("2026-10-13T13:12:40Z", "made: 2026-10-13T13:12:40+00:00"),
     ] {
-        let Err(Refused(why)) = minutes(
-            ANSWER,
-            &Made {
-                at,
-                provider: "local",
-                model: "m",
-                context: None,
-            },
-        ) else {
-            panic!("accepted: {at}")
+        let made = Made {
+            at: at(given),
+            provider: "local",
+            model: "m",
+            context: None,
         };
-        assert!(why.contains("is not a time"), "{why}");
+        assert_eq!(minutes(ANSWER, &made).unwrap().as_str().lines().nth(2).unwrap(), written);
     }
 }
 
@@ -248,4 +288,58 @@ fn a_transcript_only_started_or_written_on_two_lines_is_refused_for_what_it_is()
         transcript(&[r#"{"type": "segment", "speaker": "me", "start": 0.0, "end": 1.0, "text": "Bonjour."}"#])
     );
     assert_eq!(read_transcript(&marked).unwrap().len(), 1);
+}
+
+#[test]
+fn minutes_a_model_may_reasonably_write_are_accepted() {
+    // Each was refused by a reading of lines: a rule after a list, titles written as
+    // underlines, a table, a rule between sections, a mark before the first title.
+    for answer in [
+        "## A\n\nx\n\n## B\n\n- a — b — c\n---\n\n## C\n\n- z\n",
+        "Points forts\n------------\n\nx\n\nActions\n-------\n\n- a — b — c\n\nPoints clés\n-----------\n\n- z\n",
+        "## A\n\nx\n\n---\n\n## B\n\n1. a\n   - b\n\n## C\n\n| a | b |\n|---|---|\n| 1 | 2 |\n",
+        "\u{feff}## A\n\nx\n\n## B\n\n### Cette semaine\n\n- a\n\n## C\n\n`3 juin`\n",
+        "## A\r\n\r\nx\r\n\r\n## B\r\n\r\n- a\r\n\r\n## C\r\n\r\n- z\r\n",
+    ] {
+        assert!(
+            minutes(answer, &made(None)).is_ok(),
+            "refused: {answer:?} — {:?}",
+            minutes(answer, &made(None))
+        );
+    }
+    // Whatever ended its lines, the file is written with one kind of line end.
+    let written = minutes("## A\r\n\r\nx\r\n\r\n## B\r\ry\r\r## C\n\nz\r\n", &made(None)).unwrap();
+    assert!(!written.as_str().contains('\r') && written.as_str().ends_with("## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n"));
+}
+
+#[test]
+fn a_transcript_holds_its_header_first_and_each_segment_once() {
+    let segment = r#"{"type": "segment", "speaker": "me", "start": 1.0, "end": 2.0, "text": "Bonjour."}"#;
+    // Said twice — a step run again badly — it is read once; an empty line between two is no line.
+    assert_eq!(read_transcript(&transcript(&[segment, "", segment])).unwrap().len(), 1);
+    let at_zero = segment.replace("1.0", "0.0").replace("2.0", "1.0");
+    let at_minus_zero = at_zero.replace(r#""start": 0.0"#, r#""start": -0.0"#);
+    assert_eq!(
+        read_transcript(&transcript(&[&at_zero, &at_minus_zero, &at_zero.replace("0.0,", "0e0,")]))
+            .unwrap()
+            .len(),
+        1
+    );
+    for (text, expected) in [
+        (format!("\n{}", transcript(&[segment])), "does not name transcript/v1"),
+        (transcript(&[&segment.replace("1.0", "-1.0")]), "speaker me, -1 to 2"),
+    ] {
+        let Err(Refused(why)) = read_transcript(&text) else {
+            panic!("accepted: {text}")
+        };
+        assert!(why.contains(expected), "{why}");
+    }
+}
+
+#[test]
+fn a_writing_that_fails_at_its_last_step_leaves_no_draft() {
+    let folder = tempfile::tempdir().unwrap();
+    fs::create_dir(folder.path().join("minutes.md")).unwrap();
+    assert!(write_minutes(folder.path(), &minutes(ANSWER, &made(None)).unwrap()).is_err());
+    assert!(!folder.path().join("minutes.md.part").exists());
 }
