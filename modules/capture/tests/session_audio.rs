@@ -3,7 +3,7 @@
 
 use std::{f32::consts::TAU, fs, path::Path};
 
-use summit_capture::{RATE, SILENCE, Track};
+use summit_capture::{Heard, RATE, SILENCE, Track, Watch, new_folder, write_session};
 
 /// A tone of `hertz` at `level` of full scale, resting at `rest`, as a source would deliver it.
 fn tone(rate: u32, channels: usize, seconds: f32, hertz: f32, level: f32, rest: f32) -> Vec<f32> {
@@ -165,6 +165,54 @@ fn a_source_opens_without_the_click_of_its_first_samples() {
     );
     assert!(rms(&heard[RATE as usize / 2..]) > 0.6);
 }
+
+#[test]
+fn a_silent_source_is_said_once_after_ten_seconds_and_once_when_it_comes_back() {
+    let mut watch = Watch::new(10.0);
+    let mut said = Vec::new();
+    for second in 0..40 {
+        let loudest = if (5..25).contains(&second) { 0.0 } else { 0.2 };
+        match watch.after(1.0, loudest) {
+            Heard::Nothing => {}
+            event => said.push((second, event)),
+        }
+    }
+    // Silent from second 5: told at the end of second 14, ten seconds in; heard again at 25.
+    assert_eq!(said, vec![(14, Heard::Silent), (25, Heard::Again)]);
+    // A pause shorter than the limit is not said.
+    let mut watch = Watch::new(10.0);
+    assert!((0..9).all(|_| watch.after(1.0, 0.0) == Heard::Nothing));
+    assert_eq!(watch.after(1.0, 0.2), Heard::Nothing);
+}
+
+#[test]
+fn a_session_has_its_folder_and_says_whether_it_was_stopped() {
+    let sessions = tempfile::tempdir().unwrap();
+    let first = new_folder(sessions.path(), "2026-10-13_14-05").unwrap();
+    let second = new_folder(sessions.path(), "2026-10-13_14-05").unwrap();
+    assert_eq!(first.file_name().unwrap(), "2026-10-13_14-05");
+    assert_eq!(second.file_name().unwrap(), "2026-10-13_14-05-2");
+
+    write_session(&first, "2026-10-13T14:05:12+02:00", None, "Digital \"Mic\"", "Speaker").unwrap();
+    let recording: serde_json::Value = serde_json::from_slice(&fs::read(first.join("session.json")).unwrap()).unwrap();
+    assert_eq!(recording["contract"], "session-audio/v1");
+    assert_eq!(recording["started"], "2026-10-13T14:05:12+02:00");
+    assert_eq!(recording["sources"]["me"]["device"], "Digital \"Mic\"");
+    assert!(recording.get("stopped").is_none(), "a session still recording says it was stopped");
+
+    write_session(
+        &first,
+        "2026-10-13T14:05:12+02:00",
+        Some("2026-10-13T15:01:40+02:00"),
+        "Mic",
+        "Speaker",
+    )
+    .unwrap();
+    let stopped: serde_json::Value = serde_json::from_slice(&fs::read(first.join("session.json")).unwrap()).unwrap();
+    assert_eq!(stopped["stopped"], "2026-10-13T15:01:40+02:00");
+    assert!(!first.join("session.json.part").exists());
+}
+
 #[test]
 fn an_hour_of_recording_fits_the_cycles_limit() {
     // Two files, 16-bit, one channel, 16 kHz: 230 MB an hour, under the 250 MB of D3.
