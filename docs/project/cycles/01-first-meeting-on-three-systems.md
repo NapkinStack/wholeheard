@@ -165,6 +165,7 @@ D1 records.
 | 2026-10-12 | Fedora 44, GNOME on Wayland | `d1-shell`, by the decider, read from their screenshot | **Rendered**, sharp, no artefact visible | **Dark theme followed**; the system's font | **Created and visible** in the top bar — with the tray extension the decider installed first, which a user of stock Fedora does not have | **Accepted, and never fired**: the shortcut library registered Ctrl+Alt+R without an error, and pressing it with another window focused did nothing — 0 times. A silent failure, worse than a refusal: the application believes it has a shortcut. The tray's menu opens on a click. Asked of the desktop portal next: **refused — "An app id is required"**, no dialog shown. The portal answers only an application that has declared who it is, with a desktop entry installed under that name: true of an installed product, not of a program run from its build folder. Declaring itself next: **refused again — "App info not found for 'dev.summit.d1shell'"**, with the desktop entry installed. Probable cause, the framer's own mistake: the entry's `Exec` named a program that is on no path, and the desktop discards an entry whose program it cannot find. **Not obtained in three tries**; what is established is the way — an installed application, a valid desktop entry, the portal — and that the shortcut library's "accepted" means nothing under Wayland |
 
 | 2026-10-12 | Same, fourth run | `d1-shell` with a corrected desktop entry and Super+Alt+M | — | — | Its menu opens; **"Show the probe" does not bring the window forward**: the desktop shows a notification, "Summit — D1 probe is ready", instead | **Obtained through the portal**: the desktop asked the decider to add the shortcut, bound it, and it fired 6 times with another window focused. The shortcut library's own registration still fired 0 times |
+| 2026-10-12 | Same, fifth run | `d1-shell` using the portal's token | **Comes forward** when the shortcut is pressed with another window focused — seen by the decider | — | — | Fired 2 times, **2 of 2 came with a token**. A run in between, with the desktop entry removed, gave "0 of 0": without the entry the portal binds nothing, and says so only in its own line |
 
 **What D1 established on Fedora** (GNOME 50, Wayland), for whatever is built next:
 
@@ -174,11 +175,11 @@ flowchart LR
     A["Microphone and system's sound<br/>as two files"]:::part
     T["Tray icon and its menu"]:::cond
     K["Global shortcut"]:::cond
-    F["Bringing the window forward<br/>from the tray or the shortcut"]:::no
+    F["Bringing the window forward"]:::cond
 
     T -.- T1["only with an extension<br/>the user installs"]:::note
     K -.- K1["only through the portal,<br/>for an installed application,<br/>after the user allows it"]:::note
-    F -.- F1["the desktop refuses and<br/>shows a notification instead"]:::note
+    F -.- F1["from the shortcut: yes, with the<br/>portal's token · from the tray's<br/>menu: refused, a notification"]:::note
     A -.- A1["heard on a test note;<br/>a real call still to record"]:::note
 
     classDef yes fill:#065f46,color:#fff
@@ -189,8 +190,7 @@ flowchart LR
 ```
 
 **Legend** — green: works as it is · blue: works, not yet on what the criterion asks · orange:
-works under a condition the user must meet · red: refused by the desktop · grey: the
-condition or the reason.
+works under a condition · grey: the condition or the reason.
 
 **Bringing the window forward under GNOME — what was read (2026-10-12).** The decider saw
 "Show the probe" answered by a notification, "… is ready", instead of the window.
@@ -213,7 +213,7 @@ does not, whatever the application asks.
 | Finding | What it means for Summit | Source |
 |---|---|---|
 | Under Wayland a window is raised only with a token the compositor issued for an input event, and it "might decide not to follow through with the activation if it's considered unwanted" | No application takes the focus by itself. This is the desktop protecting the user from exactly what the idea file forbids — "aucune fenêtre ne s'ouvre sans action de l'utilisateur" | [xdg-activation-v1](https://wayland.app/protocols/xdg-activation-v1), *read* |
-| The shortcut portal's signal carries `activation_token`: "A token that can be used to activate a window in response to the shortcut getting activated" | The global shortcut **can** bring the window forward. The probe now does it; not run yet | [GlobalShortcuts portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html), *read* |
+| The shortcut portal's signal carries `activation_token`: "A token that can be used to activate a window in response to the shortcut getting activated" | The global shortcut **can** bring the window forward. **Confirmed by the fifth run**: handed to the window as its startup id, the token raised it both times | [GlobalShortcuts portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html), *read* |
 | A click on a notification makes GNOME Shell emit an activation token, then the action | A notification is the desktop's own doorway to a window: "your minutes are ready", click, the window opens | A bug report describing the signals, and the specification's change — *secondary* |
 | A token passed to an application when an entry of its tray menu is chosen: **not found** for GNOME's tray extension; a to-do item on another desktop | "Show the window" in the tray's menu cannot be relied on under GNOME. It is what the decider observed | [KWin issue](https://invent.kde.org/plasma/kwin/-/issues/39) — *secondary*; nothing found for GNOME |
 
