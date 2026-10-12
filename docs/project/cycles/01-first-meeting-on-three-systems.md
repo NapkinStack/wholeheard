@@ -164,6 +164,38 @@ D1 records.
 |---|---|---|---|---|---|---|
 | 2026-10-12 | Fedora 44, GNOME on Wayland | `d1-shell`, by the decider, read from their screenshot | **Rendered**, sharp, no artefact visible | **Dark theme followed**; the system's font | **Created and visible** in the top bar — with the tray extension the decider installed first, which a user of stock Fedora does not have | **Accepted, and never fired**: the shortcut library registered Ctrl+Alt+R without an error, and pressing it with another window focused did nothing — 0 times. A silent failure, worse than a refusal: the application believes it has a shortcut. The tray's menu opens on a click. Asked of the desktop portal next: **refused — "An app id is required"**, no dialog shown. The portal answers only an application that has declared who it is, with a desktop entry installed under that name: true of an installed product, not of a program run from its build folder. Declaring itself next: **refused again — "App info not found for 'dev.summit.d1shell'"**, with the desktop entry installed. Probable cause, the framer's own mistake: the entry's `Exec` named a program that is on no path, and the desktop discards an entry whose program it cannot find. **Not obtained in three tries**; what is established is the way — an installed application, a valid desktop entry, the portal — and that the shortcut library's "accepted" means nothing under Wayland |
 
+| 2026-10-12 | Same, fourth run | `d1-shell` with a corrected desktop entry and Super+Alt+M | — | — | Its menu opens; **"Show the probe" does not bring the window forward**: the desktop shows a notification, "Summit — D1 probe is ready", instead | **Obtained through the portal**: the desktop asked the decider to add the shortcut, bound it, and it fired 6 times with another window focused. The shortcut library's own registration still fired 0 times |
+
+**What D1 established on Fedora** (GNOME 50, Wayland), for whatever is built next:
+
+```mermaid
+flowchart LR
+    W["Window, theme, font"]:::yes
+    A["Microphone and system's sound<br/>as two files"]:::part
+    T["Tray icon and its menu"]:::cond
+    K["Global shortcut"]:::cond
+    F["Bringing the window forward<br/>from the tray or the shortcut"]:::no
+
+    T -.- T1["only with an extension<br/>the user installs"]:::note
+    K -.- K1["only through the portal,<br/>for an installed application,<br/>after the user allows it"]:::note
+    F -.- F1["the desktop refuses and<br/>shows a notification instead"]:::note
+    A -.- A1["heard on a test note;<br/>a real call still to record"]:::note
+
+    classDef yes fill:#065f46,color:#fff
+    classDef part fill:#1e3a8a,color:#fff
+    classDef cond fill:#92400e,color:#fff
+    classDef no fill:#7c2d12,color:#fff
+    classDef note fill:#374151,color:#fff
+```
+
+**Legend** — green: works as it is · blue: works, not yet on what the criterion asks · orange:
+works under a condition the user must meet · red: refused by the desktop · grey: the
+condition or the reason.
+
+Three of these are the desktop's rules, not the toolkit's: a drawn interface would meet the
+same tray, the same portal and the same refusal to steal the focus. The one that was the
+web view's own risk — the window — is the one that simply worked.
+
 **D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
 quality. Writing them today would be writing them around the answer hoped for.
