@@ -6,6 +6,17 @@ Throwaway probes of the first cycle. Their product is what they record in the cy
 | Probe | Deliverable | Question |
 |---|---|---|
 | [`d1-capture/`](d1-capture/) | D1, first half | Can one program write the microphone and the system's sound as two files, on the three systems, with the same code? |
+| [`d1-shell/`](d1-shell/) | D1, second half | Does a web-view application get a window that renders, a tray icon, and a global shortcut that fires while another window has the focus? |
+
+## Running `d1-shell`
+
+```bash
+cd spikes/d1-shell
+cargo run --release
+```
+
+A window opens and says what the system gave it. Nothing is recorded. It needs no Node: its
+page is one static file.
 
 ## Running `d1-capture`
 

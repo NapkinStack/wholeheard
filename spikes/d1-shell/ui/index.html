@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Summit — D1 probe</title>
+<style>
+  :root { color-scheme: light dark; font: 15px/1.5 system-ui, sans-serif; }
+  body { margin: 0; padding: 20px 24px; }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 16px; opacity: .7; }
+  table { border-collapse: collapse; width: 100%; }
+  td { padding: 7px 8px; border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent); vertical-align: top; }
+  td:first-child { width: 38%; opacity: .75; }
+  .ok { color: #1a7f4b; font-weight: 600; } .no { color: #b3261e; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { .ok { color: #6dd3a0; } .no { color: #f2a59c; } }
+  kbd { border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; font: inherit; opacity: .85; }
+  .spin { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: turn 1s linear infinite; vertical-align: -1px; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<h1>Summit — D1 probe</h1>
+<p class="lead">What this system gives a desktop application. Nothing is recorded. <span class="spin" title="If this turns smoothly, the window renders"></span></p>
+<table id="rows"></table>
+<p>Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>R</kbd> while <b>another</b> window has the focus, then come back here.</p>
+<script>
+const invoke = window.__TAURI__.core.invoke;
+const cell = (ok, text) => `<span class="${ok ? "ok" : "no"}">${ok ? "yes" : "no"}</span> — ${text}`;
+async function draw() {
+  const s = await invoke("status");
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  document.getElementById("rows").innerHTML = [
+    ["System", `${s.os} ${s.arch}${s.session ? ", session " + s.session : ""}${s.desktop ? ", " + s.desktop : ""}`],
+    ["Window rendered", cell(true, "you are reading it")],
+    ["Web engine", navigator.userAgent],
+    ["Follows the system theme", `${dark ? "dark" : "light"} now — switch the system theme and watch this line`],
+    ["System font", getComputedStyle(document.body).fontFamily],
+    ["Tray icon created", cell(s.tray_ok, s.tray)],
+    ["Global shortcut registered", cell(s.shortcut_ok, s.shortcut)],
+    ["Global shortcut fired", cell(s.fired > 0, `${s.fired} time(s)`)],
+  ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
+}
+draw(); setInterval(draw, 700);
+</script>
+</body>
+</html>
