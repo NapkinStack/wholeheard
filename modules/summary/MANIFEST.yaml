@@ -68,7 +68,15 @@ dependencies:
   - name: serde_json
     purpose: Reads the transcript's lines and quotes the minutes' front matter
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
-    exit_strategy: One parser of lines and one quoting function in src/lib.rs; any JSON library replaces it.
+    exit_strategy: One parser of lines in src/lib.rs; any JSON library replaces it.
+  - name: pulldown-cmark
+    purpose: Reads a provider's answer as a CommonMark reader does, to tell minutes from what is not
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One function, not_minutes in src/lib.rs; any CommonMark reader that gives events replaces it.
+  - name: chrono
+    purpose: The time the minutes are dated by, held as a time and not as a text
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One field of Made and one formatting call in src/lib.rs.
 #  - name:
 #    purpose:
 #    adr:

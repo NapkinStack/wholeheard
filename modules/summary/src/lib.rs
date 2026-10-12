@@ -35,7 +35,7 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
         return refused("the transcript holds no whole line yet: it is only being started, or it is empty");
     };
     let whole = &text[..end];
-    let mut lines = whole.lines().filter(|line| !line.trim().is_empty());
+    let mut lines = whole.lines();
     let header: serde_json::Value = lines.next().and_then(|line| serde_json::from_str(line).ok()).unwrap_or_default();
     if header["type"] != "header" || header["contract"] != TRANSCRIPT {
         return refused(format!(
@@ -43,7 +43,7 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
         ));
     }
     let mut segments = Vec::new();
-    for line in lines {
+    for line in lines.filter(|line| !line.trim().is_empty()) {
         let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
             return refused("the transcript holds a line that is not JSON");
         };
@@ -63,16 +63,22 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
                 "the transcript holds a segment whose text is on more than one line, at {start}"
             ));
         }
-        if !matches!(speaker, "me" | "others") || end < start {
+        if !matches!(speaker, "me" | "others") || end < start || start < 0.0 {
             return refused(format!(
                 "the transcript holds a segment this version refuses: speaker {speaker}, {start} to {end}"
             ));
         }
-        segments.push(Segment {
-            speaker: speaker.into(),
-            start,
-            text: text.into(),
-        });
+        // A segment is known by its speaker and its start: said twice, it is read once.
+        if !segments
+            .iter()
+            .any(|known: &Segment| known.speaker == speaker && known.start == start)
+        {
+            segments.push(Segment {
+                speaker: speaker.into(),
+                start,
+                text: text.into(),
+            });
+        }
     }
     if segments.is_empty() {
         return refused("the transcript holds no speech: there is nothing to write minutes of");
@@ -116,7 +122,8 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
 
 /// What made the minutes, as their front matter says it.
 pub struct Made<'a> {
-    pub at: &'a str,
+    /// When: written to the second, with its offset.
+    pub at: chrono::DateTime<chrono::FixedOffset>,
     /// The host that answered, or `local` — never a key, never a path.
     pub provider: &'a str,
     pub model: &'a str,
@@ -133,56 +140,50 @@ impl Minutes {
     }
 }
 
-/// The level of a heading written with number signs, as Markdown reads the line; 0 otherwise.
-fn heading(line: &str) -> usize {
-    let indent = line.len() - line.trim_start_matches(' ').len();
-    let marks = line.trim_start_matches(' ');
-    let level = marks.len() - marks.trim_start_matches('#').len();
-    let after = &marks[level..];
-    if indent <= 3 && (1..=6).contains(&level) && (after.is_empty() || after.starts_with([' ', '\t'])) {
-        level
-    } else {
-        0
-    }
-}
-
 /// Why an answer is not three sections of second level and nothing else — `None` when it is.
+/// Read by a CommonMark reader, as whoever opens the file will read it: a title is a title
+/// however it is written, and wherever it hides.
 fn not_minutes(body: &str) -> Option<String> {
-    let lines: Vec<&str> = body.lines().collect();
-    if lines
-        .iter()
-        .any(|line| line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~"))
-    {
-        return Some("it holds a block of code".into());
-    }
-    if heading(lines.first().copied().unwrap_or("")) != 2 {
-        return Some("it does not open on its first section".into());
-    }
-    // A line of dashes or equals signs under a line of text is a title too.
-    let underlined = lines.windows(2).any(|pair| {
-        let mark = pair[1].trim();
-        !pair[0].trim().is_empty()
-            && !mark.is_empty()
-            && (mark.chars().all(|c| c == '=') || (mark.len() >= 2 && mark.chars().all(|c| c == '-')))
-    });
-    if underlined || lines.iter().any(|line| heading(line) == 1) {
-        return Some("it holds a title above its sections".into());
-    }
-    let titles: Vec<&str> = lines.iter().copied().filter(|line| heading(line) == 2).collect();
-    if titles.len() != 3 {
-        return Some(format!("{} section(s) of second level where three are expected", titles.len()));
-    }
-    if titles.iter().any(|title| title.trim().trim_matches('#').trim().is_empty()) {
-        return Some("a section has no title".into());
-    }
-    let mut said = [false; 3];
-    let mut section = 0;
-    for line in &lines[1..] {
-        match heading(line) {
-            2 => section += 1,
-            0 if !line.trim().is_empty() => said[section] = true,
+    use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+
+    let says = |text: &str| text.chars().any(char::is_alphanumeric);
+    let (mut inside, mut title, mut sub_title) = (0, None, false);
+    let mut said: Vec<bool> = Vec::new();
+    for event in Parser::new(body) {
+        match event {
+            Event::Start(Tag::BlockQuote(_) | Tag::List(_) | Tag::Item) => inside += 1,
+            Event::End(TagEnd::BlockQuote(_) | TagEnd::List(_) | TagEnd::Item) => inside -= 1,
+            Event::Start(Tag::CodeBlock(_)) => return Some("it holds a block of code".into()),
+            Event::Start(Tag::HtmlBlock) | Event::Html(_) | Event::InlineHtml(_) => return Some("it holds HTML".into()),
+            Event::Start(Tag::Heading { .. }) if inside > 0 => return Some("it holds a title inside a quotation or a list".into()),
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H1, ..
+            }) => return Some("it holds a title above its sections".into()),
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H2, ..
+            }) => {
+                said.push(false);
+                title = Some(false);
+            }
+            Event::Start(Tag::Heading { .. }) => sub_title = true,
+            Event::End(TagEnd::Heading(_)) => {
+                if title.take() == Some(false) {
+                    return Some("a section has no title".into());
+                }
+                sub_title = false;
+            }
+            Event::Rule if said.is_empty() => return Some("it does not open on its first section".into()),
+            Event::Text(text) | Event::Code(text) if says(&text) => match (&mut title, said.last_mut()) {
+                (Some(named), _) => *named = true,
+                (None, _) if sub_title => {}
+                (None, Some(section)) => *section = true,
+                (None, None) => return Some("it does not open on its first section".into()),
+            },
             _ => {}
         }
+    }
+    if said.len() != 3 {
+        return Some(format!("{} section(s) of second level where three are expected", said.len()));
     }
     said.contains(&false).then(|| "a section is empty".into())
 }
@@ -206,30 +207,11 @@ fn quoted(text: &str) -> String {
     out + "\""
 }
 
-/// `2026-10-13T15:12:40+02:00`, or with `Z`: nothing else is written as the time.
-fn is_a_time(at: &str) -> bool {
-    let shape = |text: &str, shape: &str| {
-        text.len() == shape.len()
-            && text
-                .bytes()
-                .zip(shape.bytes())
-                .all(|(c, s)| if s == b'0' { c.is_ascii_digit() } else { c == s })
-    };
-    match at.len() {
-        20 => shape(at, "0000-00-00T00:00:00Z"),
-        25 => shape(&at[..19], "0000-00-00T00:00:00") && matches!(&at[19..20], "+" | "-") && shape(&at[20..], "00:00"),
-        _ => false,
-    }
-}
-
 /// The minutes file for a provider's answer — or the reason the answer is not minutes.
 pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
-    let body = answer.trim();
+    let body = answer.trim().trim_start_matches('\u{feff}').trim();
     if let Some(why) = not_minutes(body) {
         return refused(format!("the provider's answer is not minutes: {why}"));
-    }
-    if !is_a_time(made.at) {
-        return refused("the minutes cannot be dated: the time given is not a time");
     }
     let context = made
         .context
@@ -238,7 +220,7 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
         .map_or("null".into(), quoted);
     Ok(Minutes(format!(
         "---\ncontract: {MINUTES}\nmade: {}\nprovider: {}\nmodel: {}\ncontext: {context}\n---\n\n{body}\n",
-        made.at,
+        made.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
         quoted(made.provider),
         quoted(made.model),
     )))
@@ -249,5 +231,7 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
 pub fn write_minutes(folder: &Path, minutes: &Minutes) -> io::Result<()> {
     let draft = folder.join("minutes.md.part");
     fs::write(&draft, minutes.as_str())?;
-    fs::rename(draft, folder.join("minutes.md"))
+    fs::rename(&draft, folder.join("minutes.md")).inspect_err(|_| {
+        let _ = fs::remove_file(&draft);
+    })
 }
