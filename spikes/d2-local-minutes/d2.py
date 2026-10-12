@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -36,6 +37,7 @@ from pathlib import Path
 OLLAMA = "http://127.0.0.1:11434"
 WHISPER_MODELS = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{name}.bin"
 CONTEXT = 32768  # tokens given to the model: its default would cut an hour of talk in silence
+KEY = "SUMMIT_PROVIDER_KEY"  # the provider's key: read from the environment, never written
 PROMPT = """Tu rédiges le compte rendu d'une réunion à partir de sa transcription.
 Règles : n'écris que ce qui est dit dans la transcription ; n'invente ni nom, ni date, ni décision ;
 si une information manque, écris « non précisé ».
@@ -111,6 +113,10 @@ def main() -> None:
     parser.add_argument("--model", default="mistral", help="the local model that writes the minutes (ollama)")
     parser.add_argument("--whisper", default="large-v3-turbo", help="the Whisper model that transcribes")
     parser.add_argument("--reference", type=Path, help="a human transcript of the same audio, to compare with")
+    parser.add_argument("--provider", help="an OpenAI-compatible address that writes the minutes instead of the local "
+                                           f"model, e.g. https://openrouter.ai/api/v1 — its key is read from ${KEY}")
+    parser.add_argument("--context", type=Path, help="a text file the user attaches to the minutes: who attends, the agenda")
+    parser.add_argument("--transcript", type=Path, help="a transcript already made: the audio is not transcribed again")
     args = parser.parse_args()
 
     whisper = shutil.which("whisper-cli") or shutil.which("whisper-cpp")
@@ -121,14 +127,21 @@ def main() -> None:
         engine = "whisper-cli" if whisper else None
     if not shutil.which("ffmpeg"):
         sys.exit("FAIL [d2] ffmpeg is not on the path.\n      Action: sudo dnf install ffmpeg")
+    if args.transcript:
+        engine = "none, the transcript was given"
     if engine is None:
         sys.exit("FAIL [d2] no local Whisper engine: neither the Python one nor a whisper-cli program.\n"
                  "      Action: run this script as  uv run --with faster-whisper python3 "
                  f"{Path(__file__).name} …  — the distribution's whisper-cpp package holds the library only.")
-    try:
-        have = {model["name"].split(":")[0] for model in ollama("/api/tags", timeout=5).get("models", [])}
-    except (urllib.error.URLError, OSError):
-        sys.exit("FAIL [d2] no local model server answers.\n      Action: run `ollama serve` in another terminal.")
+    have: set[str] = set()
+    if args.provider and not os.environ.get(KEY):
+        sys.exit(f"FAIL [d2] --provider is given and ${KEY} is empty.\n"
+                 f"      Action: read -rs {KEY} && export {KEY}   — then paste the key; it is never written anywhere.")
+    if not args.provider:
+        try:
+            have = {model["name"].split(":")[0] for model in ollama("/api/tags", timeout=5).get("models", [])}
+        except (urllib.error.URLError, OSError):
+            sys.exit("FAIL [d2] no local model server answers.\n      Action: run `ollama serve` in another terminal.")
     if not args.audio.is_file():
         sys.exit(f"FAIL [d2] {args.audio} is not a file.")
 
@@ -142,14 +155,20 @@ def main() -> None:
         print(f"Setup       : downloading the transcription model {args.whisper} …", flush=True)
         setup += clock("download", ["curl", "-L", "--fail", "--progress-bar", "-o", str(weights),
                                     WHISPER_MODELS.format(name=args.whisper)])
-    if args.model.split(":")[0] not in have:
+    if not args.provider and args.model.split(":")[0] not in have:
         print(f"Setup       : downloading the minutes model {args.model} …", flush=True)
         setup += clock("pull", ["ollama", "pull", args.model])
 
-    print("Transcribing: this is the long step …", flush=True)
     wav = work / "audio-16k.wav"
-    convert = clock("ffmpeg", ["ffmpeg", "-y", "-loglevel", "error", "-i", str(args.audio), "-ar", "16000", "-ac", "1", str(wav)])
-    if engine == "faster-whisper":
+    convert = transcribe = 0.0
+    if args.transcript:
+        (work / "transcript.txt").write_text(args.transcript.read_text(encoding="utf-8"), encoding="utf-8")
+    else:
+        print("Transcribing: this is the long step …", flush=True)
+        convert = clock("ffmpeg", ["ffmpeg", "-y", "-loglevel", "error", "-i", str(args.audio), "-ar", "16000", "-ac", "1", str(wav)])
+    if args.transcript:
+        pass
+    elif engine == "faster-whisper":
         from faster_whisper import WhisperModel
 
         start = time.monotonic()
@@ -168,12 +187,30 @@ def main() -> None:
 
     print("Summarising : …", flush=True)
     start = time.monotonic()
-    answer = ollama("/api/generate", {"model": args.model, "prompt": PROMPT + transcript, "stream": False,
-                                      "options": {"num_ctx": CONTEXT, "temperature": 0.2}})
+    prompt = PROMPT
+    if args.context:
+        prompt = prompt.replace("Transcription :", "Contexte donné par l'utilisateur : "
+                                + args.context.read_text(encoding="utf-8").strip() + "\n\nTranscription :")
+    if args.provider:
+        request = urllib.request.Request(
+            args.provider.rstrip("/") + "/chat/completions",
+            data=json.dumps({"model": args.model, "temperature": 0.2,
+                             "messages": [{"role": "user", "content": prompt + transcript}]}).encode(),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {os.environ[KEY]}"})
+        try:
+            with urllib.request.urlopen(request, timeout=600) as response:
+                answer = json.load(response)
+        except urllib.error.HTTPError as refused:
+            sys.exit(f"FAIL [d2] the provider answered {refused.code}: {refused.read(300).decode(errors='replace')}")
+        written, read = answer["choices"][0]["message"]["content"], answer.get("usage", {}).get("prompt_tokens", 0)
+    else:
+        answer = ollama("/api/generate", {"model": args.model, "prompt": prompt + transcript, "stream": False,
+                                          "options": {"num_ctx": CONTEXT, "temperature": 0.2}})
+        written, read = answer.get("response", ""), answer.get("prompt_eval_count", 0)
     summarise = time.monotonic() - start
-    (work / "minutes.md").write_text(answer.get("response", ""), encoding="utf-8")
+    name = "minutes-" + re.sub(r"[^a-z0-9.]+", "-", args.model.lower()) + ("-context" if args.context else "") + ".md"
+    (work / name).write_text(written, encoding="utf-8")
 
-    read = answer.get("prompt_eval_count", 0)
     words = len(transcript.split())
     # A French word is a little more than one token; far fewer tokens read than words written
     # means the model saw only the beginning — the silent failure the idea file's R7 forbids.
@@ -185,14 +222,15 @@ def main() -> None:
     print(f"""
 D2 — to paste into the cycle
   Machine            : this laptop, engine {engine}, models {args.whisper} and {args.model}
+  Minutes written by : {args.provider or "the local model server"}{", with the user's context" if args.context else ""}
   Against a human    : {accuracy}
   Meeting            : {minutes(length)} of audio, {words} words transcribed
   Setup (downloads)  : {minutes(setup) if setup else "nothing to download this time"}   threshold: under 15 min, packages included
-  Transcription      : {minutes(convert + transcribe)}
+  Transcription      : {"not run: a transcript already made was given" if args.transcript else minutes(convert + transcribe)}
   Minutes            : {minutes(summarise)}
   Processing, total  : {minutes(processing)} = {processing / length * 100 if length else 0:.0f} % of the meeting's length   threshold: under 50 %
   Read by the model  : {read} tokens for {words} words{"  ← THE TRANSCRIPT WAS CUT: the minutes cover its beginning only" if cut else ""}
-  Minutes written to : {work / "minutes.md"}
+  Minutes written to : {work / name}
   Transcript         : {work / "transcript.txt"}
 
 Left to a human, and it is the criterion that matters: read the minutes against what was

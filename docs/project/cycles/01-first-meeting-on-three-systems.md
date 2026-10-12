@@ -333,6 +333,45 @@ same time; if it does not fit, the circuit breaker decides what ships, not an ex
 Custom vocabulary and templates of minutes stay out: a context is free text or a file, and
 nothing more is built around it.
 
+### Three orientations from the decider (2026-10-12)
+
+```mermaid
+flowchart LR
+    C["Capture<br/>audio written to disk<br/>as it is heard"]:::safe --> F["The session's folder:<br/>two audio files"]:::file
+    F --> T["Transcript<br/>derived from the files,<br/>re-runnable"]:::derived
+    T --> M["Minutes<br/>derived from the transcript,<br/>re-runnable"]:::derived
+    C -. "live: the same step,<br/>fed while the file grows" .-> T
+
+    classDef safe fill:#065f46,color:#fff
+    classDef file fill:#374151,color:#fff
+    classDef derived fill:#1e3a8a,color:#fff
+```
+
+**Legend** — green: what must never be lost · grey: files on the machine · blue: what can
+always be made again from the files. Dotted: the live path, an addition to the same step.
+
+1. **Fedora first.** Every choice stays one that works on the three systems — no dependency
+   without its named equivalent on Windows and macOS — but this cycle is built and tried on
+   Fedora. The two other systems are built and tried afterwards; what the end date does not
+   reach is said at closure, not hidden behind the goal's wording.
+2. **Resilience, as far as it goes.** The audio first: it is written to disk as it is heard,
+   so a crash costs seconds and not the meeting (the charter's first risk). Every later step
+   is made from files and can be run again; a provider that fails loses nothing the step
+   before it wrote. These become criteria of D3 to D6, not intentions.
+3. **Live transcription, or after the recording — to decide.** The cycle had listed live
+   transcription out of scope; the decider asks for the choice to be made on purpose.
+
+| | After the recording | Live, while recording |
+|---|---|---|
+| What the user sees | The transcript some minutes after *stop* | The words as the meeting goes |
+| If the engine fails | Nothing lost: the audio is there, run it again | The same, **provided live never replaces the files** |
+| Measured | Local: a third of the meeting's length on this laptop | Not measured: the engine while a call uses the machine; an online one needs a provider that streams |
+| Cost in this cycle | Already D4 | One more thing in two weeks, after the context |
+
+**The framer's recommendation**: after the recording in this cycle, on the design drawn
+above — the transcript is a step fed by files, so feeding it the file *while it grows* is an
+addition later, not a rewrite. Live is then tried as a spike once D3 and D4 hold on Fedora.
+
 **D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
 quality. Writing them today would be writing them around the answer hoped for.
