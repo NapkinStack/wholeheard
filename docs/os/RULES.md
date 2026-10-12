@@ -93,9 +93,12 @@ a family, a number a rule; a retired rule's number is never reused.
 
 ## K — the cycle a change belongs to
 
+These rules bound work inside a cycle. A project with no accepted charter is **unframed**:
+it has no cycle, K1 to K3 say nothing there, and every other rule applies.
+
 | Code | Refuses | Why |
 |---|---|---|
-| `K1` | Delivery work with no accepted charter or no accepted cycle | `docs/project/README.md` |
+| `K1` | In a framed project, delivery work with no accepted cycle | `docs/project/README.md` |
 | `K2` | Delivery work after the cycle's end date: the circuit breaker | `docs/project/README.md` |
 | `K3` | Delivery work that names no ready or in-progress deliverable | `docs/project/README.md` |
 | `K4` | The out-of-cycle label with no justification | `docs/project/README.md` |

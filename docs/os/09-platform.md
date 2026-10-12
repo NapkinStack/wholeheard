@@ -93,11 +93,11 @@ project/
 │
 ├── docs/
 │   ├── os/                        # this documentation, and INSTALL.md, the foundation's manual
-│   ├── architecture/              # overview, system diagrams
+│   ├── architecture/              # how the whole is deployed — created by the first decision that needs it
 │   ├── project/                   # the discovery, the charter and the cycles: what the framework cannot know
 │   ├── adr/                       # cross-cutting technical decisions
 │   ├── pdr/                       # product decisions
-│   ├── runbooks/                  # cross-cutting operations
+│   ├── runbooks/                  # what to do when the whole fails — created by the first incident
 │   └── tooling-profile.md         # mapping capabilities → the tools of the moment
 │
 ├── playbooks/                     # AI instruction modules, loaded on demand

@@ -30,12 +30,36 @@ flowchart LR
 **Legend** — grey: a proposal · blue: the cycle in progress · green: an accepted end ·
 red: the circuit breaker and what it can lead to.
 
+## Framed, or unframed
+
+```mermaid
+flowchart LR
+    U["UNFRAMED<br/>no accepted charter"]:::un -->|"the decider accepts<br/>the charter"| F["FRAMED<br/>cycles bound the work"]:::fr
+    U -.-> RU["Every rule applies<br/>except the cycle's"]:::note
+    F -.-> RF["Every rule applies"]:::note
+
+    classDef un fill:#374151,color:#fff
+    classDef fr fill:#1e3a8a,color:#fff
+    classDef note fill:#065f46,color:#fff
+```
+
+**Legend** — grey: a project that has framed nothing yet, a stage and not a fault · blue:
+a project whose charter is accepted · green: what judges a change in each.
+
+The stage is read from this folder, never declared, and every run that judges names it. An
+unframed project is held to its boundaries, its contracts, the scope of its pull requests,
+the test sheet and the hooks; only the three rules that bound work inside a cycle are silent,
+since there is no cycle. **Framing is worth its price when there is something to bound** —
+several people, a deadline, a decider who is not the one typing. It is one-way: once the
+charter is accepted, a project between two cycles is framed, and is told which cycle is
+missing.
+
 ## What CI checks
 
 | Check | When | Rules |
 |---|---|---|
 | The plan, a fitness function | Every push | Formats; one accepted cycle at a time, under an accepted charter; `end` = `start` + the appetite; acceptance criteria once a deliverable is ready; closures recorded; a discovery decided with its decider and date, a charter only after a go. A charter, a cycle or a deliverable still holding the template's words is refused |
-| The pull request check | Every pull request changing a module beyond its description — manifest, `AGENTS.md`, `README.md`, `docs/`; not a framework update | An accepted cycle; not past its end date; a ready or in-progress deliverable named — or the `out-of-cycle` label with its justification |
+| The pull request check | Every pull request changing a module beyond its description — manifest, `AGENTS.md`, `README.md`, `docs/`; not a framework update — **once the charter is accepted** | An accepted cycle; not past its end date; a ready or in-progress deliverable named — or the `out-of-cycle` label with its justification |
 
 The charter changes only through a PDR (`docs/os/06-decisions.md` §4). A cycle is never
 extended: past its end date, delivery work stops until the decider records a decision.
