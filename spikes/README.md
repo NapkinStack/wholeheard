@@ -19,6 +19,18 @@ uv run --with faster-whisper python3 spikes/d2-local-minutes/d2.py path/to/meeti
     --reference path/to/human-transcript.txt   # optional: counts the words that differ
 ```
 
+The same minutes from an online provider — any address that speaks the OpenAI protocol — with
+or without a context the user attaches, on a transcript already made:
+
+```bash
+read -rs SUMMIT_PROVIDER_KEY && export SUMMIT_PROVIDER_KEY     # paste the key; it is written nowhere
+uv run python3 spikes/d2-local-minutes/d2.py path/to/meeting.wav \
+    --transcript path/to/transcript.txt --provider https://openrouter.ai/api/v1 \
+    --model mistralai/mistral-medium-3.1 --context path/to/context.txt
+```
+
+**What is sent leaves the machine**: only a recording made for the purpose, or a public one.
+
 | Found on the first run, Fedora 44 | What the probe does about it |
 |---|---|
 | The `whisper-cpp` package holds the library and no program | Transcribes with the Python engine `uv` fetches for the run; a `whisper-cli` on the path still serves |
