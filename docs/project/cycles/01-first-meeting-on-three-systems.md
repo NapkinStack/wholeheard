@@ -292,6 +292,41 @@ criterion in D5 — **minutes that say *not specified* instead of naming someone
 - That engine's voice detector tried to send telemetry to its publisher at start.
 - A meeting of an hour is about 37,000 tokens: over the 32,768 this model was given.
 
+**The decider's reading (2026-10-12).** These measures say what this laptop and this model
+can do, not what the product can: local figures follow the hardware and the model, and an
+online provider with a good model would give entirely different ones. The setup time is the
+connection's, weak that day, and is not representative. So D2 answers its question for one
+machine — *on the decider's laptop, all-local minutes are not worth keeping* — and decides
+nothing against local processing as such: each step keeps its provider, chosen by the user.
+
+| What D2 leaves for the deliverables | Goes to |
+|---|---|
+| Local transcription holds on this laptop: about a third of the meeting's length | D4 |
+| The same measures, taken with an online provider, before a threshold of quality is written | D5 |
+| Minutes that write *not specified* rather than name someone | D5, as a criterion |
+| A step that uses a model takes **a context from the user** — *"four speakers in a meeting room, two men and two women"* | D4 and D5, below |
+
+**A context given to a step — the decider asks for its place now.** Tried on the same
+sample, same local model, one run: a three-line context saying who attends and who is only
+talked about.
+
+| | Without a context | With it |
+|---|---|---|
+| A person the meeting talks about, written as the owner of an action | 3 times | never |
+| The decided date written as an action still to do | yes | yes |
+
+It removes the mistake it speaks to, and no other. What a context can do differs by step,
+and the product says so rather than promise more:
+
+- **For the minutes**, it is read as written: who attends, the agenda, the user's notes.
+- **For the transcript**, the engine tried here takes a few hundred words that steer
+  spelling — names, jargon — and nothing more. Telling speakers apart is another engine's
+  work; *"two men and two women"* helps that one, or the minutes, not the words heard.
+
+This cycle listed the context as out of scope. **Proposed, for the decider to confirm**: the
+feature stays out of this cycle, and the contracts `transcription` and `summary` are written
+with an optional context from their first version, so that adding it later breaks nothing.
+
 **D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
 quality. Writing them today would be writing them around the answer hoped for.
