@@ -167,7 +167,21 @@ fn a_source_opens_without_the_click_of_its_first_samples() {
 }
 #[test]
 fn an_hour_of_recording_fits_the_cycles_limit() {
-    // Two files, 16-bit, one channel, 16 kHz: 230 MB an hour, under the 250 MB of D3.
-    let an_hour = 2 * (44 + 3600 * u64::from(RATE) * 2);
+    // Twenty seconds of two sources as a system delivers them, measured on disk: an hour is
+    // 180 times that, and D3 allows the two files 250 MB.
+    let folder = tempfile::tempdir().unwrap();
+    let mut on_disk = 0;
+    for (name, rate, channels) in [("me.wav", 44_100, 1), ("others.wav", 48_000, 2)] {
+        let path = folder.path().join(name);
+        recorded(&path, rate, channels, &tone(rate, channels, 20.0, 440.0, 0.2, 0.0))
+            .finish()
+            .unwrap();
+        on_disk += fs::metadata(&path).unwrap().len();
+    }
+    let an_hour = on_disk * 180;
     assert!(an_hour <= 250_000_000, "{an_hour} bytes an hour");
+    assert!(
+        an_hour >= 200_000_000,
+        "{an_hour} bytes an hour: the files are not what the contract describes"
+    );
 }
