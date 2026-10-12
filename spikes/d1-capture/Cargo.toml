@@ -1,0 +1,13 @@
+[package]
+name = "d1-capture"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cpal = "0.18.2"
+hound = "3.5.1"
+
+# PipeWire is how a Linux desktop exposes what plays; the other systems need no feature.
+[features]
+default = ["pipewire"]
+pipewire = ["cpal/pipewire"]
