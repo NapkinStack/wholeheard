@@ -58,6 +58,15 @@ criticality of the modules concerned, and `security.md` applies from the first c
 the code, and to the data a spike collects: who sees it, how long it is kept. Say so to the
 decider.
 
+**Before proposing a criticality, read the rule** — the last paragraph of
+`.nstack/handbook/05-workflow.md` §7: a module that holds a key, places an order, moves money or
+touches someone's personal data is `critical`. Propose what the rule says, with what each
+value costs; a lower value is the decider's to choose, and is written as a deviation with its
+reason and the event that ends it.
+
+When no discovery came first, ask too **in which language the project writes**; the answer is
+its first rule (`docs/project/rules/always.md`).
+
 **A constraint that binds how the work is done becomes a rule of the project**, proposed
 with the charter: one line of `docs/project/rules/<subject>.md`, from
 `.nstack/forms/rules.md` — the subject is the playbook it completes, `always` when
