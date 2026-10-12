@@ -135,5 +135,5 @@ The framer's, accepted with the discovery:
   would say no.
 - Which product was tried on Fedora, and with which error — it shapes the first spike.
 - What "proven in use" means for opening the repository.
-- Whether the context given to a step is in the first version.
+- ~~Whether the context given to a step is in the first version.~~ Answered 2026-10-12: yes, in cycle 01, for the transcript and the minutes.
 - Which bots the three people use today, and what they cost.
