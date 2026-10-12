@@ -150,6 +150,26 @@ fn an_answer_that_is_not_minutes_is_refused_before_anything_is_written() {
         ("## A\n\nx\n\n## B\n\n### rien\n\n## C\n\n- z\n", "a section is empty"),
         ("```markdown\n## A\n\nx\n\n## B\n\nx\n\n## C\n\nx\n```", "a block of code"),
         ("", "0 section(s)"),
+        (
+            "### Voici le compte rendu\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n",
+            "does not open on its first section",
+        ),
+        (
+            "🎉🎉🎉\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n",
+            "does not open on its first section",
+        ),
+        ("- …\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n", "does not open on its first section"),
+        ("> …\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n", "does not open on its first section"),
+        (
+            "![](logo.png)\n\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz\n",
+            "does not open on its first section",
+        ),
+        ("## A\n\n\u{3164}\n\n## B\n\ny\n\n## C\n\nz\n", "a section is empty"),
+        (
+            "## A\n\nx\n\n## B\n\n- \u{115f}\u{1160}\u{ffa0}\n\n## C\n\nz\n",
+            "a section is empty",
+        ),
+        ("## \u{3164}\n\nx\n\n## B\n\ny\n\n## C\n\nz\n", "a section has no title"),
         ("---\n\n## A\n\nx\n\n## B\n\nx\n\n## C\n\nx\n", "does not open on its first section"),
         (
             "## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n\n> ## Quatre\n> x\n",

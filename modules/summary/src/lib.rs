@@ -43,6 +43,7 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
         ));
     }
     let mut segments = Vec::new();
+    let mut known = std::collections::HashSet::new();
     for line in lines.filter(|line| !line.trim().is_empty()) {
         let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
             return refused("the transcript holds a line that is not JSON");
@@ -69,10 +70,7 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
             ));
         }
         // A segment is known by its speaker and its start: said twice, it is read once.
-        if !segments
-            .iter()
-            .any(|known: &Segment| known.speaker == speaker && known.start == start)
-        {
+        if known.insert((speaker == "me", start.to_bits())) {
             segments.push(Segment {
                 speaker: speaker.into(),
                 start,
@@ -146,10 +144,28 @@ impl Minutes {
 fn not_minutes(body: &str) -> Option<String> {
     use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
-    let says = |text: &str| text.chars().any(char::is_alphanumeric);
+    // Letters to Unicode, and nothing to a reader: the fillers a text is padded with.
+    let shows = |c: char| c.is_alphanumeric() && !matches!(c, '\u{3164}' | '\u{115f}' | '\u{1160}' | '\u{ffa0}');
+    let says = |text: &str| text.chars().any(shows);
+    let mut opened = false;
     let (mut inside, mut title, mut sub_title) = (0, None, false);
     let mut said: Vec<bool> = Vec::new();
     for event in Parser::new(body) {
+        // Whatever comes before the first section — a sentence, a sub-title, a list, a
+        // picture, a mark — is not minutes; what has a reason of its own keeps it.
+        let opens = matches!(
+            event,
+            Event::Start(
+                Tag::Heading {
+                    level: HeadingLevel::H1 | HeadingLevel::H2,
+                    ..
+                } | Tag::CodeBlock(_)
+                    | Tag::HtmlBlock
+            ) | Event::Html(_)
+        );
+        if !std::mem::replace(&mut opened, true) && !opens {
+            return Some("it does not open on its first section".into());
+        }
         match event {
             Event::Start(Tag::BlockQuote(_) | Tag::List(_) | Tag::Item) => inside += 1,
             Event::End(TagEnd::BlockQuote(_) | TagEnd::List(_) | TagEnd::Item) => inside -= 1,
@@ -172,7 +188,6 @@ fn not_minutes(body: &str) -> Option<String> {
                 }
                 sub_title = false;
             }
-            Event::Rule if said.is_empty() => return Some("it does not open on its first section".into()),
             Event::Text(text) | Event::Code(text) if says(&text) => match (&mut title, said.last_mut()) {
                 (Some(named), _) => *named = true,
                 (None, _) if sub_title => {}
