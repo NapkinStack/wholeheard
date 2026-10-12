@@ -25,6 +25,9 @@ struct Probe {
     // accepting Ctrl+Alt+R and never firing it — a refusal would have been more honest.
     portal: Mutex<(bool, String)>,
     portal_fired: AtomicU32,
+    // Under Wayland an application may not raise itself: the desktop hands a token with the
+    // event that allows it. Counted here: the shortcuts that came with one.
+    tokens: AtomicU32,
 }
 
 #[tauri::command]
@@ -42,6 +45,7 @@ fn status(probe: tauri::State<Probe>) -> serde_json::Value {
         "portal_ok": probe.portal.lock().unwrap().0,
         "portal": probe.portal.lock().unwrap().1.clone(),
         "portal_fired": probe.portal_fired.load(Ordering::Relaxed),
+        "tokens": probe.tokens.load(Ordering::Relaxed),
     })
 }
 
@@ -141,8 +145,30 @@ async fn portal(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error 
         (true, format!("bound by the desktop: {}", got.join(", ")))
     };
     let mut activated = shortcuts.receive_activated().await?;
-    while activated.next().await.is_some() {
+    while let Some(event) = activated.next().await {
         app.state::<Probe>().portal_fired.fetch_add(1, Ordering::Relaxed);
+        // The portal's own words: "A token that can be used to activate a window in response
+        // to the shortcut getting activated."
+        let token = event
+            .options()
+            .get("activation_token")
+            .and_then(|value| value.downcast_ref::<String>().ok());
+        if token.is_some() {
+            app.state::<Probe>().tokens.fetch_add(1, Ordering::Relaxed);
+        }
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if let Some(window) = handle.get_webview_window("main") {
+                if let (Some(token), Ok(native)) = (token.as_deref(), window.gtk_window()) {
+                    use gtk::prelude::GtkWindowExt;
+                    native.set_startup_id(token); // GTK turns it into the activation request
+                    native.present();
+                }
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        });
     }
     Ok(())
 }

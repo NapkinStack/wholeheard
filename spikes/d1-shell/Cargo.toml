@@ -14,3 +14,4 @@ tauri-build = "2.7.2"
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "global_shortcuts"] }
 futures-util = "0.3.34"
+gtk = "0.18"

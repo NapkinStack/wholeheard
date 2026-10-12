@@ -192,6 +192,44 @@ flowchart LR
 works under a condition the user must meet · red: refused by the desktop · grey: the
 condition or the reason.
 
+**Bringing the window forward under GNOME — what was read (2026-10-12).** The decider saw
+"Show the probe" answered by a notification, "… is ready", instead of the window.
+
+```mermaid
+flowchart LR
+    E1["The user presses<br/>the global shortcut"]:::event -->|"the portal hands a token"| W["The window<br/>may come forward"]:::yes
+    E2["The user clicks<br/>a notification"]:::event -->|"the desktop hands a token"| W
+    E3["The user picks an entry<br/>of the tray's menu"]:::event -->|"no token found"| N["The desktop refuses:<br/>a notification, '… is ready'"]:::no
+    E4["The application decides<br/>by itself"]:::event -->|"never a token"| N
+
+    classDef event fill:#374151,color:#fff
+    classDef yes fill:#065f46,color:#fff
+    classDef no fill:#7c2d12,color:#fff
+```
+
+**Legend** — grey: what happened · green: the desktop lets the window come forward · red: it
+does not, whatever the application asks.
+
+| Finding | What it means for Summit | Source |
+|---|---|---|
+| Under Wayland a window is raised only with a token the compositor issued for an input event, and it "might decide not to follow through with the activation if it's considered unwanted" | No application takes the focus by itself. This is the desktop protecting the user from exactly what the idea file forbids — "aucune fenêtre ne s'ouvre sans action de l'utilisateur" | [xdg-activation-v1](https://wayland.app/protocols/xdg-activation-v1), *read* |
+| The shortcut portal's signal carries `activation_token`: "A token that can be used to activate a window in response to the shortcut getting activated" | The global shortcut **can** bring the window forward. The probe now does it; not run yet | [GlobalShortcuts portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html), *read* |
+| A click on a notification makes GNOME Shell emit an activation token, then the action | A notification is the desktop's own doorway to a window: "your minutes are ready", click, the window opens | A bug report describing the signals, and the specification's change — *secondary* |
+| A token passed to an application when an entry of its tray menu is chosen: **not found** for GNOME's tray extension; a to-do item on another desktop | "Show the window" in the tray's menu cannot be relied on under GNOME. It is what the decider observed | [KWin issue](https://invent.kde.org/plasma/kwin/-/issues/39) — *secondary*; nothing found for GNOME |
+
+**What follows for the interface** *(framer, to confirm)* — it agrees with the product's
+fifth principle rather than fighting it:
+
+- **The tray's menu holds the actions themselves** — start, stop, the last sessions — not a
+  door to a window. Nothing in it needs the window to come forward.
+- **A result arrives as a notification**, and the click on it opens the window: the one path
+  the desktop always allows.
+- **The global shortcut starts and stops a recording**; where it must show something, it may,
+  because it comes with a token.
+- **"Show the window" stays in the menu on Windows and macOS**, where it works, and on GNOME
+  it is answered by the desktop's own notification. Not hidden: said in the settings, as the
+  idea file asks for whatever one system cannot do.
+
 **D1 is not closed.** Windows and macOS wait for builds the decider chose to set up later
 (2026-10-12: "on mettra les workflows plus tard"), and a real call is still to record on
 Fedora. D3 cannot be accepted on a system D1 has not answered for.

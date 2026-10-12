@@ -40,6 +40,7 @@ async function draw() {
     ["Global shortcut fired", cell(s.fired > 0, `${s.fired} time(s)`)],
     ["Same shortcut, asked of the desktop portal", cell(s.portal_ok, s.portal)],
     ["Portal shortcut fired", cell(s.portal_fired > 0, `${s.portal_fired} time(s)`)],
+    ["Came with a token to raise the window", cell(s.tokens > 0, `${s.tokens} of ${s.portal_fired} — did this window come to the front when you pressed the keys?`)],
   ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
 }
 draw(); setInterval(draw, 700);
