@@ -8,6 +8,7 @@ Throwaway probes of the first cycle. Their product is what they record in the cy
 | [`d1-capture/`](d1-capture/) | D1, first half | Can one program write the microphone and the system's sound as two files, on the three systems, with the same code? |
 | [`d1-shell/`](d1-shell/) | D1, second half | Does a web-view application get a window that renders, a tray icon, and a global shortcut that fires while another window has the focus? |
 | [`d2-local-minutes/`](d2-local-minutes/) | D2 | Are all-local minutes of a French meeting worth keeping, on the decider's laptop? |
+| [`d4-engine/`](d4-engine/) | D4, before its engine is chosen | Does a native engine, linked into a Rust program, transcribe a French meeting as well and as fast as the Python one? |
 
 ## Running `d2-local-minutes`
 
@@ -85,3 +86,16 @@ it says whether the system's sound is heard at all, with nobody recorded.
 It records for 20 seconds into `/tmp/me.wav` and `/tmp/others.wav`, then says for each
 whether it holds sound or silence. **Delete the two files afterwards**: no recording of a
 real meeting enters this repository (`docs/project/rules/security.md`, rule 2).
+
+## Running `d4-engine`
+
+It needs a C++ compiler and CMake to build, a model in whisper.cpp's format, and an audio
+file already at 16 kHz, one channel, 16-bit:
+
+```bash
+cd spikes/d4-engine && cargo build --release
+D4_THREADS=8 target/release/d4-engine <model.bin> <audio.wav> > transcript.txt
+```
+
+`D4_THREADS` is the number of physical cores: left to the number the system reports, the
+same run took 2.7 times longer on the decider's laptop.

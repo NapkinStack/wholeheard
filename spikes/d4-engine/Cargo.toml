@@ -1,0 +1,8 @@
+[package]
+name = "d4-engine"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+whisper-rs = "0.16.0"
