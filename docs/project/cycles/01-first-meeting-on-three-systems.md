@@ -23,19 +23,44 @@ deliverables:
   - id: D3
     title: "A user starts and stops a recording, and finds two audio files — Me, Others — in the session's folder"
     module: capture
-    state: proposed
+    state: ready
+    acceptance:
+      - "Given Summit running on Fedora and a call in progress, when the user starts a recording from the tray's menu or the global shortcut, speaks, lets the others speak, and stops it the same way, then the session's folder holds two audio files — me and others — each as long as the recording to within one second, each holding its party's voice; no window opened by itself, and at start the user was reminded that announcing the recording is theirs"
+      - "Given a recording that has run for two minutes, when Summit's process is killed, then the two files are on disk, open in a standard player, and hold everything but at most the last five seconds"
+      - "Given a recording in progress, when another program reads the two files, then it reads the sound up to at most five seconds before now, and the recording is not disturbed"
+      - "Given a source that delivers silence for ten seconds — nothing playing, a permission refused, the wrong device — when the recording goes on, then the user is told which source is silent while it is still recording; the level is read around the source's resting level, so a microphone that rests away from zero is never shown as sound"
+      - "Given a recording in progress with the call heard on the loudspeakers, when the user connects a headset and the call moves to it, then others holds what the user hears on the headset, or the user is told within ten seconds that it does not — never a file of zeros without a word"
+      - "Given an hour of recording, when it is stopped, then the two files together take at most 250 MB"
   - id: D4
     title: "A user gets a timestamped transcript of a session, naming Me and Others, from an engine on their machine"
     module: transcription
-    state: proposed
+    state: ready
+    acceptance:
+      - "Given a session's two audio files, in French, when the user asks for its transcript, then the session's folder gains a transcript: segments in the order of the meeting, each with its start and end time and with Me or Others; it was made by an engine on the machine, and no connection was opened to any host"
+      - "Given the public five-minute sample of D2 and its human transcript, when it is transcribed on the decider's laptop, then at most 27 % of the words differ, counted as D2 counted them, and the processing takes at most half the sample's length"
+      - "Given a me file recorded for the purpose on the decider's laptop — weak, resting a third of full scale away from zero — when it is transcribed, then the decider reads the transcript against what they said and counts the sentences lost; the cycle records the count, and more than one sentence in ten lost sends the criterion back to D3"
+      - "Given a context the user attached to the session — a few lines of text, typed or from a file — when the transcript is made, then the engine received it, and the transcript says which context it was made with"
+      - "Given a transcript in the making, when the step is killed halfway, then the transcript on disk is valid and true up to its last segment; and when the step is run again, on the whole session or on a span of it already done, then no segment is doubled and none is lost"
   - id: D5
     title: "A user gets the minutes of a session — highlights, actions, key points — from the provider they chose"
     module: summary
-    state: proposed
+    state: ready
+    acceptance:
+      - "Given a session's transcript and the provider the user configured — a model on the machine, or any online address that speaks the OpenAI protocol — when the user asks for the minutes, then the session's folder gains minutes in the meeting's language with three parts: highlights, actions — each with what, who and by when — and key points; the minutes say which provider, which model and which context made them"
+      - "Given the transcript of D2's sample and the provider the configuration example names, when the minutes are made, then against the seven actions really agreed at most one in five is missing, wrong or invented — a missing action counts as much as a wrong one — as read by the decider"
+      - "Given an action whose owner or date the meeting did not settle, when the minutes are made, then they say not specified, or that it was proposed and not accepted — never a guess; on D2's sample, the guest the meeting talks about is not written as the owner of anything"
+      - "Given a context the user attached to the session, when the minutes are made, then the provider received it with the transcript"
+      - "Given a provider that fails — no network, a refused key, a model that is not there, an answer cut short — when the user asks for the minutes, then the transcript is untouched, no file that looks like finished minutes is left, the user is told what failed in one sentence, and asking again once it is repaired gives the minutes"
+      - "Given any provider, when the minutes are made, then the only host contacted is the one the user configured, and for an online one the user was shown, before the first sending, what leaves the machine and where it goes"
   - id: D6
     title: "A user finds the audio, the transcript and the minutes of a session as open files in its folder, readable without Summit"
     module: export
-    state: proposed
+    state: ready
+    acceptance:
+      - "Given a session recorded, transcribed and summarised, when the user opens its folder with the system's file manager, then they find the two audio files, the transcript and the minutes, named so that each says what it is, and the folder's own name says the day and the hour of the meeting"
+      - "Given that folder copied to a machine where Summit was never installed, when its files are opened with a standard audio player and a text editor, then the audio plays, and the transcript and the minutes read as plain text — who spoke, when, what was decided — with nothing missing and no path that points back to the first machine"
+      - "Given a session whose transcript or minutes were made again, when the user opens the folder, then its readable files are those of the last making, and nothing of the session was lost on the way"
+      - "Given Summit removed from the machine, when the user opens a session's folder, then every file is still there and still reads"
 ---
 
 # Cycle 01 — A first meeting, on three systems
@@ -427,9 +452,27 @@ cycle builds anyway, and no line of live code:
 Each is also what resilience asks: a crash leaves a readable audio and a transcript true up
 to its last segment.
 
-**D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
-and D2 have answered — which engine, which capture path per system, which threshold of
-quality. Writing them today would be writing them around the answer hoped for.
+**D3 to D6 are `ready`** (2026-10-12): their acceptance criteria, in the front matter, were
+written once D1 had answered for Fedora and D2 on a local and on an online provider. Each
+comes from something the cycle recorded, not from a wish:
+
+| Criterion | Comes from |
+|---|---|
+| Start and stop from the tray and the shortcut; no window by itself | D1 on Fedora: the tray's menu cannot raise a window, the shortcut can |
+| Killed after two minutes, the audio is there; readable while written | The decider's second orientation, and the first constraint that prepares live |
+| A silent source is said; the level read around its resting level | D1's third run: a file of zeros with no error, and a silent microphone judged "with sound" |
+| The headset connected during the call | D1's third run: the output in use moves; **not tried yet**, so the criterion allows saying so to the user |
+| 250 MB for an hour | D1's files: as heard, the two take 2.7 GB an hour |
+| 27 % of the words, half the length | D2's first run on this laptop: 27 %, and 36 % of the length |
+| A weak microphone, read by the decider | D1's real call: the decider's voice is weak on this laptop, "as usual" |
+| The context, on both steps | The decider, 2026-10-12: "On livre avec" |
+| Killed halfway; run again on a span | The two other constraints that prepare live |
+| A missing action counts; "not specified" rather than a guess | D2 online: two right actions of seven pass a count of wrong ones; the best minutes said what was not settled |
+| A provider that fails loses nothing | The decider's second orientation |
+| Only the configured host; shown before the first sending | Security rule 1 |
+
+**Built and tried on Fedora** (first orientation): where a criterion names the decider's
+laptop, Windows and macOS are tried afterwards with the same sheet, by the two colleagues.
 
 **Four modules, decided by the decider** (2026-10-12: "on découpe les 4 modules"), one per
 step of the idea file: `capture`, `transcription`, `summary`, `export`. The framer had
