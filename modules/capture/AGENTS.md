@@ -36,6 +36,8 @@ Records the audio sources of a conversation into a session.
 
 - A microphone rested at a third of full scale and opened on a click at full scale (cycle 01,
   D1): measured from zero, a silent room is sound. Tested.
+- The channels of a source are averaged: a source that speaks on one channel of two is written
+  at half its level, on one of six at a sixth (the verifier's measure, 2026-10-12). Not handled.
 - An output that plays nothing delivers zeros with no error; one that moved elsewhere may
   deliver nothing at all. Both end as the `silent` event.
 
