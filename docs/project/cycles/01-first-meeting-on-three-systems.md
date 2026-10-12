@@ -159,6 +159,7 @@ D1 records.
 |---|---|---|---|---|---|
 | 2026-10-12 | Fedora 44, GNOME on Wayland, PipeWire 1.6 | `d1-capture`, 20 s, by the decider | A file with sound, 20.0 s; loudest sample at 100 % of full scale — it clipped | **A file of silence**, 20.0 s, opened on the default output with no error | Not met. Not yet known whether anything was playing: the probe now plays a test note of its own and tries a second way to open the output |
 | 2026-10-12 | Same | `d1-capture`, 10 s, `--tone`, by the decider | Heard | **Heard**: the probe's own note, which the decider heard on the loudspeakers | **Met with a test note, not with a call.** The first run's silence was nothing playing: the decider had not spoken and no sound was running. Which of the two ways heard it was not reported. Still to record: a real call; and whether "me" stays free of the others' voices when they come out of loudspeakers the microphone can hear |
+| 2026-10-12 | Same | `d1-capture`, 60 s, by the decider, meant as the real call | "A file with sound", 59.9 s, loudest sample at 100 % — **a verdict the file does not support**: read back, the two channels rest at −19 % and −33 % of full scale for the whole minute, the 100 % is a click in the first 45 ms, and what moves around the resting level is 1 % with a few peaks to 25 %. Measured from zero, a silent room passes | **Two files of exact zeros**, 5,754,880 samples each, on both ways of opening the output | **Not met, and not a call's failure**: the same minute, read sample by sample, shows that nothing reached the loudspeakers. Checked next by the framer, microphone closed (`--others-only`): a note played by **another program** is heard on both ways, and silence is reported when nothing plays. So the capture hears what other programs play; whether a call was running, and on which output, is the decider's to say. The machine's configured output is a Bluetooth headset that was not connected. The probe now measures a file around its resting level, first second left out |
 
 | Date | System | Run | Window | Theme and font | Tray icon | Global shortcut |
 |---|---|---|---|---|---|---|
@@ -229,6 +230,16 @@ fifth principle rather than fighting it:
 - **"Show the window" stays in the menu on Windows and macOS**, where it works, and on GNOME
   it is answered by the desktop's own notification. Not hidden: said in the settings, as the
   idea file asks for whatever one system cannot do.
+
+**Two things the third capture run adds for D3** *(framer, to confirm)*:
+
+- **A level read from zero proves nothing.** This microphone rests far from zero; the
+  recorder must take the resting level out before it shows a level, decides that a source is
+  silent, or hands the sound to the transcription. Whether the offset comes from the
+  microphone or from the way it is opened is not known: one machine, one run.
+- **"The others" follows the output in use.** A headset connected during a meeting changes
+  where the call plays; a recording that stays on the loudspeakers writes zeros without an
+  error. Not tested yet — it is the first thing the real call should try.
 
 **D1 is not closed.** Windows and macOS wait for builds the decider chose to set up later
 (2026-10-12: "on mettra les workflows plus tard"), and a real call is still to record on
