@@ -71,6 +71,47 @@ one of them, D3 cannot be accepted there, and the decider re-frames — the scop
 date is not moved. D1 also records whether an unsigned build opens without help, which is
 what the decision on paying for signing waits for.
 
+**D1 — what was read before the probe (2026-10-12).** Not a choice of technology: what
+the probe must find out, and with what it can start. Read with the agent runtime's web
+search; *secondary* marks what was not read at its primary source.
+
+```mermaid
+flowchart TD
+    Q["What D1 must answer<br/>on each system"]:::ask --> T["Tray icon"]:::part
+    Q --> K["Global shortcut"]:::part
+    Q --> A["Microphone and system sound<br/>as two files"]:::part
+    T --> T1["Fedora GNOME: no tray without<br/>an extension — whatever the toolkit"]:::risk
+    K --> K1["Wayland: only through a portal<br/>GNOME added in version 48"]:::risk
+    A --> A1["One native path per system:<br/>WASAPI loopback, Core Audio taps,<br/>PipeWire monitor"]:::risk
+
+    classDef ask fill:#1e3a8a,color:#fff
+    classDef part fill:#374151,color:#fff
+    classDef risk fill:#7c2d12,color:#fff
+```
+
+**Legend** — blue: the spike's question · grey: its three parts · red: what the reading
+found, each one the operating system's doing rather than a toolkit's.
+
+| Finding | What it changes for the probe | Source |
+|---|---|---|
+| A Flutter tray plugin supports the three systems, and its own page says that under GNOME "the AppIndicator extension may be required to display the icon" | The tray on the decider's Fedora depends on an extension the user must add, with any toolkit. The probe records it; it cannot fix it | [tray_manager](https://pub.dev/packages/tray_manager), read through a search summary — *secondary* |
+| GNOME 48 lets an application "register system-wide shortcuts" through a portal; users on Fedora 42 report never seeing its prompt | A global shortcut under Wayland exists on paper. Whether a given toolkit's plugin uses the portal is unknown for both candidates | [GNOME 48 release notes](https://release.gnome.org/48/developers/), [Fedora discussion](https://discussion.fedoraproject.org/t/how-do-you-enable-disable-global-shortcuts-in-gnome-48/154507) — *secondary* |
+| Capturing the system's sound has one native path per system: WASAPI loopback on Windows; Core Audio process taps on macOS, which need a usage description in the application's manifest and deliver silence without the permission; the monitor of the default output under PipeWire on Linux | This is the hard part, and no toolkit hides it. A probe that shows a tray and a shortcut and cannot write the second file has answered nothing | [AudioCap](https://github.com/insidegui/AudioCap), [wasapi crate](https://docs.rs/wasapi), [Fedora discussion on monitors](https://discussion.fedoraproject.org/t/what-is-the-equivalent-of-pulseaudios-monitor-sources-in-pipewire/68939) — *secondary* |
+| Flutter packages for the system's sound are young: one claims the three systems at version 0.0.2 with 38 downloads; another lists macOS and Linux as not yet supported | With the decider's candidate, the capture is likely to need native code per system, behind the toolkit | [desktop_audio_capture](https://pub.dev/packages/desktop_audio_capture/score), [audio_io](https://pub.dev/packages/audio_io/versions/0.6.0) — *secondary* |
+| A macOS or Windows build cannot be made on the decider's Fedora | Whatever the toolkit, the two colleagues' builds come from the forge's CI runners or from their own machines. On a private repository the free minutes are counted, and macOS minutes cost more | **Assumption** — the forge's billing page was not read |
+
+**On this workstation (read 2026-10-12):** Flutter and Dart are installed; no Rust toolchain;
+`ffmpeg`, `pw-record` and `pactl` are present; the session is GNOME on Wayland.
+
+**Two candidates for the probe**, as the handbook asks before any structuring choice:
+
+| | Flutter — the decider's candidate | A Rust core with a web view (Tauri) |
+|---|---|---|
+| Installed here | Yes | No |
+| Tray, shortcut | Plugins exist for both; GNOME and Wayland limits as above | Built in; its shortcut library read by the challenger as "Linux (X11 Only)" |
+| System's sound | Plugins too young to rely on: native code behind a channel | Direct access to each system's audio interface from the core |
+| What it costs to probe | Half a day to a first window on Fedora | Installing a toolchain first |
+
 **D3 to D6 are `proposed`, not `ready`**: their acceptance criteria are written once D1
 and D2 have answered — which engine, which capture path per system, which threshold of
 quality. Writing them today would be writing them around the answer hoped for.
