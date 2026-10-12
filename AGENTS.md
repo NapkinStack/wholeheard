@@ -87,6 +87,7 @@ You **stop and report** in these cases, without looking for a way around:
 | A quality gate blocks | Stop. Never a workaround, a `skip`, a `--no-verify` or a disabled test. |
 | Potentially destructive action | Stop. See §5. |
 | A blocking piece of information is missing after searching | Ask for clarification. Once, precisely. |
+| The framework itself is wrong — a message, a check, a page | Stop. Say so, never a workaround: it is fixed at its source (`.nstack/handbook/INSTALL.md`, *When the framework is wrong*). |
 | A module's criticality has to be chosen | Propose it with what it costs, and let the decider settle it: it is a product decision (`.nstack/handbook/05-workflow.md` §7). |
 
 A red CI is never a detail. A bypassed gate is an incident.
