@@ -30,8 +30,12 @@ fn refused<T>(why: impl Into<String>) -> Result<T, Refused> {
 /// The segments of a transcript, in the order of the meeting. A line still being written —
 /// no line feed yet — is left out; a type or a field this version does not know is skipped.
 pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
-    let whole = text.rfind('\n').map_or("", |end| &text[..end]);
-    let mut lines = whole.lines().filter(|line| !line.trim().is_empty());
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    let Some(end) = text.rfind('\n') else {
+        return refused("the transcript holds no whole line yet: it is only being started, or it is empty");
+    };
+    let whole = &text[..end];
+    let mut lines = whole.lines();
     let header: serde_json::Value = lines.next().and_then(|line| serde_json::from_str(line).ok()).unwrap_or_default();
     if header["type"] != "header" || header["contract"] != TRANSCRIPT {
         return refused(format!(
@@ -39,7 +43,8 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
         ));
     }
     let mut segments = Vec::new();
-    for line in lines {
+    let mut known = std::collections::HashSet::new();
+    for line in lines.filter(|line| !line.trim().is_empty()) {
         let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
             return refused("the transcript holds a line that is not JSON");
         };
@@ -54,16 +59,25 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
         ) else {
             return refused("the transcript holds a segment without its speaker, its times or its text");
         };
-        if !matches!(speaker, "me" | "others") || end < start {
+        if text.contains(['\n', '\r']) {
+            return refused(format!(
+                "the transcript holds a segment whose text is on more than one line, at {start}"
+            ));
+        }
+        if !matches!(speaker, "me" | "others") || end < start || start < 0.0 {
             return refused(format!(
                 "the transcript holds a segment this version refuses: speaker {speaker}, {start} to {end}"
             ));
         }
-        segments.push(Segment {
-            speaker: speaker.into(),
-            start,
-            text: text.into(),
-        });
+        // A segment is known by its speaker and its start: said twice, it is read once.
+        // Adding zero makes the two zeros one: -0.0 and 0.0 are the same start.
+        if known.insert((speaker == "me", (start + 0.0).to_bits())) {
+            segments.push(Segment {
+                speaker: speaker.into(),
+                start,
+                text: text.into(),
+            });
+        }
     }
     if segments.is_empty() {
         return refused("the transcript holds no speech: there is nothing to write minutes of");
@@ -107,48 +121,136 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
 
 /// What made the minutes, as their front matter says it.
 pub struct Made<'a> {
-    pub at: &'a str,
+    /// When: written to the second, with its offset.
+    pub at: chrono::DateTime<chrono::FixedOffset>,
     /// The host that answered, or `local` — never a key, never a path.
     pub provider: &'a str,
     pub model: &'a str,
     pub context: Option<&'a str>,
 }
 
+/// Minutes this module accepted: the only thing [`write_minutes`] writes.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Minutes(String);
+
+impl Minutes {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Why an answer is not three sections of second level and nothing else — `None` when it is.
+/// Read by a CommonMark reader, as whoever opens the file will read it: a title is a title
+/// however it is written, and wherever it hides.
+fn not_minutes(body: &str) -> Option<String> {
+    use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+
+    // Letters to Unicode, and nothing to a reader: the fillers a text is padded with.
+    let shows = |c: char| c.is_alphanumeric() && !matches!(c, '\u{3164}' | '\u{115f}' | '\u{1160}' | '\u{ffa0}');
+    let says = |text: &str| text.chars().any(shows);
+    let mut opened = false;
+    let (mut inside, mut title, mut sub_title) = (0, None, false);
+    let mut said: Vec<bool> = Vec::new();
+    for event in Parser::new(body) {
+        // Whatever comes before the first section — a sentence, a sub-title, a list, a
+        // picture, a mark — is not minutes; what has a reason of its own keeps it.
+        let opens = matches!(
+            event,
+            Event::Start(
+                Tag::Heading {
+                    level: HeadingLevel::H1 | HeadingLevel::H2,
+                    ..
+                } | Tag::CodeBlock(_)
+                    | Tag::HtmlBlock
+            ) | Event::Html(_)
+        );
+        if !std::mem::replace(&mut opened, true) && !opens {
+            return Some("it does not open on its first section".into());
+        }
+        match event {
+            Event::Start(Tag::BlockQuote(_) | Tag::List(_) | Tag::Item) => inside += 1,
+            Event::End(TagEnd::BlockQuote(_) | TagEnd::List(_) | TagEnd::Item) => inside -= 1,
+            Event::Start(Tag::CodeBlock(_)) => return Some("it holds a block of code".into()),
+            Event::Start(Tag::HtmlBlock) | Event::Html(_) | Event::InlineHtml(_) => return Some("it holds HTML".into()),
+            Event::Start(Tag::Heading { .. }) if inside > 0 => return Some("it holds a title inside a quotation or a list".into()),
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H1, ..
+            }) => return Some("it holds a title above its sections".into()),
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H2, ..
+            }) => {
+                said.push(false);
+                title = Some(false);
+            }
+            Event::Start(Tag::Heading { .. }) => sub_title = true,
+            Event::End(TagEnd::Heading(_)) => {
+                if title.take() == Some(false) {
+                    return Some("a section has no title".into());
+                }
+                sub_title = false;
+            }
+            Event::Text(text) | Event::Code(text) if says(&text) => match (&mut title, said.last_mut()) {
+                (Some(named), _) => *named = true,
+                (None, _) if sub_title => {}
+                (None, Some(section)) => *section = true,
+                (None, None) => return Some("it does not open on its first section".into()),
+            },
+            _ => {}
+        }
+    }
+    if said.len() != 3 {
+        return Some(format!("{} section(s) of second level where three are expected", said.len()));
+    }
+    said.contains(&false).then(|| "a section is empty".into())
+}
+
+/// A text as one YAML string: quoted, on one line, with every character a YAML reader
+/// refuses or reads otherwise written as its escape.
+fn quoted(text: &str) -> String {
+    let mut out = String::from("\"");
+    for character in text.chars() {
+        match character {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() || matches!(c, '\u{2028}' | '\u{2029}' | '\u{feff}' | '\u{fffe}' | '\u{ffff}') => {
+                out.push_str(&format!("\\u{:04X}", c as u32))
+            }
+            c => out.push(c),
+        }
+    }
+    out + "\""
+}
+
 /// The minutes file for a provider's answer — or the reason the answer is not minutes.
-pub fn minutes(answer: &str, made: &Made) -> Result<String, Refused> {
-    let body = answer.trim();
-    let sections: Vec<&str> = body.lines().filter(|line| line.starts_with("## ")).collect();
-    if !body.starts_with("## ") || sections.len() != 3 {
-        return refused(format!(
-            "the provider's answer is not minutes: {} section(s) of second level where three are expected",
-            sections.len()
-        ));
+pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
+    // One way to end a line, before anything reads it: readers do not agree on a lone
+    // carriage return, and the file is written with the line ends it was judged with.
+    let unified = answer.replace("\r\n", "\n").replace('\r', "\n");
+    let body = unified.trim().trim_start_matches('\u{feff}').trim();
+    if let Some(why) = not_minutes(body) {
+        return refused(format!("the provider's answer is not minutes: {why}"));
     }
-    if body
-        .split("\n## ")
-        .any(|section| section.lines().skip(1).all(|line| line.trim().is_empty()))
-    {
-        return refused("the provider's answer is not minutes: a section is empty");
-    }
-    // A JSON string is a YAML string: quoted, escaped, on one line.
-    let quoted = |text: &str| serde_json::Value::from(text).to_string();
     let context = made
         .context
         .map(str::trim)
         .filter(|context| !context.is_empty())
         .map_or("null".into(), quoted);
-    Ok(format!(
+    Ok(Minutes(format!(
         "---\ncontract: {MINUTES}\nmade: {}\nprovider: {}\nmodel: {}\ncontext: {context}\n---\n\n{body}\n",
-        made.at,
+        made.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
         quoted(made.provider),
         quoted(made.model),
-    ))
+    )))
 }
 
 /// Puts the minutes in the session's folder: under their name only once they are whole. The
 /// minutes that were there are replaced; a failure before the last step leaves them as they were.
-pub fn write_minutes(folder: &Path, minutes: &str) -> io::Result<()> {
+pub fn write_minutes(folder: &Path, minutes: &Minutes) -> io::Result<()> {
     let draft = folder.join("minutes.md.part");
-    fs::write(&draft, minutes)?;
-    fs::rename(draft, folder.join("minutes.md"))
+    fs::write(&draft, minutes.as_str())?;
+    fs::rename(&draft, folder.join("minutes.md")).inspect_err(|_| {
+        let _ = fs::remove_file(&draft);
+    })
 }
