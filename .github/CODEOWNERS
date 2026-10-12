@@ -16,3 +16,6 @@
 /modules/transcription/        @NapkinStack/maintainers
 /modules/summary/              @NapkinStack/maintainers
 /modules/export/               @NapkinStack/maintainers
+
+# Contracts: the most critical boundary in the system, never orphaned.
+/contracts/                    @NapkinStack/maintainers
