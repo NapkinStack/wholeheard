@@ -45,19 +45,21 @@ preserving them.
 | **A new developer** | `00-overview.md` → `02-modules.md` → `05-workflow.md` |
 | **A tech lead / architect** | `00-overview.md` → `02` → `03` → `07` |
 | **A product owner** | `00-overview.md` → `06-decisions.md` |
-| **Whoever creates the project** | The project's `README.md`, then `09-platform.md` |
+| **Whoever creates the project** | `INSTALL.md`, then `09-platform.md` |
 
 ### Project contents
 
 ```
 .
-├── README.md                     How to use the project
+├── README.md                     The product's front page: the project writes it
 ├── AGENTS.md                     ← THE KERNEL: resident, loaded for every task
 ├── CONTRIBUTING.md, SECURITY.md
 │
 ├── docs/
 │   ├── os/                       ← this handbook
 │   │   ├── README.md             you are here
+│   │   ├── INSTALL.md            The foundation's manual: install, forge settings, updates
+│   │   ├── RULES.md              Every code a check prints, and where its reason is written
 │   │   ├── 00-overview.md        OS architecture, the 4 layers, glossary
 │   │   ├── 01-principles.md      Non-negotiable principles and anti-patterns
 │   │   ├── 02-modules.md         Boundaries, manifest, lifecycle, one PR = one module

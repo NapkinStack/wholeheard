@@ -2,6 +2,9 @@
 
 > **Trigger.** Load this playbook when you are asked to verify a change you did not write,
 > or to fill in the results of a test sheet.
+>
+> **This project's own rules** on the subject, when it has any: `docs/project/rules/verification.md`
+> — read them with this playbook. They add to it or tighten it.
 
 ---
 
@@ -39,8 +42,13 @@ change's authors and refuses a match.
      result;
    - *human only* — do not run it; check that its reason is stated.
 4. **Record** each result in the sheet — `passed`, `failed — <what you observed>`, or
-   `not verified` — with its evidence and the short hash of the commit you tested.
-5. **Only then read the diff**, to explain a failure — never to decide a result.
+   `not verified` — with its evidence and the short hash of the commit you tested. After a
+   fix, an *automated* scenario is run again at the head; an *explored* one is confirmed in
+   the `Confirmed` column with the head commit and what moved since; at criticality
+   `critical`, every scenario is run again (`docs/os/05-workflow.md` §7).
+5. **Only then read the diff**, to explain a failure — never to decide a result — and ask one
+   question of its tests: **is the entry point a real user calls exercised the way they call
+   it?** A suite that always passes what the user never passes is green on a path nobody takes.
 6. **Report** the failures first — observed, expected, evidence — then any optional
    remark, marked as such.
 

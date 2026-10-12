@@ -38,7 +38,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: NapkinStack, the project version
         run: bash .nstack/install-engine.sh
@@ -82,17 +82,22 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: NapkinStack, the project version
         run: bash .nstack/install-engine.sh
 
+      # Printed, not branched on: what the value requires is judged by the rules that read the
+      # matrix of docs/os/05-workflow.md §7, and never twice. A run says under which value it
+      # judged, as every other verdict does.
       - name: Declared criticality
-        id: crit
         run: |
-          LEVEL=$(yq '.module.criticality // "standard"' "$FOLDER/MANIFEST.yaml")
-          echo "level=$LEVEL" >> "$GITHUB_OUTPUT"
-          echo "Criticality: $LEVEL"
+          value=$(yq '.module.criticality // "undeclared"' "$FOLDER/MANIFEST.yaml")
+          echo "Criticality: $value"
+          case "$value" in
+            prototype|standard|high|critical) ;;
+            *) echo "Not a value the engine knows: judged as critical until M3 is satisfied." ;;
+          esac
 
       - name: bootstrap
         run: nstack bootstrap "$MODULE"
@@ -107,16 +112,10 @@ jobs:
       # A contract version someone relies on changes only with the merged proof (V1,
       # docs/os/03-contracts.md §4). The step runs even when an earlier one failed: a pull
       # request that breaks a frozen version AND a test would otherwise meet V1 a round trip
-      # later, once the tests are green (D46).
+      # later, once the tests are green.
       - name: compat
         if: ${{ !cancelled() }}
         run: nstack compat "$MODULE" --base "$BASE"
-
-      # Levels high and critical — not wired up yet (D9)
-      - name: Integration tests
-        if: steps.crit.outputs.level == 'high' || steps.crit.outputs.level == 'critical'
-        run: |
-          echo "Not wired up: integration tests (D9)"
 
       # Optional verb: the module's end-to-end scenarios, when declared (docs/os/09-platform.md §2).
       - name: e2e

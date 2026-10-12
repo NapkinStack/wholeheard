@@ -87,12 +87,12 @@ a bad boundary (`02-modules.md` §9).
 project/
 │
 ├── AGENTS.md                      # the OS kernel
-├── README.md
+├── README.md                      # the product's front page: a form at creation, then the project's
 ├── CONTRIBUTING.md
 ├── SECURITY.md
 │
 ├── docs/
-│   ├── os/                        # this documentation
+│   ├── os/                        # this documentation, and INSTALL.md, the foundation's manual
 │   ├── architecture/              # overview, system diagrams
 │   ├── project/                   # the discovery, the charter and the cycles: what the framework cannot know
 │   ├── adr/                       # cross-cutting technical decisions
@@ -106,6 +106,7 @@ project/
 │   ├── security.md
 │   ├── tests.md
 │   ├── verification.md
+│   ├── documentation.md
 │   ├── data-migration.md
 │   ├── ux.md
 │   └── operations.md

@@ -6,6 +6,9 @@
 >
 > Format: `situation → action → verification`. Anything not verifiable here must go to
 > human review.
+>
+> **This project's own rules** on the subject, when it has any: `docs/project/rules/security.md`
+> — read them with this playbook. They add to it or tighten it.
 
 ---
 

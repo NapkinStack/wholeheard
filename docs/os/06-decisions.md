@@ -135,6 +135,9 @@ A replaced decision is **superseded by a new decision**, never rewritten quietly
 history of abandoned decisions is often worth more than the current one: it explains why
 the apparently obvious does not work.
 
+A record is a file of `docs/adr/`, named `NNNN-verb-phrase-title.md` — `0001-adopt-postgres.md`
+— and listed in that folder's index, which the project keeps.
+
 ### PDR — Product Decision Record
 
 For an important **product** decision: a user goal, an expected behaviour, a trade-off, a
@@ -145,10 +148,13 @@ The PDR describes **what the product must do and why**, never its implementation
 Minimum content: the user problem · **prior art** · options · decision · a **dated
 success criterion** · a **removal condition** · impacts.
 
+A record is a file of `docs/pdr/`, named `NNNN-user-oriented-title.md`, and listed in that
+folder's index.
+
 ### Why only two formats
 
 The **FDR** (Functional Design Record) format was removed. Between the PDR (the what and
-the why) and the issue's acceptance criteria (the expected, testable behaviour), almost
+the why) and the deliverable's acceptance criteria (the expected, testable behaviour), almost
 nothing was left to justify a third format — and one more format means one more place to
 look, one more to maintain, one more that will diverge.
 
@@ -287,16 +293,91 @@ Every important piece of information has one identifiable source, and only one.
 |---|---|
 | Product decision | PDR |
 | Technical decision | ADR |
-| Expected behaviour of a feature | The issue's acceptance criteria |
+| Expected behaviour of a feature | The deliverable's acceptance criteria |
 | Interface between modules | The versioned contract |
 | A module's identity and dependencies | MANIFEST |
-| Work to be done | Issues / the project board |
+| Planned work | The current cycle's deliverables, in `docs/project/cycles/` |
+| Unplanned work | A typed issue: a defect, an architecture question, a debt, a request |
+| What the project must remember | One named issue, the project's log: what was tried, what it cost, what was refused |
 | Real behaviour | Code and tests |
 | Quality rules | Versioned CI |
 | Infrastructure | Versioned configuration |
-| Security | `SECURITY.md` + automated checks |
+| Security | `playbooks/security.md` for the rules, the project's `SECURITY.md` for its policy, automated checks |
 | Operations | Runbooks |
 
 > **Never leave an important decision only inside a conversation with an AI.** A
 > conversation is not versioned, not reviewable, not enforceable, and not findable by
 > somebody arriving in six months.
+
+### What binds is reviewed; what tracks, and what arrives, is an issue
+
+A plan, a decision, a charter and a cycle are **files, reviewed in a pull request**: an issue
+is edited in silence — no diff, no owner, no review — and a plan that can change without
+review is not a plan of record. An issue carries what a file carries badly: the state of the
+work, and whatever nobody planned. Each form names one kind of unplanned work, and none of
+them asks for a deliverable — work a cycle plans is described once, in the cycle. A request
+is not work yet: the next framing makes it a deliverable, or refuses it with a reason.
+
+A project that tracks its unplanned work in another tool, or keeps everything in files,
+breaks no rule here: it has chosen where, which is all this section asks.
+
+---
+
+## 10. The project's documents
+
+The framework writes none of them. It gives each one a form, a moment, and a standard.
+
+```mermaid
+flowchart LR
+    P0["Creation"]:::phase --> P1["Discovery<br/>decided: go"]:::phase --> P2["Charter<br/>accepted"]:::phase
+    P2 --> P3["A module holds<br/>its first code"]:::phase --> P4["Delivery"]:::phase --> P5["Cycle<br/>closed"]:::phase
+    P5 --> P4
+
+    P0 -.-> D0["Forms only:<br/>nothing can be<br/>written yet"]:::owed
+    P1 -.-> D1["Front page:<br/>its sentence"]:::machine
+    P2 -.-> D2["Front page: whole"]:::machine
+    P2 -.-> D2b["Security policy<br/>reviewed"]:::owed
+    P3 -.-> D3["Module map"]:::machine
+    P4 -.-> D4["The module's page<br/>and its runbook"]:::owed
+    P5 -.-> D5["The closure names<br/>what was brought<br/>current"]:::owed
+
+    classDef phase fill:#1e3a8a,color:#fff
+    classDef machine fill:#065f46,color:#fff
+    classDef owed fill:#374151,color:#fff
+```
+
+**Legend** — blue: a moment of the project's life, read from the repository · green: a
+document a check refuses to see left as its form once that moment has come (rule C8) ·
+grey: owed — asked of a human, read by no check.
+
+| Document | Says | Becomes writable when | Then kept current by |
+|---|---|---|---|
+| The idea and its discovery — `docs/project/inputs/`, `discovery.md` | The idea as given; evidence with its sources; the decision | The discovery starts | Each round, until decided |
+| Front page, its sentence — `README.md` | What the product does, for whom | The discovery is decided **go** | — |
+| Charter — `docs/project/charter.md` | Users, problem, constraints, success criteria | The framing | The decider alone (§4) |
+| Front page, whole — `README.md` | What it is, how to run it, where its decisions live | The charter is **accepted** | Each cycle's closure |
+| Security policy — `SECURITY.md` | How to report a vulnerability, who answers, how fast | Creation, as a default; reviewed when the charter is accepted — it says what data the product holds | A change of channel or of maintainers |
+| The project's own rules — `docs/project/rules/` | What this project adds to a playbook, and how each rule is checked | The charter is accepted: its constraints are the first ones | The decision or the incident that adds a rule; a check that replaces one |
+| The project's tools — `docs/tooling-profile.md` | Which tool serves which capability | A tool is chosen | The decision that replaces one |
+| A cycle — `docs/project/cycles/` | One goal, its deliverables, its end date, its closure | The charter is accepted | The decider alone |
+| Module map — `modules/README.md` | The modules, and the contracts between them | A module holds its **first file of code** | The pull request that creates, merges or retires a module |
+| A module's `README.md` and runbook | What it is for, how to start it, how to operate it | The module is created | The pull request that changes its behaviour |
+| What no module owns — `docs/architecture/`, `docs/runbooks/` | How the whole is deployed; what to do when the whole fails | A decision or an incident needs it: absent until then | The next decision, the next incident |
+| A decision and its index — `docs/adr/`, `docs/pdr/` | A trade-off, with its dated criterion | It is taken | Never: a decision is superseded, and the index gains a line |
+
+**A form is not filled before its moment.** At creation nobody knows what the product is;
+a sentence written then is invented. Each form waits for the event of its row, and a check
+that asked for it earlier would be paid in counterfeit.
+
+**The standard** these documents are written to — shape first, a source, a date, current or
+deleted — is `playbooks/documentation.md`: a playbook, because the handbook is never loaded
+into an agent's context and agents write most of these documents.
+
+**What a machine reads, and what is owed.** Three moments are readable from the repository
+and are checked: a front page without its sentence after a go, a front page still a form
+under an accepted charter, a module map still a form once a module holds code. Whether a page is
+*true* is not decidable: it is owed — "affected documentation up to date" in the Definition
+of Done (`05-workflow.md` §7), and the cycle's closure, which names the documents it
+brought current.
+
+This handbook is written to the same standard; that is where it comes from.

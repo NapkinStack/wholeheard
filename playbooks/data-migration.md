@@ -2,6 +2,9 @@
 
 > **Trigger.** Load this playbook when the task touches: a data schema, a migration, the
 > deletion or transformation of existing data, data ownership.
+>
+> **This project's own rules** on the subject, when it has any: `docs/project/rules/data-migration.md`
+> — read them with this playbook. They add to it or tighten it.
 
 ---
 

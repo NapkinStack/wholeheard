@@ -2,6 +2,9 @@
 
 > **Trigger.** Load this playbook when the task touches: logs, metrics, alerts, retries,
 > timeouts, rollback, health checks, deployment, or any call to an external dependency.
+>
+> **This project's own rules** on the subject, when it has any: `docs/project/rules/operations.md`
+> — read them with this playbook. They add to it or tighten it.
 
 ---
 

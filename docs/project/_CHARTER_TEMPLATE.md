@@ -12,6 +12,8 @@ success_criteria:             # when the goal is reached: measurable, dated or r
 
 ## Users and their problem
 
+<A diagram, with its legend: the users, the product, what it talks to.>
+
 <Who, in what situation, and what fails for them today.>
 
 ## Success criteria

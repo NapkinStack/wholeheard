@@ -6,6 +6,9 @@
 >
 > For an ordinary task the kernel rule is enough: **write the oracle, watch it fail,
 > implement**.
+>
+> **This project's own rules** on the subject, when it has any: `docs/project/rules/tests.md`
+> — read them with this playbook. They add to it or tighten it.
 
 ---
 

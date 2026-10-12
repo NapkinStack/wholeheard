@@ -58,6 +58,19 @@ solved by **structure** rather than by text. "Do not import the other module's c
 weak rule; putting the two modules in distinct packages with declared dependencies makes
 it unnecessary.
 
+**The tree says what kind of place; the level says whose.** Nodes `J` and `K` are the
+framework's. A rule that is the project's alone takes the same path and lands one level
+nearer (`00-overview.md` §5):
+
+| The tree ends on… | A rule every project shares | A rule of this project | A rule of one module |
+|---|---|---|---|
+| `J` — every task | The kernel | `docs/project/rules/always.md` | The module's `AGENTS.md` |
+| `K` — by trigger | `playbooks/<subject>.md` | `docs/project/rules/<subject>.md` | The module's `AGENTS.md` |
+| `D` — a check | The framework's checks | The project's own CI | The module's `check` and `test` |
+
+Node `L` holds at every level: a project rule that a check now enforces leaves
+`docs/project/rules/`. That is what the last column of that folder's form is for.
+
 ---
 
 ## 3. Fitness functions
@@ -193,26 +206,43 @@ The level of requirement depends on the **criticality declared in the manifest**
 a uniform rule. Never impose the ceremony of a critical system on a small module; never
 treat a critical system like a prototype.
 
+**What each of the four values requires is written in exactly one place: the table of
+`05-workflow.md` §7.** This section says why the axis exists and how a module changes value;
+it does not repeat the requirements, because a second copy of a table is a second answer
+waiting to contradict the first.
+
 ```mermaid
-flowchart TD
+flowchart LR
     A["Module"] --> B{"Declared<br/>criticality"}
+    B --> P["prototype"]:::light
+    B --> S["standard"]
+    B --> H["high"]
+    B --> C["critical"]:::heavy
+    P --> T["05-workflow.md §7<br/>what each one requires"]
+    S --> T
+    H --> T
+    C --> T
 
-    B -->|"prototype / internal"| P["MINIMAL<br/>lint · types · unit tests<br/>manifest · owner"]
-    B -->|"standard"| S["STRUCTURED<br/>+ validated contracts · fitness functions<br/>+ structuring ADRs · review"]
-    B -->|"high"| E["REINFORCED<br/>+ integration · critical E2E<br/>+ observability · security · runbook"]
-    B -->|"critical / sensitive"| C["MAXIMAL<br/>+ review by the owner · UAT<br/>+ verified rollback · post-deployment<br/>+ compliance requirements"]
-
-    style P fill:#1f2937,color:#fff
-    style C fill:#7c2d12,color:#fff
+    classDef light fill:#1f2937,color:#fff
+    classDef heavy fill:#7c2d12,color:#fff
 ```
 
-**Legend** — dark grey: the lightest level · red: the heaviest.
+**Legend** — dark grey: the lightest value · red: the heaviest · the table is the single
+source of what they require.
+
+**The value answers one question**, and it is a question about consequence, not about effort:
+*what does a failure of this module cost?* Nothing, because it is thrown away — a user's
+patience — a day of work — or a key, an order, money, someone's personal data. That is a
+product decision, so **the decider settles it**; an agent proposes it with its price and does
+not choose alone.
 
 Criticality is declared in the manifest, so CI knows which checks to apply to which
 module. It is not decided pull request by pull request, which would trigger the
 discussion at the worst possible moment.
 
-**It is revisable**, by ADR: a module going to production changes level.
+**It is revisable**, by ADR: a module going to production changes value. Raising it takes
+effect on the next run, with no migration; the checks the new value requires apply to the next
+pull request that changes the module.
 
 ---
 
@@ -270,6 +300,28 @@ The human who drove the agent may approve its pull request. A team that wants fo
 adds "require approval of the most recent reviewable push", or a second reviewer. An
 agent's approval does not count toward merging until the test sheets show, module by
 module, that an independent verifier finds what a human would (`05-workflow.md` §7).
+
+### The approval is one gesture, not three
+
+Approving and merging are two different acts, and only the first needs a human. With
+**auto-merge** allowed on the repository, the author arms it on the pull request when opening
+it (`gh pr merge <number> --auto --squash`), and the pull request merges itself the moment it
+is approved and its required checks go green: nobody waits on the reviewer to come back and
+press a button, and no agent is told to merge on their behalf. The barrier is untouched — the approval is still
+required, still human, still dismissed when new commits are pushed.
+
+What it removes is the round trip: **the approval message that carries no judgement at
+all**, and exists only to tell an agent that a merge could now happen.
+
+The approval itself can also be given from wherever the decision was made, under the
+approver's own identity, rather than by walking to the browser:
+
+```
+gh pr review <number> --approve
+```
+
+One gesture. An approval given in the terminal and an approval given in the web interface
+are the same act, recorded the same way, and dismissed the same way on the next push.
 
 ---
 
