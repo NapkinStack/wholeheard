@@ -27,15 +27,20 @@ Writes the minutes of a transcript.
 ## Business invariants
 
 - `minutes.md` appears under its name only once it is whole; a failure leaves what was there.
-- One host is contacted, the one configured: a redirection is refused, never followed.
+- One host is contacted, the one configured: a redirection is refused, never followed, and no
+  proxy the environment names is used. The host named is the host the request goes to.
 - The minutes name the host that answered, or `local` — never a key, a path or a full address.
+- A key the provider sends back in its answer is never written; nothing leaves before `sending`.
 - What the meeting did not settle is asked to be said, never guessed.
 
 ## Known traps
 
 - A model that opens with a sentence before the sections is refused, by design.
-- The HTTP client reads the system's proxy settings: a proxy the user configured on the
-  machine is contacted too. Not tested.
+- Reading a format by hand: an answer was once read line by line, an address split by hand —
+  each cost several rounds of verification. An answer goes through a CommonMark reader, an
+  address through the HTTP client's own.
+- The key is looked for in an answer as it is written: sent back in another case or encoded,
+  it is not caught. A key that is a common word turns honest minutes away.
 
 ## Areas not to change without approval
 
