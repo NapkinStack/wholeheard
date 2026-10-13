@@ -6,6 +6,12 @@ publish = false
 
 [dependencies]
 serde_json = "1.0.154"
+whisper-rs = "0.16.0"
+
+# The graphics card, where the system has Vulkan and its headers: a tenth of the meeting's
+# length on the laptop the engine was chosen on, against most of it on the processor (ADR-0003).
+[features]
+vulkan = ["whisper-rs/vulkan"]
 
 [dev-dependencies]
 tempfile = "3"
