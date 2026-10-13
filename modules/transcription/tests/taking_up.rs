@@ -237,16 +237,35 @@ fn a_transcript_is_taken_up_whatever_a_kill_left_and_refused_when_a_line_is_not_
 
     // A whole line that is not the contract's — a third speaker, an end before its start, a
     // second header, something that is not JSON — and the transcript is not continued.
-    for line in [
+    let rest = [
         r#"{"type":"segment","speaker":"them","start":40.0,"end":41.0,"text":"x"}"#,
         r#"{"type":"segment","speaker":"me","start":41.0,"end":40.0,"text":"x"}"#,
-        &header,
+        r#"{"type":"segment","speaker":"me","start":-1.0,"end":2.0,"text":"x"}"#,
+        r#"{"type":"segment","speaker":"me","start":40.0,"end":41.0}"#,
+        r#"{"type":"segment","speaker":"me","start":40.0,"end":41.0,"text":"two\nlines"}"#,
+        r#"{"type":"complete","duration":30.0}"#,
+        r#"{"speaker":"me"}"#,
+        "42",
         "not json",
-    ] {
+        "",
+        "\t",
+        "\u{a0}",
+    ];
+    for line in rest.into_iter().chain([header.as_str()]) {
+        // "complete" alone is the contract's; what follows it is not.
+        let line = if line.contains("complete") {
+            format!("{line}\n{}", r#"{"type":"covered","speaker":"me","until":60.0}"#)
+        } else {
+            line.to_string()
+        };
+        let line = line.as_str();
         let elsewhere = tempfile::tempdir().unwrap();
         let bytes = format!("{known}{line}\n");
         fs::write(elsewhere.path().join("transcript.jsonl"), &bytes).unwrap();
-        let refused = Transcript::open(elsewhere.path(), &making()).err().expect("continued").to_string();
+        let refused = Transcript::open(elsewhere.path(), &making())
+            .err()
+            .unwrap_or_else(|| panic!("continued: {line:?}"))
+            .to_string();
         assert!(refused.contains("make it again"), "{line}: {refused}");
         assert_eq!(fs::read_to_string(elsewhere.path().join("transcript.jsonl")).unwrap(), bytes);
     }
