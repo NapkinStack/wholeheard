@@ -29,6 +29,7 @@ nstack bootstrap capture     # the toolchain's components and, on Linux, the sou
 nstack check capture         # format and lint
 nstack test capture          # no audio device needed, nobody recorded
 nstack run capture           # lists the devices the system offers
+nstack e2e capture           # records two notes on devices made for the run: nobody is recorded
 ```
 
 Recording — **the people recorded know it**:
@@ -36,6 +37,15 @@ Recording — **the people recorded know it**:
 ```bash
 cargo run --release -- record <sessions-folder>   # until Ctrl-C, a TERM signal, or "stop" on its input
 ```
+
+**`nstack e2e capture`** runs D3's scenarios without a call and without a voice: for about a
+minute the system's default output and input are two silent devices of its own, a note is
+played into each, and the program records them — stopped as a user stops it, read while it
+writes, left silent, killed, and with the same sound in both sources to see that the two files
+keep one clock. It runs nothing where there is no sound server, or while an
+application holds a microphone; what it saw is in `.evidence/e2e.txt`. A real call, a real
+microphone and a headset stay a person's to try; so do a source that rests away from zero and
+one that stops delivering, which silent devices cannot play and the module's tests hold.
 
 ## What it says while it runs
 
