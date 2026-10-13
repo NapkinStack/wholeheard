@@ -56,8 +56,13 @@ channels on one machine, 44,100 in one on another.
   its track.
 - **Within what 24 bits hold.** A sample the source delivered beyond full scale is written
   at full scale; one that was no number, as zero.
-- **Written once.** A sample once written never changes, and no program — the producer
-  included — rewrites a track after the recording.
+- **Written once.** A sample a track holds never changes, and no program — the producer
+  included — rewrites a track after the recording. One case apart: what the system refused
+  to write part-way — a disk full for a moment — is taken back at once, so that a track only
+  ever holds whole frames; a reader that saw those bytes for an instant saw nothing a track
+  held.
+- **Whole frames.** A track holds a whole number of frames; the last one of a recording cut
+  by a crash may be missing bytes, and is not sound.
 - **Readable while written.** What was heard more than five seconds ago is in the file. A
   reader finds the audio by the file's chunks, **ignores the lengths in the header** and
   reads to the end of the file: they are true only once `stopped` is written, and never for
@@ -72,8 +77,16 @@ cut by a crash is ignored. Two kinds of line:
 | A silence | `track`, `silence`: `[from, to]` | The frames `from` up to, not including, `to` were **not delivered by the source**: the capture wrote zeros there, to keep the track on the clock |
 
 - **A point for the first frame a source delivers**, then at least every ten seconds while
-  it delivers, and for the first frame after each silence. A track that opens on a silence
-  has its first point after it.
+  it delivers, for the first frame after each silence — and for any frame heard elsewhere
+  than the points before it put it: a source that stopped for a moment, too short for zeros,
+  is placed again when it comes back. A track that opens on a silence has its first point
+  after it.
+- **An instant is when the system handed the frame to the capture**, on one clock for all
+  the tracks. What a device adds before that — the time a sound takes from a microphone to
+  the program, or from the program to a loudspeaker — is not in it: whoever needs two
+  tracks placed to the sample measures what is left between them.
+- **A silence may be said before its zeros are in the track**: a recording killed between
+  the two leaves a clock that names frames the track does not hold. Never the reverse.
 - **`at` may be a little below zero**: a frame the system had already heard when the session
   started.
 - **From the points a reader gets** where a track starts on the session's clock, its true
@@ -94,11 +107,16 @@ cut by a crash is ignored. Two kinds of line:
 - It never holds a file made from the tracks beside them: that is `derived/`.
 - `context.txt` is never written, read or changed by `capture`.
 
-**Open before `stable`** *(to confirm on the first recordings, cycle 02's D9)*: how close a
-point is to the instant its frame was really heard — the system's own time where it gives
-one, the arrival of the sound otherwise; what a session records when the user changes
-device during a meeting; whether a track is compressed without loss once the recording has
-stopped, which would be a third version.
+A recording killed while `session.json` is replaced may leave a `session.json.part` beside
+it: it is not part of the session, and no reader reads it.
+
+**Open before `stable`** *(to confirm on real devices, cycle 02's D9)*: how far the instants
+of two tracks are from each other when their sources are two devices on two clocks — on one
+sound server with one device they moved by a ten-thousandth of a second, measured on
+2026-10-13; whether `device` can be the name the system shows the user rather than the one
+a sound library gives its default; what a session records when the user changes device
+during a meeting; whether a track is compressed without loss once the recording has stopped,
+which would be a third version.
 
 ## Examples
 
