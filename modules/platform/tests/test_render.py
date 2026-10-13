@@ -155,20 +155,35 @@ def test_a_voice_that_does_not_speak_at_the_pace_of_a_person_is_refused(seconds_
         lay_out(script(MEETING), paced)
 
 
-def test_the_same_meeting_as_a_recording_keeps_it_is_each_side_as_delivered_with_its_clock(tmp_path):
+def test_the_same_meeting_as_a_recording_keeps_it_is_each_side_as_delivered_and_its_clock_puts_it_back(tmp_path):
     tracks, truth = lay_out(script(MEETING), tone)
-    write_as_delivered(tmp_path, condition(tracks, "low"), truth)
+    heard = condition(tracks, "low")
+    write_as_delivered(tmp_path, heard, truth)
     record = json.loads((tmp_path / "session.json").read_text())
     assert record["contract"] == "session-audio/v2" and set(record["tracks"]) == {"local", "remote"}
-    for side in ("local", "remote"):
-        with wave.open(str(tmp_path / f"{side}.wav")) as wav:
-            assert (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) == (2, 3, RATE)
-            assert wav.getnframes() == len(tracks[side])
-            frames = np.frombuffer(wav.readframes(RATE), np.uint8).reshape(-1, 2, 3)
-        assert np.array_equal(frames[:, 0], frames[:, 1]), "the two channels differ"
     clock = [json.loads(line) for line in (tmp_path / "clock.jsonl").read_text().splitlines()]
     for side in ("local", "remote"):
-        points = [(line["sample"], line["at"]) for line in clock if line["track"] == side]
-        assert points[0] == (0, 0.0) and all(at == sample / RATE for sample, at in points)
-        assert all(later[1] - earlier[1] <= 10 for earlier, later in itertools.pairwise(points))
+        data = (tmp_path / f"{side}.wav").read_bytes()
+        # The header the capture writes: extensible, two channels, 24 bits, the meeting's rate.
+        assert data[:4] == b"RIFF" and data[20:22] == b"\xfe\xff" and data[60:64] == b"data"
+        assert (int.from_bytes(data[22:24], "little"), int.from_bytes(data[24:28], "little"), data[34]) == (2, RATE, 24)
+        frames = np.frombuffer(data[68:], np.uint8).reshape(-1, 2, 3)
+        assert np.array_equal(frames[:, 0], frames[:, 1]), "the two channels differ"
+        delivered = (frames[:, 0].astype(np.int32) * [1, 256, 65536]).sum(axis=1)
+        delivered = np.where(delivered >= 1 << 23, delivered - (1 << 24), delivered) / 8_388_607
+        points = [(line["sample"], line["at"]) for line in clock if line["track"] == side and "sample" in line]
+        silences = [line["silence"] for line in clock if line["track"] == side and "silence" in line]
+        assert points[0][0] == 0 and points[0][1] > 0, "a track that starts with the session says nothing"
+        assert (side == "remote") == bool(silences)
+        # Read as the contract says — each frame at the instant its last point gives it — the
+        # track is the side as it was heard, wherever the source delivered.
+        for (sample, at), (until, _) in zip(points, [*points[1:], (len(delivered), 0)]):
+            ours = [zeros for zeros in silences if sample <= zeros[0] < until]
+            end = ours[0][0] if ours else until
+            placed = round(at * RATE)
+            assert (
+                np.abs(delivered[sample:end] - np.clip(heard[side][placed : placed + end - sample], -1, 1)).max() < 1e-6
+            )
+            assert all((delivered[a:b] == 0).all() for a, b in ours)
+        assert len(delivered) < len(heard[side])
     assert json.loads((tmp_path / "truth.json").read_text())["turns"] == truth
