@@ -73,6 +73,7 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 
 - Provided: none
 - Consumed: [`session-audio/v1`](../../contracts/session-audio/v1/README.md) — it writes a session as that contract describes one, for the programs to read
+- Consumed: [`transcript/v1`](../../contracts/transcript/v1/README.md) — it reads the transcript the programs wrote of it
 
 ## Decisions
 
