@@ -2,16 +2,20 @@
 //! `contracts/recording/v1` describes. No sound, no device, nobody recorded.
 #![cfg(unix)]
 
-use std::{fs, os::unix::fs::PermissionsExt, path::Path, path::PathBuf, time::Duration};
+use std::{fs, os::unix::fs::PermissionsExt, path::Path, sync::Mutex, time::Duration};
 
 use summit_shell::recording::{Recording, Said, Source, read};
 
-/// A program that records, played: a script given the same arguments, `record <sessions>`.
-fn played(folder: &Path, script: &str) -> PathBuf {
+/// A recording by a program played here: a script given the same arguments, `record
+/// <sessions>`. One at a time: a script still open for writing in one thread while another
+/// starts a program cannot be run — "text file busy".
+fn played(folder: &Path, script: &str) -> Recording {
+    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+    let _held = ONE_AT_A_TIME.lock().unwrap();
     let path = folder.join("summit-capture");
     fs::write(&path, format!("#!/bin/sh\nsessions=\"$2\"\n{script}\n")).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    path
+    Recording::start(&path, folder).unwrap()
 }
 
 /// Everything a recording says until it closes — a test that waits ten seconds has failed.
@@ -26,7 +30,7 @@ fn all(recording: &Recording) -> Vec<Said> {
 #[test]
 fn a_recording_is_started_listened_to_and_stopped_as_its_contract_says() {
     let folder = tempfile::tempdir().unwrap();
-    let program = played(
+    let mut recording = played(
         folder.path(),
         r#"echo '{"event":"started","folder":"'"$sessions"'/2026-10-13_14-05","sources":{"me":"Mic","others":"Speaker"}}'
 echo 'a line that is no event'
@@ -36,7 +40,6 @@ echo '{"event":"heard","source":"others"}'
 read line
 [ "$line" = stop ] && echo '{"event":"stopped","folder":"'"$sessions"'/2026-10-13_14-05","seconds":1912.4,"new":"field"}'"#,
     );
-    let mut recording = Recording::start(&program, folder.path()).unwrap();
     let session = folder.path().join("2026-10-13_14-05");
     let before = [
         Said::Started(session.clone()),
@@ -56,14 +59,13 @@ read line
 fn a_recording_that_ends_by_itself_is_said_to_have_failed_with_its_own_sentence() {
     let folder = tempfile::tempdir().unwrap();
     // Refused before it started: the contract's "unavailable", then one sentence and a failure.
-    let program = played(
+    let recording = played(
         folder.path(),
         r#"echo '{"event":"unavailable","source":"me","reason":"the system names no default device"}'
 echo 'an earlier line' >&2
 echo 'summit-capture: no source could be opened: nothing to record' >&2
 exit 1"#,
     );
-    let recording = Recording::start(&program, folder.path()).unwrap();
     assert_eq!(
         all(&recording),
         [
@@ -73,11 +75,10 @@ exit 1"#,
     );
 
     // Killed while it recorded: it says nothing of it, and that is said too.
-    let program = played(
+    let recording = played(
         folder.path(),
         r#"echo '{"event":"started","folder":"'"$sessions"'/s"}'; kill -9 $$"#,
     );
-    let recording = Recording::start(&program, folder.path()).unwrap();
     assert_eq!(
         all(&recording),
         [Said::Started(folder.path().join("s")), Said::Failed(String::new())]
@@ -90,13 +91,12 @@ exit 1"#,
 #[test]
 fn a_recording_goes_on_when_the_shell_lets_go_of_it() {
     let folder = tempfile::tempdir().unwrap();
-    let program = played(
+    let recording = played(
         folder.path(),
         r#"echo '{"event":"started","folder":"'"$sessions"'/s"}'
 sleep 1
 touch "$sessions/still-recording""#,
     );
-    let recording = Recording::start(&program, folder.path()).unwrap();
     assert_eq!(
         recording.said.recv_timeout(Duration::from_secs(10)).unwrap(),
         Said::Started(folder.path().join("s"))
