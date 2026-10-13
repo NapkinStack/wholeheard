@@ -47,7 +47,9 @@ nothing.
 - It never prints anything but these lines on its output: a consumer may refuse a line that
   is not one — and must ignore a field or an `event` it does not know, so that a second
   version can add one.
-- It never waits for its consumer: a consumer that stops reading does not stop the recording.
+- It never ends because its consumer did: a consumer that is gone — its end of the output
+  closed — stops nothing. **A consumer that keeps the output open reads it**: the system holds
+  some 1,700 unread events, and the program waits on the next one.
 
 **Open before `stable`**: whether a source that becomes unavailable *during* the recording —
 a headset unplugged — is said by `silent` alone, as today, or by an event of its own (cycle
