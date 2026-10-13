@@ -39,11 +39,17 @@ impl std::fmt::Debug for Provider {
 /// The address of this machine a name stands for, or the reason the host is refused: the
 /// minutes name a host, and it must be the one the request goes to.
 fn checked(host: &str) -> Result<Option<IpAddr>, Refused> {
-    let bare = host.trim_start_matches('[').trim_end_matches(']');
-    if let Ok(address) = bare.parse::<IpAddr>() {
-        return Ok(Some(address));
+    // Brackets hold an IPv6 address and nothing else: around anything else, the system reads a name.
+    if let Some(inside) = host.strip_prefix('[') {
+        return match inside.strip_suffix(']').map(str::parse::<std::net::Ipv6Addr>) {
+            Some(Ok(address)) => Ok(Some(IpAddr::V6(address))),
+            _ => refused("the provider's host is in brackets and is not an IPv6 address"),
+        };
     }
-    let name = bare.to_ascii_lowercase();
+    if let Ok(address) = host.parse::<std::net::Ipv4Addr>() {
+        return Ok(Some(IpAddr::V4(address)));
+    }
+    let name = host.to_ascii_lowercase();
     let label = |label: &str| !label.is_empty() && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
     // A name, not something a system may read as a number in another base, or resolve its own way.
     if !name.split('.').all(label)
