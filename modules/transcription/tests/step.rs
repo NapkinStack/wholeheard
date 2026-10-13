@@ -250,3 +250,15 @@ fn the_step_does_not_crawl_whatever_an_engine_says_of_where_a_voice_starts() {
         assert!(engine.calls <= 16, "{} calls for eight spans, from {start} s in", engine.calls);
     }
 }
+
+#[test]
+fn the_length_the_last_line_says_is_the_one_the_session_was_covered_to() {
+    // 16,080 samples: half a hundredth past one second. Both count it to the hundredth above.
+    let folder = session();
+    audio(&folder.path().join("me.wav"), 1.00501, &[(0.9375, 1.1)]);
+    audio(&folder.path().join("others.wav"), 1.0, &[]);
+    transcribe(folder.path(), &mut Played::default(), None, 1).unwrap();
+    let text = fs::read_to_string(folder.path().join("transcript.jsonl")).unwrap();
+    assert!(text.contains(r#"{"speaker":"me","type":"covered","until":1.01}"#), "{text}");
+    assert!(text.trim_end().ends_with(r#"{"duration":1.01,"type":"complete"}"#), "{text}");
+}
