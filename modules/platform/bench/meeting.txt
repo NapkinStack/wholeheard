@@ -5,6 +5,9 @@
 # in it; `remote` is two people on the call. A line is a turn: who speaks, the silence in
 # seconds between the end of the turn before and the start of this one — negative, the turn
 # starts before the other has finished: an overlap — and what is said.
+#
+# People speak over one another on purpose: a way of removing the echo that simply mutes the
+# microphone while the remote side speaks must be seen losing these words.
 
 voice claire local
 voice marc local
@@ -17,13 +20,16 @@ julien   0.3  Bonjour, pareil pour moi.
 claire   0.5  Parfait. Marc, tu nous fais le point sur le calendrier ?
 marc     0.7  Oui. La version de test sera prête le douze novembre. Il nous reste deux semaines de corrections avant de l'ouvrir aux premiers clients.
 sophie   0.4  Le douze, c'est un jeudi. Est-ce qu'on ne peut pas viser le lundi suivant, pour avoir l'équipe de support au complet ?
+marc    -4.0  Oui, c'est vrai, le jeudi il manque deux personnes au support.
 marc     0.5  C'est possible, mais on perd quatre jours sur les retours des clients.
 julien  -0.6  Quatre jours, ce n'est pas grand-chose si le support est prêt.
 claire   0.4  Je suis d'accord avec Julien. On retient le lundi seize novembre pour l'ouverture aux clients.
 marc     0.3  Très bien, je mets à jour le planning cet après-midi.
 claire   1.2  Deuxième sujet, le budget. Sophie, où en est-on ?
 sophie   0.6  On a dépensé soixante-deux pour cent de l'enveloppe. Le poste le plus lourd, c'est l'hébergement, qui a doublé depuis septembre.
+claire  -5.0  D'accord, soixante-deux, c'est un peu plus que prévu.
 julien   0.5  Ça vient des tests de charge. On peut couper deux serveurs dès la semaine prochaine.
+marc    -3.0  Oui, les tests de la semaine dernière.
 sophie   0.4  Si tu le fais, on économise à peu près huit cents euros par mois.
 marc    -0.4  Attention, il faut garder un serveur pour la démonstration du vingt.
 julien   0.5  Oui, bien sûr, je garde celui de Paris.
@@ -34,21 +40,27 @@ marc     0.5  J'en ai retenu trois. Deux ont déjà travaillé sur des produits 
 julien   0.6  Est-ce qu'ils sont disponibles rapidement ?
 marc     0.4  L'une est libre tout de suite, les deux autres ont un préavis de trois mois.
 sophie   0.5  Trois mois, c'est après le lancement. Ça ne nous aide pas pour novembre.
+marc    -3.5  Je sais, mais ce sont les meilleurs profils.
 claire  -0.5  Justement, on recrute pour la suite, pas pour le lancement.
 sophie   0.6  D'accord. Dans ce cas je préfère qu'on prenne la meilleure personne, même avec un préavis.
 julien   0.4  Je peux faire passer les entretiens techniques la semaine du deux novembre.
+claire  -3.0  Très bien, la semaine du deux me convient aussi.
 claire   0.5  Très bien. Marc organise les trois entretiens, Julien les fait passer, et on décide ensemble le dix.
 marc     0.6  Je préviens les candidats aujourd'hui.
 claire   2.5  Quatrième sujet, que j'ajoute à l'ordre du jour : la documentation pour les premiers clients.
 sophie   0.6  On a un guide d'installation, mais rien sur les réglages. Les testeurs nous ont posé onze fois la même question sur le micro.
+claire  -6.0  Onze fois, vraiment ? Il faut absolument traiter ce point.
+marc    -2.5  Je m'en occupe, c'est toujours le même réglage.
 marc     0.5  Je peux écrire une page sur les réglages audio, avec des captures d'écran.
 julien   0.4  Il faudrait aussi une courte vidéo. Les gens ne lisent pas la documentation.
+marc    -3.0  Une vidéo, pourquoi pas, si elle reste courte.
 sophie  -0.5  Une vidéo, ça se périme à chaque version.
 julien   0.5  Pas si on la limite au premier lancement. Deux minutes, pas plus.
 claire   0.6  On fait les deux. Marc écrit la page cette semaine, et Julien enregistre la vidéo quand l'interface est figée.
 marc     0.4  L'interface sera figée le trente octobre, pas avant.
 julien   0.5  Alors je prévois la vidéo pour le trois novembre.
 sophie   0.7  Et pour le support, qui répond aux clients la première semaine ?
+claire  -2.5  J'allais justement en parler.
 claire   0.6  Bonne question. Je propose un roulement : Sophie le lundi et le mardi, Marc le mercredi, Julien le jeudi et le vendredi.
 marc     0.5  Le mercredi je suis en formation. Je peux échanger avec Julien et prendre le jeudi.
 julien   0.4  Ça me va, je prends le mercredi et le vendredi.
@@ -59,7 +71,10 @@ sophie   0.5  Je crée une adresse support aujourd'hui et je la redirige vers no
 claire   0.4  Parfait, merci Sophie.
 claire   1.5  Avant de terminer, est-ce qu'il y a d'autres points ?
 julien   0.8  Un seul. Le client de Lyon demande une démonstration avant le lancement. Je propose le vingt octobre.
+claire  -4.5  Ah oui, Lyon, ils nous relancent depuis un mois.
+marc    -2.0  Le vingt, c'est faisable pour moi.
 sophie   0.4  Le vingt, je suis en déplacement. Est-ce que le vingt-deux est possible ?
+claire  -3.0  Le vingt-deux me va très bien aussi.
 julien   0.5  Je leur demande et je vous confirme demain.
 marc     0.5  Pense à leur dire que la transcription ne marche pas encore en anglais.
 julien   0.3  Oui, ce sera une démonstration en français uniquement.

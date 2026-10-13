@@ -1,8 +1,9 @@
 """Renders the bench's meeting: the tracks a recording of it would hold, and the truth beside.
 
-    uv run python -m bench.render <voices-folder> <out-folder>
+    uv run python -m bench.render <voices-folder> <out-folder> [<draws>]
 
-Three listening conditions, one folder each: `headset`, `low` and `loud` — see `CONDITIONS`.
+Three listening conditions — `headset`, `low`, `loud`, see `CONDITIONS` — and for each, three
+draws of the microphone's noise unless told otherwise: `<out-folder>/<condition>/<draw>`.
 
 The voices are synthesised: nobody is recorded. `<voices-folder>` holds the four public
 models `VOICES` names, fetched once with `python -m piper.download_voices`.
@@ -40,8 +41,19 @@ usual meeting, -5.0 dB near the maximum."""
 ECHO_DELAY = 0.046
 """How late the microphone hears the loudspeakers, in seconds: 46 ms in both trials."""
 
-ECHO_DECAY = 0.235
-"""When the room has taken 20 dB off what it was sent, in seconds: 241 and 230 ms."""
+ECHO_DIRECT = 0.8
+"""The share of the echo's energy that arrives at once, the rest ringing: 86 % and 77 %."""
+
+ECHO_RINGS = 0.2
+"""The ringing's time constant, in seconds: 99 % of the echo is in by 284 and 406 ms."""
+
+NOISE = {"headset": -50.0, "low": -36.0, "loud": -36.0}
+"""What the microphone holds when nobody speaks, in decibels of full scale: -36 measured on
+the laptop's own microphone in both trials; a headset's was not measured, and is supposed."""
+
+DRIVE = {"low": 1.0, "loud": 4.0}
+"""How hard the loudspeakers are pushed: near their maximum they no longer play what they
+are sent. The played and the heard agreed at 0.93 at a usual volume, 0.80 near the maximum."""
 
 Synth = Callable[[str, str], np.ndarray]
 """A voice and a text in, its sound out: one channel, `RATE` samples a second, between -1 and 1."""
@@ -78,7 +90,9 @@ def piper(voices: Path, cache: Path) -> Synth:
             return np.load(kept)
         if model not in loaded:
             loaded[model] = PiperVoice.load(voices / f"{model}.onnx")
-        chunks = list(loaded[model].synthesize(text, SynthesisConfig(speaker_id=speaker)))
+        # No chance in the voice: the same sentence is the same sound on every machine.
+        steady = SynthesisConfig(speaker_id=speaker, noise_scale=0.0, noise_w_scale=0.0, length_scale=1.15)
+        chunks = list(loaded[model].synthesize(text, steady))
         sound = np.concatenate([chunk.audio_float_array for chunk in chunks])
         sound = resample_poly(sound, RATE, chunks[0].sample_rate).astype(np.float32)
         cache.mkdir(parents=True, exist_ok=True)
@@ -101,9 +115,14 @@ def lay_out(meeting: dict, say: Synth) -> tuple[dict[str, np.ndarray], list[dict
         end = start + len(sound) / RATE
         side = meeting["voices"][turn["voice"]]["side"]
         placed.append((side, round(start * RATE), sound))
-        truth.append(
-            {"voice": turn["voice"], "side": side, "start": round(start, 3), "end": round(end, 3), "text": turn["text"]}
-        )
+        # A word's instant is where it falls in its turn by the letters before it: near enough
+        # to say which words were spoken while the other side spoke.
+        words, before = [], 0
+        for word in turn["text"].split():
+            words.append([word, round(start + (end - start) * before / len(turn["text"]), 2)])
+            before += len(word) + 1
+        about = {"voice": turn["voice"], "side": side, "start": round(start, 3), "end": round(end, 3)}
+        truth.append({**about, "text": turn["text"], "words": words})
         cursor = max(cursor, end)
     length = round((cursor + 1.0) * RATE)
     tracks = {side: np.zeros(length, dtype=np.float32) for side in ("local", "remote")}
@@ -112,27 +131,32 @@ def lay_out(meeting: dict, say: Synth) -> tuple[dict[str, np.ndarray], list[dict
     return tracks, truth
 
 
-def room(played: np.ndarray, level: float) -> np.ndarray:
-    """What a microphone hears of what the loudspeakers play: later, weaker, and ringing.
+def room(played: np.ndarray, name: str) -> np.ndarray:
+    """What a microphone hears of what the loudspeakers play: later, weaker, ringing — and,
+    pushed hard, not quite what they were sent.
 
-    A model, not a room: one path of `ECHO_DELAY`, then a tail of noise that dies as the
-    measured room does, the whole brought to `level` decibels against what was played. It is
-    linear — a real loudspeaker is not quite: on the two trials a linear path explained 51 %
-    and 82 % of what the microphone held. A canceller will find this echo easier than a real
-    one; the bench compares, it does not promise.
+    A model set on one measure, not a room: a canceller may find it easier or harder than
+    the laptop it was measured on. The bench compares; it does not promise.
     """
+    pushed = np.tanh(played * DRIVE[name]) / DRIVE[name]
     after = round(ECHO_DELAY * RATE)
-    tail = np.arange(round(ECHO_DECAY * RATE) * 2)
-    ringing = np.random.default_rng(20261013).standard_normal(len(tail)) * 10 ** (-tail / (ECHO_DECAY * RATE))
-    path = np.concatenate([np.zeros(after), [1.0], 0.2 * ringing])
-    heard = fftconvolve(played, path)[: len(played)]
-    return (heard * 10 ** (level / 20) * np.sqrt(np.mean(played**2) / np.mean(heard**2))).astype(np.float32)
+    tail = np.arange(round(ECHO_RINGS * RATE) * 4)
+    ringing = np.random.default_rng(sum(map(ord, name))).standard_normal(len(tail)) * np.exp(
+        -tail / (ECHO_RINGS * RATE)
+    )
+    ringing *= np.sqrt((1 - ECHO_DIRECT) / ECHO_DIRECT / np.sum(ringing**2))
+    heard = fftconvolve(pushed, np.concatenate([np.zeros(after), [1.0], ringing]))[: len(played)]
+    return (heard * 10 ** (CONDITIONS[name] / 20) * np.sqrt(np.mean(played**2) / np.mean(heard**2))).astype(np.float32)
 
 
-def condition(tracks: dict[str, np.ndarray], name: str) -> dict[str, np.ndarray]:
-    """The two tracks as that way of listening gives them: the remote as played, the local with what it heard of it."""
-    level = CONDITIONS[name]
-    local = tracks["local"] if level is None else tracks["local"] + room(tracks["remote"], level)
+def condition(tracks: dict[str, np.ndarray], name: str, seed: int = 0) -> dict[str, np.ndarray]:
+    """The two tracks as that way of listening gives them: the remote as played; the local
+    with what it heard of it, and the microphone's own noise — another draw for each seed,
+    so that a count is read over several and not taken for more exact than it is."""
+    noise = np.random.default_rng([seed, sum(map(ord, name))]).standard_normal(len(tracks["local"]))
+    local = tracks["local"] + (10 ** (NOISE[name] / 20) * noise).astype(np.float32)
+    if CONDITIONS[name] is not None:
+        local = local + room(tracks["remote"], name)
     return {"local": local, "remote": tracks["remote"]}
 
 
@@ -161,11 +185,15 @@ def write_session(folder: Path, tracks: dict[str, np.ndarray], truth: list[dict]
 
 def main(argv: list[str]) -> int:
     voices, out = Path(argv[1]), Path(argv[2])
+    draws = int(argv[3]) if len(argv) > 3 else 3
     meeting = script(Path(__file__).with_name("meeting.txt"))
     tracks, truth = lay_out(meeting, piper(voices, out / "cache"))
     for name in CONDITIONS:
-        write_session(out / name, condition(tracks, name), truth)
-        print(f"{name}: {len(truth)} turns, {truth[-1]['end']:.0f} s, in {out / name}")
+        for seed in range(draws):
+            write_session(out / name / str(seed), condition(tracks, name, seed), truth)
+        print(
+            f"{name}: {len(truth)} turns, {truth[-1]['end']:.0f} s, {draws} draws of the microphone's noise, in {out / name}"
+        )
     return 0
 
 

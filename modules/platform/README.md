@@ -28,35 +28,42 @@ is captured or derived. Its meeting is a script written for the purpose, in Fren
 that is what the product hears, said by four public synthetic voices: **nobody is recorded**.
 Two sides, as a session has two tracks; two people on the local side, behind one microphone.
 
-**Three listening conditions**, the same meeting each time:
+**Three listening conditions**, the same meeting each time — and for each, several draws of
+the microphone's noise, so that a count is read as a spread:
 
-| Condition | The microphone holds | Measured on |
+| Condition | The microphone holds | Set on |
 |---|---|---|
-| `headset` | The local voices, and nothing of the remote ones | — |
-| `low` | The same, plus the remote side 46 ms late and 10 dB under what was played, ringing as a room does | The decider's laptop at a usual meeting's volume, 2026-10-13 |
-| `loud` | The same, 5 dB under | The same laptop, near its maximum |
+| `headset` | The local voices and a quiet microphone's noise; nothing of the remote ones | Supposed: no headset was measured |
+| `low` | The same voices, a laptop microphone's noise, and the remote side 46 ms late, 10 dB under what was played, four fifths of it at once and the rest ringing | The decider's laptop at a usual meeting's volume, 2026-10-13 |
+| `loud` | The same, 5 dB under, from loudspeakers pushed until they no longer play what they are sent | The same laptop, near its maximum |
 
-The room is a model set on that one measure, and linear, which a real loudspeaker is not
-quite: a canceller will find it easier than the room it was measured in.
+The room is a model set on one minute of one laptop in one room. It says how one way of
+doing compares with another; it does not promise what a real room gives.
 
-**Four counts** read a transcript against the truth, each with what it is counted out of:
+**The counts** read transcripts against the truth, each with what it is counted out of:
 
 | Count | Says |
 |---|---|
-| Words wrong, on each side | What the transcript gives a side against what that side said |
-| Words said twice | What the local side is given that the remote side was saying just then: the echo |
-| Exchanges out of order | Where the meeting passes from one side to the other and the transcript puts the second turn first |
-| Words on the wrong side | What a side said that the transcript gives only to the other |
+| Words wrong, on each side — and those of turns not found | What the transcript gives a side against what it said; a turn dropped whole is said apart from a word misheard |
+| Local words lost under the remote | What the local side said while the remote spoke, and the transcript lacks: **what muting the microphone to kill an echo costs** |
+| Words said twice | The remote side's words given to the local side too: the echo |
+| Words on the wrong side | A side's words given only to the other |
+| Exchanges out of order | Where the meeting passes from one side to the other, and the transcript puts the second turn first |
+| Turns far from their time | Turns the transcript starts more than two seconds from where they were said |
+
+No count is read alone: an echo killed by muting the microphone is perfect on *said twice*
+and pays on *lost under the remote*.
 
 ```bash
-summit-transcription <out-folder>/low --model <model-file> --language fr
-nstack run platform  # see the manifest: bench.render; the counts are: uv run python -m bench.counts <out-folder>/low
+# Each draw of a condition is transcribed by the program under test, then counted together.
+summit-transcription <out-folder>/low/0 --model <model-file> --language fr   # and /1, /2
+uv run python -m bench.counts <out-folder>/low/0 <out-folder>/low/1 <out-folder>/low/2
 ```
 
 ```bash
 # Once: the four voices, about 270 MB, from the synthesiser's public models.
 uv run python -m piper.download_voices fr_FR-siwis-medium fr_FR-tom-medium fr_FR-upmc-medium --download-dir <voices-folder>
-# The meeting, as three sessions and their truth: <out-folder>/headset, /low, /loud.
+# The meeting under three conditions, three draws each: <out-folder>/<condition>/<draw>.
 nstack run platform <voices-folder> <out-folder>
 ```
 

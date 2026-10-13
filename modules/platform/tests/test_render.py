@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from bench.render import CONDITIONS, ECHO_DELAY, RATE, VOICES, condition, lay_out, script, write_session
+from bench.render import CONDITIONS, ECHO_DELAY, NOISE, RATE, VOICES, condition, lay_out, room, script, write_session
 
 MEETING = Path(__file__).parent.parent / "bench" / "meeting.txt"
 
@@ -28,7 +28,7 @@ def test_the_script_is_a_meeting_of_two_sides_with_a_room_on_one_of_them():
     assert sorted(sides.values()) == ["local", "local", "remote", "remote"]
     turns = meeting["turns"]
     words = sum(len(turn["text"].split()) for turn in turns)
-    assert len(turns) >= 50 and 600 <= words <= 900, (
+    assert len(turns) >= 50 and 600 <= words <= 1000, (
         f"{len(turns)} turns, {words} words: about five minutes is 600 to 900"
     )
     assert sum(turn["gap"] < 0 for turn in turns) >= 5, "a meeting where nobody ever speaks over another is not one"
@@ -79,32 +79,54 @@ def test_a_rendered_meeting_is_a_session_the_programs_read_with_its_truth_beside
     record = json.loads((tmp_path / "headset" / "session.json").read_text())
     assert record["contract"] == "session-audio/v1" and isinstance(record["stopped"], str)
     kept = json.loads((tmp_path / "headset" / "truth.json").read_text(encoding="utf-8"))["turns"]
-    assert kept == truth and {"voice", "side", "start", "end", "text"} == set(kept[0])
+    assert kept == truth and {"voice", "side", "start", "end", "text", "words"} == set(kept[0])
+    # Each word has its instant, inside its turn and never before the word it follows.
+    for turn in kept:
+        instants = [when for _, when in turn["words"]]
+        assert [word for word, _ in turn["words"]] == turn["text"].split()
+        assert instants == sorted(instants) and turn["start"] <= instants[0] and instants[-1] <= turn["end"]
 
 
 def level(sound: np.ndarray) -> float:
     return float(np.sqrt(np.mean(sound.astype(np.float64) ** 2)))
 
 
-def test_on_loudspeakers_the_microphone_hears_the_remote_side_later_weaker_and_no_louder_than_measured():
+def test_on_loudspeakers_the_microphone_hears_the_remote_side_later_weaker_and_as_loud_as_measured():
     tracks, truth = lay_out(script(MEETING), tone)
     assert list(CONDITIONS) == ["headset", "low", "loud"]
-    headset = condition(tracks, "headset")
-    assert np.array_equal(headset["local"], tracks["local"]) and np.array_equal(headset["remote"], tracks["remote"])
+    first = next(turn for turn in truth if turn["side"] == "remote")
+    starts, ends = round(first["start"] * RATE), round(first["end"] * RATE)
     for name in ("low", "loud"):
+        echo = room(tracks["remote"], name)
+        assert 20 * np.log10(level(echo) / level(tracks["remote"])) == pytest.approx(CONDITIONS[name], abs=0.1)
+        # Nothing of a remote turn is in the microphone before the loudspeakers' delay has passed.
+        assert np.abs(echo[starts : starts + round(ECHO_DELAY * RATE) - 2]).max() < 1e-6
+        assert np.abs(echo[starts + round(ECHO_DELAY * RATE) : starts + RATE // 2]).max() > 0.01
+        # It rings on after the turn has ended, as a room does — and most of it came at once.
+        ringing = level(echo[ends + round(0.06 * RATE) : ends + round(0.15 * RATE)])
+        assert 1e-4 < ringing < 0.5 * level(echo[starts + RATE // 4 : ends])
+    # Pushed hard, the loudspeakers do not play what they are sent: louder is not the same echo, louder.
+    low, loud = room(tracks["remote"], "low"), room(tracks["remote"], "loud")
+    assert not np.allclose(loud, low * (level(loud) / level(low)), atol=1e-3)
+
+
+def test_a_condition_is_the_remote_as_played_and_the_microphone_with_its_own_noise():
+    tracks, _ = lay_out(script(MEETING), tone)
+    for name in CONDITIONS:
         heard = condition(tracks, name)
         # What the machine plays is the same whoever listens; only the microphone changes.
         assert np.array_equal(heard["remote"], tracks["remote"])
-        echo = heard["local"] - tracks["local"]
-        assert 20 * np.log10(level(echo) / level(tracks["remote"])) == pytest.approx(CONDITIONS[name], abs=0.1)
-        # Nothing of a remote turn is in the microphone before the loudspeakers' delay has passed.
-        first = next(turn for turn in truth if turn["side"] == "remote")
-        starts = round(first["start"] * RATE)
-        assert np.abs(echo[starts : starts + round(ECHO_DELAY * RATE) - 2]).max() < 1e-6
-        assert np.abs(echo[starts + round(ECHO_DELAY * RATE) : starts + RATE // 2]).max() > 0.01
-        # And it rings on after the turn has ended, as a room does.
-        ends = round(first["end"] * RATE)
-        assert level(echo[ends + round(0.06 * RATE) : ends + round(0.15 * RATE)]) > 1e-4
-    assert level(condition(tracks, "loud")["local"]) > level(condition(tracks, "low")["local"])
-    # Rendered twice, the same room.
-    assert np.array_equal(condition(tracks, "loud")["local"], condition(tracks, "loud")["local"])
+        echo = room(tracks["remote"], name) if CONDITIONS[name] is not None else 0
+        noise = heard["local"] - tracks["local"] - echo
+        assert 20 * np.log10(level(noise)) == pytest.approx(NOISE[name], abs=0.2)
+        # The same draw is the same noise; another draw is another, at the same level.
+        assert np.array_equal(condition(tracks, name)["local"], heard["local"])
+        other = condition(tracks, name, 1)["local"]
+        assert not np.array_equal(other, heard["local"]) and level(other) == pytest.approx(
+            level(heard["local"]), rel=0.01
+        )
+    assert (
+        level(condition(tracks, "loud")["local"])
+        > level(condition(tracks, "low")["local"])
+        > level(condition(tracks, "headset")["local"])
+    )
