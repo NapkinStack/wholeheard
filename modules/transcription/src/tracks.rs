@@ -50,7 +50,7 @@ pub struct Clock {
 pub fn clock(folder: &Path, track: &str) -> Clock {
     let lines = fs::read(folder.join("clock.jsonl")).unwrap_or_default();
     let mut clock = Clock::default();
-    for line in String::from_utf8_lossy(&lines).lines() {
+    for line in String::from_utf8_lossy(&lines).trim_start_matches('\u{feff}').lines() {
         let line = serde_json::from_str::<serde_json::Value>(line).unwrap_or_default();
         let (frame, at, silence) = (line["sample"].as_u64(), line["at"].as_f64(), &line["silence"]);
         match (frame, at, silence[0].as_u64(), silence[1].as_u64()) {
@@ -82,11 +82,58 @@ pub fn heard(path: &Path, clock: &Clock) -> io::Result<Vec<f32>> {
     }
     let mut file = BufReader::with_capacity(1 << 16, File::open(path).map_err(unread)?);
     let (rate, channels) = format(&mut file, &name).map_err(unread)?;
-    let (flat, frames) = resampled(&mut file, rate, channels, &clock.silences).map_err(unread)?;
+    // A clock made elsewhere than by `clock` is read in the order of its frames all the same.
+    let (mut points, mut silences) = (clock.points.clone(), clock.silences.clone());
+    points.sort_by_key(|(frame, _)| *frame);
+    points.dedup_by_key(|(frame, _)| *frame);
+    silences.sort_unstable();
+    let frame = vec![0u8; 3 * channels];
+    let mut track = Frames {
+        file: &mut file,
+        frame,
+        silences: &silences,
+        read: 0,
+        last: None,
+        line: (0, 0.0, 0.0),
+        after: None,
+    };
 
-    // Each run of frames the clock places by itself: where it starts in the track, and when.
+    // Each run is brought to the engine's rate by itself: the frames either side of a stop
+    // were not heard one after the other, and are not taken for neighbours.
+    let starts = runs(&points, rate, u64::MAX);
+    let (mut sounds, mut frames) = (Vec::new(), 0u64);
+    for (index, (from, _)) in starts.iter().enumerate() {
+        let until = starts.get(index + 1).map_or(u64::MAX, |(next, _)| *next);
+        let (sound, held, ended) = resampled(&mut track, rate, until - from).map_err(unread)?;
+        sounds.push(sound);
+        frames += held;
+        if ended {
+            break;
+        }
+    }
+    let mut out: Vec<f32> = Vec::new();
+    for (&(_, at), sound) in runs(&points, rate, frames.max(1)).iter().zip(&sounds) {
+        // Where this run starts in what the engine hears; what was heard before the session
+        // started is left out, and a run the clock puts before the end of the one before
+        // takes its place from there.
+        let start = (at * RATE as f64).round() as i64;
+        let sound = &sound[(-start).clamp(0, sound.len() as i64) as usize..];
+        let start = start.max(0) as usize;
+        // An instant the clock leaves empty: a line from the sound before it to the sound after.
+        let to = sound.first().or(out.last()).copied().unwrap_or(0.0);
+        let (from, gap) = (out.last().copied().unwrap_or(to), start.saturating_sub(out.len()));
+        out.truncate(start);
+        out.extend((1..=gap).map(|step| from + (to - from) * step as f32 / (gap + 1) as f32));
+        out.extend_from_slice(sound);
+    }
+    Ok(out)
+}
+
+/// Each run of frames the clock places by itself — where it starts in the track, and when —
+/// from the points for frames before `held`: one for a frame the track does not hold is not used.
+fn runs(points: &[(u64, f64)], rate: u32, held: u64) -> Vec<(u64, f64)> {
     let mut runs: Vec<(u64, f64)> = Vec::new();
-    for &(frame, at) in clock.points.iter().filter(|(frame, _)| *frame < frames.max(1)) {
+    for &(frame, at) in points.iter().filter(|(frame, _)| *frame < held) {
         match runs.last() {
             // The first point places the track's first frame too, at the track's own rate.
             None => runs.push((0, at - frame as f64 / f64::from(rate))),
@@ -97,25 +144,7 @@ pub fn heard(path: &Path, clock: &Clock) -> io::Result<Vec<f32>> {
     if runs.is_empty() {
         runs.push((0, 0.0));
     }
-    let mut out: Vec<f32> = Vec::new();
-    for (index, &(from, at)) in runs.iter().enumerate() {
-        let until = runs.get(index + 1).map_or(frames, |(next, _)| *next);
-        let piece = |frame: u64| ((frame as f64 * RATE as f64 / f64::from(rate)).round() as usize).min(flat.len());
-        let (first, last) = (piece(from), piece(until));
-        // Where this run starts in what the engine hears; what was heard before the session
-        // started is left out, and a run the clock puts before the end of the one before
-        // takes its place from there.
-        let start = (at * RATE as f64).round() as i64;
-        let sound = &flat[first + (-start).clamp(0, (last - first) as i64) as usize..last];
-        let start = start.max(0) as usize;
-        // An instant the clock leaves empty: a line from the sound before it to the sound after.
-        let to = sound.first().or(out.last()).copied().unwrap_or(0.0);
-        let (from, gap) = (out.last().copied().unwrap_or(to), start.saturating_sub(out.len()));
-        out.truncate(start);
-        out.extend((1..=gap).map(|step| from + (to - from) * step as f32 / (gap + 1) as f32));
-        out.extend_from_slice(sound);
-    }
-    Ok(out)
+    runs
 }
 
 /// A track's frames as one channel, in their order — the zeros the capture wrote where its
@@ -176,9 +205,9 @@ impl<R: Read> Frames<'_, R> {
     }
 }
 
-/// The whole track as one channel at [`RATE`], as it was delivered, in the track's own time —
-/// and how many frames the track holds.
-fn resampled(file: &mut impl Read, rate: u32, channels: usize, silences: &[(u64, u64)]) -> io::Result<(Vec<f32>, u64)> {
+/// The next frames of a track, `most` of them at most, as one channel at [`RATE`], as they
+/// were delivered, in the track's own time — how many frames that was, and whether the track ended.
+fn resampled<R: Read>(track: &mut Frames<R>, rate: u32, most: u64) -> io::Result<(Vec<f32>, u64, bool)> {
     let failed = |error: &dyn std::fmt::Display| io::Error::other(format!("its sound could not be brought to {RATE} Hz: {error}"));
     // One long block: the longer it is, the closer to half the engine's rate a voice is kept whole.
     let mut resampler = Fft::<f32>::new_custom(rate as usize, RATE, BLOCK, 1, 1, WindowFunction::BlackmanHarris2, FixedSync::Input)
@@ -187,23 +216,13 @@ fn resampled(file: &mut impl Read, rate: u32, channels: usize, silences: &[(u64,
     let mut piece = vec![0.0f32; resampler.input_frames_max()];
     let mut made = vec![0.0f32; resampler.output_frames_max()];
     let (mut flat, mut frames, mut ended) = (Vec::new(), 0u64, false);
-    // Before its first frame and after its last, a track is taken to stay where it is — not
-    // to fall to zero: a source that rests away from zero never made that step, and it is not
-    // heard. Nothing of the track itself is moved: what is taken out is put back.
+    // Before their first frame and after their last, these frames are taken to stay where
+    // they are — not to fall to zero: a source that rests away from zero never made that
+    // step, and it is not heard. Nothing of the track itself is moved: what is taken out is put back.
     let (mut first, mut last) = (None, 0.0f32);
-    let frame = vec![0u8; 3 * channels];
-    let mut track = Frames {
-        file,
-        frame,
-        silences,
-        read: 0,
-        last: None,
-        line: (0, 0.0, 0.0),
-        after: None,
-    };
-    while !ended || flat.len() < delay + (frames as f64 * RATE as f64 / f64::from(rate)).ceil() as usize {
+    while !(ended || frames == most) || flat.len() < delay + (frames as f64 * RATE as f64 / f64::from(rate)).ceil() as usize {
         let mut held = 0;
-        while !ended && held < piece.len() {
+        while !ended && held < piece.len() && frames + (held as u64) < most {
             match track.next()? {
                 Some(sample) => (piece[held], held) = (sample, held + 1),
                 None => ended = true,
@@ -225,6 +244,7 @@ fn resampled(file: &mut impl Read, rate: u32, channels: usize, silences: &[(u64,
     Ok((
         flat.into_iter().skip(delay).take(length).map(|sample| sample + first).collect(),
         frames,
+        ended,
     ))
 }
 
