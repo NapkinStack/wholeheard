@@ -13,7 +13,7 @@ module:
   contact: "@NapkinStack/maintainers"
 
   # proposed | active | maintenance | deprecated | retired   (.nstack/handbook/02-modules.md §6)
-  lifecycle: proposed
+  lifecycle: active
 
   # What does a failure of this module cost? nothing, thrown away | a user's patience |
   # a day of work | a key, an order, money, personal data. The decider settles it; what

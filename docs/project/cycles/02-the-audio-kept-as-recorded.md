@@ -17,7 +17,7 @@ deliverables:
   - id: D9
     title: "A recording keeps each source as the system delivered it, under the name of its source, with the session's clock written beside"
     module: capture
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a recording on Fedora, when it is stopped, then the session holds one track per source — local, the microphone; remote, what the machine plays — each at the sample rate and with the channels its source delivered, in 24 bits, and nothing in a track was resampled, mixed, cleaned or brought to a level"
       - "Given the two tracks, when their clock is read, then it says where each track's samples are on the session's clock, how far the two drift apart over the recording, and which stretches of a track are silence the capture wrote because the source gave nothing"
@@ -38,7 +38,7 @@ deliverables:
   - id: D11
     title: "Spike — the window, drawn before it is built: a session, the sessions and what they weigh, the settings, the two agreements"
     module: null
-    state: ready
+    state: in-progress
     acceptance:
       - "Given the four things the window holds — the session just finished, with its minutes and its transcript; the list of sessions, each with its date, its length, what it holds and what it weighs; the settings; the two moments where the user agrees before something crosses the network — when each is drawn at the size of a laptop's screen, in a light and in a dark theme, then the decider sees the drawings and says what they change"
       - "Given the drawings of the sessions, when the decider follows on them the two ways of freeing space — the audio alone, the transcript and the minutes kept; the whole session — then each shows what it frees before it is done, and how it is undone"
@@ -195,6 +195,27 @@ Their changes, drawn in the second round:
 Still owed to close D11: the decider's word on the second round — accepted, or changed
 again. What is accepted is the next cycle's criteria.
 
+### D9 — where it stands (2026-10-13)
+
+In progress. The second form of a session (`contracts/session-audio/v2`) is written **on
+asking**; nothing reads it yet but the bench.
+
+| Piece | Today |
+|---|---|
+| `capture` | `summit-capture record <sessions> --as v2` writes each source as delivered — its rate, its channels, 24 bits — and the session's clock beside. Without `--as v2` it writes the first form, as before: that is still what the tray starts |
+| `platform` | The bench renders its meeting in either form, the second with a clock that has stops and silences in it |
+| `transcription` | Reads the first form only, and refuses the second in one sentence. Its reader of the second form is being verified |
+| What the programs say while recording (`recording/v1`) | The same lines in both forms; they still name the sources `me` and `others` where the second form's files are `local` and `remote` |
+
+Not measured yet — D9's fourth criterion: what an hour weighs on the decider's laptop.
+Computed, not measured: two tracks at 48,000 samples a second, two channels, 24 bits are
+2.07 GB an hour as delivered. The limit that replaces 250 MB is the decider's to set on the
+real measure.
+
+Left before D9 is offered for acceptance: the step reads the second form; the bench's counts
+on it are recorded here beside the line above; the second form becomes what `record` writes,
+from the tray too; a session of the first form is still read, or refused in one sentence.
+
 ## Out of scope
 
 Not done in this cycle, even if time remains:
@@ -229,8 +250,8 @@ Candidates for the next framing:
 
 **Not blocking:**
 
-- Whose voices the bench speaks with: synthesised, or read from public recordings. Neither
-  is a person recorded for Summit; D8 says which, and why.
+- ~~Whose voices the bench speaks with.~~ Answered by D8: four synthesised voices, nobody's
+  (see its record above).
 - Whether the bench's simulated room is near enough to a real one is D8's second criterion:
   if it is not, the bench is played through real loudspeakers each time, which only the
   decider's laptop can do.

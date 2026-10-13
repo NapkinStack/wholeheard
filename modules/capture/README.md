@@ -54,12 +54,12 @@ One JSON object per line on its output; errors go to the error stream.
 | `event` | When | Carries |
 |---|---|---|
 | `started` | The two files exist and grow | `folder`, `sources` |
-| `unavailable` | A source could not be opened: it is written as silence, the other is recorded | `source`, `reason` |
+| `unavailable` | A source could not be opened, the other is recorded: it is written as silence — with `--as v2` it has no file at all | `source`, `reason` |
 | `silent` | A source has given no sound for ten seconds | `source` |
 | `heard` | A source told silent gives sound again | `source` |
 | `stopped` | The files are finished and `session.json` says so | `folder`, `seconds` |
 
-These lines are not a contract yet: the shell's first use of them writes one (ADR-0002).
+These lines are a contract: [`recording/v1`](../../contracts/recording/v1/README.md), which the shell reads. With `--as v2` they are the same lines, and still name the sources `me` and `others` where the files are `local` and `remote`.
 
 ## Contracts
 
@@ -68,6 +68,8 @@ These lines are not a contract yet: the shell's first use of them writes one (AD
 - Provided: [`session-audio/v2`](../../contracts/session-audio/v2/README.md), `experimental`
   — each source as delivered, with the session's clock: what `record … --as v2` writes, until
   the steps that follow read it and it becomes what `record` writes (ADR-0004)
+- Provided: [`recording/v1`](../../contracts/recording/v1/README.md), `experimental`
+  — what `record` says while it records
 - Consumed: none
 
 ## Decisions
