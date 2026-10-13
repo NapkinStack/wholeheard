@@ -126,28 +126,9 @@ fn the_host_named_is_the_host_the_request_goes_to() {
     assert_eq!(host("http://10.1.2.3:8080/v1").unwrap(), "10.1.2.3");
     // What could name one host and reach another, carry a secret, or be read as a number in
     // another base by the system, is no address.
-    for refused in [
-        "http://127.0.0.2:18084#@localhost/v1",
-        "https://someone:a-secret@api.example.com/v1",
-        "https://api.example.com/v1?key=another-secret",
-        "ftp://api.example.com/v1",
-        "api.example.com/v1",
-        "http://",
-        "",
-        "http://api.example.com/v1 --model x",
-        "http://127.0.0.1.:8080/v1",
-        "http://localhost.:8080/v1",
-        "http://local:8080/v1",
-        "http://.:8080/v1",
-        "http://127.1:8080",
-        "http://2130706433",
-        "http://0x7f000001",
-        "http://010.1.2.3:8080",
-        "http://[::1%lo]:8080",
-        "http://api.example.com:65536/v1",
-        "http://api.example.com:8080x/v1",
-        "http://api.example.com:+8080/v1",
-    ] {
+    let refused = "http://127.0.0.2:18084#@localhost/v1 https://someone:a-secret@api.example.com/v1 https://api.example.com/v1?key=another-secret ftp://api.example.com/v1 api.example.com/v1 http:// http://127.0.0.1.:8080/v1 http://localhost.:8080/v1 http://local:8080/v1
+        http://.:8080/v1 http://127.1:8080 http://2130706433 http://0x7f000001 http://010.1.2.3:8080 http://[::1%lo]:8080 http://api.example.com:65536/v1 http://api.example.com:8080x/v1 http://api.example.com:+8080/v1";
+    for refused in refused.split_whitespace().chain(["", "http://api.example.com/v1 --model x"]) {
         assert!(host(refused).is_err(), "accepted: {refused} as {:?}", host(refused));
     }
 }
