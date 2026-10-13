@@ -425,10 +425,9 @@ sample's length: it is 2.3 times slower than the Python engine on this processor
 number of threads is not a detail — one per logical core made it 2.7 times slower than one
 per physical core.
 
-**Not tried**, each of which could change the answer: the graphics card (a Vulkan build needs
-three system packages only the decider can install); a model stored on 8 bits or unquantised;
-a smaller model, faster and less exact; a voice detector that skips silence, which the Python
-engine has and this probe has not.
+**Not tried here**, each of which could change the answer: the graphics card and a model
+stored otherwise — both tried since, below; a smaller model, faster and less exact; a voice
+detector that skips silence, which the Python engine has and this probe has not.
 
 ```mermaid
 flowchart LR
@@ -499,6 +498,35 @@ cycle builds anyway, and no line of live code:
 
 Each is also what resilience asks: a crash leaves a readable audio and a transcript true up
 to its last segment.
+
+### D4 — the native engine on the graphics card (2026-10-13)
+
+The decider installed the three packages; the same probe, built with `--features vulkan`,
+on the same sample, the laptop's own graphics card (a Radeon 860M, through Vulkan).
+
+| Engine | Model | Words that differ | Time, share of the sample's length |
+|---|---|---|---|
+| Python, processor — D2 | `large-v3-turbo`, 8-bit | 26.8 % | 36 % |
+| Native, processor, 8 threads | 5-bit, 574 MB | 28.0 % | 82 % |
+| **Native, graphics card** | 5-bit, 574 MB | 28.4 % | **9 %** — run twice |
+| **Native, graphics card** | 8-bit, 874 MB | 27.3 % | **10 %** |
+| **Native, graphics card** | unquantised, 1.6 GB | 28.0 % | **11 %** |
+
+One run per line but the second. **What it answers:**
+
+- **Time is settled**: half a minute for five minutes of meeting, four times faster than the
+  Python engine and five times under D4's threshold.
+- **Exactness is the same within what one run can tell.** The three models span 27.3 to
+  28.4 %, and the largest is not the best: the differences between them are noise, and so is
+  the point between them and the Python engine's 26.8 %.
+- **D4's second criterion says "at most 27 %"**, which was D2's own figure with no margin. Read
+  to the letter, the native engine misses it by 0.3 to 1.4 points; read for what it meant —
+  as exact as the engine D2 used — it is met. **A threshold with no margin measures the noise
+  of a run**: the decider decides whether it is restated.
+
+**What it costs**: the graphics card's path needs Vulkan on the user's machine — present on a
+Fedora desktop, to be read for the two other systems — and a model file of 574 to 874 MB that
+someone must fetch, shown first (security rule 1).
 
 ### A fourth orientation — the best engine of each system (2026-10-13)
 

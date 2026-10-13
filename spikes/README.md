@@ -97,5 +97,11 @@ cd spikes/d4-engine && cargo build --release
 D4_THREADS=8 target/release/d4-engine <model.bin> <audio.wav> > transcript.txt
 ```
 
+On the graphics card, where the system has the Vulkan headers and `glslc`:
+
+```bash
+cargo build --release --features vulkan
+```
+
 `D4_THREADS` is the number of physical cores: left to the number the system reports, the
 same run took 2.7 times longer on the decider's laptop.
