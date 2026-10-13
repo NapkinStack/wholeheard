@@ -72,8 +72,8 @@ known, once the repository is opened. Nothing measures it yet.
   by the decider on 2026-10-12: "rien, c'est l'utilisateur qui annonce". The lawfulness of a
   recording therefore rests on its user, each time. What Summit owes them in return *(framer,
   to confirm)*: it says so plainly before the first recording, and its reminder at each start
-  is the only trace that the user was told — whether that reminder may be switched off, as
-  the idea file allows (C7), was not decided.
+  is the only trace that the user was told — a reminder shown out of the box, which a setting
+  removes, as the idea file allows (C7): the decider's answer of 2026-10-13, below.
 - **Everything in English** in this repository (`rules/always.md`, rule 1).
 - **Distribution costs money the project does not have**: signing for macOS needs a paid
   developer programme, and an unsigned build meets a warning on Windows (`discovery.md`,

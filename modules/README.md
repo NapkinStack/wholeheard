@@ -3,20 +3,23 @@
 ```mermaid
 flowchart LR
     H["shell"]:::std -.->|"starts"| C & T & S & E
+    C -.->|"recording"| H
+    P["platform"]:::std -.->|"measures"| C & T
     C["capture"]:::crit -->|"session-audio"| T["transcription"]:::std -->|"transcript"| S["summary"]:::std -->|"minutes"| E["export"]:::std
 
     classDef crit fill:#7c2d12,color:#fff
     classDef std fill:#1e3a8a,color:#fff
 ```
 
-**Legend** — one module per step of Summit, and `shell`, which starts them and holds none
-(dotted) · red: holds other people's voices, `critical` before the repository is opened ·
-arrows: the contracts between the steps, each a file of the session — `session-audio`,
-`transcript` and `minutes` are written, version 1.
+**Legend** — one module per step of Summit; `shell`, which starts them and holds none, and
+`platform`, the bench that measures them (dotted) · red: holds other people's voices, `critical` before the repository is opened ·
+arrows: the contracts between the steps, each a file of the session — `session-audio`
+(version 1, and version 2 written on asking), `transcript` and `minutes`, version 1 — and
+`recording`, version 1: what `capture` says to the shell while it records.
 
 | Module | Today |
 |---|---|
-| `capture` | A program that records two files; tried on Fedora |
+| `capture` | A program that records two files; tried on Fedora. On asking, each source as delivered, with the session's clock |
 | `transcription` | A program that writes the transcript with Whisper on the machine; tried on Fedora |
 | `summary` | A program that writes the minutes with the provider the user chose |
 | `export` | Described, no code yet |
