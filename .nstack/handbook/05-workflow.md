@@ -303,6 +303,14 @@ criticality are read before and after the change, and the stricter applies:
   sheet holds, and which nobody holds yet. It copies no criterion and sets no state — both
   stay in the cycle (`06-decisions.md` §9).
 
+  **One issue is one trial, and it is closed when answered.** A person, a system, a set of
+  steps: when each step has its answer, met or not, the issue is closed — by whoever ran it,
+  or by the pull request that records the last answer (`Closes #`). An issue left open
+  "until the deliverable is accepted" tracks nothing: a deliverable tried on three systems,
+  or delivered by two modules, has as many trials, each opened when there is something to
+  run. What a trial did not meet is fixed and tried again in another issue, or said in the
+  cycle; the deliverable's state is never read from an issue being open or closed.
+
 **`Confirmed` is optional**: a sheet no fix has disturbed never carries it. The engine's pull
 request check reads the sheet in CI: missing, unfilled, without evidence, verified before the
 head and not confirmed on it, failed. The approver decides on the sheet, and notes what they found that
