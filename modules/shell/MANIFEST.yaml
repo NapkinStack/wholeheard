@@ -65,6 +65,10 @@ dependencies:
     purpose: Reads the lines a step's program prints
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One reader of lines in src/recording.rs; any JSON library replaces it.
+  - name: sys-locale
+    purpose: Reads the language the user's system is set to, on the three systems
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One call in src/words.rs; the environment replaces it on Linux, a system call elsewhere.
 #  - name:
 #    purpose:
 #    adr:
