@@ -10,7 +10,7 @@
 //! `session.json` without `stopped`.
 
 use std::{
-    io::BufRead,
+    io::{BufRead, Write},
     path::Path,
     process::ExitCode,
     sync::{
@@ -34,6 +34,12 @@ const SILENT_AFTER: f64 = 10.0;
 const LATE: f64 = 1.5;
 
 const SOURCES: [&str; 2] = ["me", "others"];
+
+/// Says an event to whoever started the program (`contracts/recording/v1`). Nobody may be
+/// listening any more — a shell that crashed, a pipe that closed: the recording goes on.
+fn say(event: serde_json::Value) {
+    let _ = writeln!(std::io::stdout().lock(), "{event}");
+}
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -110,7 +116,7 @@ fn record(sessions: &Path) -> Result<(), String> {
         let (name, stream, rate, channels) = match opened {
             Ok((name, stream, rate, channels)) => (name, Some(stream), rate, channels),
             Err(reason) => {
-                println!("{}", json!({ "event": "unavailable", "source": SOURCES[index], "reason": reason }));
+                say(json!({ "event": "unavailable", "source": SOURCES[index], "reason": reason }));
                 ("unavailable".to_string(), None, RATE, 1)
             }
         };
@@ -127,10 +133,7 @@ fn record(sessions: &Path) -> Result<(), String> {
     }
     let stamp = |time: chrono::DateTime<chrono::Local>| time.to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
     write_session(&folder, &stamp(started), None, &names[0], &names[1]).map_err(|e| e.to_string())?;
-    println!(
-        "{}",
-        json!({ "event": "started", "folder": folder, "sources": { "me": names[0], "others": names[1] } })
-    );
+    say(json!({ "event": "started", "folder": folder, "sources": { "me": names[0], "others": names[1] } }));
 
     let stop = Arc::new(AtomicBool::new(false));
     {
@@ -170,8 +173,8 @@ fn record(sessions: &Path) -> Result<(), String> {
                         .map_err(|e| e.to_string())?;
                 }
                 match source.watch.after(since, source.track.loudest()) {
-                    Heard::Silent => println!("{}", json!({ "event": "silent", "source": SOURCES[index] })),
-                    Heard::Again => println!("{}", json!({ "event": "heard", "source": SOURCES[index] })),
+                    Heard::Silent => say(json!({ "event": "silent", "source": SOURCES[index] })),
+                    Heard::Again => say(json!({ "event": "heard", "source": SOURCES[index] })),
                     Heard::Nothing => {}
                 }
             }
@@ -191,10 +194,7 @@ fn record(sessions: &Path) -> Result<(), String> {
         track.pad_to(longest).and_then(|()| track.finish()).map_err(|e| e.to_string())?;
     }
     write_session(&folder, &stamp(started), Some(&stamp(chrono::Local::now())), &names[0], &names[1]).map_err(|e| e.to_string())?;
-    println!(
-        "{}",
-        json!({ "event": "stopped", "folder": folder, "seconds": longest as f64 / f64::from(RATE) })
-    );
+    say(json!({ "event": "stopped", "folder": folder, "seconds": longest as f64 / f64::from(RATE) }));
     Ok(())
 }
 
@@ -234,7 +234,7 @@ where
             move |data: &[T], _: &_| {
                 let _ = sound.send((index, data.iter().map(|&sample| f32::from_sample(sample)).collect()));
             },
-            move |error: cpal::Error| eprintln!("summit-capture: [{name}] {error}"),
+            move |error: cpal::Error| drop(writeln!(std::io::stderr(), "summit-capture: [{name}] {error}")),
             None,
         )
         .map_err(|error| format!("the stream could not be opened ({error})"))
