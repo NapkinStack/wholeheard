@@ -198,7 +198,7 @@ fn a_file_that_is_not_what_a_session_holds_is_said_and_not_converted() {
     // A folder that is not a session of this version is not heard either.
     for not_one in ["", "{}", r#"{"contract":"session-audio/v0"}"#] {
         fs::write(folder.path().join("session.json"), not_one).unwrap();
-        refused(folder.path(), &["session.json does not name session-audio/v1"]);
+        refused(folder.path(), &["session.json names neither session-audio/v1 nor session-audio/v2"]);
     }
     fs::write(folder.path().join("session.json"), STOPPED).unwrap();
     // A context that is not text is said too, before anything is heard.

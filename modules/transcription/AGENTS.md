@@ -12,7 +12,9 @@ Turns the audio of a session into a timestamped transcript.
 
 ## What this module does not do
 
-- It records nothing: the audio files are `capture`'s, read as `session-audio/v1` describes them.
+- It records nothing: the audio is `capture`'s, read as `session-audio/v1` or `v2` describes it.
+  Of the second, the tracks are never written to: what an engine hears of them — one channel,
+  16,000 samples a second, on the session's clock — is made in memory (`src/tracks.rs`).
 - It says who spoke only as the two files do — `me`, `others`. Telling several voices of one file apart is not done here.
 - It fetches no model and contacts no host: the model file is the caller's to give.
 

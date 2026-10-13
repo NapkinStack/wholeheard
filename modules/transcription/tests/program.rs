@@ -64,7 +64,7 @@ fn what_cannot_be_heard_is_refused_in_one_sentence_before_anything_is_written() 
         (
             r#"{"contract":"session-audio/v0"}"#,
             &empty[..],
-            "session.json does not name session-audio/v1",
+            "session.json names neither session-audio/v1 nor session-audio/v2",
         ),
         (
             r#"{"contract":"session-audio/v1"}"#,

@@ -1,6 +1,6 @@
 //! The step, written once for every engine (ADR-0003): it reads a session's sound as
-//! `contracts/session-audio/v1` describes it, hands an engine one span at a time, and writes
-//! what was heard. Stopped anywhere, it is run again and goes on from where it was.
+//! `contracts/session-audio/v1` or `v2` describes it, hands an engine one span at a time, and
+//! writes what was heard. Stopped anywhere, it is run again and goes on from where it was.
 
 use std::{fs, io, path::Path};
 
@@ -62,8 +62,11 @@ pub type Session = (bool, Option<String>, [(Speaker, Vec<f32>); 2]);
 pub fn session(folder: &Path) -> io::Result<Session> {
     let session = fs::read(folder.join("session.json")).or_else(|error| refused(format!("session.json cannot be read ({error})")))?;
     let session: serde_json::Value = serde_json::from_slice(&session).unwrap_or_default();
-    if session["contract"] != "session-audio/v1" {
-        return refused("this folder is not a session this version reads: session.json does not name session-audio/v1".into());
+    let as_delivered = session["contract"] == "session-audio/v2";
+    if session["contract"] != "session-audio/v1" && !as_delivered {
+        return refused(
+            "this folder is not a session this version reads: session.json names neither session-audio/v1 nor session-audio/v2".into(),
+        );
     }
     let context = match fs::read(folder.join("context.txt")).map(String::from_utf8) {
         Ok(Ok(text)) => Some(text.trim().to_string()).filter(|text| !text.is_empty()),
@@ -71,10 +74,20 @@ pub fn session(folder: &Path) -> io::Result<Session> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return refused(format!("context.txt cannot be read ({error})")),
     };
-    let sounds = [
-        (Speaker::Me, sound(&folder.join("me.wav"))?),
-        (Speaker::Others, sound(&folder.join("others.wav"))?),
-    ];
+    let sounds = if as_delivered {
+        // Each source as it was delivered: a track the session does not hold is a side that
+        // said nothing; one it names and does not hold is said.
+        let track = |name: &str| match session["tracks"].get(name) {
+            Some(_) => crate::tracks::heard(&folder.join(format!("{name}.wav")), crate::tracks::first_point(folder, name)),
+            None => Ok(Vec::new()),
+        };
+        [(Speaker::Me, track("local")?), (Speaker::Others, track("remote")?)]
+    } else {
+        [
+            (Speaker::Me, sound(&folder.join("me.wav"))?),
+            (Speaker::Others, sound(&folder.join("others.wav"))?),
+        ]
+    };
     Ok((session["stopped"].is_string(), context, sounds))
 }
 

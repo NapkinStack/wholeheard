@@ -56,7 +56,9 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 ## Contracts
 
 - Provided: [`transcript/v1`](../../contracts/transcript/v1/README.md), `experimental`
-- Consumed: [`session-audio/v1`](../../contracts/session-audio/v1/README.md)
+- Consumed: [`session-audio/v1`](../../contracts/session-audio/v1/README.md), and
+  [`session-audio/v2`](../../contracts/session-audio/v2/README.md) — each source as delivered:
+  a session of either form is read as what it is, never taken for the other
 
 ## Decisions
 
