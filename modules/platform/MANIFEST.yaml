@@ -45,7 +45,10 @@ provides: []
 # Contracts CONSUMED - this is the DECLARED graph.
 # CI compares it with the contracts this module's files read: one read and not declared
 # fails (B1), one declared and never read is reported (B4), one nobody provides fails (B6).
-consumes: []
+consumes:
+  - contract: session-audio
+    version: v1
+    module: capture
 #  - contract: identity-api
 #    version: v1
 #    module: identity
@@ -57,7 +60,19 @@ data:
 
 # Significant external dependencies.
 # Each one declares its exit strategy (.nstack/handbook/06-decisions.md §3).
-dependencies: []
+dependencies:
+  - name: piper-tts
+    purpose: Says the bench's script with public synthetic voices, so that nobody is recorded
+    adr: docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md
+    exit_strategy: One function, piper, in bench/render.py; any synthesiser that returns samples replaces it.
+  - name: numpy
+    purpose: Holds and mixes the sound of the meeting
+    adr: docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md
+    exit_strategy: Arrays of samples; the bench is a few hundred lines, written again if need be.
+  - name: scipy
+    purpose: Changes a sound's sample rate
+    adr: docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md
+    exit_strategy: One call, resample_poly, in bench/render.py.
 #  - name:
 #    purpose:
 #    adr:
@@ -68,6 +83,10 @@ dependencies: []
 # No stack is imposed. check and test are required once the module holds more than its
 # description (fitness M7): declare them before its first file of code.
 commands:
+  bootstrap: uv sync --locked
+  check: uv run --locked ruff check . && uv run --locked ruff format --check .
+  test: uv run --locked pytest -q
+  run: uv run --locked python -m bench.render
 
 docs:
   readme: README.md
