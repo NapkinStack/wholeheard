@@ -237,6 +237,6 @@ fn a_recording_still_going_on_is_heard_up_to_here_and_again_when_there_is_more()
     );
     assert_eq!(
         segments(folder.path()).iter().map(|(_, start, _)| *start).collect::<Vec<_>>(),
-        [3.0, 50.0, 0.5]
+        [3.0, 0.5, 50.0]
     );
 }
