@@ -782,6 +782,55 @@ D7 is added, nothing is removed: the appetite does not stretch. If the end date 
 first, the circuit breaker decides what ships — and the order above is the order of what
 ships: a recording, a transcript and minutes reached from the tray come before the window.
 
+### A first real meeting, through the three programs (2026-10-13)
+
+The decider recorded a real meeting of sixteen minutes — a video call, the laptop's
+loudspeakers and its built-in microphone — with the three programs started by hand, before
+the tray existed. Nothing of what was said is written here: only what the programs did, and
+what the decider read.
+
+```mermaid
+flowchart LR
+    R["summit-capture<br/>16 min, two files,<br/>sound in both"]:::ok --> T["summit-transcription<br/>306 segments<br/>in 3 min 19 s"]:::part
+    T --> O["summit-summary, online<br/>20 s: three parts,<br/>3 actions, 10 key points"]:::ok
+    T --> L["summit-summary, a model<br/>on the machine<br/>5 min, refused"]:::no
+
+    classDef ok fill:#065f46,color:#fff
+    classDef part fill:#92400e,color:#fff
+    classDef no fill:#7f1d1d,color:#fff
+```
+
+**Legend** — green: did what was asked · orange: did it, with a defect the decider read ·
+red: failed, and said so.
+
+| Step | Measured | Read by the decider |
+|---|---|---|
+| Recording | 16 min 5 s; `me` and `others` both hold sound from end to end | — |
+| Transcript | 306 segments in 199 s on the graphics card — 21 % of the meeting's length, two files of speech to hear. `me`: 14.9 min of speech; `others`: 10.2 min | "Dans l'ensemble pas trop mal", with **repetitions that are wrong**: one party seems to repeat, like a parrot, what the other just said |
+| Minutes, online | The large model of the example: 20 s; highlights, 3 actions, 10 key points | "Pas mal fait" |
+| Minutes, on the machine | A 7B model: 4 min 57 s, then refused — "the provider's answer is not minutes" — and no file written | — |
+
+**What it shows.**
+
+- **The microphone hears the loudspeakers.** With no headset, `me` holds the user's voice
+  *and* everyone else's, a moment late: each sentence of the others is transcribed twice,
+  once for each party. `session-audio/v1` says so — "it never promises that `me` is free of
+  the others' voices" — and the transcript then says the wrong thing about who spoke. It is
+  the commonest way to take a call, not an edge. The minutes hold, because a large model
+  passes over what is said twice.
+- **A model on the machine did not give minutes of a sixteen-minute meeting.** The program
+  refused an answer that was not minutes rather than write it: what D5's fifth criterion
+  asks. Why the answer was not minutes is not known yet; the transcript was 20,685
+  characters, and whether the model read all of it is the first thing to look at. D2's
+  sample was five minutes.
+- **The time.** The transcript took a fifth of the meeting's length where the sample took an
+  eighth: both files hold speech here, and one was silent there.
+
+**What follows**, proposed by the framer and settled by the decider ("ok pour cet ordre, commence par l'écho"): the echo first — taken out of the microphone where
+the sound is captured, with what the system already offers for it, tried on Fedora before
+anything is decided; then the model on the machine. Neither is a deliverable of this cycle
+as written: both are D3's and D5's own criteria read on a real meeting.
+
 ## Out of scope
 
 Not done in this cycle, even if time remains:
