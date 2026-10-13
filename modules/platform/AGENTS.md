@@ -38,4 +38,4 @@ Measures what Summit's steps produce against a meeting whose every word is known
 
 ## Non-standard commands
 
-- The voices are fetched once, outside the repository (see the front page): about 270 MB.
+- The voices are fetched once, outside the repository (see the front page): about 330 MB.
