@@ -60,8 +60,9 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 ## Contracts
 
 - Provided: none
-- Consumed: none yet — the contracts of the files it reads are declared with the slice that reads them
+- Consumed: [`recording/v1`](../../contracts/recording/v1/README.md) — what `summit-capture` says while it records
+  (`src/recording.rs`). The contracts of the files it will read are declared with the slice that reads them
 
 ## Decisions
 
-See `docs/adr/`.
+[ADR-0002](../../docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md).
