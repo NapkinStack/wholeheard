@@ -11,6 +11,11 @@ body:
         what they saw (.nstack/handbook/06-decisions.md §9). Each answer is a comment; a test
         sheet cites it as its evidence.
 
+        One issue is **one trial**: a person, a system, a set of steps. It is closed when each
+        step has its answer — met or not — by whoever ran it, or by the pull request that
+        records the last one. Closing it says nothing of the deliverable: what was not met is
+        fixed and tried again in another issue, or said in the cycle.
+
   - type: input
     id: tracks
     attributes:
