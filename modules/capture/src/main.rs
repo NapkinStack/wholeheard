@@ -38,7 +38,9 @@ const LATE: f64 = 1.5;
 const POINT_EVERY: f64 = 5.0;
 /// A piece of sound heard this far, in seconds, from where its track's last point puts it
 /// gets a point of its own: the source stopped a moment, too short for zeros to be written.
-const OFF: f64 = 0.05;
+/// Well under one period of a system's sound — a lost period, 21 ms here, is what an
+/// overrun looks like — and well over what the instants move by themselves: 0.1 ms, measured.
+const OFF: f64 = 0.005;
 
 /// The sources as `recording/v1` names them in what the program says.
 const SOURCES: [&str; 2] = ["me", "others"];
