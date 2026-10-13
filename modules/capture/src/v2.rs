@@ -24,8 +24,6 @@ pub struct Track {
     frames: u64,
     rate: u32,
     channels: u16,
-    /// The start of a frame the system delivered in two pieces, kept for its end.
-    cut: Vec<f32>,
     /// Where each channel rests, to measure sound from there: (last sample, last measure).
     rest: Vec<Option<(f32, f32)>>,
     keep: f32,
@@ -46,7 +44,6 @@ impl Track {
             frames: 0,
             rate,
             channels,
-            cut: Vec::new(),
             rest: vec![None; usize::from(channels)],
             // One pole at 20 Hz: what a source rests at is not sound, a voice is.
             keep: (1.0 - std::f64::consts::TAU * 20.0 / f64::from(rate)).max(0.0) as f32,
@@ -54,16 +51,17 @@ impl Track {
         })
     }
 
-    /// Appends what the source just delivered, interleaved, as it is; it is on disk when
-    /// this returns. A frame delivered in two pieces is written once whole. A sample beyond
+    /// Appends what the source just delivered — whole frames, interleaved — as it is; it is
+    /// on disk when this returns. A delivery that is not whole frames is refused and nothing
+    /// of it is written: which channel a sample belongs to is never guessed. A sample beyond
     /// full scale is written at full scale, one that is no number as zero.
     pub fn push(&mut self, interleaved: &[f32]) -> io::Result<()> {
         let channels = usize::from(self.channels);
-        let mut sound = std::mem::take(&mut self.cut);
-        sound.extend_from_slice(interleaved);
-        self.cut = sound.split_off(sound.len() - sound.len() % channels);
-        let mut bytes = Vec::with_capacity(sound.len() * BYTES);
-        for (at, &sample) in sound.iter().enumerate() {
+        if interleaved.len() % channels != 0 {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "a delivery that is not whole frames"));
+        }
+        let mut bytes = Vec::with_capacity(interleaved.len() * BYTES);
+        for (at, &sample) in interleaved.iter().enumerate() {
             // What is no number is no sound either: written as zero, and not measured.
             if sample.is_nan() {
                 bytes.extend_from_slice(&[0; BYTES]);
@@ -73,14 +71,13 @@ impl Track {
             let value = (sample * FULL_SCALE).round().clamp(-FULL_SCALE, FULL_SCALE - 1.0) as i32;
             bytes.extend_from_slice(&value.to_le_bytes()[..BYTES]);
         }
-        // Refused, a delivery leaves nothing: not its frames, not the piece of one it held.
-        self.write(&bytes).inspect_err(|_| self.cut.clear())?;
-        self.frames += (sound.len() / channels) as u64;
+        self.write(&bytes)?;
+        self.frames += (interleaved.len() / channels) as u64;
         Ok(())
     }
 
-    /// Writes whole or not at all: a write the system cut leaves the track as it was, so
-    /// that what follows a failure is still frames.
+    /// Writes whole or not at all: what the system refused part-way is taken back, so that
+    /// the track holds only what a delivery that succeeded put there.
     fn write(&mut self, bytes: &[u8]) -> io::Result<()> {
         self.file.write_all(bytes).inspect_err(|_| drop(self.rewind()))
     }
@@ -110,8 +107,6 @@ impl Track {
             return Ok(None);
         }
         let from = self.frames;
-        // The source stopped: the start of a frame it never ended is not the start of the next.
-        self.cut.clear();
         // A second at a time: a long gap is not held in memory. Refused part-way, none of it
         // stays: zeros of ours that no one was told of would pass for the room's.
         while self.frames < frames {

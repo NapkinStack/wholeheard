@@ -114,26 +114,19 @@ fn a_sample_once_written_never_changes_and_only_the_header_is_written_twice() {
 }
 
 #[test]
-fn a_frame_delivered_in_two_pieces_is_written_once_whole_and_no_channel_moves() {
+fn a_delivery_that_is_not_whole_frames_is_refused_and_no_channel_ever_moves() {
     let folder = tempfile::tempdir().unwrap();
     let path = folder.path().join("local.wav");
     let mut track = Track::create(&path, 48_000, 2).unwrap();
-    // Left goes up, right goes down, five samples at a time: every other piece cuts a frame.
-    let sound: Vec<f32> = (1..=20).flat_map(|n| [n as f32 / 100.0, -(n as f32) / 100.0]).collect();
-    for piece in sound.chunks(5) {
-        track.push(piece).unwrap();
-    }
-    assert_eq!(track.frames(), 20);
+    // Left is above zero, right below: a channel that moved shows.
+    track.push(&[0.1, -0.1]).unwrap();
+    assert!(track.push(&[0.2, -0.2, 0.3]).is_err());
+    assert_eq!(track.frames(), 1, "nothing of a refused delivery is written");
+    track.silence_to(3).unwrap();
+    track.push(&[0.4, -0.4, 0.5, -0.5]).unwrap();
     let samples = read(&path).2;
-    assert!(samples.chunks(2).all(|frame| frame[0] > 0.0 && frame[1] < 0.0), "a channel moved");
-    track.push(&[0.5]).unwrap();
-    assert_eq!(track.frames(), 20, "half a frame is not a frame yet");
-    // The source stops there and comes back: its half frame is not the start of the next.
-    track.silence_to(30).unwrap();
-    track.push(&[0.3, -0.3]).unwrap();
-    let samples = read(&path).2;
-    assert_eq!(samples.len(), 62);
-    assert!(samples[60] > 0.0 && samples[61] < 0.0, "a channel moved after a gap");
+    assert_eq!(samples.len(), 10);
+    assert!(samples.chunks(2).all(|frame| frame[0] >= 0.0 && frame[1] <= 0.0), "a channel moved");
 }
 
 #[test]
