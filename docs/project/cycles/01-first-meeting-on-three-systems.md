@@ -854,6 +854,16 @@ Candidates for the next framing, in the order the idea file gives them weight: t
 menu on files; export to Notion; detection of the microphone;
 profiles; costs; live transcription.
 
+Added by the decider on 2026-10-13, with ADR-0004 accepted — a session's audio is now kept
+as recorded, and takes room:
+
+- **The user manages their sessions in the window**: sees what each one holds and what it
+  weighs, and deletes — the audio alone, or the whole session — to free space. "Un mode
+  avancé pour que l'utilisateur puisse gérer ses summaries … supprimer pour libérer de
+  l'espace … moderne, ludique … UX/UI primordiale." It is the list of sessions this cycle
+  left out, come back with a reason; drawn and shown to the decider before it is built.
+
+
 ## Open questions
 
 **Blocking:** none left.
