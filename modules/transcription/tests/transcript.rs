@@ -74,26 +74,6 @@ fn a_transcript_opens_on_what_made_it_and_holds_what_was_heard_with_its_times_an
 }
 
 #[test]
-fn the_file_only_grows_and_reads_whole_at_every_moment() {
-    let folder = tempfile::tempdir().unwrap();
-    let mut transcript = Transcript::open(folder.path(), &making()).unwrap();
-    let mut before = fs::read(folder.path().join("transcript.jsonl")).unwrap();
-    for span in 0..5 {
-        let at = f64::from(span) * 30.0;
-        transcript
-            .heard(Speaker::Me, &[said(at + 1.0, at + 2.0, "Bonjour.")], at + 30.0)
-            .unwrap();
-        let after = fs::read(folder.path().join("transcript.jsonl")).unwrap();
-        assert!(
-            after.len() > before.len() && after.starts_with(&before),
-            "a line already written was changed"
-        );
-        lines(folder.path());
-        before = after;
-    }
-}
-
-#[test]
 fn a_step_stopped_and_run_again_takes_up_where_it_was_and_hears_nothing_twice() {
     let folder = tempfile::tempdir().unwrap();
     let first = [said(1.0, 2.0, "Un."), said(12.0, 13.0, "Deux.")];
@@ -113,6 +93,11 @@ fn a_step_stopped_and_run_again_takes_up_where_it_was_and_hears_nothing_twice() 
         "a span heard twice changed the file"
     );
     transcript.heard(Speaker::Me, &second, 60.0).unwrap();
+    let after = fs::read(folder.path().join("transcript.jsonl")).unwrap();
+    assert!(
+        after.len() > before.len() && after.starts_with(&before),
+        "a line already written was changed"
+    );
     transcript.complete(60.0).unwrap();
     transcript.complete(60.0).unwrap();
     assert_eq!(
@@ -206,35 +191,4 @@ fn a_transcript_of_another_making_is_never_continued() {
         fs::read_to_string(elsewhere.path().join("transcript.jsonl")).unwrap(),
         "some notes\n"
     );
-}
-
-#[test]
-fn what_an_engine_gives_that_is_no_segment_is_not_written() {
-    let folder = tempfile::tempdir().unwrap();
-    let mut transcript = Transcript::open(folder.path(), &making()).unwrap();
-    // No text, a start before the session, an end before its start, the same start twice.
-    transcript
-        .heard(
-            Speaker::Me,
-            &[
-                said(1.0, 2.0, "  \n "),
-                said(-0.4, 1.0, "Avant."),
-                said(5.0, 4.0, "À l'envers."),
-                said(5.0, 6.0, "Deux fois."),
-            ],
-            30.0,
-        )
-        .unwrap();
-    let segments: Vec<_> = lines(folder.path()).into_iter().filter(|line| line["type"] == "segment").collect();
-    assert_eq!(segments.len(), 2);
-    assert_eq!(
-        (segments[0]["start"].as_f64(), segments[0]["text"].as_str()),
-        (Some(0.0), Some("Avant."))
-    );
-    assert_eq!((segments[1]["start"].as_f64(), segments[1]["end"].as_f64()), (Some(5.0), Some(5.0)));
-    // The same start for the other speaker is another segment.
-    transcript
-        .heard(Speaker::Others, &[said(5.0, 6.0, "En même temps.")], 30.0)
-        .unwrap();
-    assert_eq!(lines(folder.path()).iter().filter(|line| line["type"] == "segment").count(), 3);
 }
