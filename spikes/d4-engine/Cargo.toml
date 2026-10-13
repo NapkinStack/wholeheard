@@ -6,3 +6,7 @@ publish = false
 
 [dependencies]
 whisper-rs = "0.16.0"
+
+# The graphics card, where the system has the Vulkan headers.
+[features]
+vulkan = ["whisper-rs/vulkan"]
