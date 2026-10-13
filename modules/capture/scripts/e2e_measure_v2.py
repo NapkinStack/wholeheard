@@ -15,6 +15,10 @@ DELIVERED = (2, 48000)
 LEVELS = (0.125 * 0.5, 0.125 * 0.25)
 REST = 0.02
 FULL = 8_388_608
+# A stream's first second is the sound server's: it may hand pieces of nothing, or one late
+# with the next on its heels. What a track holds whole, and what its clock holds steady, is
+# judged from there on — on every run, not on the runs that opened quietly.
+SETTLED = 1.0
 
 
 def track(folder, name):
@@ -43,23 +47,31 @@ def track(folder, name):
         around = sorted(abs(v - rests[-1]) for v in played)
         peaks.append(around[len(around) * 199 // 200] if around else 0)
     return {"name": name, "rate": rate, "channels": channels, "frames": frames, "first": first, "peaks": peaks, "rests": rests,
-            "said": struct.unpack("<I", data[at + 4:at + 8])[0], "bytes": len(body), "body": body}
+            "said": struct.unpack("<I", data[at + 4:at + 8])[0], "bytes": len(body), "body": body,
+            "riff": struct.unpack("<I", data[4:8])[0], "file": len(data)}
 
 
-def nothing(one):
-    """The stretches of the track, a hundredth of a second or more, where every channel is zero."""
-    body, size, found, at = one["body"], 3 * one["channels"], [], 0
-    least = one["rate"] // 100
-    while (at := body.find(bytes(size * least), at)) >= 0:
-        start = -(-at // size)
-        end = start
-        while body[end * size:(end + 4096) * size] == bytes(size * 4096):
-            end += 4096
-        while end < one["frames"] and not any(body[end * size:(end + 1) * size]):
-            end += 1
-        if end - start >= least:
-            found.append((start, end))
-        at = max(end, start + 1) * size
+def breaks(one, hertz, told):
+    """Where a note played without a break is not whole in its track: two of its periods
+    further apart, or closer, than a period — frames lost, added or left as zeros. Where the
+    clock tells of something (`told`: the stretches it names, and the stops it places), what
+    it does not cover between the two is two periods at most: the note left and came back."""
+    rest, first, period = one["rests"][0], one["first"], one["rate"] / hertz
+    found, last = [], None
+
+    def whole(since, until):
+        covered = sum(max(0, min(b, until) - max(a, since)) for a, b in told)
+        if any(a <= until and since <= b for a, b in told):
+            return until - since - covered <= 2 * period + 2
+        return abs(until - since - period) <= 1.5
+
+    for at in range(int(SETTLED * one["rate"]), one["frames"] - 1):
+        if first[at] - rest < 0 <= first[at + 1] - rest:
+            if last is not None and not whole(last, at):
+                found.append((last, at))
+            last = at
+    if last is not None and one["frames"] - last > 2 * period and not whole(last, one["frames"]) and not any(b >= one["frames"] for _, b in told):
+        found.append((last, one["frames"]))
     return found
 
 
@@ -122,15 +134,16 @@ def placed(folder, one, stops=False):
     assert all(gap <= 10 for gap in gaps), f"{name}: {max(gaps):.1f} s of the track without a point"
     assert all(0 <= a < b <= one["frames"] + rate for a, b in silences), f"{name}: a silence that is no stretch of the track: {silences}"
     # Between two points, the frames of the track's rate: off by more, the source stopped there.
-    off = [(a, b) for a, b in zip(points, points[1:]) if abs((b[0] - a[0]) / rate - (b[1] - a[1])) > 0.005]
-    # The system may hand a stream's first piece over late, with the second on its heels: the
-    # recorder says so with a point at the second, and that is no stop — when the piece is one
-    # period at most, and the clock holds from there. Anything else that opens a track is judged.
-    if off and off[0][0] == points[0] and off[0][1][0] <= 0.1 * rate and abs(off[0][1][1] - off[0][0][1]) <= 0.1:
-        off = off[1:]
+    settled = [point for point in points if point[0] >= SETTLED * rate]
+    off = [(a, b) for a, b in zip(settled, settled[1:]) if abs((b[0] - a[0]) / rate - (b[1] - a[1])) > 0.005]
     if not stops:
         assert not silences, f"{name}: {len(silences)} silence(s) of ours where the source never stopped"
         assert not off, f"{name}: its clock says {(off[0][1][0] - off[0][0][0]) / (off[0][1][1] - off[0][0][1]):.0f} frames a second"
+        # And from its first settled point to its last, the same rate: a hundredth of a second
+        # over the whole run, where two points apart may each be five thousandths off.
+        if len(settled) > 1:
+            drift = (settled[-1][0] - settled[0][0]) / rate - (settled[-1][1] - settled[0][1])
+            assert abs(drift) <= 0.01, f"{name}: over the run its clock is {drift * 1000:.0f} ms from its frames"
     return points, silences, off
 
 
@@ -167,33 +180,34 @@ def main(what, folder, *args):
         # As delivered: every channel as loud as it was played and resting where it was played
         # — not mixed, swapped, halved, centred or brought to a level.
         levels, rests = [peak / FULL for peak in one["peaks"]], [rest / FULL for rest in one["rests"]]
-        assert all(abs(level / played - 1) < 0.03 for level, played in zip(levels, LEVELS)), (
+        assert all(abs(level / played - 1) < 0.01 for level, played in zip(levels, LEVELS)), (
             f"{one['name']}: its channels are at {[round(level, 4) for level in levels]} of full scale, played at {LEVELS}")
-        assert all(abs(rest / REST - 1) < 0.1 for rest in rests), (
+        assert all(abs(rest / REST - 1) < 0.02 for rest in rests), (
             f"{one['name']}: its channels rest at {[round(rest, 4) for rest in rests]} of full scale while they sound, played at {REST}")
         # Zeros of ours are every channel's, and the clock is the session's: a track starts
         # with the session and, once stopped, ends with it.
         size = 3 * one["channels"]
         for a, b in silences:
             assert not any(one["body"][a * size:b * size]), f"{one['name']}: the frames {a} to {b} are said zeros of ours, and hold sound"
+        assert any(one["body"][0::3]), f"{one['name']}: the last eight bits of its samples are never used"
         assert -0.5 <= points[0][1] - points[0][0] / one["rate"] <= 2.5, f"{one['name']}: its first frame is put {points[0][1]:.2f} s into the session"
         if "stopped" in read:
+            # `started` and `stopped` are written to the second: a last frame is heard before
+            # the stop, so its instant is no more than a second past what the two say.
             late = when(points, one["frames"], one["rate"]) - (datetime.datetime.fromisoformat(read["stopped"]).timestamp() - start)
-            assert -2.5 <= late <= 0.25, f"{one['name']}: its clock puts its last frame {late:.2f} s after the session stopped"
-    # A source that played without a break delivered no zeros: every stretch of them is ours,
-    # and the clock names it. (The first tenth of a second apart: a stream may open on a piece of nothing.)
-    for name in {"stopped": ["local"], "killed": ["local"], "stopped-source": ["local", "remote"]}.get(what, []):
-        one, named = tracks[name], []
-        for a, b in sorted(clocks[name][1]):   # silences that touch are one stretch
-            named[-1:] = [[named[-1][0], max(b, named[-1][1])]] if named and a <= named[-1][1] else [*named[-1:], [a, b]]
-        unsaid = [(a, b) for a, b in nothing(one) if b > one["rate"] // 10 and not any(s <= a and b <= e for s, e in named)]
-        assert not unsaid, f"{name}: the frames {unsaid[0][0]} to {unsaid[0][1]} are zeros, the source played, and no line of the clock names them"
+            assert -3.5 <= late <= 1.05, f"{one['name']}: its clock puts its last frame {late:.2f} s after the session stopped"
+    # A note played without a break is whole in its track, but where the clock says otherwise.
+    for name, hertz in {"stopped": [("local", 440)], "killed": [("local", 440)], "stopped-source": [("local", 440), ("remote", 880)]}.get(what, []):
+        points, silences, off = clocks[name]
+        broken = breaks(tracks[name], hertz, [*silences, *((b[0] - 1, b[0]) for _, b in off)])
+        assert not broken, (f"{name}: its note breaks between the frames {broken[0][0]} and {broken[0][1]} — {len(broken)} place(s) — "
+                            "and no line of the clock tells of it")
     if what == "stopped":
         assert "stopped" in read, "session.json carries no stopped"
         lasted = datetime.datetime.fromisoformat(read["stopped"]).timestamp() - start
         assert set(tracks) == {"local", "remote"}, f"the session holds {sorted(tracks)}"
         for one, note in zip((tracks["local"], tracks["remote"]), (float(args[0]), float(args[1]))):
-            assert one["said"] == one["bytes"], f"{one['name']}: its header does not carry its true length"
+            assert one["said"] == one["bytes"] and one["riff"] == one["file"] - 8, f"{one['name']}: its header does not carry its true length"
             assert abs(pitch(one) - note) < 20, f"{one['name']} holds a note at {pitch(one):.0f} Hz, not {note:.0f}"
             assert abs(one["frames"] / one["rate"] - lasted) <= 2.5, f"{one['name']} holds {one['frames'] / one['rate']:.1f} s for {lasted:.0f} s recorded"
         assert not os.path.exists(os.path.join(folder, "me.wav")), "a file of the first version beside the tracks"
@@ -206,9 +220,6 @@ def main(what, folder, *args):
         assert zeros >= 2 * rate, f"{zeros / rate:.1f} s of zeros said for a stop of several seconds"
         after = [point for point in points if point[0] >= silences[-1][1]]
         assert after and after[0][0] == silences[-1][1], "the first sound after the zeros has no point of its own"
-        # The note is played without a break: after the stop it is where the clock says, to the period.
-        ticks = [when(points, frame, rate) for frame in range(after[0][0], after[0][0] + rate) if remote["first"][frame] < 0 <= remote["first"][frame + 1]]
-        assert len(ticks) > 800, "no note after the stop"
         assert not clocks["local"][1] and not clocks["local"][2], "local never stopped, and its clock says it did"
         print(f"    remote stopped: {len(silences)} silence(s) of ours, {zeros / rate:.2f} s of zeros, a point at the first frame after")
     elif what == "same-instant":

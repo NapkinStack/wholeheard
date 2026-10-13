@@ -109,8 +109,9 @@ check grep -q '"stopped"' "$(ls -d "$work"/alone/*/ | head -1)session.json"
 
 # The same three, each source as delivered (session-audio/v2, ADR-0004). Their notes are
 # made to tell a recorder that changes them: the second channel at half the first's level, so
-# that channels mixed or swapped show, and both resting away from zero, so that centring does.
-tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -af "volume=0.5,pan=stereo|c0=c0|c1=0.5*c0,dcshift=0.02" -ar 48000 "$3"; }
+# that channels mixed or swapped show, both resting away from zero, so that centring does, and
+# in 24 bits, so that a track cut to 16 does.
+tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -af "volume=0.5,pan=stereo|c0=c0|c1=0.5*c0,dcshift=0.02" -ar 48000 -c:a pcm_s24le "$3"; }
 tone 440 40 "$work/me.wav"; tone 880 8 "$work/others-a.wav"; tone 880 8 "$work/others-b.wav"
 measure2() { python3 scripts/e2e_measure_v2.py "$@" 2>&1 | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
 pactl set-default-source summit_e2e_mic.monitor
@@ -151,7 +152,7 @@ pactl set-default-source summit_e2e_out.monitor
 recorder=$!
 sleep 2; pw-play "$work/others-a.wav"; sleep 1
 kill -INT "$recorder"; wait "$recorder" || true
-check measure2 same-instant "$(ls -d "$work"/v2-clock/*/ | head -1)" 0.02
+check measure2 same-instant "$(ls -d "$work"/v2-clock/*/ | head -1)" 0.005
 
 say "H. each source as delivered: a source that stops, and comes back"
 pactl set-default-source summit_e2e_mic.monitor
