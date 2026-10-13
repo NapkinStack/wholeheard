@@ -20,7 +20,8 @@ arrows: the contracts between the steps, each a file of the session — `session
 | `transcription` | A program that writes the transcript with Whisper on the machine; tried on Fedora |
 | `summary` | A program that writes the minutes with the provider the user chose |
 | `export` | Described, no code yet |
-| `shell` | Described, no code yet |
+| `shell` | Summit in the tray: start and stop a recording from its menu or a shortcut, told by notifications |
+| `platform` | Not a step: the bench that measures the steps against a meeting whose every word is known |
 
 Why four, and what each one is for: [`docs/adr/0001`](../docs/adr/0001-split-summit-into-four-modules.md). Why a fifth that holds no step: [`docs/adr/0002`](../docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md).
 
