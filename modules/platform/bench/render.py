@@ -27,16 +27,22 @@ RATE = 48_000
 VOICES = {
     "claire": ("fr_FR-siwis-medium", 0),
     "marc": ("fr_FR-tom-medium", 0),
-    "sophie": ("fr_FR-mls-medium", 14),
+    "sophie": ("fr_FR-gilles-low", 0),
     "julien": ("fr_FR-upmc-medium", 1),
 }
-"""Which public model, and which of its speakers, says each voice of the script."""
+"""Which public model, and which of its speakers, says each voice of the script.
+
+Chosen on a measure, 2026-10-13: each candidate said one voice's 192 words alone, with no
+chance in the synthesis, and the engine wrote them back. Words wrong: tom 2, siwis 3, upmc's
+second speaker 7, gilles 13 — and upmc's first speaker 43, the ten speakers tried of the
+many-voiced `mls` model 61 to 163: a voice the engine cannot follow alone measures nothing
+of a meeting."""
 
 PACE = (1.2, 5.0)
 """Words a second a person says a sentence at, at the least and at the most. A voice outside
-it is not a voice an engine is built for: the first `sophie`, another speaker of a model that
-a steady synthesis collapsed, said eight words a second — and most of what the bench first
-counted wrong on the remote side was that."""
+it is not a voice an engine is built for: the first `sophie`, upmc's first speaker, said
+eight words a second — and most of what the bench first counted wrong on the remote side
+was that."""
 
 CONDITIONS = {"headset": None, "low": -10.0, "loud": -5.0}
 """How loud the microphone hears what the loudspeakers play, in decibels against what was
