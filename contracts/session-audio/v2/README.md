@@ -54,6 +54,8 @@ channels on one machine, 44,100 in one on another.
 - **As delivered.** Nothing in a track was resampled, mixed down, centred, faded, cleaned of
   an echo or brought to a level. A source that rests away from zero rests away from zero in
   its track.
+- **Within what 24 bits hold.** A sample the source delivered beyond full scale is written
+  at full scale; one that was no number, as zero.
 - **Written once.** A sample once written never changes, and no program — the producer
   included — rewrites a track after the recording.
 - **Readable while written.** What was heard more than five seconds ago is in the file. A
