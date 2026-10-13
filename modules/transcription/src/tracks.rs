@@ -112,7 +112,9 @@ pub fn heard(path: &Path, clock: &Clock) -> io::Result<Vec<f32>> {
         }
     }
     let mut out: Vec<f32> = Vec::new();
-    for (&(_, at), sound) in runs(&points, rate, frames.max(1)).iter().zip(&sounds) {
+    // A run too short to give the engine a sample places nothing, and leaves no instant empty.
+    let placed = runs(&points, rate, frames.max(1));
+    for (&(_, at), sound) in placed.iter().zip(&sounds).filter(|(_, sound)| !sound.is_empty()) {
         // Where this run starts in what the engine hears; what was heard before the session
         // started is left out, and a run the clock puts before the end of the one before
         // takes its place from there.
