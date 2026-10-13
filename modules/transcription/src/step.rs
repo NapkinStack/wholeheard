@@ -74,10 +74,9 @@ fn sounding(heard: &[f32]) -> Vec<bool> {
         (last_in, last_out) = (sample, sample - last_in + keep * last_out);
         last_out.abs() >= SILENCE
     };
-    heard
-        .chunks(RATE / 100)
-        .map(|hundredth| hundredth.iter().fold(false, |sound, sample| moves(sample) || sound))
-        .collect()
+    // Every sample is measured, sound or not: the pole is run through them all.
+    let hundredth = |samples: &[f32]| samples.iter().map(&mut moves).filter(|sound| *sound).count() > 0;
+    heard.chunks(RATE / 100).map(hundredth).collect()
 }
 
 /// Reads a session's folder and judges it — or says which file is wrong, and what: a caller
