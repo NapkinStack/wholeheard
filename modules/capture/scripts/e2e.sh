@@ -3,7 +3,7 @@
 # for the run: nobody is recorded. It needs a PipeWire or PulseAudio desktop; where there is
 # none — a CI runner — or where a microphone is in use, it says so and runs nothing.
 #
-# For about a minute the system's default output and input are two silent devices of its
+# For about two minutes the system's default output and input are two silent devices of its
 # own; they are put back whatever happens.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -17,7 +17,10 @@ fi
 if [ -n "$(pactl list short source-outputs)" ]; then
   say "e2e: NOT RUN — an application holds a microphone: a call may be in progress"; exit 0
 fi
-for tool in ffmpeg pw-play python3; do
+if pactl list short sinks | awk -v d="$(pactl get-default-sink)" '$2 == d && $NF == "RUNNING" {found = 1} END {exit !found}'; then
+  say "e2e: NOT RUN — the system is playing sound: its output would be taken from it"; exit 0
+fi
+for tool in ffmpeg ffprobe pw-play python3; do
   command -v "$tool" >/dev/null || { say "e2e: NOT RUN — $tool is missing"; exit 0; }
 done
 
@@ -103,6 +106,48 @@ kill -TERM "$recorder" 2>/dev/null || true; left_as=0; wait "$recorder" || left_
 sed 's/^/    /' "$work/d.events" "$work/d.errors" >> .evidence/e2e.txt
 check test "$left_as" = 0 -a ! -s "$work/d.errors"
 check grep -q '"stopped"' "$(ls -d "$work"/alone/*/ | head -1)session.json"
+
+# The same three, each source as delivered (session-audio/v2, ADR-0004).
+measure2() { python3 scripts/e2e_measure_v2.py "$@" 2>&1 | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
+pactl set-default-source summit_e2e_mic.monitor
+
+say "E. each source as delivered: a recording stopped as a user stops it"
+pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
+sleep 0.5
+"$bin" record "$work/v2" --as v2 > "$work/e.events" 2> "$work/e.errors" &
+recorder=$!
+sleep 1; pw-play "$work/others-a.wav"
+sleep 14                                                 # nothing plays: "silent" is owed
+pw-play "$work/others-b.wav"; sleep 1
+kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
+kill "$mic_player" 2>/dev/null || true
+folder=$(ls -d "$work"/v2/*/ | head -1)
+sed 's/^/    /' "$work/e.events" "$work/e.errors" >> .evidence/e2e.txt
+check test "$stopped_as" = 0 -a ! -s "$work/e.errors"
+check measure events "$work/e.events"
+check measure2 stopped "$folder" 440 880
+for name in local remote; do
+  check test "$(ffprobe -v error -show_entries stream=codec_name -of csv=p=0 "$folder/$name.wav")" = pcm_s24le
+done
+
+say "F. each source as delivered: a recording killed"
+pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
+sleep 0.5
+"$bin" record "$work/v2-killed" --as v2 > /dev/null 2>&1 &
+recorder=$!
+sleep 1; pw-play "$work/others-a.wav" & others_player=$!
+sleep 7
+kill -KILL "$recorder"; killed_at=$(date +%s.%N); wait "$recorder" 2>/dev/null || true
+kill "$mic_player" "$others_player" 2>/dev/null || true
+check measure2 killed "$(ls -d "$work"/v2-killed/*/ | head -1)" "$killed_at" 5
+
+say "G. each source as delivered: the clock places the same sound at the same instant"
+pactl set-default-source summit_e2e_out.monitor
+"$bin" record "$work/v2-clock" --as v2 > /dev/null 2>&1 &
+recorder=$!
+sleep 2; pw-play "$work/others-a.wav"; sleep 1
+kill -INT "$recorder"; wait "$recorder" || true
+check measure2 same-instant "$(ls -d "$work"/v2-clock/*/ | head -1)" 0.02
 
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"
 exit "$failed"
