@@ -826,7 +826,7 @@ red: failed, and said so.
 - **The time.** The transcript took a fifth of the meeting's length where the sample took an
   eighth: both files hold speech here, and one was silent there.
 
-**What follows** *(framer, to confirm)*: the echo first — taken out of the microphone where
+**What follows**, proposed by the framer and settled by the decider ("ok pour cet ordre, commence par l'écho"): the echo first — taken out of the microphone where
 the sound is captured, with what the system already offers for it, tried on Fedora before
 anything is decided; then the model on the machine. Neither is a deliverable of this cycle
 as written: both are D3's and D5's own criteria read on a real meeting.
