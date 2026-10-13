@@ -1,6 +1,6 @@
 ---
 goal: "On Fedora, a meeting recorded with Summit is kept as it was heard, and its transcript is right about who spoke and when — on loudspeakers as with a headset"
-status: proposed          # proposed | accepted | closed | stopped — the decider accepts
+status: accepted          # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 3         # the time the decider WANTS to spend, not an estimate
 start: 2026-10-14         # YYYY-MM-DD
 end: 2026-11-04           # start + appetite: the first day the cycle is over — the circuit breaker
@@ -8,7 +8,7 @@ deliverables:
   - id: D8
     title: "Spike — a bench: a meeting whose every word, speaker and instant is known, played as a headset, as loudspeakers low and as loudspeakers loud, and four counts of what a transcript got wrong"
     module: platform
-    state: proposed
+    state: ready
     acceptance:
       - "Given a script written for the purpose — about five minutes in French, two sides, at least two voices on one side, turns that overlap, silences — and voices that are nobody's, when the bench renders it for a listening condition, then it yields the tracks a recording of that meeting would hold and the truth beside them: each word, its speaker, its side and its instant"
       - "Given the three conditions — a headset: no sound of one side in the other; loudspeakers low and loudspeakers loud: the remote side heard by the microphone, later and weaker, as a room does it — when each is rendered, then the cycle records how each was made and how far it is from the decider's real room, measured once by playing the bench's remote side on their loudspeakers"
@@ -17,7 +17,7 @@ deliverables:
   - id: D9
     title: "A recording keeps each source as the system delivered it, under the name of its source, with the session's clock written beside"
     module: capture
-    state: proposed
+    state: ready
     acceptance:
       - "Given a recording on Fedora, when it is stopped, then the session holds one track per source — local, the microphone; remote, what the machine plays — each at the sample rate and with the channels its source delivered, in 24 bits, and nothing in a track was resampled, mixed, cleaned or brought to a level"
       - "Given the two tracks, when their clock is read, then it says where each track's samples are on the session's clock, how far the two drift apart over the recording, and which stretches of a track are silence the capture wrote because the source gave nothing"
@@ -27,7 +27,7 @@ deliverables:
   - id: D10
     title: "The transcript of a meeting says the same thing about who spoke, and in what order, whether it was taken on loudspeakers or with a headset"
     module: transcription
-    state: proposed
+    state: ready
     acceptance:
       - "Given the bench's meeting on loudspeakers, low and loud, when it is transcribed, then no more words are said twice than with a headset, and no more words of the local side are wrong than when the same tracks are transcribed as delivered — the echo gone without the speaker's own words"
       - "Given the bench's meeting in any condition, when it is transcribed, then at most one exchange in twenty is out of order, and at most one word in fifty is given to the wrong side"
@@ -38,7 +38,7 @@ deliverables:
   - id: D11
     title: "Spike — the window, drawn before it is built: a session, the sessions and what they weigh, the settings, the two agreements"
     module: null
-    state: proposed
+    state: ready
     acceptance:
       - "Given the four things the window holds — the session just finished, with its minutes and its transcript; the list of sessions, each with its date, its length, what it holds and what it weighs; the settings; the two moments where the user agrees before something crosses the network — when each is drawn at the size of a laptop's screen, in a light and in a dark theme, then the decider sees the drawings and says what they change"
       - "Given the drawings of the sessions, when the decider follows on them the two ways of freeing space — the audio alone, the transcript and the minutes kept; the whole session — then each shows what it frees before it is done, and how it is undone"
@@ -46,7 +46,7 @@ deliverables:
   - id: D12
     title: "A user gets the transcript of a recording from the tray, without a terminal"
     module: shell
-    state: proposed
+    state: ready
     acceptance:
       - "Given a recording stopped from the tray, when the setting says the transcript follows — and it does, out of the box — then the transcript is made without another gesture, the user is told when it is there, and the click on that notification opens the session's folder"
       - "Given no model on the machine, when a transcript is first needed, then the user is shown the model's size and the host it comes from; nothing is fetched before they agree; the file is checked whole against its published fingerprint before any use; and a fetch that was cut is started again, never used as it is"
@@ -55,7 +55,7 @@ deliverables:
   - id: D13
     title: "Spike — why did a model on the machine give no minutes of a sixteen-minute meeting?"
     module: null
-    state: proposed
+    state: ready
     acceptance:
       - "Given the bench's meeting and one of sixteen minutes made from it, when minutes are asked of the model on the machine, then the cycle records for each: whether minutes came, in how long, and — when they did not — what the model answered instead and how much of the transcript it had been given"
       - "Given that record, when it is read against the threshold — minutes of a meeting of an hour, on the decider's laptop, in less than the meeting's length — then the result is written as met or refuted, with what would have to change: a refuted result is a delivered one"
@@ -142,11 +142,11 @@ Candidates for the next framing:
 
 ## Open questions
 
-**Blocking:**
+**Blocking:** none left.
 
-- **The appetite.** Three weeks is the framer's proposal, not the decider's wish: the
-  playbook asks how long they *want* to spend. Fewer weeks means cutting — D13 first, then
-  D12 — never the bench.
+- ~~The appetite.~~ Answered by the decider on 2026-10-13: three weeks as a forecast — "on
+  est en plein rush donc on ira probablement plus vite". The end date stands as the circuit
+  breaker; ending sooner closes the cycle sooner.
 
 **Not blocking:**
 
