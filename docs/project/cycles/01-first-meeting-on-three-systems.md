@@ -61,6 +61,16 @@ deliverables:
       - "Given that folder copied to a machine where Summit was never installed, when its files are opened with a standard audio player and a text editor, then the audio plays, and the transcript and the minutes read as plain text — who spoke, when, what was decided — with nothing missing and no path that points back to the first machine"
       - "Given a session whose transcript or minutes were made again, when the user opens the folder, then its readable files are those of the last making, and nothing of the session was lost on the way"
       - "Given Summit removed from the machine, when the user opens a session's folder, then every file is still there and still reads"
+  - id: D7
+    title: "A user reads the minutes of the meeting just finished and sets how Summit chains its steps, in one window that looks at home on their system"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given a session whose minutes were just written, when the user clicks the notification that says so, then one window opens on that session: the minutes — highlights, actions with who and by when, key points — and beside them the transcript with Me, Others and the times; it follows the system's theme and font, every action in it is reached from the keyboard, and no window ever opened without a gesture of the user"
+      - "Given the settings in that window, when the user chooses what follows a recording — nothing, the transcript, or the transcript then the minutes — and whether the reminder to announce the recording is shown, then the next recording behaves so; out of the box the transcript follows alone and the reminder is shown; and the choices are in one configuration file that reads without Summit"
+      - "Given an online provider and no agreement given yet, when minutes are about to be sent for the first time — asked for, or chained — then the user is shown what leaves the machine and to which host, and nothing is sent before they agree; given the agreement, a chained making sends without asking again, and changing the provider's host asks again"
+      - "Given no model on the machine, when a transcript is first needed, then the user is shown the model's size and the host it comes from; nothing is fetched before they agree; the progress is shown; the file is checked whole against its published fingerprint before any use; and a fetch that was cut is taken up or started again, never used as it is"
+      - "Given the window and the tray's menu on the decider's laptop, when the decider goes through one real meeting with them — record, transcript, minutes, read — then the decider writes what stood in the way; the deliverable is accepted when the decider reads nothing blocking in that list"
 ---
 
 # Cycle 01 — A first meeting, on three systems
@@ -697,6 +707,81 @@ than half a span may come out in two pieces: two and a half minutes.
 shown to the user first); a session still recording whose context is edited is refused when
 its transcript is taken up, since the transcript says which context made it.
 
+### The shell, framed (2026-10-13)
+
+The fifth module of ADR-0002, not created yet. It holds no step: it starts the four
+programs, reads what they print and the session's folder, and is everything the user
+touches.
+
+```mermaid
+flowchart TB
+    U(["The user"]):::user
+    U -->|"menu: start · stop ·<br/>make the minutes · open the folder"| T["Tray"]:::s1
+    U -->|"start · stop"| K["Global shortcut"]:::s1
+    N["Notifications:<br/>announce the recording · a source is silent ·<br/>the transcript is there · the minutes are there ·<br/>what failed, in one sentence"]:::s1 --> U
+    U -->|"a click on a notification"| W["One window:<br/>the session just finished ·<br/>the settings · the two agreements"]:::s2
+    T & K --> P["The four programs"]:::old
+    P --> N
+
+    classDef user fill:#92400e,color:#fff
+    classDef s1 fill:#065f46,color:#fff
+    classDef s2 fill:#1e3a8a,color:#fff
+    classDef old fill:#374151,color:#fff
+```
+
+**Legend** — green: what D3 to D6 already ask of the shell · blue: D7, accepted by the decider
+on 2026-10-13 · grey: merged.
+Under GNOME the window comes forward from a notification or the shortcut, never from the
+tray's menu (D1): the menu holds the actions themselves.
+
+**Decided by the decider on 2026-10-13:**
+
+| Subject | Decision | In their words |
+|---|---|---|
+| What follows a recording | A setting. Out of the box the transcript follows alone; the user may have the minutes follow too, or nothing | "tout devrait pouvoir être automatique mais ça doit être un réglage de l'application, par défaut transcript auto seul" |
+| The interface | Modern, high-end, the best the system allows; the framer settles how much of it enters this cycle | "l'ux/ui doit être moderne et highend, optimale, tranche" |
+| The model, 874 MB | Fetched by Summit, after the user agreed to its size and its host | — |
+| The reminder to announce the recording | May be switched off — the idea file's C7, against the framer's reading of the charter | "Désactivable" |
+
+**Settled by the framer, as asked** — one window enters this cycle, as D7, and it is small on
+purpose: the session just finished, four settings, and the two moments where the user must
+agree before something crosses the network. A setting the decider asked for has no home in
+a tray's menu, and an agreement cannot live in a notification that fades. What stays out is
+what makes a window large: the list of sessions, the player, search, costs, the assistant.
+
+**How it is built** — in this order, each slice a pull request with its sheet:
+
+| Slice | The user sees | Closes |
+|---|---|---|
+| 1 | Tray, shortcut, start and stop, the reminder, "a source is silent" | D3 on Fedora |
+| 2 | The transcript follows the recording; the model is fetched once, agreed and checked | D4's first criterion |
+| 3 | The minutes, asked for or chained; what leaves is agreed first; a failure is one sentence | D5 |
+| 4 | The window: the session, the settings | D7 |
+| 5 | "Open the session's folder", with `export` | D6 |
+
+Before slice 4 is coded, the decider sees the window and the menu as a picture and amends
+it: an interface is judged by looking at it.
+
+**Proposed by the framer, confirmed by the decider on 2026-10-13** ("ok") — each with its source:
+
+- **The shortcut is Super+Alt+M** on Fedora, the one D1's fifth run fired; Ctrl+Alt+M and
+  ⌥⌘M elsewhere. Under GNOME the portal lets the user change it.
+- **The provider's key goes to the system's keyring** once the window can take it — the idea
+  file, §9: "stockés dans le coffre sécurisé de l'OS, jamais en clair". Until slice 4 it
+  stays the file it is today.
+- **The model comes from whisper.cpp's own published files**, the host named to the user,
+  its fingerprint written in the shell's code: security rule 1 allows a host only when the
+  user was shown it.
+- **`shell` is `standard`**, as `summary` is, which handles the same key.
+- **A context edited while recording** is no trouble while the transcript starts after the
+  stop — and becomes one the day transcription is live: noted for that day.
+
+**What it costs, said now.** Fourteen days remain, and the cycle already owed the shell's
+first three slices, `export`, and the trials on Windows and macOS on two colleagues' time.
+D7 is added, nothing is removed: the appetite does not stretch. If the end date comes
+first, the circuit breaker decides what ships — and the order above is the order of what
+ships: a recording, a transcript and minutes reached from the tray come before the window.
+
 ## Out of scope
 
 Not done in this cycle, even if time remains:
@@ -705,8 +790,11 @@ Not done in this cycle, even if time remains:
 - The file context menu; a watched folder.
 - Live transcription during the recording.
 - Detecting that the microphone is in use; stopping by itself.
-- The first-launch assistant and the ready-made profiles: one configuration file.
-- Costs, the list of sessions, search, the audio player.
+- The first-launch assistant and the ready-made profiles. The settings D7's window shows are
+  the four the shell needs — what follows a recording, the reminder, the provider, the
+  shortcut — and they stay one configuration file.
+- Costs, the list of sessions, search, the audio player: D7's window shows one session, the
+  one just finished.
 - Custom vocabulary; templates of minutes — beyond the free context a step takes.
 - Import and export between the steps beyond the files themselves.
 - Signing the builds.
