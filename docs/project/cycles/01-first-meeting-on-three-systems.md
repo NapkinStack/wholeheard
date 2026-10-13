@@ -37,7 +37,7 @@ deliverables:
     state: ready
     acceptance:
       - "Given a session's two audio files, in French, when the user asks for its transcript, then the session's folder gains a transcript: segments in the order of the meeting, each with its start and end time and with Me or Others; it was made by an engine on the machine, and no connection was opened to any host"
-      - "Given the public five-minute sample of D2 and its human transcript, when it is transcribed on the decider's laptop, then at most 27 % of the words differ, counted as D2 counted them, and the processing takes at most half the sample's length"
+      - "Given the public five-minute sample of D2 and its human transcript, when it is transcribed on the decider's laptop, then at most 29 % of the words differ, counted as D2 counted them, and the processing takes at most half the sample's length"
       - "Given a me file recorded for the purpose on the decider's laptop — weak, resting a third of full scale away from zero — when it is transcribed, then the decider reads the transcript against what they said and counts the sentences lost; the cycle records the count, and more than one sentence in ten lost sends the criterion back to D3"
       - "Given a context the user attached to the session — a few lines of text, typed or from a file — when the transcript is made, then the engine received it, and the transcript says which context it was made with"
       - "Given a transcript in the making, when the step is killed halfway, then the transcript on disk is valid and true up to its last segment; and when the step is run again, on the whole session or on a span of it already done, then no segment is doubled and none is lost"
@@ -524,6 +524,10 @@ One run per line but the second. **What it answers:**
   as exact as the engine D2 used — it is met. **A threshold with no margin measures the noise
   of a run**: the decider decides whether it is restated.
 
+**Restated by the decider, 2026-10-13**: *at most 29 %* — D2's figure with two points of margin.
+The engine for Fedora is chosen with it: the native one on the graphics card, the model on
+8 bits (ADR-0003).
+
 **What it costs**: the graphics card's path needs Vulkan on the user's machine — present on a
 Fedora desktop, to be read for the two other systems — and a model file of 574 to 874 MB that
 someone must fetch, shown first (security rule 1).
@@ -582,7 +586,7 @@ comes from something the cycle recorded, not from a wish:
 | A silent source is said; the level read around its resting level | D1's third run: a file of zeros with no error, and a silent microphone judged "with sound" |
 | The headset connected during the call | D1's third run: the output in use moves; **not tried yet**, so the criterion allows saying so to the user |
 | 250 MB for an hour | D1's files: as heard, the two take 2.7 GB an hour |
-| 27 % of the words, half the length | D2's first run on this laptop: 27 %, and 36 % of the length |
+| 29 % of the words, half the length | D2's first run on this laptop: 27 %, and 36 % of the length; two points of margin since 2026-10-13, when three ways to store one model gave 27.3 to 28.4 % |
 | A weak microphone, read by the decider | D1's real call: the decider's voice is weak on this laptop, "as usual" |
 | The context, on both steps | The decider, 2026-10-12: "On livre avec" |
 | Killed halfway; run again on a span | The two other constraints that prepare live |
