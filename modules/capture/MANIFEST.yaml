@@ -40,6 +40,10 @@ provides:
     version: v1
     path: contracts/session-audio/v1
     stability: experimental      # experimental | stable | deprecated
+  - contract: session-audio
+    version: v2
+    path: contracts/session-audio/v2
+    stability: experimental
   - contract: recording
     version: v1
     path: contracts/recording/v1

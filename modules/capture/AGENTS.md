@@ -22,7 +22,10 @@ Records the audio sources of a conversation into a session.
   `src/main.rs` holds the devices, the clock and the signals. A promise of the contract is
   tested in `tests/session_audio.rs`, on sound made there.
 - `src/v2.rs` is the same for `session-audio/v2` — tracks as delivered and the clock
-  (ADR-0004) — tested in `tests/session_audio_v2.rs`. The program does not write it yet.
+  (ADR-0004) — tested in `tests/session_audio_v2.rs`. The program writes it on `--as v2`.
+- A point of the clock is the instant the system handed a piece of sound over, not the one
+  it says the sound was captured at: measured on 2026-10-13, that one moved by whole periods
+  of 21 ms from a piece to the next, and was wrong for the first.
 - An output is opened as an input: what it delivers is what it plays.
 - The host is chosen by what the system offers, never by the system's name: no code written
   for one system (ADR-0002's success criterion).
