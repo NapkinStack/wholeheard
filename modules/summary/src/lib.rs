@@ -6,6 +6,8 @@
 
 use std::{fs, io, path::Path};
 
+pub mod provider;
+
 /// The contract this module reads, as the transcript's first line names it.
 pub const TRANSCRIPT: &str = "transcript/v1";
 /// The contract this module provides, as the minutes' front matter names it.
