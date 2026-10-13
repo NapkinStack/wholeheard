@@ -33,25 +33,17 @@ fn refused<T>(why: String) -> io::Result<T> {
 pub fn sound(path: &Path) -> io::Result<Vec<f32>> {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     let bytes = fs::read(path).or_else(|error| refused(format!("{name} cannot be read ({error})")))?;
-    let field = |at: usize, size: usize| {
-        bytes
-            .get(at..at + size)
-            .map(|b| b.iter().rev().fold(0u32, |n, &byte| n << 8 | u32::from(byte)))
-    };
+    let field = |at: usize, size: usize| bytes[at..at + size].iter().rev().fold(0u32, |n, &byte| n << 8 | u32::from(byte));
     let is = |at: usize, text: &[u8]| bytes.get(at..at + text.len()) == Some(text);
     if bytes.len() < 44 || !(is(0, b"RIFF") && is(8, b"WAVEfmt ") && is(36, b"data")) {
         return refused(format!("{name} is not an audio file of a session"));
     }
-    match (field(20, 2), field(22, 2), field(24, 4), field(34, 2)) {
-        (Some(1), Some(1), Some(16_000), Some(16)) => {}
-        (_, channels, rate, bits) => {
-            return refused(format!(
-                "{name} is not what a session holds — one channel, 16000 Hz, 16-bit: it has {} channel(s), {} Hz, {} bits",
-                channels.unwrap_or(0),
-                rate.unwrap_or(0),
-                bits.unwrap_or(0)
-            ));
-        }
+    let (channels, rate, bits) = (field(22, 2), field(24, 4), field(34, 2));
+    if (field(20, 2), channels, rate, bits) != (1, 1, 16_000, 16) {
+        let held = format!("it has {channels} channel(s), {rate} Hz, {bits} bits");
+        return refused(format!(
+            "{name} is not what a session holds — one channel, 16000 Hz, 16-bit: {held}"
+        ));
     }
     Ok(bytes[44..]
         .as_chunks::<2>()
