@@ -42,10 +42,19 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     let segments = read_transcript(&transcript)?;
     // A context that is there and is not text is said: sent without it, the minutes would
     // claim a context they did not have.
-    let context = match fs::read(folder.join("context.txt")) {
-        Ok(bytes) => Some(String::from_utf8(bytes).map_err(|_| Refused("context.txt is not text: it must be UTF-8".into()))?),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => return Err(Refused(format!("context.txt is there and cannot be read ({error})"))),
+    let context = folder.join("context.txt");
+    let context = match (fs::symlink_metadata(&context), fs::metadata(&context)) {
+        (Err(error), _) if error.kind() == std::io::ErrorKind::NotFound => None,
+        (_, Ok(found)) if found.is_file() => match fs::read(&context).map(String::from_utf8) {
+            Ok(Ok(text)) => Some(text),
+            Ok(Err(_)) => return Err(Refused("context.txt is not text: it must be UTF-8".into())),
+            Err(error) => return Err(Refused(format!("context.txt is there and cannot be read ({error})"))),
+        },
+        _ => {
+            return Err(Refused(
+                "context.txt is there and cannot be read: it is not a file, or leads nowhere".into(),
+            ));
+        }
     };
     let asked = request(&segments, context.as_deref());
 

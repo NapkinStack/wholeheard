@@ -160,7 +160,7 @@ fn what_cannot_be_sent_as_it_is_is_refused_before_anything_leaves() {
     for (model, key, expected) in [
         ("a\nb", None, "the model's name"),
         ("", None, "the model's name"),
-        ("m", Some("a key\nwith a line"), "the key is empty or holds"),
+        ("m", Some("a key\nwith a line"), "the key holds a space or a character"),
     ] {
         let mut command = Command::new(env!("CARGO_BIN_EXE_summit-summary"));
         command
@@ -263,5 +263,19 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
         program().arg("a-model").output().unwrap(),
         "context.txt is there and cannot be read",
     );
+    // Nor one that leads nowhere, nor a key with a space a server would drop before sending it back.
+    fs::remove_dir(folder.path().join("context.txt")).unwrap();
+    std::os::unix::fs::symlink("nowhere", folder.path().join("context.txt")).unwrap();
+    refused(
+        program().arg("a-model").output().unwrap(),
+        "context.txt is there and cannot be read",
+    );
+    fs::remove_file(folder.path().join("context.txt")).unwrap();
+    for key in ["a-key-for-the-test ", " a-key-for-the-test", "a key"] {
+        refused(
+            program().arg("a-model").env("SUMMIT_PROVIDER_KEY", key).output().unwrap(),
+            "the key holds a space",
+        );
+    }
     assert!(received.try_recv().is_err(), "a request left the machine");
 }
