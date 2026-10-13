@@ -12,7 +12,10 @@
 use std::{io::Write, path::Path, process::ExitCode};
 
 use serde_json::json;
-use summit_transcription::{step::transcribe, whisper::Whisper};
+use summit_transcription::{
+    step::{session, transcribe},
+    whisper::{Whisper, knows},
+};
 
 /// Seconds of sound an engine hears at a time. Long, on purpose: on the sample the engine was
 /// chosen on, 34.5 % of the words differed when it heard thirty seconds at a time, 28 % at one
@@ -44,9 +47,13 @@ fn run(folder: &Path, model: &Path, language: Option<&str>) -> Result<(), String
     if !folder.join("session.json").is_file() {
         return Err("this folder is not a session: it holds no session.json".into());
     }
-    if language.is_some_and(|code| code.is_empty() || !code.chars().all(|c| c.is_ascii_lowercase())) {
-        return Err("the language is a code in lower-case letters, as in fr or en".into());
+    if language.is_some_and(|code| !knows(code)) {
+        return Err(
+            "the language is a code the engine knows, in lower-case letters, as in fr or en; leave it out to have it detected".into(),
+        );
     }
+    // The session is judged before the model is loaded: nothing is said to be heard that is refused.
+    session(folder).map_err(|error| error.to_string())?;
     let mut engine = Whisper::load(model).map_err(|error| error.to_string())?;
     let (name, model) = summit_transcription::step::Engine::name(&engine);
     let _ = writeln!(

@@ -31,8 +31,8 @@ summit-transcription <session-folder> --model ggml-large-v3-turbo-q8_0.bin --lan
 
 | Tried on a public meeting of five minutes, four speakers, in French | Words that differ from a person's transcript | Time |
 |---|---|---|
-| Built with `--features vulkan`, on a laptop's graphics card | 26.8 % | 38 s |
-| Built without, on its processor | 27 to 28 % | about four minutes |
+| Built with `--features vulkan`, on a laptop's graphics card | 26.8 % | 34 to 38 s |
+| Built without, on its processor | 26.0 % | 230 s |
 
 **Stopped at any moment, it is run again** and goes on from where it was: what the transcript
 covers is not heard twice. A recording still going on is heard up to here; its transcript
@@ -42,8 +42,10 @@ gets its last line once the session's record says `stopped`.
 the engine would otherwise write as it hears them.
 
 Whatever is wrong — a folder that is not a session, an audio file that is not what
-`session-audio/v1` describes, a model that cannot be loaded — is one sentence on the error
-stream, and no transcript is created or changed.
+`session-audio/v1` describes, a language the engine does not know, a model that cannot be
+loaded — is one sentence on the error stream, before anything is said to be heard, and no
+transcript is created or changed. What only shows once the model is there — a transcript
+another language or model made, a folder that cannot be written to — is said after `hearing`. Leave `--language` out to have the language detected.
 
 ## Getting started
 

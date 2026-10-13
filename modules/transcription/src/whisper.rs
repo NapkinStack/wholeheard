@@ -17,10 +17,19 @@ fn failed<T>(what: &str, error: impl std::fmt::Display) -> io::Result<T> {
     Err(io::Error::other(format!("{what} ({error})")))
 }
 
+/// Whether Whisper knows a language by this code — `fr`, `en`. Its word for "detect it" is not
+/// one: leaving the language out says that.
+pub fn knows(language: &str) -> bool {
+    // whisper.cpp says what it does not know on the error stream: kept quiet, as in `load`.
+    whisper_rs::install_logging_hooks();
+    // A code, not a language's English name, which whisper.cpp takes too: one language, one word in a header.
+    whisper_rs::get_lang_id(language).and_then(whisper_rs::get_lang_str) == Some(language)
+}
+
 impl Whisper {
     /// Loads a model in whisper.cpp's format. It is named in the transcript by its file's name.
     pub fn load(model: &Path) -> io::Result<Self> {
-        if !model.is_file() {
+        if !model.is_file() || std::fs::File::open(model).is_err() {
             return failed("the model is not a file that can be read", model.display());
         }
         // whisper.cpp writes its own account of the model on the error stream: kept quiet,
