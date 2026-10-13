@@ -10,15 +10,15 @@ use summit_transcription::{
 
 /// Hears one segment, from the first sample that moves as a note does to the last.
 #[derive(Default)]
-struct Played(usize);
+struct Played(usize, Option<String>);
 
 impl Engine for Played {
     fn name(&self) -> (String, String) {
         ("played".into(), "a-model".into())
     }
 
-    fn hear(&mut self, sound: &[f32], _: Option<&str>, _: Option<&str>) -> io::Result<Vec<Segment>> {
-        self.0 += 1;
+    fn hear(&mut self, sound: &[f32], _: Option<&str>, context: Option<&str>) -> io::Result<Vec<Segment>> {
+        (self.0, self.1) = (self.0 + 1, context.map(Into::into));
         let moves: Vec<bool> = sound.windows(2).map(|pair| (pair[1] - pair[0]).abs() > 0.01).collect();
         let edges = moves.iter().position(|moves| *moves).zip(moves.iter().rposition(|moves| *moves));
         let segment = |(start, end): (usize, usize)| Segment {
@@ -31,8 +31,8 @@ impl Engine for Played {
 }
 
 /// A track as the capture writes one — 24 bits, the extensible header, lengths "unknown" —
-/// resting at `rest`, with a note in the given seconds and the capture's zeros in others.
-fn track(path: &Path, rate: u32, channels: u16, seconds: u32, rest: f32, note: (f64, f64), zeros: &[(u32, u32)]) {
+/// with the sound given for each frame and its second, the same on every channel.
+fn written(path: &Path, rate: u32, channels: u16, seconds: u32, sound: impl Fn(u32, f64) -> f32) {
     let mut bytes = Vec::from(*b"RIFF\xff\xff\xff\xffWAVEfmt ");
     bytes.extend_from_slice(&40u32.to_le_bytes());
     bytes.extend_from_slice(&0xFFFEu16.to_le_bytes());
@@ -44,19 +44,24 @@ fn track(path: &Path, rate: u32, channels: u16, seconds: u32, rest: f32, note: (
     bytes.extend_from_slice(&[1, 0, 0, 0, 0, 0, 0x10, 0, 0x80, 0, 0, 0xAA, 0, 0x38, 0x9B, 0x71]);
     bytes.extend_from_slice(b"data\xff\xff\xff\xff");
     for frame in 0..rate * seconds {
-        let at = f64::from(frame) / f64::from(rate);
-        let sound = match (
+        let value = (sound(frame, f64::from(frame) / f64::from(rate)) * 8_388_608.0).round() as i32;
+        (0..channels).for_each(|_| bytes.extend_from_slice(&value.to_le_bytes()[..3]));
+    }
+    fs::write(path, bytes).unwrap();
+}
+
+/// A track resting at `rest`, with a note in the given seconds and the capture's zeros in others.
+fn track(path: &Path, rate: u32, channels: u16, seconds: u32, rest: f32, note: (f64, f64), zeros: &[(u32, u32)]) {
+    written(path, rate, channels, seconds, |frame, at| {
+        match (
             zeros.iter().any(|(from, to)| (*from..*to).contains(&frame)),
             (note.0..note.1).contains(&at),
         ) {
             (true, _) => 0.0,
             (_, true) => rest + 0.3 * (std::f64::consts::TAU * 1_000.0 * at).sin() as f32,
             _ => rest,
-        };
-        let value = (sound * 8_388_608.0).round() as i32;
-        (0..channels).for_each(|_| bytes.extend_from_slice(&value.to_le_bytes()[..3]));
-    }
-    fs::write(path, bytes).unwrap();
+        }
+    });
 }
 
 fn record(folder: &Path, tracks: &str, clock: &str) {
@@ -95,6 +100,7 @@ fn a_session_as_delivered_is_heard_on_its_clock_and_its_silences_are_not_handed_
     let clock = "{\"track\":\"local\",\"sample\":0,\"at\":0.0}\n{\"track\":\"remote\",\"silence\":[0,22050]}\n\
                  {\"track\":\"remote\",\"sample\":22050,\"at\":1.0}\n{\"track\":\"remote\",\"silence\":[264600,352800]}\n";
     record(folder, BOTH, clock);
+    fs::write(folder.join("context.txt"), "Quatre personnes.\n").unwrap();
     assert_eq!(read(folder).unwrap().0, "session-audio/v2");
 
     let mut engine = Played::default();
@@ -122,35 +128,33 @@ fn a_session_as_delivered_is_heard_on_its_clock_and_its_silences_are_not_handed_
     assert_eq!(lines.last().unwrap(), &serde_json::json!({ "type": "complete", "duration": 20.0 }));
     // A span where a source only rests, away from zero, is silence — and so is one of the
     // capture's zeros: the engine heard the two spans that hold a note, and no other.
-    assert_eq!(engine.0, 2);
+    assert_eq!((engine.0, engine.1.as_deref()), (2, Some("Quatre personnes.")));
 }
 
 #[test]
-fn a_span_that_only_goes_from_where_a_source_left_to_where_it_came_back_is_silence() {
-    let session = tempfile::tempdir().unwrap();
-    let folder = session.path();
-    // Left at 0.2 after five seconds, delivered nothing for thirty, came back at -0.1 — which
-    // the track tells by where it rests: the note is outside it.
-    track(&folder.join("remote.wav"), 48_000, 1, 5, 0.2, (9.0, 9.0), &[]);
-    let mut bytes = fs::read(folder.join("remote.wav")).unwrap();
-    bytes.extend(vec![0u8; 30 * 48_000 * 3]);
-    track(&folder.join("local.wav"), 48_000, 1, 5, -0.1, (9.0, 9.0), &[]);
-    bytes.extend_from_slice(&fs::read(folder.join("local.wav")).unwrap()[68..]);
-    fs::write(folder.join("remote.wav"), bytes).unwrap();
-    fs::remove_file(folder.join("local.wav")).unwrap();
-    record(
-        folder,
-        r#"{"remote":{"device":"a loudspeaker"}}"#,
-        "{\"track\":\"remote\",\"silence\":[240000,1680000]}\n",
-    );
-
-    let mut engine = Played::default();
-    transcribe(folder, &mut engine, None, 10).unwrap();
-    // Of four spans, the two in the middle of the line are silence; the two that hold where
-    // the source left and came back are heard, and no word is found there. A side with no
-    // track said nothing.
-    assert_eq!(engine.0, 2);
-    assert!(lines(folder).iter().all(|line| line["type"] != "segment"));
+fn silence_is_measured_from_where_a_source_rests_and_a_track_the_record_does_not_name_is_not_read() {
+    const REMOTE: &str = r#"{"remote":{"device":"a loudspeaker"}}"#;
+    let calls = |clock: &str, sound: &dyn Fn(u32, f64) -> f32| {
+        let session = tempfile::tempdir().unwrap();
+        written(&session.path().join("remote.wav"), 48_000, 1, 40, sound);
+        // A file that is there and that the record does not name: a note nobody is to hear.
+        track(&session.path().join("local.wav"), 48_000, 1, 40, 0.0, (1.0, 2.0), &[]);
+        record(session.path(), REMOTE, clock);
+        let mut engine = Played::default();
+        transcribe(session.path(), &mut engine, None, 10).unwrap();
+        assert!(lines(session.path()).iter().all(|line| line["type"] != "segment"));
+        engine.0
+    };
+    let hum = |level: f32, hertz: f64| move |_, at: f64| 0.3 + level * (std::f64::consts::TAU * hertz * at).sin() as f32;
+    // Left at 0.9 after five seconds, delivered nothing for thirty, came back at -0.9: the
+    // line between the two is silence, where it starts and where it ends included.
+    let left = |frame: u32, _| [0.9, 0.0, -0.9][usize::from(frame >= 240_000) + usize::from(frame >= 1_680_000)];
+    assert_eq!(calls("{\"track\":\"remote\",\"silence\":[240000,1680000]}\n", &left), 0);
+    // A rest that settles, from 0.3 to 0.29 over the session, is silence.
+    assert_eq!(calls("", &|_, at| 0.3 - 0.01 * (at / 40.0) as f32), 0);
+    // Around a rest of 0.3 as around zero: under a thousandth of full scale is silence, and a
+    // low note over it is sound.
+    assert_eq!((calls("", &hum(0.0006, 200.0)), calls("", &hum(0.0015, 100.0))), (0, 4));
 }
 
 #[test]

@@ -9,9 +9,8 @@ use crate::{Making, Segment, Speaker, Transcript, tracks};
 /// Samples per second an engine hears: the first form's own rate, and what a track of the
 /// second is brought to.
 pub const RATE: usize = 16_000;
-/// A span that stays within this share of full scale of zero, or of the line from its first
-/// sample to its last, is silence — wherever its source rests, and across what a source did
-/// not deliver: an engine asked to hear silence finds words in it.
+/// Below this share of full scale a span is silence: an engine asked to hear silence finds
+/// words in it.
 const SILENCE: f32 = 0.001;
 /// A segment that ends this close to the end of a span — in hundredths of a second — may be
 /// a sentence cut in two.
@@ -57,7 +56,27 @@ pub fn sound(path: &Path) -> io::Result<Vec<f32>> {
 }
 
 /// What a session's folder holds: whether it was stopped, its context, its two sounds.
-pub type Session = (bool, Option<String>, [(Speaker, Vec<f32>); 2]);
+/// The last says whether its sound is as its sources delivered it — the second form — or
+/// centred, as the first form writes it.
+pub type Session = (bool, Option<String>, [(Speaker, Vec<f32>); 2], bool);
+
+/// Whether a span is silence. The first form is centred: silence is within [`SILENCE`] of
+/// zero, as it always was. A source as delivered rests where it rests, and what it did not
+/// deliver is heard as a line: where the span rests is taken out of the measure — never out
+/// of the sound — as the capture does for its own watch, by one pole at 20 Hz.
+fn silent(sound: &[f32], as_delivered: bool) -> bool {
+    let keep = if as_delivered {
+        1.0 - std::f32::consts::TAU * 20.0 / RATE as f32
+    } else {
+        0.0
+    };
+    let (mut last_in, mut last_out) = (sound.first().copied().unwrap_or(0.0), 0.0f32);
+    sound.iter().all(|&sample| {
+        let moved = if as_delivered { sample - last_in + keep * last_out } else { sample };
+        (last_in, last_out) = (sample, moved);
+        moved.abs() < SILENCE
+    })
+}
 
 /// Reads a session's folder and judges it — or says which file is wrong, and what: a caller
 /// asks this before it loads an engine.
@@ -103,7 +122,7 @@ pub fn read(folder: &Path) -> io::Result<(&'static str, Session)> {
             (Speaker::Others, sound(&folder.join("others.wav"))?),
         ]
     };
-    Ok((form, (session["stopped"].is_string(), context, sounds)))
+    Ok((form, (session["stopped"].is_string(), context, sounds, form == "session-audio/v2")))
 }
 
 /// Hears a session — its two files, `me` then `others` — span by span, and writes its
@@ -116,7 +135,7 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
 /// The same, of a session already read: a caller that judged the session before loading its
 /// engine does not read an hour of sound twice.
 pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: Option<&str>, seconds: usize) -> io::Result<()> {
-    let (stopped, context, sounds) = session;
+    let (stopped, context, sounds, as_delivered) = session;
     let (name, model) = engine.name();
     let making = Making {
         engine: name,
@@ -140,13 +159,7 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
             let until = (from + span).min(end);
             let last = until == end;
             let sound = &heard[from * HUNDREDTH..(until * HUNDREDTH).min(heard.len())];
-            let (first, slope) = match (sound.first(), sound.last()) {
-                (Some(first), Some(last)) => (*first, (last - first) / sound.len() as f32),
-                _ => (0.0, 0.0),
-            };
-            let silent = sound.iter().all(|sample| sample.abs() < SILENCE)
-                || (sound.iter().enumerate()).all(|(at, sample)| (sample - first - slope * at as f32).abs() < SILENCE);
-            let answer = if silent {
+            let answer = if silent(sound, as_delivered) {
                 None
             } else {
                 Some(engine.hear(sound, language, making.context.as_deref())?)

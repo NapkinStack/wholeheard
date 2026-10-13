@@ -23,9 +23,12 @@ Turns the audio of a session into a timestamped transcript.
   nothing — zeros the clock names, an instant it leaves empty — what is heard goes in a line
   from where the source left to where it came back, never down to zero and up again: a step
   the source did not make rings in what the engine hears. The step reads both
-  forms, and measures silence the same way in both: a span within a thousandth of zero, or of
-  the line from its first sample to its last. A span that holds the corner of such a line —
-  where a source left, or came back — is handed to the engine.
+  forms and measures silence by the form: the first is centred, and silence is within a
+  thousandth of zero, as it always was; in the second, where a span rests is taken out of the
+  measure — never of the sound — by one pole at 20 Hz, as the capture does for its own watch.
+  One measure for both, a line from a span's first sample to its last, failed its
+  verification: it changed what a first-form session gives, and was twice as strict away
+  from zero.
 - It says who spoke only as the two files do — `me`, `others`. Telling several voices of one file apart is not done here.
 - It fetches no model and contacts no host: the model file is the caller's to give.
 
