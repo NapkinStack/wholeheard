@@ -91,6 +91,34 @@ fn a_track_at_any_rate_with_any_channels_is_heard_as_one_channel_at_the_engines_
 }
 
 #[test]
+fn a_sound_is_where_it_was_in_time_and_channels_are_heard_together() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("local.wav");
+    for rate in [8_000u32, 44_100, 48_000, 96_000] {
+        // A note that starts a second and a quarter in, at a crest.
+        let from = rate as usize * 5 / 4;
+        track(&path, rate, 1, rate as usize * 3, |frame, _| {
+            if frame >= from {
+                note(rate, 1_000.0, 0.5)(frame - from + rate as usize / 4000, 0)
+            } else {
+                0.0
+            }
+        });
+        let sound = heard(&path).unwrap();
+        let starts = sound.iter().position(|sample| sample.abs() > 0.25).unwrap() as f64 / RATE as f64;
+        assert!(
+            (starts - 1.25).abs() < 0.0005,
+            "{rate} Hz: a sound at 1.25 s is heard at {starts} s"
+        );
+    }
+    // A voice on one channel of two is heard at half its level: channels are averaged, none is dropped.
+    track(&path, 48_000, 2, 144_000, |frame, channel| {
+        if channel == 1 { note(48_000, 440.0, 0.4)(frame, 0) } else { 0.0 }
+    });
+    assert!((level(steady(&heard(&path).unwrap())) - 0.2 / 2f32.sqrt()).abs() < 0.003);
+}
+
+#[test]
 fn a_note_keeps_its_level_and_nothing_is_heard_that_was_not_played() {
     let folder = tempfile::tempdir().unwrap();
     let path = folder.path().join("local.wav");
@@ -138,7 +166,23 @@ fn a_source_that_rests_away_from_zero_is_silent_when_it_is_and_the_track_is_not_
     track(&path, 48_000, 1, 96_000, |frame, _| 0.05 + note(48_000, 440.0, 0.2)(frame, 0));
     let voice = heard(&path).unwrap();
     assert!((level(steady(&voice)) - 0.2 / 2f32.sqrt()).abs() < 0.003);
+    // A rest that moves slowly — two beats a second, a tenth of full scale — is not heard either.
+    let moving = |frame: usize, _| 0.3 + 0.1 * (std::f64::consts::TAU * 2.0 * frame as f64 / 48_000.0).sin() as f32;
+    track(&path, 48_000, 1, 144_000, moving);
+    assert!(level(steady(&heard(&path).unwrap())) < 0.02, "a rest that moves was heard as it is");
+    // A voice already speaking when the track opens is not taken for the rest.
+    track(&path, 48_000, 1, 96_000, |frame, _| 0.05 + note(48_000, 440.0, 0.3)(frame + 27, 0));
+    let speaking = heard(&path).unwrap();
+    assert!(
+        (level(&speaking[..RATE / 50]) - 0.3 / 2f32.sqrt()).abs() < 0.05,
+        "the track opens on {}",
+        level(&speaking[..RATE / 50])
+    );
+
+    // And reading a track leaves every byte of it as it was.
     track(&path, 48_000, 2, 96_000, |_, _| 0.01);
+    assert_eq!(fs::read(&path).unwrap(), before);
+    heard(&path).unwrap();
     assert_eq!(fs::read(&path).unwrap(), before);
 }
 
@@ -189,6 +233,14 @@ fn a_file_that_is_not_a_track_is_said_with_its_name_and_not_converted() {
     )
     .unwrap();
     says("24 bits, and is not PCM");
+    // A rate no source of a meeting delivers is not given the memory it would take.
+    for rate in [1u32, 999, 1_000_001, u32::MAX] {
+        let mut bytes = b"RIFF\xff\xff\xff\xffWAVEfmt \x10\0\0\0\x01\0\x01\0".to_vec();
+        bytes.extend_from_slice(&rate.to_le_bytes());
+        bytes.extend_from_slice(b"\0\0\0\0\x03\0\x18\0data\xff\xff\xff\xff\0\0\0");
+        fs::write(&path, bytes).unwrap();
+        says(&format!("it has 1 channel(s), {rate} Hz, 24 bits"));
+    }
     // A long chunk before the audio is passed over: the track is one.
     track(&path, 48_000, 1, 4_800, note(48_000, 440.0, 0.2));
     let mut bytes = fs::read(&path).unwrap();

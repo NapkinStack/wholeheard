@@ -14,6 +14,9 @@ use rubato::{Fft, FixedSync, Indexing, Resampler, WindowFunction, audioadapter_b
 
 use crate::step::RATE;
 
+/// Frames a second no source of a meeting delivers fewer or more of: a header that says
+/// otherwise is not believed, and not given the memory it would take.
+const RATES: std::ops::RangeInclusive<u32> = 1_000..=1_000_000;
 /// Frames the resampler is given at a time.
 const BLOCK: usize = 4096;
 fn refused<T>(why: String) -> io::Result<T> {
@@ -48,8 +51,9 @@ fn resampled(file: &mut impl Read, rate: u32, channels: usize) -> io::Result<(Ve
     let mut piece = vec![0.0f32; resampler.input_frames_max()];
     let mut made = vec![0.0f32; resampler.output_frames_max()];
     let (mut flat, mut frames, mut ended) = (Vec::new(), 0u64, false);
-    // Where the source rests when the track opens: taken out before anything else, so that
-    // a track does not open on a step as loud as its rest.
+    // Where the source rests when the track opens — the middle value of its first block, so
+    // that a voice already speaking is not taken for the rest: taken out before anything
+    // else, and a track does not open on a step as loud as its rest.
     let mut rest = None;
     let mut frame = vec![0u8; 3 * channels];
     // The track, then silence until what the resampler still holds of it has come out.
@@ -67,10 +71,15 @@ fn resampled(file: &mut impl Read, rate: u32, channels: usize) -> io::Result<(Ve
                 .iter()
                 .map(|b| (i32::from_le_bytes([0, b[0], b[1], b[2]]) >> 8) as f32 / 8_388_608.0)
                 .sum();
-            let mixed = mixed / channels as f32;
-            piece[held] = mixed - *rest.get_or_insert(mixed);
+            piece[held] = mixed / channels as f32;
             held += 1;
         }
+        let rest = *rest.get_or_insert_with(|| {
+            let mut first = piece[..held].to_vec();
+            first.sort_by(f32::total_cmp);
+            first.get(held / 2).copied().unwrap_or(0.0)
+        });
+        piece[..held].iter_mut().for_each(|sample| *sample -= rest);
         frames += held as u64;
         let (given, taken) = (piece.len(), made.len());
         let from = InterleavedSlice::new(&piece, 1, given).map_err(|e| failed(&e))?;
@@ -83,7 +92,8 @@ fn resampled(file: &mut impl Read, rate: u32, channels: usize) -> io::Result<(Ve
     let length = (frames as f64 * RATE as f64 / f64::from(rate)).round() as usize;
     let mut flat: Vec<f32> = flat.into_iter().skip(delay).take(length).collect();
     // Around its rest: a source may rest away from zero, and silence there is silence — and
-    // a rest moves. One pole at 20 Hz, starting from the first sample itself.
+    // a rest moves, slowly. One pole at 20 Hz, starting from the first sample itself. A rest
+    // that steps — a device that wakes — is heard as the click it is.
     let keep = 1.0 - std::f32::consts::TAU * 20.0 / RATE as f32;
     let (mut last_in, mut last_out) = (flat.first().copied().unwrap_or(0.0), 0.0f32);
     for sample in &mut flat {
@@ -113,7 +123,9 @@ fn format(file: &mut impl Read, name: &str) -> io::Result<(u32, usize)> {
         }
         // A chunk is padded to an even length. Only the format's is kept; any other is passed over.
         let mut chunk = Vec::new();
-        let read = file.by_ref().take(size + size % 2).read_to_end(&mut chunk)? as u64;
+        let kept = if &head[0..4] == b"fmt " { size.min(64) } else { 0 };
+        let read = file.by_ref().take(kept).read_to_end(&mut chunk)? as u64
+            + io::copy(&mut file.by_ref().take(size + size % 2 - kept), &mut io::sink())?;
         if read < size {
             return not_a_track();
         }
@@ -125,7 +137,7 @@ fn format(file: &mut impl Read, name: &str) -> io::Result<(u32, usize)> {
         }
     }
     match said {
-        Some((true, channels, rate, 24)) if channels > 0 && rate > 0 => Ok((rate, channels)),
+        Some((true, channels, rate, 24)) if channels > 0 && RATES.contains(&rate) => Ok((rate, channels)),
         Some((pcm, channels, rate, bits)) => refused(format!(
             "{name} is not what a session holds — PCM in 24 bits: it has {channels} channel(s), {rate} Hz, {bits} bits{}",
             if pcm { "" } else { ", and is not PCM" }
