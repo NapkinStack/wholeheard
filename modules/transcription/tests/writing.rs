@@ -77,12 +77,12 @@ fn a_transcript_opens_on_what_made_it_and_holds_what_was_heard_with_its_times_an
 fn what_an_engine_gives_that_is_no_segment_or_no_time_is_not_written() {
     let folder = tempfile::tempdir().unwrap();
     let mut transcript = Transcript::start(folder.path(), &making()).unwrap();
-    // No text; a start just before the session; an end before its start; the same start again.
+    // No text; an end before its start; the same start again.
     transcript
         .heard(
             Speaker::Me,
             &[
-                said(-0.4, 1.0, "Avant."),
+                said(0.0, 1.0, "Au début."),
                 said(2.0, 3.0, "  \n "),
                 said(5.0, 4.0, "À l'envers."),
                 said(5.004, 6.0, "Deux fois."),
@@ -94,15 +94,11 @@ fn what_an_engine_gives_that_is_no_segment_or_no_time_is_not_written() {
     assert_eq!(segments.len(), 2);
     assert_eq!(
         (segments[0]["start"].as_f64(), segments[0]["text"].as_str()),
-        (Some(0.0), Some("Avant."))
+        (Some(0.0), Some("Au début."))
     );
     assert_eq!((segments[1]["start"].as_f64(), segments[1]["end"].as_f64()), (Some(5.0), Some(5.0)));
-    // Given out of order, they are written in the order they were said; a text nobody sees is no text.
-    let call = [
-        said(50.0, 51.0, "Après."),
-        said(40.0, 41.0, "D'abord."),
-        said(45.0, 46.0, "\u{200b}\u{feff}"),
-    ];
+    // Given out of order, they are written in the order they were said.
+    let call = [said(50.0, 51.0, "Après."), said(40.0, 41.0, "D'abord.")];
     transcript.heard(Speaker::Me, &call, 60.0).unwrap();
     let starts = |folder: &Path| -> Vec<f64> {
         lines(folder)
@@ -120,7 +116,7 @@ fn what_an_engine_gives_that_is_no_segment_or_no_time_is_not_written() {
 
     // A time that is no number of seconds is refused, and nothing of the call is written.
     let before = fs::read(folder.path().join("transcript.jsonl")).unwrap();
-    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -100.0, 1e300] {
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -100.0, -0.4, 1e300] {
         for (start, end, until) in [(bad, 71.0, 90.0), (70.0, bad, 90.0), (70.0, 71.0, bad)] {
             let call = [said(65.0, 66.0, "Bon."), said(start, end, "Non.")];
             assert!(transcript.heard(Speaker::Me, &call, until).is_err(), "{start} {end} {until}");

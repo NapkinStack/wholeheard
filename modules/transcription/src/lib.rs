@@ -74,18 +74,6 @@ fn hundredths(seconds: f64) -> io::Result<i64> {
     )
 }
 
-/// A time an engine gave within a second before the session's start is its start; any other
-/// is left as it is, to be refused if it is no time.
-fn not_before(seconds: f64) -> f64 {
-    if (-1.0..0.0).contains(&seconds) { 0.0 } else { seconds }
-}
-
-/// Whether a text says something: letters, digits, signs — not only what nobody sees.
-fn says(text: &str) -> bool {
-    text.chars()
-        .any(|c| !c.is_whitespace() && !c.is_control() && !matches!(c, '\u{200b}'..='\u{200d}' | '\u{2060}' | '\u{feff}'))
-}
-
 /// A session's transcript, open for adding. A speaker is heard forward: what is added
 /// starts after what is there.
 pub struct Transcript {
@@ -137,7 +125,7 @@ impl Transcript {
         // In the order they were said, whatever order they came in; and all of them within the span.
         let mut heard = Vec::new();
         for segment in segments {
-            let (start, end) = (hundredths(not_before(segment.start))?, hundredths(not_before(segment.end))?);
+            let (start, end) = (hundredths(segment.start)?, hundredths(segment.end)?);
             if start > until {
                 return refused(
                     io::ErrorKind::InvalidInput,
@@ -148,7 +136,7 @@ impl Transcript {
         }
         heard.sort_by_key(|(start, ..)| *start);
         for (start, end, text) in heard {
-            if !says(&text) || start < self.covered[who] || last.is_some_and(|last| start < last + SAME) {
+            if text.is_empty() || start < self.covered[who] || last.is_some_and(|last| start < last + SAME) {
                 continue;
             }
             last = Some(start);
