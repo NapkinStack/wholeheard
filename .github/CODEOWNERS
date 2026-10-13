@@ -19,3 +19,4 @@
 
 # Contracts: the most critical boundary in the system, never orphaned.
 /contracts/                    @NapkinStack/maintainers
+/modules/shell/                @NapkinStack/maintainers
