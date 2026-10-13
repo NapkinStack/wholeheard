@@ -655,6 +655,49 @@ with its prior art: an ADR, not a line of this cycle.
 **Who verifies.** The four modules are user-facing: each change carries a test sheet run by
 someone who is not its author. On Windows and macOS only the two colleagues can run it.
 
+### D4 — the program, tried on Fedora (2026-10-13)
+
+`summit-transcription` is merged (#41, #44, #49, #50): the step every engine shares, Whisper
+behind its interface, a program with no window. Where each criterion stands on the decider's
+laptop:
+
+```mermaid
+flowchart LR
+    C1["1 · a transcript,<br/>Me and Others,<br/>nothing leaves the machine"]:::part
+    C2["2 · 29 % of the words,<br/>half the length"]:::met
+    C3["3 · a weak microphone,<br/>read by the decider"]:::open
+    C4["4 · the context<br/>received and named"]:::met
+    C5["5 · killed halfway,<br/>run again"]:::met
+
+    classDef met fill:#065f46,color:#fff
+    classDef part fill:#92400e,color:#fff
+    classDef open fill:#7f1d1d,color:#fff
+```
+
+**Legend** — green: met, read by a verifier who is not the author · orange: met as a program;
+"when the user asks" waits for the shell · red: not tried — a recording by the decider.
+
+| Criterion | Measured | Stands |
+|---|---|---|
+| 2 · words that differ, time | On the public five-minute sample: **26.8 %** and **34 to 38 s for 302 s** on the graphics card (11 to 13 % of the length); 26.0 % and 230 s on the processor alone — 76 % of the length | Met on the graphics card. **On the processor the words are met and the time is not**: a machine with no graphics card Whisper can use does not meet "half the length" with this model |
+| 4 · the context | The engine receives `context.txt` with each span; the transcript's header holds it | Met |
+| 5 · killed, run again | Killed at three moments with the real model, run again: the same bytes as a run never stopped. With played engines: a stop at every call, a kill at every byte | Met — and narrower than written: a session is taken up, a span of one is not asked for by itself |
+| 1 · Me and Others, on the machine | The sample has one file of voices: every segment is `others`, none on the silent `me`. The program opens no connection | Met as a program; both voices of a real call come with criterion 3 |
+| 3 · a weak microphone | — | Open: a recording made for the purpose by the decider, an acceptance issue |
+
+**What the step cost, and why it is recorded.** The step was verified seven times before it
+passed. Every failure but the first had one cause: it decided on fractions of a second what
+the transcript writes in hundredths. Counted in whole hundredths from end to end, it passed.
+The lesson is the module's (`modules/transcription/AGENTS.md`); the cost is the cycle's.
+
+**The span is five minutes, on a measure**: heard thirty seconds at a time, 34.5 % of the
+words differed on the same sample; one or two minutes, 28 %; whole, 26.7 %. A sentence longer
+than half a span may come out in two pieces: two and a half minutes.
+
+**Left open by the trial**, for the shell: where the model comes from and is kept (874 MB,
+shown to the user first); a session still recording whose context is edited is refused when
+its transcript is taken up, since the transcript says which context made it.
+
 ## Out of scope
 
 Not done in this cycle, even if time remains:
