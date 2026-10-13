@@ -65,6 +65,10 @@ dependencies:
     purpose: Says the bench's script with public synthetic voices, so that nobody is recorded
     adr: docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md
     exit_strategy: One function, piper, in bench/render.py; any synthesiser that returns samples replaces it.
+  - name: jiwer
+    purpose: Lines up what a transcript says with what was said, word by word
+    adr: docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md
+    exit_strategy: One call, process_words, in bench/counts.py; any word alignment replaces it.
   - name: numpy
     purpose: Holds and mixes the sound of the meeting
     adr: docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md

@@ -28,14 +28,35 @@ is captured or derived. Its meeting is a script written for the purpose, in Fren
 that is what the product hears, said by four public synthetic voices: **nobody is recorded**.
 Two sides, as a session has two tracks; two people on the local side, behind one microphone.
 
-**Today** it renders one listening condition — a headset: each side's track holds its own
-voices and nothing of the other's. A room where the microphone hears the loudspeakers, and
-the counts, come next.
+**Three listening conditions**, the same meeting each time:
+
+| Condition | The microphone holds | Measured on |
+|---|---|---|
+| `headset` | The local voices, and nothing of the remote ones | — |
+| `low` | The same, plus the remote side 46 ms late and 10 dB under what was played, ringing as a room does | The decider's laptop at a usual meeting's volume, 2026-10-13 |
+| `loud` | The same, 5 dB under | The same laptop, near its maximum |
+
+The room is a model set on that one measure, and linear, which a real loudspeaker is not
+quite: a canceller will find it easier than the room it was measured in.
+
+**Four counts** read a transcript against the truth, each with what it is counted out of:
+
+| Count | Says |
+|---|---|
+| Words wrong, on each side | What the transcript gives a side against what that side said |
+| Words said twice | What the local side is given that the remote side was saying just then: the echo |
+| Exchanges out of order | Where the meeting passes from one side to the other and the transcript puts the second turn first |
+| Words on the wrong side | What a side said that the transcript gives only to the other |
+
+```bash
+summit-transcription <out-folder>/low --model <model-file> --language fr
+nstack run platform  # see the manifest: bench.render; the counts are: uv run python -m bench.counts <out-folder>/low
+```
 
 ```bash
 # Once: the four voices, about 270 MB, from the synthesiser's public models.
 uv run python -m piper.download_voices fr_FR-siwis-medium fr_FR-tom-medium fr_FR-upmc-medium --download-dir <voices-folder>
-# The meeting, as a session and its truth, in <out-folder>/headset.
+# The meeting, as three sessions and their truth: <out-folder>/headset, /low, /loud.
 nstack run platform <voices-folder> <out-folder>
 ```
 

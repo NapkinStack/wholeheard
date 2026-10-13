@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from bench.render import RATE, VOICES, lay_out, script, write_session
+from bench.render import CONDITIONS, ECHO_DELAY, RATE, VOICES, condition, lay_out, script, write_session
 
 MEETING = Path(__file__).parent.parent / "bench" / "meeting.txt"
 
@@ -80,3 +80,31 @@ def test_a_rendered_meeting_is_a_session_the_programs_read_with_its_truth_beside
     assert record["contract"] == "session-audio/v1" and isinstance(record["stopped"], str)
     kept = json.loads((tmp_path / "headset" / "truth.json").read_text(encoding="utf-8"))["turns"]
     assert kept == truth and {"voice", "side", "start", "end", "text"} == set(kept[0])
+
+
+def level(sound: np.ndarray) -> float:
+    return float(np.sqrt(np.mean(sound.astype(np.float64) ** 2)))
+
+
+def test_on_loudspeakers_the_microphone_hears_the_remote_side_later_weaker_and_no_louder_than_measured():
+    tracks, truth = lay_out(script(MEETING), tone)
+    assert list(CONDITIONS) == ["headset", "low", "loud"]
+    headset = condition(tracks, "headset")
+    assert np.array_equal(headset["local"], tracks["local"]) and np.array_equal(headset["remote"], tracks["remote"])
+    for name in ("low", "loud"):
+        heard = condition(tracks, name)
+        # What the machine plays is the same whoever listens; only the microphone changes.
+        assert np.array_equal(heard["remote"], tracks["remote"])
+        echo = heard["local"] - tracks["local"]
+        assert 20 * np.log10(level(echo) / level(tracks["remote"])) == pytest.approx(CONDITIONS[name], abs=0.1)
+        # Nothing of a remote turn is in the microphone before the loudspeakers' delay has passed.
+        first = next(turn for turn in truth if turn["side"] == "remote")
+        starts = round(first["start"] * RATE)
+        assert np.abs(echo[starts : starts + round(ECHO_DELAY * RATE) - 2]).max() < 1e-6
+        assert np.abs(echo[starts + round(ECHO_DELAY * RATE) : starts + RATE // 2]).max() > 0.01
+        # And it rings on after the turn has ended, as a room does.
+        ends = round(first["end"] * RATE)
+        assert level(echo[ends + round(0.06 * RATE) : ends + round(0.15 * RATE)]) > 1e-4
+    assert level(condition(tracks, "loud")["local"]) > level(condition(tracks, "low")["local"])
+    # Rendered twice, the same room.
+    assert np.array_equal(condition(tracks, "loud")["local"], condition(tracks, "loud")["local"])

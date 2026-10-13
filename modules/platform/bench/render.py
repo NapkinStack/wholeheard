@@ -2,6 +2,8 @@
 
     uv run python -m bench.render <voices-folder> <out-folder>
 
+Three listening conditions, one folder each: `headset`, `low` and `loud` — see `CONDITIONS`.
+
 The voices are synthesised: nobody is recorded. `<voices-folder>` holds the four public
 models `VOICES` names, fetched once with `python -m piper.download_voices`.
 """
@@ -16,7 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
-from scipy.signal import resample_poly
+from scipy.signal import fftconvolve, resample_poly
 
 RATE = 48_000
 """What a laptop's sound devices deliver: the rate the meeting is made at."""
@@ -28,6 +30,18 @@ VOICES = {
     "julien": ("fr_FR-upmc-medium", 1),
 }
 """Which public model, and which of its speakers, says each voice of the script."""
+
+CONDITIONS = {"headset": None, "low": -10.0, "loud": -5.0}
+"""How loud the microphone hears what the loudspeakers play, in decibels against what was
+played — or not at all, with a headset. Measured on the decider's laptop on 2026-10-13, one
+minute of the bench's remote side played while Summit recorded: -9.9 dB at the volume of a
+usual meeting, -5.0 dB near the maximum."""
+
+ECHO_DELAY = 0.046
+"""How late the microphone hears the loudspeakers, in seconds: 46 ms in both trials."""
+
+ECHO_DECAY = 0.235
+"""When the room has taken 20 dB off what it was sent, in seconds: 241 and 230 ms."""
 
 Synth = Callable[[str, str], np.ndarray]
 """A voice and a text in, its sound out: one channel, `RATE` samples a second, between -1 and 1."""
@@ -98,6 +112,30 @@ def lay_out(meeting: dict, say: Synth) -> tuple[dict[str, np.ndarray], list[dict
     return tracks, truth
 
 
+def room(played: np.ndarray, level: float) -> np.ndarray:
+    """What a microphone hears of what the loudspeakers play: later, weaker, and ringing.
+
+    A model, not a room: one path of `ECHO_DELAY`, then a tail of noise that dies as the
+    measured room does, the whole brought to `level` decibels against what was played. It is
+    linear — a real loudspeaker is not quite: on the two trials a linear path explained 51 %
+    and 82 % of what the microphone held. A canceller will find this echo easier than a real
+    one; the bench compares, it does not promise.
+    """
+    after = round(ECHO_DELAY * RATE)
+    tail = np.arange(round(ECHO_DECAY * RATE) * 2)
+    ringing = np.random.default_rng(20261013).standard_normal(len(tail)) * 10 ** (-tail / (ECHO_DECAY * RATE))
+    path = np.concatenate([np.zeros(after), [1.0], 0.2 * ringing])
+    heard = fftconvolve(played, path)[: len(played)]
+    return (heard * 10 ** (level / 20) * np.sqrt(np.mean(played**2) / np.mean(heard**2))).astype(np.float32)
+
+
+def condition(tracks: dict[str, np.ndarray], name: str) -> dict[str, np.ndarray]:
+    """The two tracks as that way of listening gives them: the remote as played, the local with what it heard of it."""
+    level = CONDITIONS[name]
+    local = tracks["local"] if level is None else tracks["local"] + room(tracks["remote"], level)
+    return {"local": local, "remote": tracks["remote"]}
+
+
 def write_wav(path: Path, sound: np.ndarray, rate: int) -> None:
     """One channel, 16 bits: what `session-audio/v1` holds."""
     with wave.open(str(path), "wb") as wav:
@@ -125,8 +163,9 @@ def main(argv: list[str]) -> int:
     voices, out = Path(argv[1]), Path(argv[2])
     meeting = script(Path(__file__).with_name("meeting.txt"))
     tracks, truth = lay_out(meeting, piper(voices, out / "cache"))
-    write_session(out / "headset", tracks, truth)
-    print(f"headset: {len(truth)} turns, {truth[-1]['end']:.0f} s, in {out / 'headset'}")
+    for name in CONDITIONS:
+        write_session(out / name, condition(tracks, name), truth)
+        print(f"{name}: {len(truth)} turns, {truth[-1]['end']:.0f} s, in {out / name}")
     return 0
 
 
