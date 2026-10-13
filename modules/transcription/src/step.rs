@@ -91,11 +91,7 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
     let stopped = session["stopped"].is_string();
     for (speaker, heard) in &sounds {
         // A file still being written is heard up to its last whole hundredth.
-        let end = if stopped {
-            (heard.len() + HUNDREDTH / 2) / HUNDREDTH
-        } else {
-            heard.len() / HUNDREDTH
-        };
+        let end = (heard.len() + if stopped { HUNDREDTH / 2 } else { 0 }) / HUNDREDTH;
         let mut from = (transcript.covered(*speaker) * 100.0).round() as usize;
         while from < end {
             let until = (from + span).min(end);
@@ -103,23 +99,23 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
             let sound = &heard[from * HUNDREDTH..if last { heard.len() } else { until * HUNDREDTH }];
             let silent = sound.iter().all(|sample| sample.abs() < SILENCE);
             let answer = if silent {
-                Vec::new()
+                None
             } else {
-                engine.hear(sound, language, making.context.as_deref())?
+                Some(engine.hear(sound, language, making.context.as_deref())?)
             };
             // A time is the hundredth it falls on, or the next: heard again from its start, a
             // segment gets the same times. A time that is no time is the span's edge.
             let within = |seconds: f64| from + (seconds * 100.0 - 1e-6).ceil().clamp(0.0, (until - from) as f64) as usize;
             let mut segments: Vec<(usize, usize, String)> = answer
                 .into_iter()
+                .flatten()
                 .map(|segment| (within(segment.start), within(segment.end), segment.text))
                 .filter(|(start, ..)| *start < until)
                 .collect();
             segments.sort_by_key(|(start, ..)| *start);
-            // A last segment that touches the end of what was heard may be half a sentence. In
-            // the middle of a file it is heard again with what follows, when that gains half a
-            // span: the step never crawls. At the end of a file still being written it waits
-            // for the rest; at the end of one that was stopped there is no rest.
+            // A last segment that touches the end of what was heard may be half a sentence. In the middle of a file it
+            // is heard again with what follows, when that gains half a span: the step never crawls. At the end of a
+            // file still being written it waits for the rest; at the end of one that was stopped there is no rest.
             // (One that fits in a single hundredth is whole: heard again, it would be lost.)
             let touching = segments
                 .last()
@@ -129,11 +125,8 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
             let covered = again.inspect(|_| drop(segments.pop())).unwrap_or(until);
             let segments: Vec<Segment> = segments
                 .into_iter()
-                .map(|(start, end, text)| Segment {
-                    start: start as f64 / 100.0,
-                    end: end.max(start) as f64 / 100.0,
-                    text,
-                })
+                .map(|(start, end, text)| (start as f64 / 100.0, end.max(start) as f64 / 100.0, text))
+                .map(|(start, end, text)| Segment { start, end, text })
                 .collect();
             transcript.heard(*speaker, &segments, covered as f64 / 100.0)?;
             if again.is_some() && last {
