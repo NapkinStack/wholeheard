@@ -36,6 +36,9 @@ const LATE: f64 = 1.5;
 
 /// Between two points of a track's clock, at most this long.
 const POINT_EVERY: f64 = 5.0;
+/// A piece of sound heard this far, in seconds, from where its track's last point puts it
+/// gets a point of its own: the source stopped a moment, too short for zeros to be written.
+const OFF: f64 = 0.05;
 
 /// The sources as `recording/v1` names them in what the program says.
 const SOURCES: [&str; 2] = ["me", "others"];
@@ -229,10 +232,20 @@ struct Delivered {
 }
 
 impl Delivered {
-    /// Writes what the source delivered, and says where it is on the clock when that is owed.
+    /// Writes what the source delivered, and says where it is on the clock when that is owed:
+    /// the first piece, the first after zeros of ours, every few seconds — and whenever a
+    /// piece is not where the last point puts it, so that a source that stopped for a moment
+    /// is never placed by a point from before it stopped.
     fn take(&mut self, name: &str, at: f64, samples: &[f32], clock: &mut v2::Clock) -> std::io::Result<()> {
-        if self.owed || self.point.is_none_or(|(_, last)| at - last >= POINT_EVERY) {
-            let frame = self.track.frames();
+        let frame = self.track.frames();
+        let due = match self.point {
+            Some((from, then)) => {
+                let expected = then + (frame - from) as f64 / f64::from(self.track.rate());
+                at - then >= POINT_EVERY || (at - expected).abs() > OFF
+            }
+            None => true,
+        };
+        if self.owed || due {
             clock.point(name, frame, at)?;
             self.point = Some((frame, at));
             self.owed = false;
