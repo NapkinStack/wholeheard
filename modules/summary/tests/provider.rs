@@ -56,6 +56,12 @@ fn each_failure_of_a_provider_has_its_own_sentence() {
             "answered without any text",
         ),
         ("200 OK", r#"{"choices": []}"#.to_string(), "answered without any text"),
+        (
+            "200 OK",
+            r#"{"choices": [{"message": {"content": "text"}, "finish_reason": 7}]}"#.to_string(),
+            "stopped before the end of its answer",
+        ),
+        ("304 Not Modified", String::new(), "failed (HTTP 304)"),
     ] {
         let (address, _received) = provider(status, body);
         let Err(Refused(why)) = asking(&address, None) else {
@@ -95,22 +101,31 @@ fn a_redirection_is_refused_and_the_other_host_hears_nothing() {
 }
 
 #[test]
-fn the_host_named_is_the_host_contacted_and_this_machine_is_local_however_it_is_written() {
-    use summit_summary::provider::Provider;
-    let host = |address: &str| Provider::new(address, "m", None, std::time::Duration::from_secs(1)).map(|provider| provider.host());
+fn the_host_named_is_the_host_the_request_goes_to() {
+    let host = |address: &str| Provider::new(address, "m", None, Duration::from_secs(1)).map(|provider| provider.host());
+    // This machine: its name, sent to its address so that no resolver says otherwise, and its addresses.
     for here in [
         "http://localhost:11434/v1",
         "http://LOCALHOST:1/v1",
-        "http://localhost.:1",
         "http://127.0.0.1:8080",
         "http://127.0.0.2",
         "http://[::1]:8080/v1",
+        "http://[::ffff:127.0.0.1]:1",
+        "http://0.0.0.0:1",
     ] {
         assert_eq!(host(here).unwrap(), "local", "{here}");
     }
+    assert!(
+        format!(
+            "{:?}",
+            Provider::new("http://LocalHost:1/v1", "m", None, Duration::from_secs(1)).unwrap()
+        )
+        .contains("//127.0.0.1:1/")
+    );
     assert_eq!(host("https://OpenRouter.ai/api/v1/").unwrap(), "openrouter.ai");
-    assert_eq!(host("http://0.0.0.0:1").unwrap(), "0.0.0.0");
-    // An address that could name one host and reach another, or carry a secret, is no address.
+    assert_eq!(host("http://10.1.2.3:8080/v1").unwrap(), "10.1.2.3");
+    // What could name one host and reach another, carry a secret, or be read as a number in
+    // another base by the system, is no address.
     for refused in [
         "http://127.0.0.2:18084#@localhost/v1",
         "https://someone:a-secret@api.example.com/v1",
@@ -120,7 +135,28 @@ fn the_host_named_is_the_host_contacted_and_this_machine_is_local_however_it_is_
         "http://",
         "",
         "http://api.example.com/v1 --model x",
+        "http://127.0.0.1.:8080/v1",
+        "http://localhost.:8080/v1",
+        "http://local:8080/v1",
+        "http://.:8080/v1",
+        "http://127.1:8080",
+        "http://2130706433",
+        "http://0x7f000001",
+        "http://010.1.2.3:8080",
+        "http://[::1%lo]:8080",
+        "http://api.example.com:65536/v1",
+        "http://api.example.com:8080x/v1",
+        "http://api.example.com:+8080/v1",
     ] {
-        assert!(host(refused).is_err(), "accepted: {refused}");
+        assert!(host(refused).is_err(), "accepted: {refused} as {:?}", host(refused));
+    }
+}
+
+#[test]
+fn a_provider_shown_to_whoever_debugs_never_shows_its_key() {
+    let provider = Provider::new("http://127.0.0.1:1/v1", "m", Some("a-key-for-the-test"), Duration::from_secs(1)).unwrap();
+    assert!(!format!("{provider:?}").contains("a-key-for-the-test"));
+    for (model, key) in [("  ", None), ("m", Some("   "))] {
+        assert!(Provider::new("http://127.0.0.1:1/v1", model, key, Duration::from_secs(1)).is_err());
     }
 }

@@ -16,12 +16,48 @@ fn refused<T>(why: impl Into<String>) -> Result<T, Refused> {
 }
 
 /// Where the minutes are asked for.
-#[derive(Debug)]
 pub struct Provider {
     uri: Uri,
     model: String,
     key: Option<String>,
     patience: Duration,
+}
+
+/// Never the key: a value of this type is printed by whoever debugs.
+impl std::fmt::Debug for Provider {
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            out,
+            "Provider({}, model {:?}, key {})",
+            self.uri,
+            self.model,
+            if self.key.is_some() { "given" } else { "none" }
+        )
+    }
+}
+
+/// The address of this machine a name stands for, or the reason the host is refused: the
+/// minutes name a host, and it must be the one the request goes to.
+fn checked(host: &str) -> Result<Option<IpAddr>, Refused> {
+    let bare = host.trim_start_matches('[').trim_end_matches(']');
+    if let Ok(address) = bare.parse::<IpAddr>() {
+        return Ok(Some(address));
+    }
+    let name = bare.to_ascii_lowercase();
+    let label = |label: &str| !label.is_empty() && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    // A name, not something a system may read as a number in another base, or resolve its own way.
+    if !name.split('.').all(label)
+        || name
+            .rsplit('.')
+            .next()
+            .is_some_and(|last| last.starts_with(|c: char| c.is_ascii_digit()))
+    {
+        return refused("the provider's host is neither a name nor an address written in full");
+    }
+    if name == "local" {
+        return refused("a host named local cannot be told from this machine in the minutes: give its full name or its address");
+    }
+    Ok(None)
 }
 
 impl Provider {
@@ -32,18 +68,40 @@ impl Provider {
             return refused("the provider's address holds more than an address: no query, no fragment, no user or key in it");
         }
         let joined = format!("{}/chat/completions", address.trim_end_matches('/'));
-        let Ok(uri) = joined.parse::<Uri>() else {
+        let Ok(typed) = joined.parse::<Uri>() else {
             return refused("the provider's address is not an address");
         };
-        if !matches!(uri.scheme_str(), Some("http" | "https")) || uri.host().is_none_or(str::is_empty) {
+        let (Some(scheme @ ("http" | "https")), Some(authority), Some(host)) = (typed.scheme_str(), typed.authority(), typed.host()) else {
             return refused("the provider's address must start with http:// or https:// and name a host");
-        }
-        if model.is_empty() || model.chars().any(char::is_control) {
+        };
+        // What follows the host is a port, or nothing: the client's reader lets a wrong one pass as none.
+        let port = match authority.as_str().strip_prefix(host).unwrap_or_default() {
+            "" => String::new(),
+            port if port
+                .strip_prefix(':')
+                .is_some_and(|digits| digits.bytes().all(|b| b.is_ascii_digit()) && digits.parse::<u16>().is_ok()) =>
+            {
+                port.into()
+            }
+            _ => return refused("the provider's address holds a port that is not one"),
+        };
+        // "localhost" is this machine by definition: the request goes to its address, so that
+        // no resolver decides otherwise after the minutes have said "local".
+        let host = if host.eq_ignore_ascii_case("localhost") {
+            "127.0.0.1"
+        } else {
+            host
+        };
+        let Ok(uri) = format!("{scheme}://{host}{port}{}", typed.path()).parse::<Uri>() else {
+            return refused("the provider's address is not an address");
+        };
+        checked(uri.host().unwrap_or_default())?;
+        if model.trim().is_empty() || model.chars().any(char::is_control) {
             return refused("the model's name is empty or holds a character that is not text");
         }
         let key = key.filter(|key| !key.is_empty());
-        if key.is_some_and(|key| !key.chars().all(|c| c.is_ascii_graphic() || c == ' ')) {
-            return refused("the key holds a character a request cannot carry");
+        if key.is_some_and(|key| key.trim().is_empty() || !key.chars().all(|c| c.is_ascii_graphic() || c == ' ')) {
+            return refused("the key is empty or holds a character a request cannot carry");
         }
         Ok(Self {
             uri,
@@ -60,10 +118,13 @@ impl Provider {
     /// The host as the minutes name it: `local` for this machine, the host's name otherwise —
     /// read from the same address the request is sent to.
     pub fn host(&self) -> String {
-        let host = self.uri.host().unwrap_or_default().trim_start_matches('[').trim_end_matches(']');
-        let name = host.trim_end_matches('.').to_ascii_lowercase();
-        let here = name == "localhost" || name.parse::<IpAddr>().is_ok_and(|address| address.is_loopback());
-        if here { "local".into() } else { name }
+        let host = self.uri.host().unwrap_or_default();
+        match checked(host) {
+            // An address of this machine: loopback, the one that means "any", or either written inside an IPv6 one.
+            Ok(Some(address)) if address.to_canonical().is_loopback() || address.to_canonical().is_unspecified() => "local".into(),
+            Ok(Some(address)) => address.to_string(),
+            _ => host.to_ascii_lowercase(),
+        }
     }
 
     /// Asks once, and gives the answer's text — or what failed, in one sentence.
@@ -83,6 +144,12 @@ impl Provider {
         let body = serde_json::json!({ "model": self.model, "stream": false, "messages": [{ "role": "user", "content": request }] });
         let mut response = match call.send_json(&body) {
             Ok(response) => response,
+            Err(ureq::Error::Timeout(_)) => {
+                return refused(format!(
+                    "the provider at {host} did not answer within {} s",
+                    self.patience.as_secs()
+                ));
+            }
             Err(error) => return refused(format!("the provider at {host} could not be reached: {error}")),
         };
         match response.status().as_u16() {
@@ -93,7 +160,7 @@ impl Provider {
                     "the provider at {host} does not know this model or this address (HTTP 404)"
                 ));
             }
-            status @ 300..=399 => {
+            status @ (301 | 302 | 303 | 307 | 308) => {
                 return refused(format!(
                     "the provider at {host} sent the request elsewhere, and it was not followed (HTTP {status})"
                 ));
@@ -105,14 +172,15 @@ impl Provider {
         };
         let choice = &answer["choices"][0];
         // An answer is whole when the provider says it stopped by itself, or says nothing.
-        match choice["finish_reason"].as_str() {
-            None | Some("stop") => {}
-            Some("length") => {
+        match &choice["finish_reason"] {
+            serde_json::Value::Null => {}
+            reason if reason == "stop" => {}
+            reason if reason == "length" => {
                 return refused(format!(
                     "the provider at {host} cut its answer short: the minutes would be incomplete"
                 ));
             }
-            Some(_) => return refused(format!("the provider at {host} stopped before the end of its answer")),
+            _ => return refused(format!("the provider at {host} stopped before the end of its answer")),
         }
         match choice["message"]["content"].as_str() {
             Some(text) if !text.trim().is_empty() => Ok(text.to_string()),
