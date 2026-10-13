@@ -21,6 +21,8 @@ Records the audio sources of a conversation into a session.
 - `src/lib.rs` knows no audio device and holds everything the contract promises of a file;
   `src/main.rs` holds the devices, the clock and the signals. A promise of the contract is
   tested in `tests/session_audio.rs`, on sound made there.
+- `src/v2.rs` is the same for `session-audio/v2` — tracks as delivered and the clock
+  (ADR-0004) — tested in `tests/session_audio_v2.rs`. The program does not write it yet.
 - An output is opened as an input: what it delivers is what it plays.
 - The host is chosen by what the system offers, never by the system's name: no code written
   for one system (ADR-0002's success criterion).
