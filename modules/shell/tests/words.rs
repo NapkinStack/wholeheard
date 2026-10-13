@@ -240,4 +240,12 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
             .body
             .contains('(')
     );
+    // Each says what still works, or what to do — not the trouble a second time.
+    let body = |trouble, language| words::trouble(&trouble, language).body;
+    assert!(body(Trouble::NoRecorder(String::new()), Language::English).ends_with("Installing Summit again puts it back."));
+    assert!(body(Trouble::NoRecorder(String::new()), Language::French).ends_with("Réinstaller Summit le remet en place."));
+    assert!(body(Trouble::Settings(String::new()), Language::English).contains("runs with its defaults"));
+    assert!(body(Trouble::Shortcut(String::new()), Language::French).contains("permet toujours de démarrer"));
+    // What the system said comes out on one line.
+    assert!(body(Trouble::Settings("line one\n\tline two".into()), Language::English).ends_with("(line one line two)"));
 }
