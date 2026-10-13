@@ -49,15 +49,18 @@ pub fn length(seconds: f64) -> String {
 }
 
 /// What a program said of a failure, made fit to show: without the name it puts before its
-/// sentence, without brackets of its own, and short. A program that said nothing gives nothing.
+/// sentence, without brackets of its own, on one line, and short. A program that said nothing
+/// gives nothing.
 fn detail(said: &str) -> String {
     let said = said.trim();
     let said = said.strip_prefix("summit-capture:").unwrap_or(said).trim();
+    let said = said.strip_prefix('(').and_then(|inner| inner.strip_suffix(')')).unwrap_or(said);
+    // One line, whatever it held: a notification is no place for a program's line ends.
     let said = said
-        .strip_prefix('(')
-        .and_then(|inner| inner.strip_suffix(')'))
-        .unwrap_or(said)
-        .trim();
+        .split(|c: char| c.is_whitespace() || c.is_control())
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
     match said.char_indices().nth(200) {
         Some((cut, _)) => format!("{}…", &said[..cut]),
         None => said.to_string(),
@@ -153,4 +156,83 @@ fn notice(title: &str, body: String, why: &str) -> Option<Notice> {
         title: title.to_string(),
         body,
     })
+}
+
+/// The tray's menu: what each entry says, in the state the recording is in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Menu {
+    pub start: &'static str,
+    pub stop: &'static str,
+    pub stopping: &'static str,
+    pub quit: &'static str,
+    /// What the tray's icon says of itself while a recording runs.
+    pub recording: &'static str,
+}
+
+pub fn menu(language: Language) -> Menu {
+    match language {
+        Language::English => Menu {
+            start: "Start recording",
+            stop: "Stop recording",
+            stopping: "Stopping…",
+            quit: "Quit Summit",
+            recording: "Summit — recording",
+        },
+        Language::French => Menu {
+            start: "Démarrer l’enregistrement",
+            stop: "Arrêter l’enregistrement",
+            stopping: "Arrêt en cours…",
+            quit: "Quitter Summit",
+            recording: "Summit — enregistrement en cours",
+        },
+    }
+}
+
+/// What can stand in the shell's own way, before or beside a recording.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Trouble {
+    /// The program that records could not be started: what the system said of it.
+    NoRecorder(String),
+    /// The settings file was not read: the sentence that says which file, and what in it.
+    Settings(String),
+    /// The desktop did not bind the global shortcut: what it said of it.
+    Shortcut(String),
+}
+
+/// What the user is told of a trouble: what it is, and what still works.
+pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
+    use Language::{English, French};
+    let (title, body, why) = match (trouble, language) {
+        (Trouble::NoRecorder(why), English) => (
+            "Summit cannot record",
+            "Its recording program could not be started. Installing Summit again puts it back.",
+            why,
+        ),
+        (Trouble::NoRecorder(why), French) => (
+            "Summit ne peut pas enregistrer",
+            "Son programme d’enregistrement n’a pas pu démarrer. Réinstaller Summit le remet en place.",
+            why,
+        ),
+        (Trouble::Settings(why), English) => (
+            "Your settings were not read",
+            "Summit runs with its defaults until the file is corrected.",
+            why,
+        ),
+        (Trouble::Settings(why), French) => (
+            "Vos réglages n’ont pas été lus",
+            "Summit fonctionne avec ses réglages par défaut tant que le fichier n’est pas corrigé.",
+            why,
+        ),
+        (Trouble::Shortcut(why), English) => (
+            "The keyboard shortcut is not set",
+            "The menu of Summit’s icon still starts and stops a recording.",
+            why,
+        ),
+        (Trouble::Shortcut(why), French) => (
+            "Le raccourci clavier n’est pas actif",
+            "Le menu de l’icône Summit permet toujours de démarrer et d’arrêter un enregistrement.",
+            why,
+        ),
+    };
+    notice(title, body.to_string(), why).expect("a trouble is always said")
 }

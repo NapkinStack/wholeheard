@@ -72,13 +72,13 @@ fn lines(stream: impl Read) -> impl Iterator<Item = String> {
 pub struct Recording {
     program: Child,
     input: ChildStdin,
-    /// What the recording says, as it says it. It ends on `Stopped` or `Failed`, then closes.
-    pub said: Receiver<Said>,
 }
 
 impl Recording {
-    /// Starts the program that records, into a new session of this folder of sessions.
-    pub fn start(program: &Path, sessions: &Path) -> io::Result<Self> {
+    /// Starts the program that records, into a new session of this folder of sessions. What
+    /// it says comes apart from the hold on it, so that one may listen while another stops
+    /// it: it ends on `Stopped` or `Failed`, then closes.
+    pub fn start(program: &Path, sessions: &Path) -> io::Result<(Self, Receiver<Said>)> {
         let mut program = Command::new(program)
             .arg("record")
             .arg(sessions)
@@ -108,7 +108,7 @@ impl Recording {
                 let _ = tell.send(Said::Failed(complaint.join().unwrap_or_default().trim().to_string()));
             }
         });
-        Ok(Self { program, input, said })
+        Ok((Self { program, input }, said))
     }
 
     /// Tells the program to stop: it writes its files whole, says `stopped`, and ends.
