@@ -130,9 +130,9 @@ The framer's, accepted with the discovery:
 
 - Does the project pay for signing on macOS and Windows? Decided after the first cycle's
   probe (D1), on what it records.
-- May the reminder to announce the recording be switched off? The idea file says yes (C7);
-  since the announcement is now the only thing that makes a recording lawful, the framer
-  would say no.
+- ~~May the reminder to announce the recording be switched off?~~ Answered 2026-10-13 by the
+  decider: yes, as the idea file says (C7) — shown out of the box, a setting removes it. The
+  framer had said no: the announcement is the only thing that makes a recording lawful.
 - Which product was tried on Fedora, and with which error — it shapes the first spike.
 - What "proven in use" means for opening the repository.
 - ~~Whether the context given to a step is in the first version.~~ Answered 2026-10-12: yes, in cycle 01, for the transcript and the minutes.
