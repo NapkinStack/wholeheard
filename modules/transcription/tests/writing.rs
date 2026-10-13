@@ -97,24 +97,38 @@ fn what_an_engine_gives_that_is_no_segment_or_no_time_is_not_written() {
         (Some(0.0), Some("Avant."))
     );
     assert_eq!((segments[1]["start"].as_f64(), segments[1]["end"].as_f64()), (Some(5.0), Some(5.0)));
+    // Given out of order, they are written in the order they were said; a text nobody sees is no text.
+    let call = [
+        said(50.0, 51.0, "Après."),
+        said(40.0, 41.0, "D'abord."),
+        said(45.0, 46.0, "\u{200b}\u{feff}"),
+    ];
+    transcript.heard(Speaker::Me, &call, 60.0).unwrap();
+    let starts = |folder: &Path| -> Vec<f64> {
+        lines(folder)
+            .iter()
+            .filter(|line| line["type"] == "segment")
+            .map(|line| line["start"].as_f64().unwrap())
+            .collect()
+    };
+    assert_eq!(starts(folder.path()), [0.0, 5.0, 40.0, 50.0]);
     // The same start for the other speaker is another segment.
     transcript
         .heard(Speaker::Others, &[said(5.0, 6.0, "En même temps.")], 30.0)
         .unwrap();
-    assert_eq!(types(folder.path()).iter().filter(|kind| *kind == "segment").count(), 3);
+    assert_eq!(types(folder.path()).iter().filter(|kind| *kind == "segment").count(), 5);
 
     // A time that is no number of seconds is refused, and nothing of the call is written.
     let before = fs::read(folder.path().join("transcript.jsonl")).unwrap();
-    for (start, until) in [
-        (f64::NAN, 60.0),
-        (f64::INFINITY, 60.0),
-        (40.0, f64::NAN),
-        (40.0, f64::INFINITY),
-        (40.0, -1.0),
-    ] {
-        assert!(transcript.heard(Speaker::Me, &[said(start, 41.0, "Non.")], until).is_err());
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -100.0, 1e300] {
+        for (start, end, until) in [(bad, 71.0, 90.0), (70.0, bad, 90.0), (70.0, 71.0, bad)] {
+            let call = [said(65.0, 66.0, "Bon."), said(start, end, "Non.")];
+            assert!(transcript.heard(Speaker::Me, &call, until).is_err(), "{start} {end} {until}");
+        }
+        assert!(transcript.complete(bad).is_err(), "{bad}");
     }
-    assert!(transcript.complete(f64::NAN).is_err() && transcript.complete(-1.0).is_err());
+    // A segment that starts after the span it was heard in is no segment of that span.
+    assert!(transcript.heard(Speaker::Me, &[said(100.0, 101.0, "Plus tard.")], 90.0).is_err());
     assert_eq!(fs::read(folder.path().join("transcript.jsonl")).unwrap(), before);
 }
 
