@@ -90,13 +90,13 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
     let span = seconds.clamp(1, 86_400) * 100;
     let stopped = session["stopped"].is_string();
     for (speaker, heard) in &sounds {
-        // A file still being written is heard up to its last whole hundredth.
+        // A file still being written is heard up to its last whole hundredth; one that was stopped, to the nearest.
         let end = (heard.len() + if stopped { HUNDREDTH / 2 } else { 0 }) / HUNDREDTH;
         let mut from = (transcript.covered(*speaker) * 100.0).round() as usize;
         while from < end {
             let until = (from + span).min(end);
             let last = until == end;
-            let sound = &heard[from * HUNDREDTH..if last { heard.len() } else { until * HUNDREDTH }];
+            let sound = &heard[from * HUNDREDTH..(until * HUNDREDTH).min(heard.len())];
             let silent = sound.iter().all(|sample| sample.abs() < SILENCE);
             let answer = if silent {
                 None
@@ -109,9 +109,11 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
                 .into_iter()
                 .flatten()
                 .map(|segment| (within(segment.start), within(segment.end), segment.text))
-                .filter(|(start, ..)| *start < until)
                 .collect();
             segments.sort_by_key(|(start, ..)| *start);
+            // One that starts in the span's last hundredth is heard with what follows, from the hundredth before.
+            let late = segments.last().is_some_and(|(start, ..)| *start == until) && !(last && stopped);
+            segments.retain(|(start, ..)| !late || *start < until);
             // A last segment that touches the end of what was heard may be half a sentence. In the middle of a file it
             // is heard again with what follows, when that gains half a span: the step never crawls. At the end of a
             // file still being written it waits for the rest; at the end of one that was stopped there is no rest.
@@ -121,14 +123,14 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
                 .filter(|(start, end, _)| end + EDGE > until && end > start)
                 .map(|(start, ..)| *start);
             let again = touching.filter(|start| if last { !stopped } else { (start - from) * 2 >= until - from });
-            let covered = again.inspect(|_| drop(segments.pop())).unwrap_or(until);
+            let covered = again.inspect(|_| drop(segments.pop())).unwrap_or(until - usize::from(late));
             let segments: Vec<Segment> = segments
                 .into_iter()
                 .map(|(start, end, text)| (start as f64 / 100.0, end.max(start) as f64 / 100.0, text))
                 .map(|(start, end, text)| Segment { start, end, text })
                 .collect();
             transcript.heard(*speaker, &segments, covered as f64 / 100.0)?;
-            from = if again.is_some() && last { end } else { covered };
+            from = if last && (late || again.is_some()) { end } else { covered };
         }
     }
     // A recording still going on, or ended by a crash, has no last word yet: the step is run again.
