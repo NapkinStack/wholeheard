@@ -122,6 +122,12 @@ impl Recording {
         self.program.id()
     }
 
+    /// Waits for the program to end, so that nothing of it is left in the system's table of
+    /// programs: for whoever heard its output close.
+    pub fn wait(mut self) {
+        let _ = self.program.wait();
+    }
+
     /// Whether the program has ended.
     pub fn ended(&mut self) -> bool {
         !matches!(self.program.try_wait(), Ok(None))
