@@ -108,17 +108,25 @@ fn what_an_engine_gives_that_is_no_segment_or_no_time_is_not_written() {
             .collect()
     };
     assert_eq!(starts(folder.path()), [0.0, 5.0, 40.0, 50.0]);
+    // Two starts five hundredths apart are two segments, wherever the hundredths fall.
+    let close = [
+        said(60.095, 60.12, "Un."),
+        said(60.145, 60.9, "Deux."),
+        said(60.195, 61.2, "Trois."),
+    ];
+    transcript.heard(Speaker::Me, &close, 65.0).unwrap();
+    assert_eq!(starts(folder.path())[4..].len(), 3);
     // The same start for the other speaker is another segment.
     transcript
         .heard(Speaker::Others, &[said(5.0, 6.0, "En même temps.")], 30.0)
         .unwrap();
-    assert_eq!(types(folder.path()).iter().filter(|kind| *kind == "segment").count(), 5);
+    assert_eq!(types(folder.path()).iter().filter(|kind| *kind == "segment").count(), 8);
 
     // A time that is no number of seconds is refused, and nothing of the call is written.
     let before = fs::read(folder.path().join("transcript.jsonl")).unwrap();
     for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -100.0, -0.4, 1e300] {
-        for (start, end, until) in [(bad, 71.0, 90.0), (70.0, bad, 90.0), (70.0, 71.0, bad)] {
-            let call = [said(65.0, 66.0, "Bon."), said(start, end, "Non.")];
+        for (start, end, until) in [(bad, 81.0, 90.0), (80.0, bad, 90.0), (80.0, 81.0, bad)] {
+            let call = [said(75.0, 76.0, "Bon."), said(start, end, "Non.")];
             assert!(transcript.heard(Speaker::Me, &call, until).is_err(), "{start} {end} {until}");
         }
         assert!(transcript.complete(bad).is_err(), "{bad}");
