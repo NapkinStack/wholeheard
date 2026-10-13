@@ -203,10 +203,14 @@ pub enum Trouble {
 pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
     use Language::{English, French};
     let (title, body, why) = match (trouble, language) {
-        (Trouble::NoRecorder(why), English) => ("Summit cannot record", "Its recording program could not be started.", why),
+        (Trouble::NoRecorder(why), English) => (
+            "Summit cannot record",
+            "Its recording program could not be started. Installing Summit again puts it back.",
+            why,
+        ),
         (Trouble::NoRecorder(why), French) => (
             "Summit ne peut pas enregistrer",
-            "Son programme d’enregistrement n’a pas pu démarrer.",
+            "Son programme d’enregistrement n’a pas pu démarrer. Réinstaller Summit le remet en place.",
             why,
         ),
         (Trouble::Settings(why), English) => (
