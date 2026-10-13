@@ -1,9 +1,6 @@
 //! The transcript of a session as `contracts/transcript/v1` describes it, written by a step
 //! that may be stopped at any moment and run again: a file that only grows, true up to its
-//! last line.
-//!
-//! Nothing here knows an engine. An engine hears a span of sound; this writes what it heard,
-//! once.
+//! last line. Nothing here knows an engine: one hears a span of sound, this writes it, once.
 
 use std::{
     collections::HashSet,
