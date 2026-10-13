@@ -28,14 +28,24 @@ is captured or derived. Its meeting is a script written for the purpose, in Fren
 that is what the product hears, said by four public synthetic voices: **nobody is recorded**.
 Two sides, as a session has two tracks; two people on the local side, behind one microphone.
 
-**Today** it renders one listening condition — a headset: each side's track holds its own
-voices and nothing of the other's. A room where the microphone hears the loudspeakers, and
-the counts, come next.
+**Three listening conditions**, the same meeting each time — and for each, several draws of
+the microphone's noise, so that a count is read as a spread:
+
+| Condition | The microphone holds | Set on |
+|---|---|---|
+| `headset` | The local voices and a quiet microphone's noise; nothing of the remote ones | Supposed: no headset was measured |
+| `low` | The same voices, a laptop microphone's noise, and the remote side 46 ms late, 10 dB under what was played, four fifths of it at once and the rest ringing | The decider's laptop at a usual meeting's volume, 2026-10-13 |
+| `loud` | The same, 5 dB under, from loudspeakers pushed until they no longer play what they are sent | The same laptop, near its maximum |
+
+The room is a model set on one minute of one laptop in one room. It says how one way of
+doing compares with another; it does not promise what a real room gives.
+
+The counts that read a transcript against the truth come in the next pull request.
 
 ```bash
 # Once: the four voices, about 270 MB, from the synthesiser's public models.
 uv run python -m piper.download_voices fr_FR-siwis-medium fr_FR-tom-medium fr_FR-upmc-medium --download-dir <voices-folder>
-# The meeting, as a session and its truth, in <out-folder>/headset.
+# The meeting under three conditions, three draws each: <out-folder>/<condition>/<draw>.
 nstack run platform <voices-folder> <out-folder>
 ```
 

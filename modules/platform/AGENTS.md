@@ -27,7 +27,10 @@ Measures what Summit's steps produce against a meeting whose every word is known
 
 ## Known traps
 
-- None yet.
+- The first counts could be won by muting the microphone while the remote side speaks: the script had almost no speech over speech, and no count saw a local word lost. Whatever is added to the bench is first tried against the cheapest way of cheating it.
+- A synthesiser left to chance renders another meeting each time: the voices are steady, and a render from an empty cache is the same bytes.
+- One run is not a measure: which turns an engine drops moves with a noise nobody hears. A count is a spread over several draws.
+- A word alone proves no echo: `le` is said by everyone. Borrowed words are counted in runs of two.
 
 ## Areas not to change without approval
 
