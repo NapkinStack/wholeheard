@@ -18,7 +18,8 @@ const HEADER: usize = 68;
 /// A length that says "not known yet": players then read to the end of the file.
 const UNKNOWN: u32 = u32::MAX;
 const BYTES: usize = 3;
-const FULL_SCALE: f32 = 8_388_607.0;
+/// Full scale as every reader of 24 bits counts it.
+const FULL_SCALE: f32 = 8_388_608.0;
 
 /// One source of a session, growing.
 pub struct Track {
@@ -26,6 +27,11 @@ pub struct Track {
     frames: u64,
     rate: u32,
     channels: u16,
+    /// The start of a frame the system delivered in two pieces, kept for its end.
+    cut: Vec<f32>,
+    /// Where each channel rests, to measure sound from there: (last sample, last measure).
+    rest: Vec<Option<(f32, f32)>>,
+    keep: f32,
     loudest: f32,
 }
 
@@ -33,6 +39,9 @@ impl Track {
     /// Creates the file with a header a reader can already use.
     pub fn create(path: &Path, rate: u32, channels: u16) -> io::Result<Self> {
         let (rate, channels) = (rate.max(1), channels.max(1));
+        if u16::try_from(usize::from(channels) * BYTES).is_err() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "more channels than a track can hold"));
+        }
         let mut file = File::create(path)?;
         file.write_all(&header(rate, channels, UNKNOWN, UNKNOWN))?;
         Ok(Self {
@@ -40,23 +49,52 @@ impl Track {
             frames: 0,
             rate,
             channels,
+            cut: Vec::new(),
+            rest: vec![None; usize::from(channels)],
+            // One pole at 20 Hz: what a source rests at is not sound, a voice is.
+            keep: (1.0 - std::f64::consts::TAU * 20.0 / f64::from(rate)).max(0.0) as f32,
             loudest: 0.0,
         })
     }
 
     /// Appends what the source just delivered, interleaved, as it is; it is on disk when
-    /// this returns. A frame cut short by the system is not written.
+    /// this returns. A frame delivered in two pieces is written once whole. A sample beyond
+    /// full scale is written at full scale, one that is no number as zero.
     pub fn push(&mut self, interleaved: &[f32]) -> io::Result<()> {
-        let whole = interleaved.len() - interleaved.len() % usize::from(self.channels);
-        let mut bytes = Vec::with_capacity(whole * BYTES);
-        for &sample in &interleaved[..whole] {
-            self.loudest = self.loudest.max(sample.abs());
-            let value = (sample.clamp(-1.0, 1.0) * FULL_SCALE).round() as i32;
+        let channels = usize::from(self.channels);
+        let mut sound = std::mem::take(&mut self.cut);
+        sound.extend_from_slice(interleaved);
+        self.cut = sound.split_off(sound.len() - sound.len() % channels);
+        let mut bytes = Vec::with_capacity(sound.len() * BYTES);
+        for (at, &sample) in sound.iter().enumerate() {
+            let sample = if sample.is_nan() { 0.0 } else { sample };
+            self.measure(at % channels, sample);
+            let value = (sample * FULL_SCALE).round().clamp(-FULL_SCALE, FULL_SCALE - 1.0) as i32;
             bytes.extend_from_slice(&value.to_le_bytes()[..BYTES]);
         }
-        self.file.write_all(&bytes)?;
-        self.frames += (whole / usize::from(self.channels)) as u64;
+        self.write(&bytes)?;
+        self.frames += (sound.len() / channels) as u64;
         Ok(())
+    }
+
+    /// Writes whole or not at all: a write the system cut leaves the track as it was, so
+    /// that what follows a failure is still frames.
+    fn write(&mut self, bytes: &[u8]) -> io::Result<()> {
+        self.file.write_all(bytes).inspect_err(|_| {
+            let whole = HEADER as u64 + self.frames * u64::from(self.channels) * BYTES as u64;
+            let _ = self.file.set_len(whole).and_then(|()| self.file.seek(SeekFrom::Start(whole)));
+        })
+    }
+
+    /// The track holds the sound as delivered; how loud it is, is measured from where the
+    /// source rests — a microphone resting at a third of full scale is not a sound.
+    fn measure(&mut self, channel: usize, sample: f32) {
+        let (last_in, last_out) = self.rest[channel].unwrap_or((sample, 0.0));
+        let out = sample - last_in + self.keep * last_out;
+        if out.is_finite() {
+            self.rest[channel] = Some((sample, out));
+            self.loudest = self.loudest.max(out.abs());
+        }
     }
 
     /// Writes zeros until the track holds `frames`, for a source that delivered nothing, and
@@ -66,9 +104,12 @@ impl Track {
             return Ok(None);
         }
         let from = self.frames;
-        self.file
-            .write_all(&vec![0u8; (frames - from) as usize * usize::from(self.channels) * BYTES])?;
-        self.frames = frames;
+        // A second at a time: a long gap is not held in memory.
+        while self.frames < frames {
+            let more = (frames - self.frames).min(u64::from(self.rate));
+            self.write(&vec![0u8; more as usize * usize::from(self.channels) * BYTES])?;
+            self.frames += more;
+        }
         Ok(Some((from, frames)))
     }
 
@@ -82,7 +123,8 @@ impl Track {
         self.rate
     }
 
-    /// The loudest sample delivered since the last call, as a share of full scale.
+    /// The loudest sound delivered since the last call, as a share of full scale, measured
+    /// from where the source rests.
     pub fn loudest(&mut self) -> f32 {
         std::mem::take(&mut self.loudest)
     }
@@ -144,6 +186,9 @@ impl Clock {
 
     /// The frame `sample` of `track` was heard `at` seconds after the session started.
     pub fn point(&mut self, track: &str, sample: u64, at: f64) -> io::Result<()> {
+        if !at.is_finite() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "an instant that is no number"));
+        }
         // A ten-thousandth of a second: finer than a sample at 8 kHz, and no false digits.
         let at = (at * 10_000.0).round() / 10_000.0;
         self.say(serde_json::json!({ "track": track, "sample": sample, "at": at }))

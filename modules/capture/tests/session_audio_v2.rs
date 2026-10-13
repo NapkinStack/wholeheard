@@ -37,7 +37,7 @@ fn read(path: &Path) -> (u32, usize, Vec<f32>) {
         .as_chunks::<3>()
         .0
         .iter()
-        .map(|b| (i32::from_le_bytes([0, b[0], b[1], b[2]]) >> 8) as f32 / 8_388_607.0)
+        .map(|b| (i32::from_le_bytes([0, b[0], b[1], b[2]]) >> 8) as f32 / 8_388_608.0)
         .collect();
     (
         u32::from_le_bytes(format[4..8].try_into().unwrap()),
@@ -69,7 +69,7 @@ fn a_track_holds_what_its_source_delivered_at_its_rate_with_its_channels() {
         assert_eq!((read_rate, read_channels), (rate, channels));
         assert_eq!(samples.len(), sound.len());
         let furthest = samples.iter().zip(&sound).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
-        assert!(furthest <= 1.0 / 8_388_607.0, "{rate} Hz, {channels} channels: off by {furthest}");
+        assert!(furthest <= 0.5 / 8_388_608.0, "{rate} Hz, {channels} channels: off by {furthest}");
     }
 }
 
@@ -80,7 +80,7 @@ fn a_voice_at_a_ten_thousandth_of_full_scale_keeps_its_shape() {
     let path = folder.path().join("weak.wav");
     let sound = tone(48_000, 1, 1.0, 0.0001, 0.0);
     recorded(&path, 48_000, 1, &sound).finish().unwrap();
-    let steps: std::collections::BTreeSet<i32> = read(&path).2.iter().map(|s| (s * 8_388_607.0).round() as i32).collect();
+    let steps: std::collections::BTreeSet<i32> = read(&path).2.iter().map(|s| (s * 8_388_608.0).round() as i32).collect();
     assert!(steps.len() > 300, "{} levels for a weak voice", steps.len());
 }
 
@@ -114,11 +114,47 @@ fn a_sample_once_written_never_changes_and_only_the_header_is_written_twice() {
 }
 
 #[test]
-fn a_frame_cut_short_by_the_system_is_not_written() {
+fn a_frame_delivered_in_two_pieces_is_written_once_whole_and_no_channel_moves() {
     let folder = tempfile::tempdir().unwrap();
-    let mut track = Track::create(&folder.path().join("local.wav"), 48_000, 2).unwrap();
-    track.push(&[0.1, 0.1, 0.1]).unwrap();
-    assert_eq!(track.frames(), 1);
+    let path = folder.path().join("local.wav");
+    let mut track = Track::create(&path, 48_000, 2).unwrap();
+    // Left goes up, right goes down, five samples at a time: every other piece cuts a frame.
+    let sound: Vec<f32> = (1..=20).flat_map(|n| [n as f32 / 100.0, -(n as f32) / 100.0]).collect();
+    for piece in sound.chunks(5) {
+        track.push(piece).unwrap();
+    }
+    assert_eq!(track.frames(), 20);
+    let samples = read(&path).2;
+    assert!(samples.chunks(2).all(|frame| frame[0] > 0.0 && frame[1] < 0.0), "a channel moved");
+    track.push(&[0.5]).unwrap();
+    assert_eq!(track.frames(), 20, "half a frame is not a frame yet");
+}
+
+#[test]
+fn what_no_file_of_24_bits_can_hold_is_written_as_the_nearest_it_can() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("local.wav");
+    let mut track = Track::create(&path, 48_000, 1).unwrap();
+    track.push(&[1.5, -1.5, 1.0, -1.0, f32::NAN, f32::INFINITY, 0.5]).unwrap();
+    let top = 8_388_607.0 / 8_388_608.0;
+    assert_eq!(read(&path).2, [top, -1.0, top, -1.0, 0.0, top, 0.5]);
+    assert!(track.loudest().is_finite());
+    assert!(
+        Track::create(&folder.path().join("wide.wav"), 48_000, 30_000).is_err(),
+        "more channels than a header can say"
+    );
+}
+
+#[test]
+fn a_write_the_system_refuses_leaves_the_track_whole_frames() {
+    // A device that is full: every write fails. Nothing of a refused push stays in the track.
+    let Ok(mut track) = Track::create(std::path::Path::new("/dev/full"), 48_000, 2) else {
+        return; // No such device on this system: the promise is tried where there is one.
+    };
+    assert!(track.push(&[0.1, 0.1]).is_err());
+    assert_eq!(track.frames(), 0);
+    assert!(track.silence_to(48_000).is_err());
+    assert_eq!(track.frames(), 0);
 }
 
 #[test]
@@ -135,10 +171,23 @@ fn zeros_written_for_a_source_that_gave_nothing_are_said() {
 }
 
 #[test]
-fn the_loudest_sample_is_what_was_delivered_not_what_was_centred() {
+fn how_loud_a_source_is_is_measured_from_where_it_rests_and_the_track_is_untouched() {
     let folder = tempfile::tempdir().unwrap();
-    let mut track = recorded(&folder.path().join("local.wav"), 48_000, 1, &vec![0.33; 4800]);
-    assert!((track.loudest() - 0.33).abs() < 1e-6);
+    let path = folder.path().join("local.wav");
+    // D1's microphone: silent, and resting at a third of full scale.
+    let mut track = recorded(&path, 48_000, 2, &vec![0.33; 9600]);
+    assert!(track.loudest() < 0.001, "a source at rest is told loud");
+    assert!(
+        read(&path).2.iter().all(|sample| (sample - 0.33).abs() < 1e-6),
+        "the track was centred"
+    );
+    // A voice on one channel of two, around that rest.
+    let voice: Vec<f32> = tone(48_000, 1, 0.5, 0.2, 0.33)
+        .into_iter()
+        .flat_map(|sample| [0.33, sample])
+        .collect();
+    track.push(&voice).unwrap();
+    assert!((track.loudest() - 0.2).abs() < 0.02);
     assert_eq!(track.loudest(), 0.0, "since the last call");
 }
 
@@ -150,6 +199,7 @@ fn the_clock_is_one_line_per_thing_known_on_disk_when_said() {
     clock.point("remote", 0, 0.021_04).unwrap();
     clock.silence("remote", (96_000, 240_000)).unwrap();
     clock.point("local", 480_000, 10.034_149).unwrap();
+    assert!(clock.point("local", 0, f64::NAN).is_err(), "an instant that is no number");
     // Not closed: what a kill leaves.
     let lines: Vec<serde_json::Value> = fs::read_to_string(&path)
         .unwrap()
