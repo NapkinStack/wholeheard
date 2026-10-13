@@ -64,7 +64,7 @@ deliverables:
   - id: D7
     title: "A user reads the minutes of the meeting just finished and sets how Summit chains its steps, in one window that looks at home on their system"
     module: shell
-    state: proposed
+    state: ready
     acceptance:
       - "Given a session whose minutes were just written, when the user clicks the notification that says so, then one window opens on that session: the minutes — highlights, actions with who and by when, key points — and beside them the transcript with Me, Others and the times; it follows the system's theme and font, every action in it is reached from the keyboard, and no window ever opened without a gesture of the user"
       - "Given the settings in that window, when the user chooses what follows a recording — nothing, the transcript, or the transcript then the minutes — and whether the reminder to announce the recording is shown, then the next recording behaves so; out of the box the transcript follows alone and the reminder is shown; and the choices are in one configuration file that reads without Summit"
@@ -729,7 +729,8 @@ flowchart TB
     classDef old fill:#374151,color:#fff
 ```
 
-**Legend** — green: what D3 to D6 already ask of the shell · blue: D7, new · grey: merged.
+**Legend** — green: what D3 to D6 already ask of the shell · blue: D7, accepted by the decider
+on 2026-10-13 · grey: merged.
 Under GNOME the window comes forward from a notification or the shortcut, never from the
 tray's menu (D1): the menu holds the actions themselves.
 
@@ -761,7 +762,7 @@ what makes a window large: the list of sessions, the player, search, costs, the 
 Before slice 4 is coded, the decider sees the window and the menu as a picture and amends
 it: an interface is judged by looking at it.
 
-*(framer, to confirm)* — each with its source:
+**Proposed by the framer, confirmed by the decider on 2026-10-13** ("ok") — each with its source:
 
 - **The shortcut is Super+Alt+M** on Fedora, the one D1's fifth run fired; Ctrl+Alt+M and
   ⌥⌘M elsewhere. Under GNOME the portal lets the user change it.
