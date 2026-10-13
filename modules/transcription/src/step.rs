@@ -8,6 +8,9 @@ use crate::{Making, Segment, Speaker, Transcript};
 
 /// Samples per second of a session's audio files: the contract's, and nothing else is read.
 pub const RATE: usize = 16_000;
+/// Below this share of full scale a span is silence, as the audio contract writes it: an engine
+/// asked to hear silence finds words in it.
+const SILENCE: f32 = 0.001;
 /// A segment that ends this close to the end of a span may be a sentence cut in two.
 const EDGE: f64 = 1.0;
 
@@ -87,7 +90,12 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
         while from < heard.len() {
             let to = (from + seconds.max(1) * RATE).min(heard.len());
             let (start, mut until) = (from as f64 / RATE as f64, to as f64 / RATE as f64);
-            let mut segments = engine.hear(&heard[from..to], language, making.context.as_deref())?;
+            let silent = heard[from..to].iter().all(|sample| sample.abs() < SILENCE);
+            let mut segments = if silent {
+                Vec::new()
+            } else {
+                engine.hear(&heard[from..to], language, making.context.as_deref())?
+            };
             segments
                 .iter_mut()
                 .for_each(|segment| (segment.start, segment.end) = (segment.start + start, (segment.end + start).min(until)));

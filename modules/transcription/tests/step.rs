@@ -109,6 +109,8 @@ fn a_session_is_heard_span_by_span_and_a_sentence_across_two_spans_is_heard_whol
         "model": "a-model", "language": "fr", "context": "Quatre personnes." })
     );
     assert_eq!(lines.last().unwrap(), &serde_json::json!({ "type": "complete", "duration": 70.0 }));
+    // The third span of `others` holds no sound: the engine was not asked to find words in silence.
+    assert_eq!(engine.calls, 5);
     // Every span was heard in the language asked, with the context the user attached, and no span is longer than asked.
     assert!(engine.asked.iter().all(|(length, language, context)| {
         *length <= 30 * RATE && language.as_deref() == Some("fr") && context.as_deref() == Some("Quatre personnes.")
@@ -121,7 +123,7 @@ fn a_step_that_stops_halfway_is_run_again_and_gives_the_same_transcript_as_one_n
     transcribe(whole.path(), &mut Played::default(), None, 30).unwrap();
     let expected = fs::read_to_string(whole.path().join("transcript.jsonl")).unwrap();
 
-    for fails_at in 1..=6 {
+    for fails_at in 1..=5 {
         let folder = session();
         let mut engine = Played {
             fails_at: Some(fails_at),
