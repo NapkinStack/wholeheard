@@ -73,6 +73,18 @@ dependencies:
     purpose: Names the user's configuration and documents folders, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: Three calls in src/settings.rs; environment variables replace it on Linux.
+  - name: tauri
+    purpose: The tray, its menu and the application's life, with the system's own web view for the window to come
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: src/main.rs alone knows it; the library beside it holds every decision and knows no toolkit.
+  - name: tauri-plugin-notification
+    purpose: Shows a notification on the three systems
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One function, tell, in src/main.rs.
+  - name: ashpd
+    purpose: Asks a Linux desktop's portal for the global shortcut (ADR-0002)
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One function, bound, in src/main.rs; elsewhere tauri-plugin-global-shortcut does it.
   - name: sys-locale
     purpose: Reads the language the user's system is set to, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
@@ -87,8 +99,10 @@ dependencies:
 # No stack is imposed. check and test are required once the module holds more than its
 # description (fitness M7): declare them before its first file of code.
 commands:
+  bootstrap: bash scripts/bootstrap.sh
   check: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
   test: cargo test --locked
+  run: cargo run --locked --release --bin summit
 
 docs:
   readme: README.md

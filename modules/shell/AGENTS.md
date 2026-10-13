@@ -28,7 +28,9 @@ Puts Summit's four steps in the user's hands: a tray, a global shortcut, notific
 
 ## Known traps
 
-- None yet.
+- `ashpd` is taken with its `async-io` feature, never `tokio`: with `tokio` the portal's library switches the desktop bus to that runtime, and every notification then panics inside the toolkit's own runtime ("cannot start a runtime from within a runtime").
+- A notification is shown from the main thread or a plain thread, never from a task of the async runtime.
+- The toolkit writes `gen/` at each build: it is ignored. Files are added to a commit by name.
 
 ## Areas not to change without approval
 
