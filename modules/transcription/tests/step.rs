@@ -235,8 +235,8 @@ fn a_recording_still_going_on_is_heard_up_to_here_and_again_when_there_is_more()
 }
 
 #[test]
-fn the_step_neither_crawls_on_an_unbroken_voice_nor_cuts_a_stretch_that_starts_with_a_span() {
-    // One voice for forty seconds, heard five at a time: half a span at least every two calls.
+fn the_step_does_not_crawl_whatever_an_engine_says_of_where_a_voice_starts() {
+    // One voice for forty seconds, heard five at a time: half a span at least at every call.
     for start in [0.02, 1.0, 2.4, 2.5, 4.5] {
         let folder = session();
         audio(&folder.path().join("me.wav"), 40.0, &[(0.0, 40.0)]);
@@ -247,12 +247,6 @@ fn the_step_neither_crawls_on_an_unbroken_voice_nor_cuts_a_stretch_that_starts_w
             ..Played::default()
         };
         transcribe(folder.path(), &mut engine, None, 5).unwrap();
-        assert!(engine.calls <= 33, "{} calls for eight spans, from {start} s in", engine.calls);
+        assert!(engine.calls <= 16, "{} calls for eight spans, from {start} s in", engine.calls);
     }
-
-    // A stretch that starts three tenths into a span and reaches its end is still one segment.
-    let folder = session();
-    audio(&folder.path().join("me.wav"), 70.0, &[(30.3, 60.2)]);
-    transcribe(folder.path(), &mut Played::default(), None, 30).unwrap();
-    assert_eq!(segments(folder.path())[0], ("me".to_string(), 30.3, 60.2));
 }

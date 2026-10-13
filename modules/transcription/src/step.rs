@@ -87,7 +87,6 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
     let stopped = session["stopped"].is_string();
     for (speaker, heard) in &sounds {
         let mut from = (transcript.covered(*speaker) * RATE as f64).round() as usize;
-        let mut crawled = false;
         while from < heard.len() {
             let to = (from + span).min(heard.len());
             let (start, mut until) = (from as f64 / RATE as f64, to as f64 / RATE as f64);
@@ -103,24 +102,23 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
             segments.retain(|segment| segment.start < until);
             segments.sort_by(|a, b| a.start.total_cmp(&b.start));
             // A last segment that touches the end of what was heard may be half a sentence: it
-            // is heard again with what follows. Twice in a row for less than half a span gained,
-            // and the step would crawl: the second time it is written as it is.
-            let touching = segments.last().filter(|last| last.end > until - EDGE).map(|last| last.start);
-            if to == heard.len() {
-                // At the end of a file still being written, the sentence waits for the rest.
-                if let Some(last) = touching.filter(|_| !stopped) {
-                    segments.pop();
-                    transcript.heard(*speaker, &segments, last)?;
-                    break;
-                }
-            } else if let Some(gain) = touching.map(|last| last - start).filter(|gain| *gain > 0.0) {
-                let small = gain < (until - start) / 2.0;
-                if !(small && crawled) {
-                    until = segments.pop().map_or(until, |last| last.start);
-                }
-                crawled = small && !crawled;
-            } else {
-                crawled = false;
+            // is heard again with what follows, from the hundredth it starts in — where a run
+            // stopped there takes up. Only when that gains half a span: the step never crawls.
+            let touching = segments
+                .last()
+                .filter(|last| last.end > until - EDGE)
+                .map(|last| (last.start * 100.0).floor() / 100.0);
+            let whole = to < heard.len() || stopped;
+            if let Some(last) = touching.filter(|last| !whole || last - start >= (until - start) / 2.0) {
+                segments.pop();
+                until = last;
+            } else if !whole {
+                until = (until * 100.0).floor() / 100.0;
+            }
+            if !whole {
+                // The end of a file still being written: what it ends on waits for the rest.
+                transcript.heard(*speaker, &segments, until)?;
+                break;
             }
             transcript.heard(*speaker, &segments, until)?;
             from = ((until * RATE as f64).round() as usize).max(from + 1);
