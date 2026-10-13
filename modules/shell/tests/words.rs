@@ -181,6 +181,8 @@ fn a_failure_says_what_the_program_said_of_it_and_nothing_else_of_the_program() 
             );
         }
     }
+    // A sentence over several lines, or with a tab, is said on one.
+    assert!(said("summit-capture: line one\nline two\n\tthree", Language::English).ends_with("(line one line two three)"));
     // Brackets of its own are not doubled, and a very long sentence is cut short.
     assert!(said("(os error 28)", Language::English).ends_with("folder. (os error 28)"));
     let long = said(&"é".repeat(5000), Language::English);
@@ -188,5 +190,54 @@ fn a_failure_says_what_the_program_said_of_it_and_nothing_else_of_the_program() 
         long.chars().count() < 300 && long.ends_with("…)"),
         "{} characters",
         long.chars().count()
+    );
+}
+
+#[test]
+fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
+    use words::Trouble;
+    let (english, french) = (words::menu(Language::English), words::menu(Language::French));
+    assert_eq!(
+        (english.start, english.stop, english.quit),
+        ("Start recording", "Stop recording", "Quit Summit")
+    );
+    assert_eq!(
+        (french.start, french.stop),
+        ("Démarrer l’enregistrement", "Arrêter l’enregistrement")
+    );
+    // No entry is the same in the two languages, and none is empty.
+    for (one, other) in [
+        (english.start, french.start),
+        (english.stop, french.stop),
+        (english.stopping, french.stopping),
+        (english.quit, french.quit),
+        (english.recording, french.recording),
+    ] {
+        assert!(
+            !one.is_empty() && !other.is_empty() && one != other && !one.contains('\'') && !other.contains('\''),
+            "{one} / {other}"
+        );
+    }
+    // A trouble says what it is, what still works, and last what the system said of it.
+    for trouble in [
+        Trouble::NoRecorder("No such file or directory (os error 2)".into()),
+        Trouble::Settings("settings.toml, line 3: invalid boolean".into()),
+        Trouble::Shortcut("the dialog was dismissed".into()),
+    ] {
+        let detail = match &trouble {
+            Trouble::NoRecorder(why) | Trouble::Settings(why) | Trouble::Shortcut(why) => why.clone(),
+        };
+        for language in BOTH {
+            let Notice { title, body } = words::trouble(&trouble, language);
+            assert!(
+                !title.is_empty() && !title.contains('\'') && body.ends_with(&format!("({detail})")),
+                "{title} — {body}"
+            );
+        }
+    }
+    assert!(
+        !words::trouble(&Trouble::Shortcut(String::new()), Language::French)
+            .body
+            .contains('(')
     );
 }
