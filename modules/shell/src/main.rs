@@ -8,6 +8,7 @@
 use std::{
     path::PathBuf,
     sync::{Mutex, mpsc::Receiver},
+    time::{Duration, Instant},
 };
 
 use summit_shell::{
@@ -35,6 +36,11 @@ struct Shell {
     toggle: MenuItem<Wry>,
     /// The user asked to quit while a recording ran: it is stopped first, then Summit leaves.
     leaving: Mutex<bool>,
+    /// When the recording was last started or told to stop: a second press in the same
+    /// half-second is the same gesture, not a second one.
+    pressed: Mutex<Option<Instant>>,
+    /// The recording was told to stop and has not ended yet.
+    stopping: Mutex<bool>,
 }
 
 /// Where the tray is in the life of a recording.
@@ -71,6 +77,8 @@ fn main() {
                 recording: Mutex::new(None),
                 toggle,
                 leaving: Mutex::new(false),
+                pressed: Mutex::new(None),
+                stopping: Mutex::new(false),
             });
             if let Err(why) = read {
                 tell(app.handle(), &words::trouble(&Trouble::Settings(why), language));
@@ -138,11 +146,19 @@ fn recorder() -> PathBuf {
 /// the global shortcut both come here.
 fn toggle_recording(app: &AppHandle) {
     let shell = app.state::<Shell>();
+    let mut pressed = shell.pressed.lock().unwrap();
+    if pressed.is_some_and(|last| last.elapsed() < Duration::from_millis(500)) {
+        return;
+    }
+    *pressed = Some(Instant::now());
     let mut recording = shell.recording.lock().unwrap();
     if let Some(running) = recording.as_mut() {
-        // A stop that cannot be said means the program is already ending: its end is told by what it says.
-        let _ = running.stop();
-        show(app, Shown::Stopping);
+        // Told once: a recording that is stopping is not told again. A stop that cannot be
+        // said means the program is already ending: its end is told by what it says.
+        if !std::mem::replace(&mut *shell.stopping.lock().unwrap(), true) {
+            let _ = running.stop();
+            show(app, Shown::Stopping);
+        }
         return;
     }
     let started = std::fs::create_dir_all(&shell.settings.sessions).and_then(|()| Recording::start(&recorder(), &shell.settings.sessions));
@@ -160,39 +176,46 @@ fn toggle_recording(app: &AppHandle) {
 /// Tells the user what a recording says, until it has ended; then the tray is at rest again.
 fn listen(app: &AppHandle, said: &Receiver<Said>) {
     let shell = app.state::<Shell>();
+    let mut started = false;
     for event in said {
-        if let Some(notice) = words::of(&event, shell.settings.reminder, shell.language) {
+        started |= matches!(event, Said::Started(_));
+        let notice = match &event {
+            // Ended before it had started: nothing was recorded, and that is the trouble.
+            Said::Failed(why) if !started => Some(words::trouble(&Trouble::NoRecorder(why.clone()), shell.language)),
+            _ => words::of(&event, shell.settings.reminder, shell.language),
+        };
+        if let Some(notice) = notice {
             tell(app, &notice);
         }
     }
-    // Its output is closed: the program is ending. It is waited for, so that nothing of it is
-    // left behind in the system's table of programs.
-    if let Some(mut ended) = shell.recording.lock().unwrap().take() {
-        for _ in 0..50 {
-            if ended.ended() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(20));
-        }
-    }
+    let ended = shell.recording.lock().unwrap().take();
+    *shell.stopping.lock().unwrap() = false;
     show(app, Shown::Idle);
     if *shell.leaving.lock().unwrap() {
         app.exit(0);
     }
+    // Its output is closed: the program is ending. It is waited for here, however long it
+    // takes, so that nothing of it is left in the system's table of programs.
+    if let Some(ended) = ended {
+        ended.wait();
+    }
 }
 
 /// Quits Summit. A recording in progress is stopped first, as the user would stop it: its
-/// files are whole before Summit is gone.
+/// files are whole before Summit is gone. Asked a second time, Summit leaves at once: a
+/// recorder that does not end is not a reason to keep the user.
 fn leave(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let mut recording = shell.recording.lock().unwrap();
+    let asked_before = std::mem::replace(&mut *shell.leaving.lock().unwrap(), true);
     match recording.as_mut() {
-        Some(running) => {
-            *shell.leaving.lock().unwrap() = true;
-            let _ = running.stop();
+        Some(running) if !asked_before => {
+            if !std::mem::replace(&mut *shell.stopping.lock().unwrap(), true) {
+                let _ = running.stop();
+            }
             show(app, Shown::Stopping);
         }
-        None => app.exit(0),
+        _ => app.exit(0),
     }
 }
 
