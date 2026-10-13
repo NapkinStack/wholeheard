@@ -95,18 +95,19 @@ impl Recording {
         let complaint = thread::spawn(move || lines(errors).filter(|line| !line.trim().is_empty()).last().unwrap_or_default());
         let (tell, said) = mpsc::channel();
         thread::spawn(move || {
-            let mut stopped = false;
-            // Read to its end, so that the program is never held up; nothing follows "stopped".
+            // Read to its end, so that the program is never held up. "stopped" is the last word:
+            // whoever listens hears the end there, though the program may take its time to go.
+            let mut tell = Some(tell);
             for event in lines(output).filter_map(|line| read(&line)) {
-                if !stopped {
-                    stopped = matches!(event, Said::Stopped(..));
-                    let _ = tell.send(event);
+                let last = matches!(event, Said::Stopped(..));
+                if let Some(listener) = if last { tell.take() } else { tell.clone() } {
+                    let _ = listener.send(event);
                 }
             }
-            // Its output is closed: the program ended. Without "stopped", it failed.
-            if !stopped {
-                let _ = tell.send(Said::Failed(complaint.join().unwrap_or_default().trim().to_string()));
-            }
+            let Some(tell) = tell else { return };
+            // Its output is closed and it never said "stopped": it failed, and its error stream
+            // holds why once it has ended.
+            let _ = tell.send(Said::Failed(complaint.join().unwrap_or_default().trim().to_string()));
         });
         Ok((Self { program, input }, said))
     }
