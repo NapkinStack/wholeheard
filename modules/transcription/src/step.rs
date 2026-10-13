@@ -11,8 +11,9 @@ pub const RATE: usize = 16_000;
 /// Below this share of full scale a span is silence, as the audio contract writes it: an engine
 /// asked to hear silence finds words in it.
 const SILENCE: f32 = 0.001;
-/// A segment that ends this close to the end of a span may be a sentence cut in two.
-const EDGE: f64 = 1.0;
+/// A segment that ends this close to the end of a span — in hundredths of a second — may be
+/// a sentence cut in two.
+const EDGE: usize = 100;
 
 /// What hears: one question, whatever answers it. Times are seconds from the span's start.
 pub trait Engine {
@@ -83,45 +84,62 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
     if transcript.is_complete() {
         return Ok(());
     }
-    let span = seconds.max(1) * RATE;
+    // Every place in the session is counted in whole hundredths of a second, as the transcript
+    // writes them: a run taken up starts exactly where the run before decided to stop.
+    const HUNDREDTH: usize = RATE / 100;
+    let span = seconds.clamp(1, 86_400) * 100;
     let stopped = session["stopped"].is_string();
     for (speaker, heard) in &sounds {
-        let mut from = (transcript.covered(*speaker) * RATE as f64).round() as usize;
-        while from < heard.len() {
-            let to = (from + span).min(heard.len());
-            let (start, mut until) = (from as f64 / RATE as f64, to as f64 / RATE as f64);
-            let silent = heard[from..to].iter().all(|sample| sample.abs() < SILENCE);
-            let mut segments = if silent {
+        // A file still being written is heard up to its last whole hundredth.
+        let end = if stopped {
+            (heard.len() + HUNDREDTH / 2) / HUNDREDTH
+        } else {
+            heard.len() / HUNDREDTH
+        };
+        let mut from = (transcript.covered(*speaker) * 100.0).round() as usize;
+        while from < end {
+            let until = (from + span).min(end);
+            let last = until == end;
+            let sound = &heard[from * HUNDREDTH..if last { heard.len() } else { until * HUNDREDTH }];
+            let silent = sound.iter().all(|sample| sample.abs() < SILENCE);
+            let answer = if silent {
                 Vec::new()
             } else {
-                engine.hear(&heard[from..to], language, making.context.as_deref())?
+                engine.hear(sound, language, making.context.as_deref())?
             };
-            segments
-                .iter_mut()
-                .for_each(|segment| (segment.start, segment.end) = (segment.start + start, (segment.end + start).min(until)));
-            segments.retain(|segment| segment.start < until);
-            segments.sort_by(|a, b| a.start.total_cmp(&b.start));
-            // A last segment that touches the end of what was heard may be half a sentence: it
-            // is heard again with what follows, from the hundredth it starts in — where a run
-            // stopped there takes up. Only when that gains half a span: the step never crawls.
+            // A time is the hundredth it falls on, or the next: heard again from its start, a
+            // segment gets the same times. A time that is no time is the span's edge.
+            let within = |seconds: f64| from + (seconds * 100.0 - 1e-6).ceil().clamp(0.0, (until - from) as f64) as usize;
+            let mut segments: Vec<(usize, usize, String)> = answer
+                .into_iter()
+                .map(|segment| (within(segment.start), within(segment.end), segment.text))
+                .filter(|(start, ..)| *start < until)
+                .collect();
+            segments.sort_by_key(|(start, ..)| *start);
+            // A last segment that touches the end of what was heard may be half a sentence. In
+            // the middle of a file it is heard again with what follows, when that gains half a
+            // span: the step never crawls. At the end of a file still being written it waits
+            // for the rest; at the end of one that was stopped there is no rest.
+            // (One that fits in a single hundredth is whole: heard again, it would be lost.)
             let touching = segments
                 .last()
-                .filter(|last| last.end > until - EDGE)
-                .map(|last| (last.start * 100.0).floor() / 100.0);
-            let whole = to < heard.len() || stopped;
-            if let Some(last) = touching.filter(|last| !whole || last - start >= (until - start) / 2.0) {
-                segments.pop();
-                until = last;
-            } else if !whole {
-                until = (until * 100.0).floor() / 100.0;
-            }
-            if !whole {
-                // The end of a file still being written: what it ends on waits for the rest.
-                transcript.heard(*speaker, &segments, until)?;
+                .filter(|(start, end, _)| end + EDGE > until && end > start)
+                .map(|(start, ..)| *start);
+            let again = touching.filter(|start| if last { !stopped } else { (start - from) * 2 >= until - from });
+            let covered = again.inspect(|_| drop(segments.pop())).unwrap_or(until);
+            let segments: Vec<Segment> = segments
+                .into_iter()
+                .map(|(start, end, text)| Segment {
+                    start: start as f64 / 100.0,
+                    end: end.max(start) as f64 / 100.0,
+                    text,
+                })
+                .collect();
+            transcript.heard(*speaker, &segments, covered as f64 / 100.0)?;
+            if again.is_some() && last {
                 break;
             }
-            transcript.heard(*speaker, &segments, until)?;
-            from = ((until * RATE as f64).round() as usize).max(from + 1);
+            from = covered;
         }
     }
     // A recording still going on, or ended by a crash, has no last word yet: the step is run again.
