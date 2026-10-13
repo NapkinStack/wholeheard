@@ -137,5 +137,6 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
         return Ok(());
     }
     let longest = sounds.iter().map(|(_, heard)| heard.len()).max().unwrap_or(0);
-    transcript.complete(longest as f64 / RATE as f64)
+    // The length as the last `covered` says it: counted the same way, to the nearest hundredth.
+    transcript.complete(((longest + HUNDREDTH / 2) / HUNDREDTH) as f64 / 100.0)
 }
