@@ -196,7 +196,7 @@ fn a_file_that_is_not_what_a_session_holds_is_said_and_not_converted() {
     refused(folder.path(), &["others.wav cannot be read"]);
     audio(&folder.path().join("others.wav"), 65.0, &[(0.5, 2.5)]);
     // A folder that is not a session of this version is not heard either.
-    for not_one in ["", "{}", r#"{"contract":"session-audio/v2"}"#] {
+    for not_one in ["", "{}", r#"{"contract":"session-audio/v0"}"#] {
         fs::write(folder.path().join("session.json"), not_one).unwrap();
         refused(folder.path(), &["session.json does not name session-audio/v1"]);
     }
