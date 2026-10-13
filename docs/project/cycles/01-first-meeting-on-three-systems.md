@@ -532,6 +532,39 @@ The engine for Fedora is chosen with it: the native one on the graphics card, th
 Fedora desktop, to be read for the two other systems — and a model file of 574 to 874 MB that
 someone must fetch, shown first (security rule 1).
 
+### D5 — the minutes from real providers, and the model the example names (2026-10-13)
+
+The program `summit-summary`, on D2's public sample, from its transcript and its context;
+the runs and their reading are in the acceptance issue #43.
+
+**The seven actions really agreed**, the reference D5's second criterion counts against:
+contact the three speakers, Alexandre asked, answers by 26 April · contact the scientific
+committee · send reminders two or three times a week · propose the two dates, 3 and 10
+June · keep a plan B · pre-book the rooms, Laure · check the equipment and the technicians,
+and test beforehand.
+
+| Model | Tasks written | Of the seven: missing | Wrong | The guest as owner | Time |
+|---|---|---|---|---|---|
+| On the machine, 7B, with the context | 3 | 4 | 0 | no | minutes |
+| Online, mid-size, with the context | 4 | 3 | 1 | no | 3 s |
+| Online, fast, with the context | 7 | 2 | 0 | no | 3 s |
+| **Online, large, with the context** | 9 | **0** | 0 | no | 15 s |
+| Online, mid-size, without the context | 2 | 4 | 1 | **yes** | 2 s |
+
+One run per line; the count is the framer's, read again by an independent session.
+
+- **The request was wrong, and is right**: its first wording labelled the three parts in
+  English and the model copied the labels over a French text; it asked for "actions" and got
+  the two that had an owner. Reworded, every model titles in the meeting's language.
+- **The context is what keeps the guest out of the owners**, as in D2.
+- **The second criterion is a matter of model.** Only the large one misses none of the seven;
+  it also says of an owner that he "was asked, and did not explicitly accept".
+
+**Decided by the decider (2026-10-13): the configuration example names the large model.** It
+is the only one that keeps what D5 promises; a user who chooses a faster or a cheaper one
+does so knowing what it leaves out. The model on the machine stays what a user without a
+provider gets: three tasks of seven on this laptop.
+
 ### A fourth orientation — the best engine of each system (2026-10-13)
 
 The decider, on reading the native engine's trial: each system may have a speech-to-text of
