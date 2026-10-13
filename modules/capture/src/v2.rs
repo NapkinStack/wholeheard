@@ -64,12 +64,17 @@ impl Track {
         self.cut = sound.split_off(sound.len() - sound.len() % channels);
         let mut bytes = Vec::with_capacity(sound.len() * BYTES);
         for (at, &sample) in sound.iter().enumerate() {
-            let sample = if sample.is_nan() { 0.0 } else { sample };
-            self.measure(at % channels, sample);
+            // What is no number is no sound either: written as zero, and not measured.
+            if sample.is_nan() {
+                bytes.extend_from_slice(&[0; BYTES]);
+                continue;
+            }
+            self.measure(at % channels, sample.clamp(-1.0, 1.0));
             let value = (sample * FULL_SCALE).round().clamp(-FULL_SCALE, FULL_SCALE - 1.0) as i32;
             bytes.extend_from_slice(&value.to_le_bytes()[..BYTES]);
         }
-        self.write(&bytes)?;
+        // Refused, a delivery leaves nothing: not its frames, not the piece of one it held.
+        self.write(&bytes).inspect_err(|_| self.cut.clear())?;
         self.frames += (sound.len() / channels) as u64;
         Ok(())
     }
@@ -77,10 +82,14 @@ impl Track {
     /// Writes whole or not at all: a write the system cut leaves the track as it was, so
     /// that what follows a failure is still frames.
     fn write(&mut self, bytes: &[u8]) -> io::Result<()> {
-        self.file.write_all(bytes).inspect_err(|_| {
-            let whole = HEADER as u64 + self.frames * u64::from(self.channels) * BYTES as u64;
-            let _ = self.file.set_len(whole).and_then(|()| self.file.seek(SeekFrom::Start(whole)));
-        })
+        self.file.write_all(bytes).inspect_err(|_| drop(self.rewind()))
+    }
+
+    /// Brings the file back to the frames the track counts.
+    fn rewind(&mut self) -> io::Result<()> {
+        let whole = HEADER as u64 + self.frames * u64::from(self.channels) * BYTES as u64;
+        self.file.set_len(whole)?;
+        self.file.seek(SeekFrom::Start(whole)).map(drop)
     }
 
     /// The track holds the sound as delivered; how loud it is, is measured from where the
@@ -101,10 +110,17 @@ impl Track {
             return Ok(None);
         }
         let from = self.frames;
-        // A second at a time: a long gap is not held in memory.
+        // The source stopped: the start of a frame it never ended is not the start of the next.
+        self.cut.clear();
+        // A second at a time: a long gap is not held in memory. Refused part-way, none of it
+        // stays: zeros of ours that no one was told of would pass for the room's.
         while self.frames < frames {
             let more = (frames - self.frames).min(u64::from(self.rate));
-            self.write(&vec![0u8; more as usize * usize::from(self.channels) * BYTES])?;
+            if let Err(error) = self.write(&vec![0u8; more as usize * usize::from(self.channels) * BYTES]) {
+                self.frames = from;
+                let _ = self.write(&[]).and_then(|()| self.rewind());
+                return Err(error);
+            }
             self.frames += more;
         }
         Ok(Some((from, frames)))

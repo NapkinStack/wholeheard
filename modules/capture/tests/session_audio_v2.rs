@@ -128,6 +128,12 @@ fn a_frame_delivered_in_two_pieces_is_written_once_whole_and_no_channel_moves() 
     assert!(samples.chunks(2).all(|frame| frame[0] > 0.0 && frame[1] < 0.0), "a channel moved");
     track.push(&[0.5]).unwrap();
     assert_eq!(track.frames(), 20, "half a frame is not a frame yet");
+    // The source stops there and comes back: its half frame is not the start of the next.
+    track.silence_to(30).unwrap();
+    track.push(&[0.3, -0.3]).unwrap();
+    let samples = read(&path).2;
+    assert_eq!(samples.len(), 62);
+    assert!(samples[60] > 0.0 && samples[61] < 0.0, "a channel moved after a gap");
 }
 
 #[test]
@@ -138,7 +144,11 @@ fn what_no_file_of_24_bits_can_hold_is_written_as_the_nearest_it_can() {
     track.push(&[1.5, -1.5, 1.0, -1.0, f32::NAN, f32::INFINITY, 0.5]).unwrap();
     let top = 8_388_607.0 / 8_388_608.0;
     assert_eq!(read(&path).2, [top, -1.0, top, -1.0, 0.0, top, 0.5]);
-    assert!(track.loudest().is_finite());
+    assert!(track.loudest() <= 2.0, "what is beyond full scale is measured as full scale");
+    // What is no number is not a sound: a source at rest stays silent through it.
+    let mut resting = Track::create(&folder.path().join("resting.wav"), 48_000, 1).unwrap();
+    resting.push(&[0.33, 0.33, f32::NAN, 0.33, 0.33]).unwrap();
+    assert!(resting.loudest() < 0.001);
     assert!(
         Track::create(&folder.path().join("wide.wav"), 48_000, 30_000).is_err(),
         "more channels than a header can say"
