@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+rubato = "5.0.1"
 serde_json = "1.0.154"
 whisper-rs = "0.16.0"
 
