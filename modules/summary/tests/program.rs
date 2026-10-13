@@ -210,3 +210,58 @@ fn a_proxy_named_by_the_environment_is_never_used() {
     assert!(received.recv().is_ok());
     assert!(seen_by_proxy.try_recv().is_err(), "the proxy of the environment was contacted");
 }
+
+#[test]
+fn a_key_the_provider_sends_back_in_its_answer_is_never_written() {
+    let folder = session(None);
+    fs::write(folder.path().join("minutes.md"), "the minutes that were there\n").unwrap();
+    let (address, _received) = provider("200 OK", answering(&format!("{MINUTES}\n- Bearer a-key-for-the-test\n"), "stop"));
+    let output = run(folder.path(), &address, Some("a-key-for-the-test"));
+    let (out, err) = said(&output);
+    assert!(
+        !output.status.success() && err.contains("sent the key back") && err.trim().lines().count() == 1,
+        "{err}"
+    );
+    assert!(!out.contains("a-key-for-the-test") && !err.contains("a-key-for-the-test"));
+    assert_eq!(
+        fs::read_to_string(folder.path().join("minutes.md")).unwrap(),
+        "the minutes that were there\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_leaves() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+    let not_text = OsStr::from_bytes(&[0x66, 0xff, 0xfe]);
+    let folder = session(None);
+    let (address, received) = provider("200 OK", answering(MINUTES, "stop"));
+    let program = || {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_summit-summary"));
+        command
+            .arg(folder.path())
+            .args(["--provider", &address, "--model"])
+            .env_remove("SUMMIT_PROVIDER_KEY");
+        command
+    };
+    let refused = |output: Output, expected: &str| {
+        let (out, err) = said(&output);
+        assert!(
+            !output.status.success() && err.contains(expected) && err.trim().lines().count() == 1,
+            "{expected}: {err}"
+        );
+        assert!(out.is_empty(), "something was said to be sent: {out}");
+    };
+    refused(program().arg(not_text).output().unwrap(), "an argument is not text");
+    refused(
+        program().arg("a-model").env("SUMMIT_PROVIDER_KEY", not_text).output().unwrap(),
+        "SUMMIT_PROVIDER_KEY is not text",
+    );
+    // A context that is there and cannot be read is not the same as no context.
+    fs::create_dir(folder.path().join("context.txt")).unwrap();
+    refused(
+        program().arg("a-model").output().unwrap(),
+        "context.txt is there and cannot be read",
+    );
+    assert!(received.try_recv().is_err(), "a request left the machine");
+}

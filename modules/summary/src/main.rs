@@ -9,14 +9,17 @@
 //! `written` — and what failed in one sentence on the error stream. Whatever fails, the
 //! transcript is untouched and the minutes that were there are still there.
 
-use std::{fs, path::Path, process::ExitCode, time::Duration};
+use std::{fs, io::Write, path::Path, process::ExitCode, time::Duration};
 
 use serde_json::json;
 use summit_summary::{Made, Refused, minutes, provider::Provider, read_transcript, request, write_minutes};
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    // Arguments that are not text are refused like any other mistake, not with a crash.
+    let args: Vec<String> = std::env::args_os().skip(1).filter_map(|arg| arg.into_string().ok()).collect();
+    let all_text = args.len() + 1 == std::env::args_os().count();
     let outcome = match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
+        _ if !all_text => Err(Refused("an argument is not text".into())),
         [folder, "--provider", address, "--model", model] | [folder, "--model", model, "--provider", address] => {
             summarise(Path::new(folder), address, model)
         }
@@ -41,18 +44,30 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     // claim a context they did not have.
     let context = match fs::read(folder.join("context.txt")) {
         Ok(bytes) => Some(String::from_utf8(bytes).map_err(|_| Refused("context.txt is not text: it must be UTF-8".into()))?),
-        Err(_) => None,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(Refused(format!("context.txt is there and cannot be read ({error})"))),
     };
     let asked = request(&segments, context.as_deref());
 
-    let key = std::env::var("SUMMIT_PROVIDER_KEY").ok();
+    let key = match std::env::var("SUMMIT_PROVIDER_KEY") {
+        Ok(key) => Some(key),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(_) => return Err(Refused("the key in SUMMIT_PROVIDER_KEY is not text".into())),
+    };
     let provider = Provider::new(address, model, key.as_deref(), Duration::from_secs(600))?;
     // Said before anything leaves, and after the address was read: where it goes, and how much.
-    println!(
-        "{}",
-        json!({ "event": "sending", "host": provider.host(), "model": provider.model(), "characters": asked.chars().count() })
-    );
+    let sending = json!({ "event": "sending", "host": provider.host(), "model": provider.model(), "characters": asked.chars().count() });
+    if writeln!(std::io::stdout(), "{sending}").is_err() {
+        return Err(Refused("nothing was sent: what is sent could not be said first".into()));
+    }
     let answer = provider.ask(&asked)?;
+    // A provider that sends the key back in its answer does not get it written in a file.
+    if key.as_deref().is_some_and(|key| !key.is_empty() && answer.contains(key)) {
+        return Err(Refused(format!(
+            "the provider at {} sent the key back in its answer: nothing was written",
+            provider.host()
+        )));
+    }
 
     let at = chrono::Local::now().fixed_offset();
     let written = minutes(
@@ -65,6 +80,10 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
         },
     )?;
     write_minutes(folder, &written).map_err(|error| Refused(format!("the minutes could not be written ({error})")))?;
-    println!("{}", json!({ "event": "written", "file": folder.join("minutes.md") }));
+    let _ = writeln!(
+        std::io::stdout(),
+        "{}",
+        json!({ "event": "written", "file": folder.join("minutes.md") })
+    );
     Ok(())
 }
