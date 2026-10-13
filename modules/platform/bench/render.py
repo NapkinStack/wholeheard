@@ -1,6 +1,6 @@
 """Renders the bench's meeting: the tracks a recording of it would hold, and the truth beside.
 
-    uv run python -m bench.render <voices-folder> <out-folder> [<draws>]
+    uv run python -m bench.render <voices-folder> <out-folder> [<draws> [v1|v2]]
 
 Three listening conditions — `headset`, `low`, `loud`, see `CONDITIONS` — and for each, six
 draws of the microphone's and the line's noise unless told otherwise: `<out-folder>/<condition>/<draw>`.
@@ -12,7 +12,9 @@ models `VOICES` names, fetched once with `python -m piper.download_voices`.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
+import struct
 import sys
 import wave
 from collections.abc import Callable
@@ -207,14 +209,88 @@ def write_session(folder: Path, tracks: dict[str, np.ndarray], truth: list[dict]
     (folder / "truth.json").write_text(json.dumps({"turns": truth}, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+STARTS = {"local": 0.064, "remote": 0.021}
+"""When each source's first sound reaches a recorder, in seconds after the session starts:
+two devices do not open at the same instant. As seen on the capture's first recordings."""
+
+STOPS = (0.7, 2.0)
+"""Two times the remote source stops delivering, in seconds: one too short for the capture
+to write zeros — the clock alone says where the sound comes back — and one long enough that
+it does, up to half a second before the sound returns."""
+
+
+def as_delivered(track: np.ndarray, starts: float, stops: list[tuple[float, float]]) -> tuple[np.ndarray, list[dict]]:
+    """A side as a recorder holds it, and what its clock says: the track opens when its
+    source does, and is shorter than the meeting by what the source did not deliver —
+    `stops`, each a moment it stopped at and for how long."""
+    first = round(starts * RATE)
+    pieces, clock, frames, cursor = [], [], 0, first
+    for at, lasted in [*sorted(stops), (len(track) / RATE, 0.0)]:
+        end = round(at * RATE)
+        # A point where the sound starts, then every five seconds while it lasts.
+        clock += [{"sample": frames + n, "at": round((cursor + n) / RATE, 4)} for n in range(0, end - cursor, 5 * RATE)]
+        pieces.append(track[cursor:end])
+        frames += end - cursor
+        cursor = end + round(lasted * RATE)
+        if lasted >= 1.5:
+            # Behind for a second and a half, the capture writes zeros, to half a second before the sound.
+            zeros = round((lasted - 0.5) * RATE)
+            clock.append({"silence": [frames, frames + zeros]})
+            pieces.append(np.zeros(zeros, dtype=track.dtype))
+            frames += zeros
+    return np.concatenate(pieces), clock
+
+
+def write_track(path: Path, sound: np.ndarray) -> None:
+    """A track as the capture writes one: two channels holding the same sound, 24 bits, the
+    header's extensible form."""
+    steps = (np.clip(sound, -1.0, 1.0) * 8_388_607).astype("<i4")
+    data = np.repeat(steps.view(np.uint8).reshape(-1, 4)[:, :3], 2, axis=0).tobytes()
+    form = struct.pack("<HHIIHHHHI", 0xFFFE, 2, RATE, RATE * 6, 6, 24, 22, 24, 3)
+    form += bytes([1, 0, 0, 0, 0, 0, 0x10, 0, 0x80, 0, 0, 0xAA, 0, 0x38, 0x9B, 0x71])
+    head = b"RIFF" + struct.pack("<I", 60 + len(data)) + b"WAVEfmt " + struct.pack("<I", len(form)) + form
+    path.write_bytes(head + b"data" + struct.pack("<I", len(data)) + data)
+
+
+def write_as_delivered(folder: Path, tracks: dict[str, np.ndarray], truth: list[dict]) -> None:
+    """The same session as a recording keeps it since ADR-0004 (`session-audio/v2`): each
+    side as a laptop's devices deliver it, and the session's clock — which here has
+    something to say: the two tracks do not start together, and the remote source stops
+    twice, in the two longest moments nobody on that side speaks."""
+    folder.mkdir(parents=True, exist_ok=True)
+    said = sorted((turn["start"], turn["end"]) for turn in truth if turn["side"] == "remote")
+    quiet = sorted(((later[0] - earlier[1], earlier[1]) for earlier, later in itertools.pairwise(said)), reverse=True)
+    # Each stop in the middle of its quiet moment, the longer stop in the longer moment.
+    stops = [
+        (after + (length - lasted) / 2, lasted) for (length, after), lasted in zip(quiet, sorted(STOPS, reverse=True))
+    ]
+    if any(length < lasted + 0.4 for (length, _), lasted in zip(quiet, sorted(STOPS, reverse=True))):
+        raise ValueError("the meeting has no moment long enough for the remote source to stop in")
+    lines = []
+    for side in ("local", "remote"):
+        sound, clock = as_delivered(tracks[side], STARTS[side], stops if side == "remote" else [])
+        write_track(folder / f"{side}.wav", sound)
+        lines += [{"track": side, **line} for line in clock]
+    record = {
+        "contract": "session-audio/v2",
+        "started": "2026-10-14T09:00:00+02:00",
+        "stopped": "2026-10-14T09:05:00+02:00",
+        "tracks": {"local": {"device": "bench"}, "remote": {"device": "bench"}},
+    }
+    (folder / "session.json").write_text(json.dumps(record), encoding="utf-8")
+    (folder / "clock.jsonl").write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    (folder / "truth.json").write_text(json.dumps({"turns": truth}, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def main(argv: list[str]) -> int:
     voices, out = Path(argv[1]), Path(argv[2])
     draws = int(argv[3]) if len(argv) > 3 else 6
+    write = {"v1": write_session, "v2": write_as_delivered}[argv[4] if len(argv) > 4 else "v1"]
     meeting = script(Path(__file__).with_name("meeting.txt"))
     tracks, truth = lay_out(meeting, piper(voices, out / "cache"))
     for name in CONDITIONS:
         for seed in range(draws):
-            write_session(out / name / str(seed), condition(tracks, name, seed), truth)
+            write(out / name / str(seed), condition(tracks, name, seed), truth)
         print(f"{name}: {len(truth)} turns, {truth[-1]['end']:.0f} s, {draws} draws of the noise, in {out / name}")
     return 0
 

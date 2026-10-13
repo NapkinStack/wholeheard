@@ -49,6 +49,9 @@ consumes:
   - contract: session-audio
     version: v1
     module: capture
+  - contract: session-audio
+    version: v2
+    module: capture
   - contract: transcript
     version: v1
     module: transcription
