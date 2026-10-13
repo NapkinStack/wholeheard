@@ -106,8 +106,10 @@ impl Provider {
             return refused("the model's name is empty or holds a character that is not text");
         }
         let key = key.filter(|key| !key.is_empty());
-        if key.is_some_and(|key| key.trim().is_empty() || !key.chars().all(|c| c.is_ascii_graphic() || c == ' ')) {
-            return refused("the key is empty or holds a character a request cannot carry");
+        // No space either: a server drops the ones around a key, and what it then sends back
+        // is no longer the text this program would recognise.
+        if key.is_some_and(|key| !key.chars().all(|c| c.is_ascii_graphic())) {
+            return refused("the key holds a space or a character a request cannot carry");
         }
         Ok(Self {
             uri,
