@@ -25,7 +25,9 @@ Turns the audio of a session into a timestamped transcript.
   the source did not make rings in what the engine hears. The step reads both
   forms and measures silence by the form: the first is centred, and silence is within a
   thousandth of zero, as it always was; in the second, where a span rests is taken out of the
-  measure — never of the sound — by one pole at 20 Hz, as the capture does for its own watch.
+  measure — never of the sound — by one pole at 20 Hz, as the capture does for its own watch,
+  run once from the track's first sample to its last: restarted at every span, it took each
+  span's first sample for its rest and heard a quiet hum at twice its size.
   One measure for both, a line from a span's first sample to its last, failed its
   verification: it changed what a first-form session gives, and was twice as strict away
   from zero.

@@ -60,22 +60,24 @@ pub fn sound(path: &Path) -> io::Result<Vec<f32>> {
 /// centred, as the first form writes it.
 pub type Session = (bool, Option<String>, [(Speaker, Vec<f32>); 2], bool);
 
-/// Whether a span is silence. The first form is centred: silence is within [`SILENCE`] of
-/// zero, as it always was. A source as delivered rests where it rests, and what it did not
-/// deliver is heard as a line: where the span rests is taken out of the measure — never out
-/// of the sound — as the capture does for its own watch, by one pole at 20 Hz.
-fn silent(sound: &[f32], as_delivered: bool) -> bool {
-    let keep = if as_delivered {
-        1.0 - std::f32::consts::TAU * 20.0 / RATE as f32
-    } else {
-        0.0
+/// The hundredths of a second of a track as delivered that hold sound. A source rests where
+/// it rests, and what it did not deliver is heard as a line: where the track rests is taken
+/// out of the measure — never out of the sound — as the capture does for its own watch, by
+/// one pole at 20 Hz run from the track's first sample to its last. It starts from where the
+/// track's first tenth of a second rests, and never again: a span is measured the same
+/// wherever a run takes the session up.
+fn sounding(heard: &[f32]) -> Vec<bool> {
+    let keep = 1.0 - std::f32::consts::TAU * 20.0 / RATE as f32;
+    let opening = &heard[..heard.len().min(RATE / 10)];
+    let (mut last_in, mut last_out) = (opening.iter().sum::<f32>() / opening.len().max(1) as f32, 0.0f32);
+    let mut moves = |&sample: &f32| {
+        (last_in, last_out) = (sample, sample - last_in + keep * last_out);
+        last_out.abs() >= SILENCE
     };
-    let (mut last_in, mut last_out) = (sound.first().copied().unwrap_or(0.0), 0.0f32);
-    sound.iter().all(|&sample| {
-        let moved = if as_delivered { sample - last_in + keep * last_out } else { sample };
-        (last_in, last_out) = (sample, moved);
-        moved.abs() < SILENCE
-    })
+    heard
+        .chunks(RATE / 100)
+        .map(|hundredth| hundredth.iter().fold(false, |sound, sample| moves(sample) || sound))
+        .collect()
 }
 
 /// Reads a session's folder and judges it — or says which file is wrong, and what: a caller
@@ -152,6 +154,7 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
     const HUNDREDTH: usize = RATE / 100;
     let span = seconds.clamp(1, 86_400) * 100;
     for (speaker, heard) in &sounds {
+        let sounding = as_delivered.then(|| sounding(heard));
         // A file still being written is heard up to its last whole hundredth; one that was stopped, to the nearest.
         let end = (heard.len() + if stopped { HUNDREDTH / 2 } else { 0 }) / HUNDREDTH;
         let mut from = (transcript.covered(*speaker) * 100.0).round() as usize;
@@ -159,7 +162,12 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
             let until = (from + span).min(end);
             let last = until == end;
             let sound = &heard[from * HUNDREDTH..(until * HUNDREDTH).min(heard.len())];
-            let answer = if silent(sound, as_delivered) {
+            // The first form is centred: silence is within a thousandth of zero, as it always was.
+            let silent = match &sounding {
+                Some(sounding) => !sounding[from.min(sounding.len())..until.min(sounding.len())].contains(&true),
+                None => sound.iter().all(|sample| sample.abs() < SILENCE),
+            };
+            let answer = if silent {
                 None
             } else {
                 Some(engine.hear(sound, language, making.context.as_deref())?)

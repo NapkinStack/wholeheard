@@ -134,27 +134,35 @@ fn a_session_as_delivered_is_heard_on_its_clock_and_its_silences_are_not_handed_
 #[test]
 fn silence_is_measured_from_where_a_source_rests_and_a_track_the_record_does_not_name_is_not_read() {
     const REMOTE: &str = r#"{"remote":{"device":"a loudspeaker"}}"#;
-    let calls = |clock: &str, sound: &dyn Fn(u32, f64) -> f32| {
+    let calls = |seconds: u32, clock: &str, sound: &dyn Fn(u32, f64) -> f32| {
         let session = tempfile::tempdir().unwrap();
-        written(&session.path().join("remote.wav"), 48_000, 1, 40, sound);
+        written(&session.path().join("remote.wav"), 48_000, 1, seconds, sound);
         // A file that is there and that the record does not name: a note nobody is to hear.
-        track(&session.path().join("local.wav"), 48_000, 1, 40, 0.0, (1.0, 2.0), &[]);
+        track(&session.path().join("local.wav"), 48_000, 1, seconds, 0.0, (1.0, 2.0), &[]);
         record(session.path(), REMOTE, clock);
         let mut engine = Played::default();
         transcribe(session.path(), &mut engine, None, 10).unwrap();
         assert!(lines(session.path()).iter().all(|line| line["type"] != "segment"));
         engine.0
     };
-    let hum = |level: f32, hertz: f64| move |_, at: f64| 0.3 + level * (std::f64::consts::TAU * hertz * at).sin() as f32;
+    // A hum around a rest of 0.3, opening on its crest: no span opens where another does.
+    let hum = |level: f32, hertz: f64| move |_, at: f64| 0.3 + level * (std::f64::consts::TAU * hertz * at).cos() as f32;
     // Left at 0.9 after five seconds, delivered nothing for thirty, came back at -0.9: the
     // line between the two is silence, where it starts and where it ends included.
     let left = |frame: u32, _| [0.9, 0.0, -0.9][usize::from(frame >= 240_000) + usize::from(frame >= 1_680_000)];
-    assert_eq!(calls("{\"track\":\"remote\",\"silence\":[240000,1680000]}\n", &left), 0);
+    assert_eq!(calls(40, "{\"track\":\"remote\",\"silence\":[240000,1680000]}\n", &left), 0);
     // A rest that settles, from 0.3 to 0.29 over the session, is silence.
-    assert_eq!(calls("", &|_, at| 0.3 - 0.01 * (at / 40.0) as f32), 0);
-    // Around a rest of 0.3 as around zero: under a thousandth of full scale is silence, and a
-    // low note over it is sound.
-    assert_eq!((calls("", &hum(0.0006, 200.0)), calls("", &hum(0.0015, 100.0))), (0, 4));
+    assert_eq!(calls(20, "", &|_, at| 0.3 - 0.01 * (at / 20.0) as f32), 0);
+    // Around a rest as around zero, under a thousandth of full scale is silence wherever a
+    // span opens, and over it is sound.
+    assert_eq!((calls(20, "", &hum(0.0009, 190.3)), calls(20, "", &hum(0.0009, 1_000.0))), (0, 0));
+    assert_eq!(calls(20, "", &hum(0.0011, 1_000.0)), 2);
+    // What moves slower than a voice is where the source rests, not sound: at 20 Hz, three
+    // tenths of it is taken out. (It comes in over a second: the measure starts where the track rests.)
+    let slow = |level: f32| move |_, at: f64| 0.3 + level * at.min(1.0) as f32 * (std::f64::consts::TAU * 20.0 * at).cos() as f32;
+    assert_eq!((calls(20, "", &slow(0.00125)), calls(20, "", &slow(0.0017))), (0, 2));
+    // A sound that only goes under its rest is a sound.
+    assert_eq!(calls(20, "", &|frame, _| if frame % 48_000 == 24_000 { 0.29 } else { 0.3 }), 2);
 }
 
 #[test]
