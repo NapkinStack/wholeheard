@@ -57,7 +57,7 @@ impl Track {
     /// full scale is written at full scale, one that is no number as zero.
     pub fn push(&mut self, interleaved: &[f32]) -> io::Result<()> {
         let channels = usize::from(self.channels);
-        if interleaved.len() % channels != 0 {
+        if !interleaved.len().is_multiple_of(channels) {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "a delivery that is not whole frames"));
         }
         let mut bytes = Vec::with_capacity(interleaved.len() * BYTES);
