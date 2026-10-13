@@ -28,7 +28,16 @@ is captured or derived. Its meeting is a script written for the purpose, in Fren
 that is what the product hears, said by four public synthetic voices: **nobody is recorded**.
 Two sides, as a session has two tracks; two people on the local side, behind one microphone.
 
-**Today** the module is described and holds no code: its meeting and its renderer come in the next pull request.
+**Today** it renders one listening condition — a headset: each side's track holds its own
+voices and nothing of the other's. A room where the microphone hears the loudspeakers, and
+the counts, come next.
+
+```bash
+# Once: the four voices, about 270 MB, from the synthesiser's public models.
+uv run python -m piper.download_voices fr_FR-siwis-medium fr_FR-tom-medium fr_FR-upmc-medium --download-dir <voices-folder>
+# The meeting, as a session and its truth, in <out-folder>/headset.
+nstack run platform <voices-folder> <out-folder>
+```
 
 A synthetic voice is easier to transcribe than a person's: the bench says how one way of
 doing compares with another on the same meeting, not how well Summit hears a real one.
@@ -42,7 +51,7 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 ## Contracts
 
 - Provided: none
-- Consumed: none yet
+- Consumed: [`session-audio/v1`](../../contracts/session-audio/v1/README.md) — it writes a session as that contract describes one, for the programs to read
 
 ## Decisions
 
