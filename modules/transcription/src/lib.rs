@@ -12,9 +12,6 @@ use serde_json::{Value, json};
 
 /// The contract this module provides, as the transcript's first line names it.
 pub const CONTRACT: &str = "transcript/v1";
-/// Two starts of one speaker closer than this are one segment heard twice, not two.
-const SAME: i64 = 5;
-
 /// Who spoke: whoever recorded, or everyone else.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Speaker {
@@ -100,6 +97,92 @@ impl Transcript {
         Ok(transcript)
     }
 
+    // --- taking a transcript up again ---
+
+    /// Takes up the transcript of a session's folder where a step left it, or starts it. The
+    /// file is read before anything is written: one that another making started, or that is
+    /// no transcript, is refused and left exactly as it is.
+    pub fn open(folder: &Path, making: &Making) -> io::Result<Self> {
+        let path = folder.join("transcript.jsonl");
+        let written = match fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Self::start(folder, making),
+            Err(error) => return Err(error),
+        };
+        let again = "make it again, it is not continued";
+        // What follows the last line feed was being written when the step stopped: it never was a line.
+        let whole = written.iter().rposition(|&byte| byte == b'\n').map_or(0, |end| end + 1);
+        let Ok(text) = std::str::from_utf8(&written[..whole]) else {
+            return refused(io::ErrorKind::InvalidData, "the file is not a transcript: it is not text");
+        };
+        let mut transcript = Self {
+            file: OpenOptions::new().append(true).open(&path)?,
+            covered: [0, 0],
+            last: [None, None],
+            complete: false,
+        };
+        let mut lines = text.lines();
+        match lines.next().map(serde_json::from_str::<Value>) {
+            // Nothing whole yet: only the start of this very header may be there, and is written again.
+            None if format!("{}\n", making.header()).as_bytes().starts_with(&written) => {
+                transcript.file.set_len(0)?;
+                transcript.add(&[making.header()])?;
+                return Ok(transcript);
+            }
+            Some(Ok(header)) if header["type"] == "header" && header["contract"] == CONTRACT => {
+                let ours = making.header();
+                if ["engine", "model", "language", "context"]
+                    .iter()
+                    .any(|field| header[*field] != ours[*field])
+                {
+                    return refused(
+                        io::ErrorKind::InvalidData,
+                        &format!("this transcript was made by another engine, model, language or context: {again}"),
+                    );
+                }
+            }
+            _ => return refused(io::ErrorKind::InvalidData, "the file is not a transcript this version writes"),
+        }
+        for line in lines.filter(|line| !line.trim().is_empty()) {
+            let unreadable = || {
+                refused::<()>(
+                    io::ErrorKind::InvalidData,
+                    &format!("the transcript holds a line this version refuses: {again}"),
+                )
+            };
+            let Ok(line) = serde_json::from_str::<Value>(line) else {
+                return unreadable().map(|()| transcript);
+            };
+            let speaker = match line["speaker"].as_str() {
+                Some("me") => Speaker::Me as usize,
+                Some("others") => Speaker::Others as usize,
+                _ => usize::MAX,
+            };
+            match (
+                line["type"].as_str(),
+                speaker,
+                line["start"].as_f64(),
+                line["end"].as_f64(),
+                line["until"].as_f64(),
+            ) {
+                (Some("segment"), 0 | 1, Some(start), Some(end), _) if end >= start => {
+                    transcript.last[speaker] = transcript.last[speaker].max(Some(hundredths(start)?));
+                }
+                (Some("covered"), 0 | 1, _, _, Some(until)) => {
+                    transcript.covered[speaker] = transcript.covered[speaker].max(hundredths(until)?)
+                }
+                (Some("complete"), ..) => transcript.complete = true,
+                (Some("segment" | "covered" | "header"), ..) => return unreadable().map(|()| transcript),
+                _ => {}
+            }
+        }
+        // Only now, accepted: the end that never was a line goes, so that nothing is glued to it.
+        transcript.file.set_len(whole as u64)?;
+        Ok(transcript)
+    }
+
+    // --- adding to a transcript ---
+
     /// Up to where a speaker's sound was heard, in seconds: where the step takes up again.
     pub fn covered(&self, speaker: Speaker) -> f64 {
         self.covered[speaker as usize] as f64 / 100.0
@@ -111,8 +194,8 @@ impl Transcript {
     }
 
     /// Adds what an engine heard of one speaker, up to `until`, in the order it was said. A
-    /// segment that starts before the last one written — or with it, to within a few
-    /// hundredths — is one already heard, and is not added again.
+    /// segment is known by its speaker and its start, to the hundredth: one that starts with the
+    /// last one written, or before it, is one already heard, and is not added again.
     pub fn heard(&mut self, speaker: Speaker, segments: &[Segment], until: f64) -> io::Result<()> {
         if self.complete {
             return refused(
@@ -136,7 +219,7 @@ impl Transcript {
         }
         heard.sort_by_key(|(start, ..)| *start);
         for (start, end, text) in heard {
-            if text.is_empty() || start < self.covered[who] || last.is_some_and(|last| start < last + SAME) {
+            if text.is_empty() || start < self.covered[who] || last.is_some_and(|last| start <= last) {
                 continue;
             }
             last = Some(start);
