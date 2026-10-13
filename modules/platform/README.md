@@ -12,16 +12,15 @@ flowchart LR
     R --> A["A session, as a recording<br/>of that meeting would be"]:::file
     R --> T["truth.json<br/>each turn: its voice, its side,<br/>its instants, its words"]:::file
     A --> P["Summit's programs<br/>as a user runs them"]:::other
-    P --> C["Counts, against the truth<br/>(next pull requests)"]:::later
+    P --> C["Counts, against the truth"]:::mod
 
     classDef file fill:#374151,color:#fff
     classDef mod fill:#065f46,color:#fff
     classDef other fill:#1e3a8a,color:#fff
-    classDef later fill:#92400e,color:#fff
 ```
 
 **Legend** — grey: files · green: this module · blue: the steps it measures, never its own
-code · orange: what comes next.
+code.
 
 **The bench** (cycle 02, D8; ADR-0004) is the oracle of every change to how a meeting's audio
 is captured or derived. Its meeting is a script written for the purpose, in French because
