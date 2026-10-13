@@ -32,13 +32,17 @@ fn a_recording_is_started_listened_to_and_stopped_as_its_contract_says() {
     let folder = tempfile::tempdir().unwrap();
     let mut recording = played(
         folder.path(),
-        r#"echo '{"event":"started","folder":"'"$sessions"'/2026-10-13_14-05","sources":{"me":"Mic","others":"Speaker"}}'
+        r#"[ "$1" = record ] || exit 9
+echo '{"event":"started","folder":"'"$sessions"'/2026-10-13_14-05","sources":{"me":"Mic","others":"Speaker"}}'
 echo 'a line that is no event'
+printf 'neither is one that is not text: caf\351\n'
+printf 'nor does one end the listening on the other stream: caf\351\n' >&2
 echo '{"event":"of-a-later-version","source":"me"}'
 echo '{"event":"silent","source":"others"}'
 echo '{"event":"heard","source":"others"}'
 read line
-[ "$line" = stop ] && echo '{"event":"stopped","folder":"'"$sessions"'/2026-10-13_14-05","seconds":1912.4,"new":"field"}'"#,
+[ "$line" = stop ] && echo '{"event":"stopped","folder":"'"$sessions"'/2026-10-13_14-05","seconds":1912.4,"new":"field"}'
+echo '{"event":"silent","source":"me"}'"#,
     );
     let session = folder.path().join("2026-10-13_14-05");
     let before = [
@@ -62,7 +66,8 @@ fn a_recording_that_ends_by_itself_is_said_to_have_failed_with_its_own_sentence(
     let recording = played(
         folder.path(),
         r#"echo '{"event":"unavailable","source":"me","reason":"the system names no default device"}'
-echo 'an earlier line' >&2
+head -c 3000000 /dev/zero | tr '\0' x >&2
+printf '\nan earlier line, and one that is not text: caf\351\n' >&2
 echo 'summit-capture: no source could be opened: nothing to record' >&2
 exit 1"#,
     );

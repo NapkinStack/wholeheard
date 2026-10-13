@@ -3,7 +3,7 @@
 //! and a recording goes on if the shell does not.
 
 use std::{
-    io::{self, BufRead, BufReader, Write},
+    io::{self, BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::mpsc::{self, Receiver},
@@ -59,6 +59,14 @@ pub fn read(line: &str) -> Option<Said> {
     }
 }
 
+/// The lines of a stream, whatever bytes they hold: what is not text is read with its
+/// unreadable bytes replaced, never taken for the stream's end — a reader that let go there
+/// would close the stream under a program that is still recording.
+fn lines(stream: impl Read) -> impl Iterator<Item = String> {
+    let lines = BufReader::new(stream).split(b'\n').map_while(Result::ok);
+    lines.map(|line| String::from_utf8_lossy(&line).trim_end_matches('\r').to_string())
+}
+
 /// A recording in progress: the program, and what it says. Dropped, it stops nothing: the
 /// program records on, and is stopped by a signal.
 pub struct Recording {
@@ -84,17 +92,15 @@ impl Recording {
         };
         // Its error stream is read as it comes, so that it never fills: the last sentence is
         // what it says of a failure.
-        let complaint = thread::spawn(move || {
-            let lines = BufReader::new(errors).lines().map_while(Result::ok);
-            lines.filter(|line| !line.trim().is_empty()).last().unwrap_or_default()
-        });
+        let complaint = thread::spawn(move || lines(errors).filter(|line| !line.trim().is_empty()).last().unwrap_or_default());
         let (tell, said) = mpsc::channel();
         thread::spawn(move || {
             let mut stopped = false;
-            for event in BufReader::new(output).lines().map_while(Result::ok).filter_map(|line| read(&line)) {
-                stopped |= matches!(event, Said::Stopped(..));
-                if tell.send(event).is_err() {
-                    return;
+            // Read to its end, so that the program is never held up; nothing follows "stopped".
+            for event in lines(output).filter_map(|line| read(&line)) {
+                if !stopped {
+                    stopped = matches!(event, Said::Stopped(..));
+                    let _ = tell.send(event);
                 }
             }
             // Its output is closed: the program ended. Without "stopped", it failed.
