@@ -24,8 +24,27 @@ flowchart TB
 it starts and never reads the code of · grey: files, the only thing it shares with them.
 
 **It holds no step** (ADR-0002): closed or crashed, a recording goes on, and every step still
-runs from a terminal. Nothing is built yet: the module is framed in cycle 01, *The shell,
-framed*, and comes in five slices.
+runs from a terminal.
+
+**Today**: an icon in the tray whose menu starts and stops a recording, the same from a
+global shortcut — Super+Alt+M under a Linux desktop — and a notification for what matters:
+the reminder to announce the recording, a source that is silent, the stop, a failure. No
+window yet. In French where the system is, in English anywhere else.
+
+```bash
+nstack bootstrap shell && nstack bootstrap capture
+(cd modules/capture && cargo build --locked --release)
+SUMMIT_CAPTURE=$PWD/modules/capture/target/release/summit-capture nstack run shell
+```
+
+| On a Linux desktop | What it takes |
+|---|---|
+| The icon | Under GNOME, an extension that shows tray icons — *AppIndicator and KStatusNotifierItem Support*. Without it Summit runs, unseen |
+| The shortcut | The desktop grants it to an installed application: copy `linux/dev.summit.Summit.desktop` into the user's `applications` folder under their data folder, then start Summit again and accept the desktop's question. Refused, Summit says so once; the menu still does the same |
+
+**Settings** — `summit/settings.toml` in the user's configuration folder, a few lines written
+by hand until the window exists: `reminder = false` to stop the reminder, `sessions = "…"`
+for where sessions go. Out of the box they go to a folder `Summit` in the user's documents.
 
 ## Getting started
 
