@@ -665,17 +665,16 @@ laptop:
 flowchart LR
     C1["1 · a transcript,<br/>Me and Others,<br/>nothing leaves the machine"]:::part
     C2["2 · 29 % of the words,<br/>half the length"]:::met
-    C3["3 · a weak microphone,<br/>read by the decider"]:::open
+    C3["3 · the decider's microphone,<br/>read by the decider"]:::met
     C4["4 · the context<br/>received and named"]:::met
     C5["5 · killed halfway,<br/>run again"]:::met
 
     classDef met fill:#065f46,color:#fff
     classDef part fill:#92400e,color:#fff
-    classDef open fill:#7f1d1d,color:#fff
 ```
 
 **Legend** — green: met, read by a verifier who is not the author · orange: met as a program;
-"when the user asks" waits for the shell · red: not tried — a recording by the decider.
+"when the user asks" waits for the shell.
 
 | Criterion | Measured | Stands |
 |---|---|---|
@@ -683,7 +682,7 @@ flowchart LR
 | 4 · the context | The engine receives `context.txt` with each span; the transcript's header holds it | Met |
 | 5 · killed, run again | Killed at three moments with the real model, run again: the same bytes as a run never stopped. With played engines: a stop at every call, a kill at every byte | Met — and narrower than written: a session is taken up, a span of one is not asked for by itself |
 | 1 · Me and Others, on the machine | The sample has one file of voices: every segment is `others`, none on the silent `me`. The program opens no connection | Met as a program; both voices of a real call come with criterion 3 |
-| 3 · a weak microphone | — | Open: a recording made for the purpose by the decider, an acceptance issue |
+| 3 · a weak microphone | Ten sentences read by the decider into the laptop's microphone, no headset (issue #53): **none lost of ten**, each word for word, 2.6 s for 27 s. The recording was at 8 % of full scale, resting at zero | Met, **at a speaking voice**. The weak level of D1's call — 0.01 to 0.5 % — was the decider speaking very low, not the microphone: "j'ai juste parlé plus fort". A voice that low was not transcribed again; the decider judged it not worth the cycle's time (2026-10-13) |
 
 **What the step cost, and why it is recorded.** The step was verified seven times before it
 passed. Every failure but the first had one cause: it decided on fractions of a second what
