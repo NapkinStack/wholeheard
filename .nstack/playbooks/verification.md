@@ -33,16 +33,21 @@ change's authors and refuses a match.
 1. **Read the need** — the deliverable, its acceptance criteria, the test sheet in the
    pull request's description. Nothing else yet.
 2. **Start the change** — the module's `run` verb, or the environment named in
-   `.nstack/tooling-profile.md`.
+   `.nstack/tooling-profile.md`. A module with no `run` verb — a library, a contract — has
+   nothing to start: its scenarios run through its tests, and you say so in your report.
 3. **Run each scenario**, in order:
-   - *automated* — the module's `e2e` verb; the evidence is the CI run on the head commit,
-     or its artefact;
+   - *automated* — the module's `e2e` verb, or its `test` verb when it declares no `e2e`;
+     the evidence is the CI run on the head commit, or its artefact;
    - *explored* — drive the interface yourself, in a browser, an emulator or on a device,
      with the tools of the tooling profile; capture the screen at the step that proves the
      result;
-   - *human only* — do not run it; check that its reason is stated.
+   - *human only* — do not run it; check that its reason is stated and, when the
+     deliverable's acceptance rests on it, that an acceptance issue asks it of a person.
 4. **Record** each result in the sheet — `passed`, `failed — <what you observed>`, or
-   `not verified` — with its evidence and the short hash of the commit you tested. After a
+   `not verified` — with its evidence and the short hash of the commit you tested. What you
+   have to add goes on the line **`Verifier's remarks:`** under the table, never in a cell: a
+   scenario that passed by your own probe and not by the test it cites, a wording that claims
+   more than was exercised. A remark is not a result, and the approver reads it. After a
    fix, an *automated* scenario is run again at the head; an *explored* one is confirmed in
    the `Confirmed` column with the head commit and what moved since; at criticality
    `critical`, every scenario is run again (`.nstack/handbook/05-workflow.md` §7).

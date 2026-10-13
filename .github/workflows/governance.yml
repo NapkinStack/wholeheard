@@ -91,3 +91,16 @@ jobs:
       # Rule S1: no secret in the repository. Output redacted, the logs are public.
       - name: Secrets in the whole git history
         run: pre-commit run gitleaks-history --hook-stage manual --all-files
+
+      # A commit message and a pull request's description are pages anyone reads: the hook
+      # that refuses a link into a private assistant session reads them here, where it
+      # cannot be bypassed. Values from the context come through env (zizmor).
+      - name: No private session link in a message
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DESCRIPTION: ${{ github.event.pull_request.body }}
+        run: |
+          said="$RUNNER_TEMP/said.txt"
+          printf '%s\n' "$DESCRIPTION" > "$said"
+          if git cat-file -e "$BASE^{commit}" 2>/dev/null; then git log --format=%B "$BASE..HEAD" >> "$said"; fi
+          pre-commit run no-session-link --hook-stage commit-msg --commit-msg-filename "$said"

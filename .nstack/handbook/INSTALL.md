@@ -54,7 +54,7 @@ mention such a commit, and where a ruleset does refuse, it catches a bypass.
 
 ```bash
 # 1. Tooling at the project's NapkinStack version (prerequisite: uv)
-uv tool install "napkinstack==0.7.2" --with-executables-from pre-commit
+uv tool install "napkinstack==0.7.4" --with-executables-from pre-commit
 
 # 2. Hooks, once per clone
 pre-commit install
@@ -80,6 +80,10 @@ git push -u origin nstack/update-vX.Y.Z  # then the PR, validated by CI
 
 **When: at a cycle's boundary** — close the cycle, take the update, then accept the next one.
 Upgrading mid-cycle changes the judge while a cycle is being judged.
+
+**Everyone else, once that pull request is merged**, installs the same version — the first
+command above. Until then every `nstack` command says, before anything else, that the
+workstation is behind the project.
 
 The merge keeps the project's adaptations and never touches the modules' code. A conflict
 stays marked in the file, uncommitted: the team decides, and both the hook and CI reject
@@ -188,6 +192,10 @@ nstack doctor
 
 `nstack doctor` exits 0 when everything is read and in place, 1 when a setting is missing,
 and 2 when nothing read is missing but something could not be read.
+
+`nstack doctor` is also where a project learns that a newer version of NapkinStack is
+published: one line, with its notes and the way to take it — information, never a gap, and
+the one question any command asks the registry.
 
 `nstack doctor` reads the token from `GH_TOKEN`, otherwise `GITHUB_TOKEN`: a fine-grained
 token, limited to the repository, with the **Administration: read** permission. Without a

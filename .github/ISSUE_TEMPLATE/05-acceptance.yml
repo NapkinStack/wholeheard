@@ -1,0 +1,48 @@
+name: Acceptance
+description: A deliverable tried by a person — what to run, what was seen
+labels: ["acceptance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An acceptance **tracks** a deliverable; it does not describe it. The criteria are in
+        the cycle and are not copied here; the deliverable's state is set there, in a reviewed
+        pull request. This issue holds what a file holds badly: who runs what, on what, and
+        what they saw (.nstack/handbook/06-decisions.md §9). Each answer is a comment; a test
+        sheet cites it as its evidence.
+
+  - type: input
+    id: tracks
+    attributes:
+      label: What it tracks
+      description: The deliverable's identifier and its cycle's file — a pointer, not a copy.
+      placeholder: "D3 — docs/project/cycles/01-….md"
+    validations: { required: true }
+
+  - type: input
+    id: who
+    attributes:
+      label: Who runs it, and on what
+      description: A person, and what no agent has — a device, a real call, a colleague's machine.
+    validations: { required: true }
+
+  - type: textarea
+    id: run
+    attributes:
+      label: What to run
+      description: >-
+        One step per criterion a person must try, as a gesture to make — the command, the
+        action — and what it must show. A step answered is ticked, with the comment that
+        answers it.
+      value: |
+        - [ ] 1. <the gesture> — must show: <what the criterion asks>
+    validations: { required: true }
+
+  - type: textarea
+    id: elsewhere
+    attributes:
+      label: What is already held elsewhere
+      description: >-
+        The criteria a test sheet or a test already holds, each with its pull request. What
+        nobody holds yet is said too.
+    validations: { required: false }
