@@ -1,8 +1,10 @@
 //! What an engine hears of a session recorded as `contracts/session-audio/v2` describes it:
-//! each track brought to one channel, [`RATE`] samples a second, around its rest.
+//! each track brought to one channel, [`RATE`] samples a second — and nothing else done to it.
 //!
 //! Nothing is written: the tracks are the recording, and this is a way of listening to them
-//! (ADR-0004). A track is read as it comes — it is never held whole as delivered.
+//! (ADR-0004). Where a source rests is left where it is: whether a span is silence is a
+//! measure the step makes, not a correction made here. A track is read as it comes — it is
+//! never held whole as delivered.
 
 use std::{
     fs::{self, File},
@@ -10,7 +12,7 @@ use std::{
     path::Path,
 };
 
-use rubato::{Fft, FixedSync, Indexing, Resampler, WindowFunction, audioadapter_buffers::direct::InterleavedSlice};
+use rubato::{Fft, FixedSync, Resampler, WindowFunction, audioadapter_buffers::direct::InterleavedSlice};
 
 use crate::step::RATE;
 
@@ -40,7 +42,7 @@ pub fn heard(path: &Path) -> io::Result<Vec<f32>> {
     resampled(&mut file, rate, channels).map(|(sound, _)| sound).map_err(unread)
 }
 
-/// The whole track as one channel at [`RATE`], around its rest, in the track's own time —
+/// The whole track as one channel at [`RATE`], as it was delivered, in the track's own time —
 /// and how many frames the track holds.
 fn resampled(file: &mut impl Read, rate: u32, channels: usize) -> io::Result<(Vec<f32>, u64)> {
     let failed = |error: &dyn std::fmt::Display| io::Error::other(format!("its sound could not be brought to {RATE} Hz: {error}"));
@@ -51,16 +53,14 @@ fn resampled(file: &mut impl Read, rate: u32, channels: usize) -> io::Result<(Ve
     let mut piece = vec![0.0f32; resampler.input_frames_max()];
     let mut made = vec![0.0f32; resampler.output_frames_max()];
     let (mut flat, mut frames, mut ended) = (Vec::new(), 0u64, false);
-    // Where the source rests when the track opens — the middle value of its first block, so
-    // that a voice already speaking is not taken for the rest: taken out before anything
-    // else, and a track does not open on a step as loud as its rest.
-    let mut rest = None;
+    // Before its first frame and after its last, a track is taken to stay where it is — not
+    // to fall to zero: a source that rests away from zero never made that step, and it is not
+    // heard. Nothing of the track itself is moved: what is taken out is put back.
+    let (mut first, mut last) = (None, 0.0f32);
     let mut frame = vec![0u8; 3 * channels];
-    // The track, then silence until what the resampler still holds of it has come out.
     while !ended || flat.len() < delay + (frames as f64 * RATE as f64 / f64::from(rate)).ceil() as usize {
-        let wanted = resampler.input_frames_next();
         let mut held = 0;
-        while !ended && held < wanted {
+        while !ended && held < piece.len() {
             if !read_whole(file, &mut frame)? {
                 ended = true;
                 break;
@@ -74,34 +74,23 @@ fn resampled(file: &mut impl Read, rate: u32, channels: usize) -> io::Result<(Ve
             piece[held] = mixed / channels as f32;
             held += 1;
         }
-        let rest = *rest.get_or_insert_with(|| {
-            let mut first = piece[..held].to_vec();
-            first.sort_by(f32::total_cmp);
-            first.get(held / 2).copied().unwrap_or(0.0)
-        });
-        piece[..held].iter_mut().for_each(|sample| *sample -= rest);
+        let first = *first.get_or_insert(if held > 0 { piece[0] } else { 0.0 });
+        last = if held > 0 { piece[held - 1] } else { last };
+        piece[..held].iter_mut().for_each(|sample| *sample -= first);
+        piece[held..].fill(last - first);
         frames += held as u64;
         let (given, taken) = (piece.len(), made.len());
         let from = InterleavedSlice::new(&piece, 1, given).map_err(|e| failed(&e))?;
         let mut into = InterleavedSlice::new_mut(&mut made, 1, taken).map_err(|e| failed(&e))?;
-        let (_, written) = resampler
-            .process_into_buffer(&from, &mut into, Some(&Indexing::new().partial_len(held)))
-            .map_err(|e| failed(&e))?;
+        let (_, written) = resampler.process_into_buffer(&from, &mut into, None).map_err(|e| failed(&e))?;
         flat.extend_from_slice(&made[..written]);
     }
     let length = (frames as f64 * RATE as f64 / f64::from(rate)).round() as usize;
-    let mut flat: Vec<f32> = flat.into_iter().skip(delay).take(length).collect();
-    // Around its rest: a source may rest away from zero, and silence there is silence — and
-    // a rest moves, slowly. One pole at 20 Hz, starting from the first sample itself. A rest
-    // that steps — a device that wakes — is heard as the click it is.
-    let keep = 1.0 - std::f32::consts::TAU * 20.0 / RATE as f32;
-    let (mut last_in, mut last_out) = (flat.first().copied().unwrap_or(0.0), 0.0f32);
-    for sample in &mut flat {
-        let out = *sample - last_in + keep * last_out;
-        (last_in, last_out) = (*sample, out);
-        *sample = out;
-    }
-    Ok((flat, frames))
+    let first = first.unwrap_or(0.0);
+    Ok((
+        flat.into_iter().skip(delay).take(length).map(|sample| sample + first).collect(),
+        frames,
+    ))
 }
 
 /// Reads up to the audio, and gives the rate and the channels the track's own header says.

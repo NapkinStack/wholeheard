@@ -131,6 +131,9 @@ fn a_note_keeps_its_level_and_nothing_is_heard_that_was_not_played() {
         (96_000, 7_000.0),
         (8_000, 3_000.0),
         (11_025, 5_000.0),
+        // And a low voice's own note: nothing here takes the bottom of a voice away.
+        (48_000, 100.0),
+        (44_100, 80.0),
     ] {
         track(&path, rate, 1, rate as usize * 3, note(rate, hertz, 0.5));
         let sound = heard(&path).unwrap();
@@ -153,37 +156,35 @@ fn a_note_keeps_its_level_and_nothing_is_heard_that_was_not_played() {
 }
 
 #[test]
-fn a_source_that_rests_away_from_zero_is_silent_when_it_is_and_the_track_is_not_touched() {
+fn a_source_that_rests_away_from_zero_is_heard_where_it_rests_and_the_track_is_not_touched() {
     let folder = tempfile::tempdir().unwrap();
     let path = folder.path().join("remote.wav");
-    track(&path, 48_000, 2, 96_000, |_, _| 0.01);
-    let before = fs::read(&path).unwrap();
-    assert!(
-        heard(&path).unwrap().iter().all(|sample| sample.abs() < 0.0005),
-        "a rest was heard as sound"
-    );
-    // A voice around that rest is heard at its own level.
+    // Silent at its rest, the track is that rest from its first sample to its last: it does
+    // not open or close on a step from zero that the source never made.
+    for (rate, rest) in [(48_000u32, 0.3f32), (44_100, -0.7), (8_000, 0.01)] {
+        track(&path, rate, 2, rate as usize * 2, |_, _| rest);
+        let before = fs::read(&path).unwrap();
+        let sound = heard(&path).unwrap();
+        let apart = sound.iter().map(|sample| (sample - rest).abs()).fold(0.0, f32::max);
+        assert!(apart < 0.0005, "{rate} Hz: a rest of {rest} is heard {apart} away from it");
+        // And reading a track leaves every byte of it as it was.
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+    // A voice around a rest is heard at its own level, around that rest: nothing is centred.
     track(&path, 48_000, 1, 96_000, |frame, _| 0.05 + note(48_000, 440.0, 0.2)(frame, 0));
     let voice = heard(&path).unwrap();
-    assert!((level(steady(&voice)) - 0.2 / 2f32.sqrt()).abs() < 0.003);
-    // A rest that moves slowly — two beats a second, a tenth of full scale — is not heard either.
-    let moving = |frame: usize, _| 0.3 + 0.1 * (std::f64::consts::TAU * 2.0 * frame as f64 / 48_000.0).sin() as f32;
-    track(&path, 48_000, 1, 144_000, moving);
-    assert!(level(steady(&heard(&path).unwrap())) < 0.02, "a rest that moves was heard as it is");
-    // A voice already speaking when the track opens is not taken for the rest.
-    track(&path, 48_000, 1, 96_000, |frame, _| 0.05 + note(48_000, 440.0, 0.3)(frame + 27, 0));
-    let speaking = heard(&path).unwrap();
+    let rest = voice.iter().sum::<f32>() / voice.len() as f32;
+    assert!((rest - 0.05).abs() < 0.001, "a rest of 0.05 is heard at {rest}");
+    let around: Vec<f32> = voice.iter().map(|sample| sample - rest).collect();
+    assert!((level(steady(&around)) - 0.2 / 2f32.sqrt()).abs() < 0.003);
+    // A track that ends away from where it opened closes where it ended.
+    track(&path, 48_000, 1, 96_000, |frame, _| if frame < 48_000 { 0.0 } else { 0.4 });
+    let stepped = heard(&path).unwrap();
+    let (opens, closes) = (stepped[0], stepped[stepped.len() - 1]);
     assert!(
-        (level(&speaking[..RATE / 50]) - 0.3 / 2f32.sqrt()).abs() < 0.05,
-        "the track opens on {}",
-        level(&speaking[..RATE / 50])
+        opens.abs() < 0.0005 && (closes - 0.4).abs() < 0.0005,
+        "opens on {opens}, closes on {closes}"
     );
-
-    // And reading a track leaves every byte of it as it was.
-    track(&path, 48_000, 2, 96_000, |_, _| 0.01);
-    assert_eq!(fs::read(&path).unwrap(), before);
-    heard(&path).unwrap();
-    assert_eq!(fs::read(&path).unwrap(), before);
 }
 
 #[test]
@@ -240,6 +241,11 @@ fn a_file_that_is_not_a_track_is_said_with_its_name_and_not_converted() {
         bytes.extend_from_slice(b"\0\0\0\0\x03\0\x18\0data\xff\xff\xff\xff\0\0\0");
         fs::write(&path, bytes).unwrap();
         says(&format!("it has 1 channel(s), {rate} Hz, 24 bits"));
+    }
+    // The slowest and the fastest a header may say are read.
+    for rate in [1_000u32, 1_000_000] {
+        track(&path, rate, 1, rate as usize / 10, |_, _| 0.1);
+        assert_eq!(heard(&path).unwrap().len(), 1_600, "{rate} Hz");
     }
     // A long chunk before the audio is passed over: the track is one.
     track(&path, 48_000, 1, 4_800, note(48_000, 440.0, 0.2));
