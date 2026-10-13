@@ -99,7 +99,7 @@ mkfifo "$work/d.pipe"
 recorder=$!
 head -n 1 "$work/d.pipe" > "$work/d.events"
 sleep 13                                                 # "silent" is owed at ten seconds, to nobody
-kill -TERM "$recorder"; left_as=0; wait "$recorder" || left_as=$?
+kill -TERM "$recorder" 2>/dev/null || true; left_as=0; wait "$recorder" || left_as=$?
 sed 's/^/    /' "$work/d.events" "$work/d.errors" >> .evidence/e2e.txt
 check test "$left_as" = 0 -a ! -s "$work/d.errors"
 check grep -q '"stopped"' "$(ls -d "$work"/alone/*/ | head -1)session.json"
