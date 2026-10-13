@@ -11,6 +11,7 @@ use std::{
 use serde_json::{Value, json};
 
 pub mod step;
+pub mod tracks;
 pub mod whisper;
 
 /// The contract this module provides, as the transcript's first line names it.
