@@ -1,6 +1,6 @@
 ---
 goal: "On Linux, Windows and macOS, a user records a meeting and gets its transcript and its minutes as files on their machine"
-status: accepted          # proposed | accepted | closed | stopped — the decider accepts
+status: stopped           # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 2         # the time the decider WANTS to spend, not an estimate
 start: 2026-10-13         # YYYY-MM-DD
 end: 2026-10-27           # start + appetite: the first day the cycle is over — the circuit breaker
@@ -8,7 +8,7 @@ deliverables:
   - id: D1
     title: "Spike — can one application show a tray icon, answer a global shortcut and record the microphone and the system's sound as two files, on the three systems, unsigned?"
     module: null
-    state: ready
+    state: deferred
     acceptance:
       - "Given a probe that does nothing else, when the decider runs it on Fedora and each colleague on Windows and on macOS during a real call, then the cycle records, per system: tray icon shown or not, shortcut answered or not, two audio files of the call or not, and what the user had to add or set"
       - "Given the unsigned build sent to each colleague, when they open it, then the cycle records whether they needed help, and how long it took"
@@ -16,14 +16,14 @@ deliverables:
   - id: D2
     title: "Spike — are all-local minutes of a French meeting worth keeping, on the decider's laptop?"
     module: null
-    state: ready
+    state: accepted
     acceptance:
       - "Given one recorded French meeting of about an hour, made for the purpose with people who agreed, when it is transcribed and summarised by hand with a local engine and a local model, then the cycle records: setup time, processing time, and — against the actions really agreed — how many are missing, wrong or invented"
       - "Given those records, when they are read against the threshold — setup under 15 minutes, processing under half the meeting's length, at most one action in five missing, wrong or invented — then the result is written as met or refuted"
   - id: D3
     title: "A user starts and stops a recording, and finds two audio files — Me, Others — in the session's folder"
     module: capture
-    state: ready
+    state: deferred
     acceptance:
       - "Given Summit running on Fedora and a call in progress, when the user starts a recording from the tray's menu or the global shortcut, speaks, lets the others speak, and stops it the same way, then the session's folder holds two audio files — me and others — each as long as the recording to within one second, each holding its party's voice; no window opened by itself, and at start the user was reminded that announcing the recording is theirs"
       - "Given a recording that has run for two minutes, when Summit's process is killed, then the two files are on disk, open in a standard player, and hold everything but at most the last five seconds"
@@ -34,7 +34,7 @@ deliverables:
   - id: D4
     title: "A user gets a timestamped transcript of a session, naming Me and Others, from an engine on their machine"
     module: transcription
-    state: ready
+    state: deferred
     acceptance:
       - "Given a session's two audio files, in French, when the user asks for its transcript, then the session's folder gains a transcript: segments in the order of the meeting, each with its start and end time and with Me or Others; it was made by an engine on the machine, and no connection was opened to any host"
       - "Given the public five-minute sample of D2 and its human transcript, when it is transcribed on the decider's laptop, then at most 29 % of the words differ, counted as D2 counted them, and the processing takes at most half the sample's length"
@@ -44,7 +44,7 @@ deliverables:
   - id: D5
     title: "A user gets the minutes of a session — highlights, actions, key points — from the provider they chose"
     module: summary
-    state: ready
+    state: deferred
     acceptance:
       - "Given a session's transcript and the provider the user configured — a model on the machine, or any online address that speaks the OpenAI protocol — when the user asks for the minutes, then the session's folder gains minutes in the meeting's language with three parts: highlights, actions — each with what, who and by when — and key points; the minutes say which provider, which model and which context made them"
       - "Given the transcript of D2's sample and the provider the configuration example names, when the minutes are made, then against the seven actions really agreed at most one in five is missing, wrong or invented — a missing action counts as much as a wrong one — as read by the decider"
@@ -55,7 +55,7 @@ deliverables:
   - id: D6
     title: "A user finds the audio, the transcript and the minutes of a session as open files in its folder, readable without Summit"
     module: export
-    state: ready
+    state: deferred
     acceptance:
       - "Given a session recorded, transcribed and summarised, when the user opens its folder with the system's file manager, then they find the two audio files, the transcript and the minutes, named so that each says what it is, and the folder's own name says the day and the hour of the meeting"
       - "Given that folder copied to a machine where Summit was never installed, when its files are opened with a standard audio player and a text editor, then the audio plays, and the transcript and the minutes read as plain text — who spoke, when, what was decided — with nothing missing and no path that points back to the first machine"
@@ -64,13 +64,15 @@ deliverables:
   - id: D7
     title: "A user reads the minutes of the meeting just finished and sets how Summit chains its steps, in one window that looks at home on their system"
     module: shell
-    state: ready
+    state: deferred
     acceptance:
       - "Given a session whose minutes were just written, when the user clicks the notification that says so, then one window opens on that session: the minutes — highlights, actions with who and by when, key points — and beside them the transcript with Me, Others and the times; it follows the system's theme and font, every action in it is reached from the keyboard, and no window ever opened without a gesture of the user"
       - "Given the settings in that window, when the user chooses what follows a recording — nothing, the transcript, or the transcript then the minutes — and whether the reminder to announce the recording is shown, then the next recording behaves so; out of the box the transcript follows alone and the reminder is shown; and the choices are in one configuration file that reads without Summit"
       - "Given an online provider and no agreement given yet, when minutes are about to be sent for the first time — asked for, or chained — then the user is shown what leaves the machine and to which host, and nothing is sent before they agree; given the agreement, a chained making sends without asking again, and changing the provider's host asks again"
       - "Given no model on the machine, when a transcript is first needed, then the user is shown the model's size and the host it comes from; nothing is fetched before they agree; the progress is shown; the file is checked whole against its published fingerprint before any use; and a fetch that was cut is taken up or started again, never used as it is"
       - "Given the window and the tray's menu on the decider's laptop, when the decider goes through one real meeting with them — record, transcript, minutes, read — then the decider writes what stood in the way; the deliverable is accepted when the decider reads nothing blocking in that list"
+outcome: reframed
+ended_on: 2026-10-13
 ---
 
 # Cycle 01 — A first meeting, on three systems
@@ -879,8 +881,50 @@ as recorded, and takes room:
 
 ## Closure
 
-<Written at the end: what was delivered, which success criteria moved, what was deferred,
-where the next framing starts.>
+**Stopped on 2026-10-13 and re-framed**, by the decider, the day it was to start in earnest —
+not because it failed: because a first real meeting showed what the plan had under-weighed,
+and the decider set a higher bar for the audio (ADR-0004). Cycle 02 starts from here.
 
-**Documents brought current:** <the front page, the module map, a module's page — each with
-its pull request; or "none", and why nothing a reader sees has changed>
+```mermaid
+flowchart LR
+    A["Built and verified on Fedora:<br/>capture · transcription · summary<br/>as programs · Summit in the tray"]:::done
+    B["Learned on a real meeting:<br/>the echo of loudspeakers ·<br/>exchanges out of order ·<br/>a model on the machine that fails"]:::learned
+    C["Not reached:<br/>Windows and macOS · export ·<br/>the transcript and the minutes<br/>from the tray · the window"]:::open
+    A --> B --> D["Cycle 02:<br/>the audio kept as recorded,<br/>and a bench to measure it"]:::next
+    C --> D
+
+    classDef done fill:#065f46,color:#fff
+    classDef learned fill:#92400e,color:#fff
+    classDef open fill:#7f1d1d,color:#fff
+    classDef next fill:#1e3a8a,color:#fff
+```
+
+**Legend** — green: delivered · orange: knowledge the cycle produced · red: what it did not
+reach · blue: where the next framing starts.
+
+| Deliverable | State | What stands |
+|---|---|---|
+| D1 — spike, the three systems | deferred | **Answered for Fedora**: tray with an extension, shortcut through the portal, two files of a real call. Windows and macOS: no build was sent |
+| D2 — spike, all-local minutes | accepted | Recorded and read by the decider: a model on a laptop misses four actions of seven, the large online model none. The example names the large model |
+| D3 — record, two files | deferred | `summit-capture` verified on Fedora (#34 closed); Summit in the tray, its menu, shortcut, notifications (#68, #69, #71; issue #67: five steps of seven met). **Reopened by ADR-0004**: the two files are no longer what a session keeps |
+| D4 — transcript | deferred | `summit-transcription`: four criteria of five met on Fedora, the fifth on the decider's voice (#53). **Reopened**: with loudspeakers the transcript is wrong about who spoke, and in what order |
+| D5 — minutes | deferred | `summit-summary` with a real provider (#43 closed); a real meeting's minutes read by the decider: "pas mal fait". From the tray, and the agreement before the first sending: not built |
+| D6 — open files | deferred | Not started |
+| D7 — the window | deferred | Framed, not built; its drawings come first in cycle 02 |
+
+**Which success criteria moved:** none. The charter's three count from the day Summit
+installs on each machine: it installs nowhere yet. The decider used it on one real meeting,
+from a terminal.
+
+**What was deferred:** everything red above; and, added on the way, the user managing their
+sessions in the window (*Later*).
+
+**What the cycle cost and taught about the method** — for the next framing: one step was
+verified seven times before it passed, for one cause; an attempt on the echo was judged by a
+count and one reading, and was a regression. Both say the same: an audio path is measured
+on known material, or not judged at all. Cycle 02 builds that material first.
+
+**Documents brought current:** the front page — it said "nothing runs yet" (this pull
+request); the module map (#58); the modules' pages: `capture` (#48), `transcription` (#50,
+#51), `summary` (#39, #47), `shell` (#68, #71); the contracts' pages (#20, #59, #61); the
+decision records' index (#72).
