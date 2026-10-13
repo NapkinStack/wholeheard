@@ -116,6 +116,85 @@ second criterion was restated in cycle 01.
 engine's copy are made by `transcription`, which is what needs them; `all`, the file to
 listen to, is `export`'s, in a later cycle.
 
+### D8 — the line every later change is read against (2026-10-13)
+
+The bench is `modules/platform`: a meeting of 70 turns and five minutes, four synthesised
+voices — two on each side — a fifth of the local speech said over the remote; three
+listening conditions set on one minute measured on the decider's laptop; six draws of each.
+Today's programs, lowest – median – highest:
+
+| Count | Headset | Loudspeakers low | Loudspeakers loud |
+|---|---|---|---|
+| Words wrong, local, of 516 | 22 – 27.5 – 67 | 246 – 250.5 – 262 | 264 – 267 – 346 |
+| … net of the echo | 22 – 27.5 – 67 | 40 – 43 – 60 | 47 – 49.5 – 123 |
+| Words wrong, remote, of 331 | 6 – 7 – 10 | 6 – 6 – 23 | 6 – 6 – 14 |
+| Local words lost under the remote, of 109 | 7 – 7 – 16 | 7 – 9 – 12 | 14 – 21 – 25 |
+| Words said twice, of 331 | 0 | 201 – 204 – 210 | 214 – 218.5 – 223 |
+| Words on the wrong side | 0 | 0 | 0 |
+| Exchanges out of order, of 42 to 47 found | 10 – 12 – 14 | 6 – 7 – 12 | 6 – 8 – 14 |
+| Turns far from their time, of 67 to 70 found | 27 – 30.5 – 34 | 15 – 17 – 21 | 16 – 18 – 22 |
+| Turns not found, of 70 | 0 – 0 – 3 | 0 – 1 – 3 | 2 – 2 – 3 |
+
+**What it says.** On loudspeakers, two remote words in three are written a second time
+under the local side: the "parrot" of 2026-10-13, measured. With a headset the transcript is
+right about the words — two in a hundred wrong on the remote side — and wrong about when:
+one exchange in four out of order, four turns in ten more than two seconds from where they
+were said. The order is not the echo's doing: it is where the engine starts its segments.
+
+**What it cost to get a line worth reading.** Two independent reviews. The first form was
+beaten by muting the microphone. The second measured, for the most part, one synthetic
+voice that spoke eight words a second; the voice put in its place spoke at a person's pace
+and the engine still could not follow it. The voices are now chosen on a measure — each said
+alone and written back, 2 to 13 words wrong of 192. A count that nobody attacked is not yet
+a count.
+
+**D10's criteria, read on this line** *(framer — the decider restates)*:
+
+- The first — "no more words of the local side wrong than as delivered" — is passed by
+  muting the microphone, which removes the echo's words. Proposed: *no more local words
+  lost under the remote than as delivered, and no more local words wrong net of the echo*.
+- "At most one exchange in twenty out of order": a headset gives one in four today. It is a
+  target for D10's work on times, not a line already held.
+- "At most one word in fifty on the wrong side" and "no more said twice than a headset":
+  readable as they are; a headset gives none of either.
+
+### D13 — why a model on the machine gave no minutes (2026-10-13)
+
+Asked through the real program, of the model the first meeting was tried on — seven billion
+parameters, on the laptop's processor, served by Ollama:
+
+| Meeting | Sent | The model was given | Came back | In |
+|---|---|---|---|---|
+| The bench's, 4.3 minutes | 2,605 tokens | all of it | Minutes — written in English, of a meeting in French | 297 s |
+| Sixteen minutes, made from it | about 8,500 tokens | 4,096: the server's window, the start of the request cut off — the instructions | A free summary, refused: "it does not open on its first section" | 474 s |
+| The same, the window set to 12,288 | about 8,500 tokens | all of it | Nothing within the program's ten minutes | — |
+
+**Result: refuted.** The threshold — minutes of an hour's meeting, on the decider's laptop,
+in less than the meeting's length — is not met: five minutes of meeting already take five,
+and sixteen take more than ten. The cause of 2026-10-13 is the window, not the model's
+wits: it never read the instructions. What would have to change, each a choice of the next
+framing: the window set by Summit, which the protocol it speaks to the server cannot ask
+for; the model run on the graphics card, as the transcription is; a smaller model; or the
+minutes made of a long meeting in parts. Until then the page of `summary` is right to say:
+on a laptop, fewer of the actions — and, for a long meeting, none.
+
+### D11 — the window, drawn, and what the decider changed (2026-10-13)
+
+Six boards, each in a dark and a light theme, shown to the decider: the sessions and what
+they weigh; one session; freeing space; the settings; the two agreements; and — after their
+reading — the small window. Their word on the first five: "dans l'ensemble est bien fait".
+Their changes, drawn in the second round:
+
+| Asked by the decider | Drawn |
+|---|---|
+| For each step that uses a model, the user chooses it: on the machine or online, with their own address | A picker per step — models found on the machine, online services with their address filled in, "custom" with address, model, key and a test |
+| The windows are large: a reduced one for when a recording is all there is to manage | A small window: the time, the two sources' levels, stop |
+| An automatic mode: record when the system opens the microphone | Drawn as a proposal — "a call seems to start", record or not — with the setting to record without asking, and to stop when the microphone is let go. The framer advised against silence by default: other people are recorded, and a voice message opens a microphone too |
+| A transcript or minutes made again | "Again…" on each, with the model chosen; what was there stays until the new one is whole |
+
+Still owed to close D11: the decider's word on the second round — accepted, or changed
+again. What is accepted is the next cycle's criteria.
+
 ## Out of scope
 
 Not done in this cycle, even if time remains:
