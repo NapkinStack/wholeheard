@@ -7,14 +7,16 @@ points — that says what made it, and that exists only when it is whole.
 flowchart LR
     J["transcript.jsonl<br/>context.txt"]:::file --> S["summary"]:::producer
     S -->|"writes, whole or not at all"| M["minutes.md"]:::file
-    M --> E["export"]:::consumer
+    M -.-> E["export"]:::planned
 
     classDef producer fill:#065f46,color:#fff
     classDef consumer fill:#1e3a8a,color:#fff
     classDef file fill:#374151,color:#fff
+    classDef planned fill:#1e3a8a,color:#fff,stroke-dasharray: 5 5
 ```
 
-**Legend** — green: the producer · grey: files in the session's folder · blue: the consumer.
+**Legend** — green: the producer · grey: files in the session's folder · dashed: the
+consumer, which is planned and reads nothing yet.
 
 ## What it carries
 
