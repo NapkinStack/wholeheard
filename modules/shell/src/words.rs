@@ -34,104 +34,121 @@ pub struct Notice {
     pub body: String,
 }
 
-/// A length as a person says it: seconds under a minute, then minutes, then hours.
+/// A length as a person says it: seconds under a minute, then minutes, then hours — each
+/// to the nearest, so that a minute and fifty-nine seconds is two minutes.
 pub fn length(seconds: f64) -> String {
-    let seconds = seconds.max(0.0).round() as u64;
-    match (seconds / 3600, seconds % 3600 / 60) {
-        (0, 0) => format!("{seconds} s"),
+    let seconds = if seconds.is_finite() { seconds.max(0.0) } else { 0.0 };
+    if seconds < 59.5 {
+        return format!("{} s", seconds.round() as u64);
+    }
+    let minutes = (seconds / 60.0).round() as u64;
+    match (minutes / 60, minutes % 60) {
         (0, minutes) => format!("{minutes} min"),
         (hours, minutes) => format!("{hours} h {minutes:02}"),
     }
 }
 
+/// What a program said of a failure, made fit to show: without the name it puts before its
+/// sentence, without brackets of its own, and short. A program that said nothing gives nothing.
+fn detail(said: &str) -> String {
+    let said = said.trim();
+    let said = said.strip_prefix("summit-capture:").unwrap_or(said).trim();
+    let said = said
+        .strip_prefix('(')
+        .and_then(|inner| inner.strip_suffix(')'))
+        .unwrap_or(said)
+        .trim();
+    match said.char_indices().nth(200) {
+        Some((cut, _)) => format!("{}…", &said[..cut]),
+        None => said.to_string(),
+    }
+}
+
 /// What the user is told of something a recording said — or nothing, when it calls for no
 /// word. `reminder` is the setting: tell, at each start, that announcing the recording is
-/// the user's to do.
+/// the user's to do. French is written as French is printed: a space that does not break
+/// before `:` and `?`.
 pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
     use Language::{English, French};
-    let (title, body, detail) = match (said, language) {
+    let (title, body, why) = match (said, language) {
         (Said::Started(_), _) if !reminder => return None,
         (Said::Heard(_), _) => return None,
-        (Said::Started(_), English) => (
-            "Recording",
-            "Tell the participants that this meeting is being recorded.".to_string(),
-            "",
-        ),
+        (Said::Started(_), English) => ("Recording", "Tell the participants that this meeting is being recorded.", ""),
         (Said::Started(_), French) => (
             "Enregistrement en cours",
-            "Prévenez les participants que cette réunion est enregistrée.".to_string(),
+            "Prévenez les participants que cette réunion est enregistrée.",
             "",
         ),
         (Said::Unavailable(Source::Me, why), English) => (
             "Your microphone is not recorded",
-            "The meeting's sound is still recorded.".to_string(),
+            "The meeting’s sound is still recorded.",
             why.as_str(),
         ),
         (Said::Unavailable(Source::Me, why), French) => (
-            "Votre micro n'est pas enregistré",
-            "Le son de la réunion reste enregistré.".to_string(),
+            "Votre micro n’est pas enregistré",
+            "Le son de la réunion est toujours enregistré.",
             why.as_str(),
         ),
         (Said::Unavailable(Source::Others, why), English) => (
-            "The meeting's sound is not recorded",
-            "Your microphone is still recorded.".to_string(),
+            "The meeting’s sound is not recorded",
+            "Your microphone is still recorded.",
             why.as_str(),
         ),
         (Said::Unavailable(Source::Others, why), French) => (
-            "Le son de la réunion n'est pas enregistré",
-            "Votre micro reste enregistré.".to_string(),
+            "Le son de la réunion n’est pas enregistré",
+            "Votre micro est toujours enregistré.",
             why.as_str(),
         ),
         (Said::Silent(Source::Me), English) => (
             "No sound from your microphone",
-            "Nothing was heard for ten seconds. The recording goes on.".to_string(),
+            "Nothing was heard for ten seconds. The recording goes on.",
             "",
         ),
         (Said::Silent(Source::Me), French) => (
-            "Aucun son de votre micro",
-            "Rien n'a été entendu depuis dix secondes. L'enregistrement continue.".to_string(),
+            "Votre micro ne capte aucun son",
+            "Rien n’a été entendu depuis dix secondes. L’enregistrement continue.",
             "",
         ),
         (Said::Silent(Source::Others), English) => (
             "No sound from the meeting",
-            "Nothing was heard for ten seconds: is the call playing on this device? The recording goes on.".to_string(),
+            "Nothing was heard for ten seconds: is the call playing on this device? The recording goes on.",
             "",
         ),
         (Said::Silent(Source::Others), French) => (
-            "Aucun son de la réunion",
-            "Rien n'a été entendu depuis dix secondes : l'appel passe-t-il par cet appareil ? L'enregistrement continue.".to_string(),
+            "Aucun son venant de la réunion",
+            "Rien n’a été entendu depuis dix secondes\u{a0}: l’appel passe-t-il par cet appareil\u{202f}? L’enregistrement continue.",
             "",
         ),
-        (Said::Stopped(_, seconds), English) => ("Recording stopped", format!("{} recorded.", length(*seconds)), ""),
-        (Said::Stopped(_, seconds), French) => ("Enregistrement arrêté", format!("Durée : {}.", length(*seconds)), ""),
-        (Said::Failed(why), English) if why.is_empty() => (
+        (Said::Stopped(_, seconds), English) => return notice("Recording stopped", format!("{} recorded.", length(*seconds)), ""),
+        (Said::Stopped(_, seconds), French) => return notice("Enregistrement arrêté", format!("Durée\u{a0}: {}.", length(*seconds)), ""),
+        (Said::Failed(why), English) if detail(why).is_empty() => (
             "The recording stopped by itself",
-            "The program that records ended without saying why. What it had recorded is in the session's folder.".to_string(),
+            "The program that records ended without saying why. What was recorded is in the session’s folder.",
             "",
         ),
-        (Said::Failed(why), French) if why.is_empty() => (
-            "L'enregistrement s'est arrêté tout seul",
-            "Le programme d'enregistrement s'est terminé sans dire pourquoi. Ce qu'il avait enregistré est dans le dossier de la session."
-                .to_string(),
+        (Said::Failed(why), French) if detail(why).is_empty() => (
+            "L’enregistrement s’est arrêté tout seul",
+            "Le programme d’enregistrement s’est terminé sans dire pourquoi. Ce qui a été enregistré se trouve dans le dossier de la session.",
             "",
         ),
         (Said::Failed(why), English) => (
             "The recording stopped by itself",
-            "What it had recorded is in the session's folder.".to_string(),
+            "What was recorded is in the session’s folder.",
             why.as_str(),
         ),
         (Said::Failed(why), French) => (
-            "L'enregistrement s'est arrêté tout seul",
-            "Ce qu'il avait enregistré est dans le dossier de la session.".to_string(),
+            "L’enregistrement s’est arrêté tout seul",
+            "Ce qui a été enregistré se trouve dans le dossier de la session.",
             why.as_str(),
         ),
     };
-    // What a program said of it comes last, as it said it — in its own language, without its name.
-    let detail = detail
-        .split_once(": ")
-        .map_or(detail, |(name, rest)| if name.contains(' ') { detail } else { rest })
-        .trim();
-    let body = if detail.is_empty() { body } else { format!("{body} ({detail})") };
+    notice(title, body.to_string(), why)
+}
+
+/// A notice, with what a program said of it last, in brackets, as it said it.
+fn notice(title: &str, body: String, why: &str) -> Option<Notice> {
+    let why = detail(why);
+    let body = if why.is_empty() { body } else { format!("{body} ({why})") };
     Some(Notice {
         title: title.to_string(),
         body,
