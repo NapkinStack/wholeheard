@@ -31,15 +31,15 @@ fn refused<T>(why: String) -> io::Result<T> {
 /// describes is said and not converted; its header's lengths are not trusted — a recording
 /// in progress, or ended by a crash, reads to its end.
 pub fn sound(path: &Path) -> io::Result<Vec<f32>> {
-    let bytes = fs::read(path)?;
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let bytes = fs::read(path).or_else(|error| refused(format!("{name} cannot be read ({error})")))?;
     let field = |at: usize, size: usize| {
         bytes
             .get(at..at + size)
             .map(|b| b.iter().rev().fold(0u32, |n, &byte| n << 8 | u32::from(byte)))
     };
     let is = |at: usize, text: &[u8]| bytes.get(at..at + text.len()) == Some(text);
-    let name = path.file_name().unwrap_or_default().to_string_lossy();
-    if !(is(0, b"RIFF") && is(8, b"WAVEfmt ") && is(36, b"data")) {
+    if bytes.len() < 44 || !(is(0, b"RIFF") && is(8, b"WAVEfmt ") && is(36, b"data")) {
         return refused(format!("{name} is not an audio file of a session"));
     }
     match (field(20, 2), field(22, 2), field(24, 4), field(34, 2)) {
@@ -64,12 +64,23 @@ pub fn sound(path: &Path) -> io::Result<Vec<f32>> {
 /// Hears a session — its two files, `me` then `others` — span by span, and writes its
 /// transcript. `seconds` is the length of a span.
 pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>, seconds: usize) -> io::Result<()> {
+    // Everything the step reads is read and judged first: a run that refuses hears nothing
+    // and leaves no transcript behind.
+    let session = fs::read(folder.join("session.json")).or_else(|error| refused(format!("session.json cannot be read ({error})")))?;
+    let session: serde_json::Value = serde_json::from_slice(&session).unwrap_or_default();
+    if session["contract"] != "session-audio/v1" {
+        return refused("this folder is not a session this version reads: session.json does not name session-audio/v1".into());
+    }
     let context = match fs::read(folder.join("context.txt")).map(String::from_utf8) {
         Ok(Ok(text)) => Some(text.trim().to_string()).filter(|text| !text.is_empty()),
         Ok(Err(_)) => return refused("context.txt is not text: it must be UTF-8".into()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-        Err(error) => return Err(error),
+        Err(error) => return refused(format!("context.txt cannot be read ({error})")),
     };
+    let sounds = [
+        (Speaker::Me, sound(&folder.join("me.wav"))?),
+        (Speaker::Others, sound(&folder.join("others.wav"))?),
+    ];
     let (name, model) = engine.name();
     let making = Making {
         engine: name,
@@ -81,14 +92,11 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
     if transcript.is_complete() {
         return Ok(());
     }
-    let mut longest = 0.0f64;
-    for (speaker, file) in [(Speaker::Me, "me.wav"), (Speaker::Others, "others.wav")] {
-        let heard = sound(&folder.join(file))?;
-        let whole = heard.len() as f64 / RATE as f64;
-        longest = longest.max(whole);
-        let mut from = (transcript.covered(speaker) * RATE as f64).round() as usize;
+    let span = seconds.max(1) * RATE;
+    for (speaker, heard) in &sounds {
+        let mut from = (transcript.covered(*speaker) * RATE as f64).round() as usize;
         while from < heard.len() {
-            let to = (from + seconds.max(1) * RATE).min(heard.len());
+            let to = (from + span).min(heard.len());
             let (start, mut until) = (from as f64 / RATE as f64, to as f64 / RATE as f64);
             let silent = heard[from..to].iter().all(|sample| sample.abs() < SILENCE);
             let mut segments = if silent {
@@ -100,14 +108,26 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
                 .iter_mut()
                 .for_each(|segment| (segment.start, segment.end) = (segment.start + start, (segment.end + start).min(until)));
             segments.retain(|segment| segment.start < until);
+            segments.sort_by(|a, b| a.start.total_cmp(&b.start));
             // A last segment that touches the end of the span may be half a sentence: it is
-            // heard again with what follows — unless it opens the span, which would never end.
-            if to < heard.len() && segments.last().is_some_and(|last| last.end > until - EDGE && last.start > start) {
+            // heard again with what follows — unless that would hear less than a second more,
+            // and the step would hardly move.
+            if to < heard.len()
+                && segments
+                    .last()
+                    .is_some_and(|last| last.end > until - EDGE && last.start >= start + EDGE)
+            {
                 until = segments.pop().map_or(until, |last| last.start);
             }
-            transcript.heard(speaker, &segments, until)?;
+            transcript.heard(*speaker, &segments, until)?;
             from = ((until * RATE as f64).round() as usize).max(from + 1);
         }
     }
-    transcript.complete(longest)
+    // A recording still going on, or ended by a crash, has no last word yet: its transcript
+    // is true up to here, and the step is run again when there is more.
+    if session.get("stopped").is_none() {
+        return Ok(());
+    }
+    let longest = sounds.iter().map(|(_, heard)| heard.len()).max().unwrap_or(0);
+    transcript.complete(longest as f64 / RATE as f64)
 }

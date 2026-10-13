@@ -60,8 +60,11 @@ fn audio(path: &Path, seconds: f64, speech: &[(f64, f64)]) {
     fs::write(path, bytes).unwrap();
 }
 
+const STOPPED: &str = r#"{"contract":"session-audio/v1","started":"2026-10-13T14:05:12+02:00","stopped":"2026-10-13T14:06:22+02:00"}"#;
+
 fn session() -> tempfile::TempDir {
     let folder = tempfile::tempdir().unwrap();
+    fs::write(folder.path().join("session.json"), STOPPED).unwrap();
     audio(&folder.path().join("me.wav"), 70.0, &[(3.0, 5.0), (28.5, 31.5), (40.0, 41.0)]);
     audio(&folder.path().join("others.wav"), 65.0, &[(0.5, 2.5), (59.5, 62.0)]);
     folder
@@ -168,29 +171,72 @@ fn a_file_that_is_not_what_a_session_holds_is_said_and_not_converted() {
         bytes[at..at + value.len()].copy_from_slice(value);
         bytes
     };
+    let refused = |folder: &Path, expected: &[&str]| {
+        let mut engine = Played::default();
+        let said = transcribe(folder, &mut engine, None, 30)
+            .expect_err("heard all the same")
+            .to_string();
+        assert!(expected.iter().all(|part| said.contains(part)), "{said}");
+        assert_eq!(engine.calls, 0, "{said}: the engine heard something first");
+        assert!(!folder.join("transcript.jsonl").exists(), "{said}: a transcript was left");
+    };
     for (bytes, expected) in [
         (with(22, &2u16.to_le_bytes()), "2 channel(s)"),
         (with(24, &48_000u32.to_le_bytes()), "48000 Hz"),
         (with(34, &32u16.to_le_bytes()), "32 bits"),
         (b"some notes, not sound".to_vec(), "is not an audio file of a session"),
+        (wav[..42].to_vec(), "is not an audio file of a session"),
         (Vec::new(), "is not an audio file of a session"),
     ] {
-        fs::write(folder.path().join("me.wav"), bytes).unwrap();
-        let refused = transcribe(folder.path(), &mut Played::default(), None, 30)
-            .expect_err("heard all the same")
-            .to_string();
-        assert!(refused.contains("me.wav") && refused.contains(expected), "{refused}");
+        // Whichever of the two files is wrong, nothing is heard of the other.
+        for file in ["me.wav", "others.wav"] {
+            let good = fs::read(folder.path().join(file)).unwrap();
+            fs::write(folder.path().join(file), &bytes).unwrap();
+            refused(folder.path(), &[file, expected]);
+            fs::write(folder.path().join(file), good).unwrap();
+        }
     }
+    fs::remove_file(folder.path().join("others.wav")).unwrap();
+    refused(folder.path(), &["others.wav cannot be read"]);
+    audio(&folder.path().join("others.wav"), 65.0, &[(0.5, 2.5)]);
+    // A folder that is not a session of this version is not heard either.
+    for not_one in ["", "{}", r#"{"contract":"session-audio/v2"}"#] {
+        fs::write(folder.path().join("session.json"), not_one).unwrap();
+        refused(folder.path(), &["session.json does not name session-audio/v1"]);
+    }
+    fs::write(folder.path().join("session.json"), STOPPED).unwrap();
     // A context that is not text is said too, before anything is heard.
-    fs::write(folder.path().join("me.wav"), &wav).unwrap();
     fs::write(folder.path().join("context.txt"), [0xff, 0xfe]).unwrap();
-    let mut engine = Played::default();
+    refused(folder.path(), &["context.txt is not text"]);
+}
+
+#[test]
+fn a_recording_still_going_on_is_heard_up_to_here_and_again_when_there_is_more() {
+    let folder = session();
+    // No "stopped": still recording, or ended by a crash.
+    fs::write(
+        folder.path().join("session.json"),
+        r#"{"contract":"session-audio/v1","started":"2026-10-13T14:05:12+02:00"}"#,
+    )
+    .unwrap();
+    audio(&folder.path().join("me.wav"), 40.0, &[(3.0, 5.0)]);
+    audio(&folder.path().join("others.wav"), 40.0, &[(0.5, 2.5)]);
+    transcribe(folder.path(), &mut Played::default(), None, 30).unwrap();
+    let so_far = fs::read_to_string(folder.path().join("transcript.jsonl")).unwrap();
+    assert!(!so_far.contains(r#""complete""#) && segments(folder.path()).len() == 2, "{so_far}");
+
+    // The files grew, the recording was stopped: the step goes on, and only then says the end.
+    audio(&folder.path().join("me.wav"), 70.0, &[(3.0, 5.0), (50.0, 52.0)]);
+    audio(&folder.path().join("others.wav"), 70.0, &[(0.5, 2.5)]);
+    fs::write(folder.path().join("session.json"), STOPPED).unwrap();
+    transcribe(folder.path(), &mut Played::default(), None, 30).unwrap();
+    let whole = fs::read_to_string(folder.path().join("transcript.jsonl")).unwrap();
     assert!(
-        transcribe(folder.path(), &mut engine, None, 30)
-            .err()
-            .unwrap()
-            .to_string()
-            .contains("context.txt is not text")
+        whole.starts_with(&so_far) && whole.trim_end().ends_with(r#"{"duration":70.0,"type":"complete"}"#),
+        "{whole}"
     );
-    assert_eq!(engine.calls, 0);
+    assert_eq!(
+        segments(folder.path()).iter().map(|(_, start, _)| *start).collect::<Vec<_>>(),
+        [3.0, 50.0, 0.5]
+    );
 }
