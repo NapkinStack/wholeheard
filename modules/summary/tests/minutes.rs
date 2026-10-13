@@ -97,7 +97,8 @@ fn the_provider_is_asked_with_the_meeting_the_rules_and_the_users_context() {
         "in the language the meeting is held in, the three titles included",
         "never give them an action",
         "even when nobody took it and no date was set",
-        "a task belongs here, not in the third section",
+        "A task belongs here, not in the third section",
+        "one said as a need",
     ] {
         assert!(asked.contains(rule), "the request lost the rule: {rule}");
     }

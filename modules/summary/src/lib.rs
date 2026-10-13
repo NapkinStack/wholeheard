@@ -105,8 +105,9 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
          1. What the meeting was for and what came out of it, in a few sentences.\n\
          2. Every task the meeting agreed on or asked for, one bullet each, even when nobody \
          took it and no date was set: what is to be done — who does it — by when. Go through \
-         the whole transcript before writing this section: a task said once counts, and a \
-         task belongs here, not in the third section.\n\
+         the whole transcript before writing this section: a task said once counts, and so \
+         does one said as a need — something that must be done, prepared, sent again or kept \
+         in reserve. A task belongs here, not in the third section.\n\
          3. What was decided, the figures, the dates, what stays open, one bullet each.\n\
          A section with nothing to say says that there is none.\n\n",
     );
