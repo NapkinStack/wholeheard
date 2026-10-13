@@ -99,6 +99,11 @@ def placed(folder, one, stops=False):
     assert all(0 <= a < b <= one["frames"] + rate for a, b in silences), f"{name}: a silence that is no stretch of the track: {silences}"
     # Between two points, the frames of the track's rate: off by more, the source stopped there.
     off = [(a, b) for a, b in zip(points, points[1:]) if abs((b[0] - a[0]) / rate - (b[1] - a[1])) > 0.005]
+    # The system may hand a stream's first piece over late, with the second on its heels: the
+    # recorder says so with a point at the second, and that is no stop — when the piece is one
+    # period at most, and the clock holds from there. Anything else that opens a track is judged.
+    if off and off[0][0] == points[0] and off[0][1][0] <= 0.1 * rate and abs(off[0][1][1] - off[0][0][1]) <= 0.1:
+        off = off[1:]
     if not stops:
         assert not silences, f"{name}: {len(silences)} silence(s) of ours where the source never stopped"
         assert not off, f"{name}: its clock says {(off[0][1][0] - off[0][0][0]) / (off[0][1][1] - off[0][0][1]):.0f} frames a second"
