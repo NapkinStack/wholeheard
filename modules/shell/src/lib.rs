@@ -3,4 +3,5 @@
 //! the shortcut and the window are built on this, and hold none of it.
 
 pub mod recording;
+pub mod settings;
 pub mod words;
