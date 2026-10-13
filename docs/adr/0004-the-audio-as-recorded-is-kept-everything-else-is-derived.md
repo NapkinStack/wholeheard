@@ -1,6 +1,6 @@
 # ADR-0004 — The audio as recorded is kept; everything else is derived from it
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-10-13
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: project
