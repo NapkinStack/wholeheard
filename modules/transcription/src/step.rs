@@ -54,10 +54,12 @@ pub fn sound(path: &Path) -> io::Result<Vec<f32>> {
         .collect())
 }
 
-/// Hears a session — its two files, `me` then `others` — span by span, and writes its
-/// transcript. `seconds` is the length of a span.
-pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>, seconds: usize) -> io::Result<()> {
-    // Everything is read and judged first: a run that refuses hears nothing and leaves no transcript.
+/// What a session's folder holds: whether it was stopped, its context, its two sounds.
+pub type Session = (bool, Option<String>, [(Speaker, Vec<f32>); 2]);
+
+/// Reads a session's folder and judges it — or says which file is wrong, and what: a caller
+/// asks this before it loads an engine.
+pub fn session(folder: &Path) -> io::Result<Session> {
     let session = fs::read(folder.join("session.json")).or_else(|error| refused(format!("session.json cannot be read ({error})")))?;
     let session: serde_json::Value = serde_json::from_slice(&session).unwrap_or_default();
     if session["contract"] != "session-audio/v1" {
@@ -73,6 +75,14 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
         (Speaker::Me, sound(&folder.join("me.wav"))?),
         (Speaker::Others, sound(&folder.join("others.wav"))?),
     ];
+    Ok((session["stopped"].is_string(), context, sounds))
+}
+
+/// Hears a session — its two files, `me` then `others` — span by span, and writes its
+/// transcript. `seconds` is the length of a span.
+pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>, seconds: usize) -> io::Result<()> {
+    // Everything is read and judged first: a run that refuses hears nothing and leaves no transcript.
+    let (stopped, context, sounds) = session(folder)?;
     let (name, model) = engine.name();
     let making = Making {
         engine: name,
@@ -88,7 +98,6 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
     // writes them: a run taken up starts exactly where the run before decided to stop.
     const HUNDREDTH: usize = RATE / 100;
     let span = seconds.clamp(1, 86_400) * 100;
-    let stopped = session["stopped"].is_string();
     for (speaker, heard) in &sounds {
         // A file still being written is heard up to its last whole hundredth; one that was stopped, to the nearest.
         let end = (heard.len() + if stopped { HUNDREDTH / 2 } else { 0 }) / HUNDREDTH;
