@@ -20,7 +20,7 @@ fi
 if pactl list short sinks | awk -v d="$(pactl get-default-sink)" '$2 == d && $NF == "RUNNING" {found = 1} END {exit !found}'; then
   say "e2e: NOT RUN — the system is playing sound: its output would be taken from it"; exit 0
 fi
-for tool in ffmpeg ffprobe pw-play python3; do
+for tool in ffmpeg ffprobe pw-play pw-dump pw-cli python3; do
   command -v "$tool" >/dev/null || { say "e2e: NOT RUN — $tool is missing"; exit 0; }
 done
 
@@ -148,6 +148,20 @@ recorder=$!
 sleep 2; pw-play "$work/others-a.wav"; sleep 1
 kill -INT "$recorder"; wait "$recorder" || true
 check measure2 same-instant "$(ls -d "$work"/v2-clock/*/ | head -1)" 0.02
+
+say "H. each source as delivered: a source that stops, and comes back"
+pactl set-default-source summit_e2e_mic.monitor
+tone 880 30 "$work/others-long.wav"
+pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
+pw-play "$work/others-long.wav" & others_player=$!
+sleep 0.5
+"$bin" record "$work/v2-stops" --as v2 > /dev/null 2>&1 &
+recorder=$!
+sleep 4; python3 scripts/e2e_measure_v2.py pause "$recorder" remote 6   # six seconds without the remote source
+sleep 6
+kill -INT "$recorder"; wait "$recorder" || true
+kill "$mic_player" "$others_player" 2>/dev/null || true
+check measure2 stopped-source "$(ls -d "$work"/v2-stops/*/ | head -1)"
 
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"
 exit "$failed"
