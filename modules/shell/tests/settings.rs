@@ -45,12 +45,18 @@ fn a_file_that_is_not_settings_is_said_in_one_sentence_and_not_used() {
         ("reminder = \"yes\"\n", "<file>, line 1: "),
         ("# a comment\n\nreminder = maybe\n", "<file>, line 3: "),
         ("sessions = 12\n", "<file>, line 1: "),
+        ("this is not TOML\n", "<file>, line 1: "),
+        // A fault that opens a line is on that line, not the one before.
+        ("reminder = true\n= 3\n", "<file>, line 2: "),
+        ("reminder = false\nreminder = true\n", "<file>, line 2: "),
+        ("# é\r\nreminder = true\r\n\r\n[sessions]\r\nx = 1\r\n", "<file>, line 4: "),
+        // A folder that is not a whole path is said where it is written.
         (
             "reminder = false\nsessions = \"Summit\"\n",
-            "<file>: sessions is the folder's whole path",
+            "<file>, line 2: sessions is the folder's whole path",
         ),
-        ("sessions = \"\"\n", "<file>: sessions is the folder's whole path"),
-        ("this is not TOML\n", "<file>, line 1: "),
+        ("sessions = \"\"\n", "<file>, line 1: sessions is the folder's whole path"),
+        ("\n\n\nsessions = \"./here\"", "<file>, line 4: sessions is the folder's whole path"),
     ] {
         let said = written(text).expect_err(text);
         assert!(said.starts_with(expected) && said.lines().count() == 1, "{text:?}: {said}");
