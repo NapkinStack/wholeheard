@@ -188,20 +188,21 @@ fn header(rate: u32, channels: u16, riff: u32, data: u32) -> [u8; HEADER] {
 /// The session's clock, growing: one line per thing known, on disk when it is said.
 pub struct Clock {
     file: File,
+    written: u64,
 }
 
 impl Clock {
     pub fn create(path: &Path) -> io::Result<Self> {
-        File::create(path).map(|file| Self { file })
+        File::create(path).map(|file| Self { file, written: 0 })
     }
 
     /// The frame `sample` of `track` was heard `at` seconds after the session started.
     pub fn point(&mut self, track: &str, sample: u64, at: f64) -> io::Result<()> {
+        // A ten-thousandth of a second: finer than a sample at 8 kHz, and no false digits.
+        let at = (at * 10_000.0).round() / 10_000.0;
         if !at.is_finite() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "an instant that is no number"));
         }
-        // A ten-thousandth of a second: finer than a sample at 8 kHz, and no false digits.
-        let at = (at * 10_000.0).round() / 10_000.0;
         self.say(serde_json::json!({ "track": track, "sample": sample, "at": at }))
     }
 
@@ -210,8 +211,19 @@ impl Clock {
         self.say(serde_json::json!({ "track": track, "silence": [from, to] }))
     }
 
+    /// Whole or not at all: the start of a line the system refused is taken back, so that
+    /// the next line is not glued to it and lost with it.
     fn say(&mut self, line: serde_json::Value) -> io::Result<()> {
-        self.file.write_all(format!("{line}\n").as_bytes())
+        let line = format!("{line}\n");
+        if let Err(error) = self.file.write_all(line.as_bytes()) {
+            let _ = self
+                .file
+                .set_len(self.written)
+                .and_then(|()| self.file.seek(SeekFrom::Start(self.written)));
+            return Err(error);
+        }
+        self.written += line.len() as u64;
+        Ok(())
     }
 }
 

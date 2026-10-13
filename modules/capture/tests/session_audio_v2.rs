@@ -202,7 +202,9 @@ fn the_clock_is_one_line_per_thing_known_on_disk_when_said() {
     clock.point("remote", 0, 0.021_04).unwrap();
     clock.silence("remote", (96_000, 240_000)).unwrap();
     clock.point("local", 480_000, 10.034_149).unwrap();
-    assert!(clock.point("local", 0, f64::NAN).is_err(), "an instant that is no number");
+    for no_number in [f64::NAN, f64::INFINITY, f64::MAX, -1e305] {
+        assert!(clock.point("local", 0, no_number).is_err(), "an instant that is no number");
+    }
     // Not closed: what a kill leaves.
     let lines: Vec<serde_json::Value> = fs::read_to_string(&path)
         .unwrap()
