@@ -64,6 +64,10 @@ These lines are not a contract yet: the shell's first use of them writes one (AD
 ## Contracts
 
 - Provided: [`session-audio/v1`](../../contracts/session-audio/v1/README.md), `experimental`
+  — what `record` writes
+- Provided: [`session-audio/v2`](../../contracts/session-audio/v2/README.md), `experimental`
+  — each source as delivered, with the session's clock: what `record … --as v2` writes, until
+  the steps that follow read it and it becomes what `record` writes (ADR-0004)
 - Consumed: none
 
 ## Decisions
