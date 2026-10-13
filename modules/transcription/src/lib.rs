@@ -10,6 +10,8 @@ use std::{
 
 use serde_json::{Value, json};
 
+pub mod step;
+
 /// The contract this module provides, as the transcript's first line names it.
 pub const CONTRACT: &str = "transcript/v1";
 /// Who spoke: whoever recorded, or everyone else.
