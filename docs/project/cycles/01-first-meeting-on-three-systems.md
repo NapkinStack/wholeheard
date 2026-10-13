@@ -546,17 +546,22 @@ and test beforehand.
 | Model | Tasks written | Of the seven: missing | Wrong | The guest as owner | Time |
 |---|---|---|---|---|---|
 | On the machine, 7B, with the context | 3 | 4 | 0 | no | minutes |
-| Online, mid-size, with the context | 4 | 3 | 1 | no | 3 s |
-| Online, fast, with the context | 7 | 2 | 0 | no | 3 s |
-| **Online, large, with the context** | 9 | **0** | 0 | no | 15 s |
+| Online, mid-size, with the context | 4 to 7 | 3 | 0 to 1 | no | 3 s |
+| Online, fast, with the context | 7 | 2 to 3 | 0 to 2 — an owner and a date guessed | no | 3 s |
+| **Online, large, with the context** | 8 to 9 | **0** | 0 | no | 15 s |
 | Online, mid-size, without the context | 2 | 4 | 1 | **yes** | 2 s |
 
-One run per line; the count is the framer's, read again by an independent session.
+Two runs per online model with the context — the framer's, then an independent session's, which
+counted for itself: where they differ the table gives both. A model does not answer twice the
+same way, and the seven have soft edges: two of them are spoken as one task, one holds three.
 
 - **The request was wrong, and is right**: its first wording labelled the three parts in
   English and the model copied the labels over a French text; it asked for "actions" and got
   the two that had an owner. Reworded, every model titles in the meeting's language.
 - **The context is what keeps the guest out of the owners**, as in D2.
+- **The wording was tuned on this one meeting** — the verifier's remark: its phrase on a task
+  "said as a need" mirrors this sample's reminders and plan B. Another meeting must be read
+  before the wording is trusted.
 - **The second criterion is a matter of model.** Only the large one misses none of the seven;
   it also says of an owner that he "was asked, and did not explicitly accept".
 
