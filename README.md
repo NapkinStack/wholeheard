@@ -26,8 +26,18 @@ that you are recording**: Summit shows them nothing.
 
 ## Run it
 
-Nothing runs yet. The first cycle (13 to 27 October 2026) delivers a first recorded meeting, with its
-transcript and its minutes, on the three systems: [`docs/project/cycles/`](docs/project/cycles/).
+On Fedora, built from this repository — no installer yet, and nothing on Windows or macOS:
+
+| What runs | How | Its page |
+|---|---|---|
+| Summit in the tray: start and stop a recording from its menu or a shortcut, told by notifications | `nstack run shell` | [`modules/shell`](modules/shell/) |
+| A recording, from a terminal | `summit-capture record <folder>` | [`modules/capture`](modules/capture/) |
+| The transcript of a session, on the machine | `summit-transcription <session> --model <file>` | [`modules/transcription`](modules/transcription/) |
+| The minutes of a transcript, from the provider you chose | `summit-summary <session> --provider <address> --model <name>` | [`modules/summary`](modules/summary/) |
+
+**Known, and being worked on**: taken on loudspeakers, a meeting's transcript repeats one
+party under the other's name. The second cycle (from 14 October 2026) rebuilds the audio on
+a firmer base: [`docs/project/cycles/`](docs/project/cycles/), [ADR-0004](docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md).
 
 ## Contribute
 
