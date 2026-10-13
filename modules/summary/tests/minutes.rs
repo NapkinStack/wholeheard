@@ -94,11 +94,18 @@ fn the_provider_is_asked_with_the_meeting_the_rules_and_the_users_context() {
     for rule in [
         "Never guess",
         "exactly three sections",
-        "in the language the meeting is held in",
+        "in the language the meeting is held in, the three titles included",
         "never give them an action",
+        "even when nobody took it and no date was set",
+        "a task belongs here, not in the third section",
     ] {
         assert!(asked.contains(rule), "the request lost the rule: {rule}");
     }
+    // Nothing in it reads as a title to copy: the model once titled French minutes "Highlights".
+    assert!(
+        !asked.lines().any(|line| line.starts_with('#')) && !asked.to_lowercase().contains("highlights"),
+        "{asked}"
+    );
     // No context, or an empty one, is no context: nothing is said of it.
     assert!(!request(&segments, None).contains("Context given"));
     assert!(!request(&segments, Some(" \n")).contains("Context given"));
