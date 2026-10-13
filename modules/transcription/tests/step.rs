@@ -236,8 +236,7 @@ fn a_recording_still_going_on_is_heard_up_to_here_and_again_when_there_is_more()
 
 #[test]
 fn the_step_neither_crawls_on_an_unbroken_voice_nor_cuts_a_stretch_that_starts_with_a_span() {
-    // One voice for forty seconds, heard five at a time: whatever the engine says of where
-    // it starts, half a span at least every two calls.
+    // One voice for forty seconds, heard five at a time: half a span at least every two calls.
     for start in [0.02, 1.0, 2.4, 2.5, 4.5] {
         let folder = session();
         audio(&folder.path().join("me.wav"), 40.0, &[(0.0, 40.0)]);
