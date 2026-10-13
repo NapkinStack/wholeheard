@@ -34,21 +34,27 @@ Records the audio sources of a conversation into a session.
 
 - What was heard is on disk when `Track::push` returns: no buffer between a sample and the file.
 - A sample once written never changes; the header's lengths are true only after a clean stop.
-- The two files are the same length, on the same clock: a source that gives nothing is zeros.
-- Silence is zeros: what a source rests at is taken out before anything is written or measured.
+- First form (`record`): the two files are the same length, on the same clock — a source that
+  gives nothing is zeros; and silence is zeros — what a source rests at is taken out before
+  anything is written or measured.
+- Second form (`record … --as v2`, `src/v2.rs`): a track is what its source delivered, to the
+  sample — nothing taken out, no channel mixed, no length made equal; the rest is taken out
+  of the *measure* only. Zeros written here are named on the clock before they are written.
 
 ## Known traps
 
 - A microphone rested at a third of full scale and opened on a click at full scale (cycle 01,
   D1): measured from zero, a silent room is sound. Tested.
-- The channels of a source are averaged: a source that speaks on one channel of two is written
-  at half its level, on one of six at a sixth (the verifier's measure, 2026-10-12). Not handled.
+- First form: the channels of a source are averaged — a source that speaks on one channel of
+  two is written at half its level, on one of six at a sixth (the verifier's measure,
+  2026-10-12). Not handled there; the second form keeps every channel.
 - An output that plays nothing delivers zeros with no error; one that moved elsewhere may
   deliver nothing at all. Both end as the `silent` event.
 
 ## Areas not to change without approval
 
-- The format of the files and of `session.json`: it is `contracts/session-audio/v1`.
+- The format of the files and of `session.json`: it is `contracts/session-audio/v1`, and `v2`
+  with `--as v2`; the events said while recording: `contracts/recording/v1`.
 
 ## Non-standard commands
 
