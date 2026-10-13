@@ -117,7 +117,6 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
             // A last segment that touches the end of what was heard may be half a sentence. In the middle of a file it
             // is heard again with what follows, when that gains half a span: the step never crawls. At the end of a
             // file still being written it waits for the rest; at the end of one that was stopped there is no rest.
-            // (One that fits in a single hundredth is whole: heard again, it would be lost.)
             let touching = segments
                 .last()
                 .filter(|(start, end, _)| end + EDGE > until && end > start)
