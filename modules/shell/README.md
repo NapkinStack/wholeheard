@@ -40,7 +40,12 @@ SUMMIT_CAPTURE=$PWD/modules/capture/target/release/summit-capture nstack run she
 | On a Linux desktop | What it takes |
 |---|---|
 | The icon | Under GNOME, an extension that shows tray icons — *AppIndicator and KStatusNotifierItem Support*. Without it Summit runs, unseen |
-| The shortcut | The desktop grants it to an installed application: copy `linux/dev.summit.Summit.desktop` into the user's `applications` folder under their data folder, then start Summit again and accept the desktop's question. Refused, Summit says so once; the menu still does the same |
+| The shortcut | The desktop grants it to an application it can find: a desktop entry of Summit's name in the user's `applications` folder, **whose `Exec` line is the program's whole path** — the desktop reads no entry whose program it cannot find, and says so as "App info not found". The line under the table installs it. Then start Summit again and accept the desktop's question. Refused, Summit says so once; the menu still does the same |
+
+```bash
+sed "s#^Exec=.*#Exec=$PWD/modules/shell/target/release/summit#" modules/shell/linux/dev.summit.Summit.desktop \
+  > "${XDG_DATA_HOME:-$HOME/.local/share}/applications/dev.summit.Summit.desktop"
+```
 
 **Settings** — `summit/settings.toml` in the user's configuration folder, a few lines written
 by hand until the window exists: `reminder = false` to stop the reminder, `sessions = "…"`

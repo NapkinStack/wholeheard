@@ -30,6 +30,8 @@ Puts Summit's four steps in the user's hands: a tray, a global shortcut, notific
 
 - `ashpd` is taken with its `async-io` feature, never `tokio`: with `tokio` the portal's library switches the desktop bus to that runtime, and every notification then panics inside the toolkit's own runtime ("cannot start a runtime from within a runtime").
 - A notification is shown from the main thread or a plain thread, never from a task of the async runtime.
+- The tray's icon is a dark tile with a light summit: a light glyph alone was invisible on the decider's desktop, whose bar is light. A tray icon is judged on a light bar, a grey one and a dark one.
+- A desktop entry whose `Exec` program is not found is no entry at all for the desktop: the portal answers "App info not found" and the shortcut is refused.
 - The toolkit writes `gen/` at each build: it is ignored. Files are added to a commit by name.
 
 ## Areas not to change without approval
