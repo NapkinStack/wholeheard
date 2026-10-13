@@ -93,8 +93,10 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
         return Ok(());
     }
     let span = seconds.max(1) * RATE;
+    let stopped = session["stopped"].is_string();
     for (speaker, heard) in &sounds {
         let mut from = (transcript.covered(*speaker) * RATE as f64).round() as usize;
+        let mut crawled = false;
         while from < heard.len() {
             let to = (from + span).min(heard.len());
             let (start, mut until) = (from as f64 / RATE as f64, to as f64 / RATE as f64);
@@ -109,15 +111,25 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
                 .for_each(|segment| (segment.start, segment.end) = (segment.start + start, (segment.end + start).min(until)));
             segments.retain(|segment| segment.start < until);
             segments.sort_by(|a, b| a.start.total_cmp(&b.start));
-            // A last segment that touches the end of the span may be half a sentence: it is
-            // heard again with what follows — unless that would hear less than a second more,
-            // and the step would hardly move.
-            if to < heard.len()
-                && segments
-                    .last()
-                    .is_some_and(|last| last.end > until - EDGE && last.start >= start + EDGE)
-            {
-                until = segments.pop().map_or(until, |last| last.start);
+            // A last segment that touches the end of what was heard may be half a sentence: it
+            // is heard again with what follows. Twice in a row for less than a second gained,
+            // and the step would crawl: the second time it is written as it is.
+            let touching = segments.last().filter(|last| last.end > until - EDGE).map(|last| last.start);
+            if to == heard.len() {
+                // The end of the file: of a recording still going on, the sentence waits for
+                // the rest; of one that was stopped, there is no rest.
+                if let Some(last) = touching.filter(|_| !stopped) {
+                    segments.pop();
+                    transcript.heard(*speaker, &segments, last)?;
+                    break;
+                }
+            } else if let Some(gain) = touching.map(|last| last - start).filter(|gain| *gain > 0.0) {
+                if gain >= EDGE || !crawled {
+                    until = segments.pop().map_or(until, |last| last.start);
+                }
+                crawled = gain < EDGE && !crawled;
+            } else {
+                crawled = false;
             }
             transcript.heard(*speaker, &segments, until)?;
             from = ((until * RATE as f64).round() as usize).max(from + 1);
@@ -125,7 +137,7 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
     }
     // A recording still going on, or ended by a crash, has no last word yet: its transcript
     // is true up to here, and the step is run again when there is more.
-    if session.get("stopped").is_none() {
+    if !stopped {
         return Ok(());
     }
     let longest = sounds.iter().map(|(_, heard)| heard.len()).max().unwrap_or(0);
