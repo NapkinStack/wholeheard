@@ -45,7 +45,10 @@ provides: []
 # Contracts CONSUMED - this is the DECLARED graph.
 # CI compares it with the contracts this module's files read: one read and not declared
 # fails (B1), one declared and never read is reported (B4), one nobody provides fails (B6).
-consumes: []
+consumes:
+  - contract: recording
+    version: v1
+    module: capture
 #  - contract: identity-api
 #    version: v1
 #    module: identity
@@ -57,7 +60,11 @@ data:
 
 # Significant external dependencies.
 # Each one declares its exit strategy (.nstack/handbook/06-decisions.md §3).
-dependencies: []
+dependencies:
+  - name: serde_json
+    purpose: Reads the lines a step's program prints
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One reader of lines in src/recording.rs; any JSON library replaces it.
 #  - name:
 #    purpose:
 #    adr:
@@ -68,11 +75,8 @@ dependencies: []
 # No stack is imposed. check and test are required once the module holds more than its
 # description (fitness M7): declare them before its first file of code.
 commands:
-#  check:                        # under 2 min: format, lint, types
-#  test:                         # NEVER starts another module
-#  bootstrap:                    # optional: make the module usable from a fresh clone
-#  run:                          # optional: local start, with doubles for the dependencies
-#  e2e:                          # optional: end-to-end scenarios; evidence written to .evidence/
+  check: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
+  test: cargo test --locked
 
 docs:
   readme: README.md
