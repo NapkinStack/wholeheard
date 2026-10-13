@@ -11,15 +11,21 @@ The counts, each with what it is counted out of:
 
 - words wrong, on each side: the words to change, add or take out of what the transcript
   gives a side to get what that side said — of which, those of turns it did not hold at all;
+  and, for the local side, net of the echo: without the remote's words it was given;
 - local words lost under the remote: words the local side said while the remote side spoke,
-  that the transcript does not have — what muting the microphone to kill an echo costs;
+  or in the third of a second after, that the transcript does not have — what muting the
+  microphone to kill an echo costs;
 - words said twice: words the transcript gives the local side that are the remote side's,
   and that it gives the remote side too — the loudspeakers heard by the microphone;
 - words on the wrong side: words of one side that the transcript gives only to the other;
 - exchanges out of order: places where the meeting passes from one side to the other and
-  the transcript puts the second turn before the first;
+  the transcript puts the two turns the other way round than they were said;
 - turns far from their time: turns the transcript starts more than two seconds away from
   where they were said.
+
+A turn is where the transcript puts its first words. Order and time are read as a share of
+the turns found, with the turns not found beside: a transcript that loses turns has fewer to
+get wrong.
 """
 
 from __future__ import annotations
@@ -37,6 +43,10 @@ from num2words import num2words
 
 NEAR = 10.0
 """Seconds around a transcript's segment in which the other side's words are "just then"."""
+
+TAIL = 0.3
+"""Seconds after a remote turn in which a local word is still under it: an echo rings, and
+whatever silences the microphone holds on that long."""
 
 FAR = 2.0
 """Seconds between where a turn was said and where the transcript starts it, beyond which a
@@ -63,9 +73,10 @@ def said(truth: list[dict], side: str) -> list[dict]:
     for number, turn in enumerate(truth):
         if turn["side"] != side:
             continue
-        for written, when in turn.get("words") or [[turn["text"], turn["start"]]]:
+        instants = [when for _, when in turn["words"]] + [turn["end"]]
+        for (written, when), until in zip(turn["words"], instants[1:]):
             spoken += [
-                {"word": word, "at": when, "turn": number, "start": turn["start"], "end": turn["end"]}
+                {"word": word, "at": when, "until": until, "turn": number, "start": turn["start"], "end": turn["end"]}
                 for word in words(written)
             ]
     return spoken
@@ -77,22 +88,29 @@ def heard(transcript: list[dict], side: str) -> list[dict]:
     return [{"word": word, "start": s["start"], "end": s["end"]} for s in mine for word in words(s["text"])]
 
 
-def borrowed(extra: list[dict], theirs: list[dict]) -> list[bool]:
-    """For each word a side was given and did not say: is it the other side's — said by them
-    just then, and next to the word they said it next to? One word alone proves nothing: `le`
-    is said by everyone, all the time."""
-    spoken = {}
+def borrowed(extra: list[dict], theirs: list[dict]) -> list[int | None]:
+    """For each word a side was given and did not say: the turn of the other side it was
+    taken from — said by them just then, next to the word they said it next to — or none.
+    One word alone proves nothing: `le` is said by everyone, all the time."""
+    spoken: dict[tuple[str, str], list[dict]] = {}
     for first, second in itertools.pairwise(theirs):
         if first["turn"] == second["turn"]:
-            spoken.setdefault((first["word"], second["word"]), []).append((first["start"], first["end"]))
+            spoken.setdefault((first["word"], second["word"]), []).append(first)
 
-    def just_then(a: dict, b: dict) -> bool:
-        return any(start - NEAR <= a["start"] <= end + NEAR for start, end in spoken.get((a["word"], b["word"]), []))
+    def from_turn(a: dict, b: dict) -> int | None:
+        # The pair's own turn, when the segment holding it is around when that turn was said.
+        near = [
+            t
+            for t in spoken.get((a["word"], b["word"]), [])
+            if t["start"] - NEAR <= a["end"] and a["start"] <= t["end"] + NEAR
+        ]
+        return min(near, key=lambda t: abs(t["at"] - a["start"]))["turn"] if near else None
 
-    taken = [False] * len(extra)
+    taken: list[int | None] = [None] * len(extra)
     for i in range(len(extra) - 1):
-        if extra[i + 1].get("follows") and just_then(extra[i], extra[i + 1]):
-            taken[i] = taken[i + 1] = True
+        if extra[i + 1].get("follows") and (turn := from_turn(extra[i], extra[i + 1])) is not None:
+            taken[i] = turn if taken[i] is None else taken[i]
+            taken[i + 1] = turn
     return taken
 
 
@@ -125,9 +143,12 @@ def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int
                     extra[side] += [{**word, "follows": i > 0} for i, word in enumerate(run)]
         result[f"words wrong, {side}"] = (wrong, len(was[side]))
 
-    # A turn is found when the transcript has half its words, and placed where most of them are.
+    # A turn is found when the transcript has half its words, and placed where it puts the
+    # first of them: the middle of a long turn is not when it was said.
     size = {number: len(words(turn["text"])) for number, turn in enumerate(truth)}
-    found = {number: statistics.median(starts) for number, starts in placed.items() if 2 * len(starts) >= size[number]}
+    found = {
+        number: statistics.median(starts[:3]) for number, starts in placed.items() if 2 * len(starts) >= size[number]
+    }
     for side in ("local", "remote"):
         dropped = sum(1 for i, word in enumerate(was[side]) if word["turn"] not in found and i not in matched[side])
         result[f"of which in turns not found, {side}"] = (dropped, len(was[side]))
@@ -135,7 +156,7 @@ def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int
     under = [
         i
         for i, word in enumerate(was["local"])
-        if any(t["side"] == "remote" and t["start"] <= word["at"] <= t["end"] for t in truth)
+        if any(t["side"] == "remote" and word["at"] <= t["end"] + TAIL and word["until"] >= t["start"] for t in truth)
     ]
     result["local words lost under the remote"] = (sum(i not in matched["local"] for i in under), len(under))
 
@@ -143,16 +164,22 @@ def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int
     # them to their own side too — their turn is found there — on the wrong side when it is not.
     for side in ("local", "remote"):
         theirs = was[OTHER[side]]
-        taken = [word for word, is_theirs in zip(extra[side], borrowed(extra[side], theirs)) if is_theirs]
-        # A borrowed word belongs to the turn of theirs nearest in time.
-        elsewhere = sum(1 for word in taken if min(theirs, key=lambda t: abs(t["at"] - word["start"]))["turn"] in found)
+        taken = [turn for turn in borrowed(extra[side], theirs) if turn is not None]
+        elsewhere = sum(1 for turn in taken if turn in found)
         if side == "local":
             result["words said twice"] = (elsewhere, len(theirs))
+            # What is wrong of the local side's own words: the measure a canceller is read on —
+            # muting the microphone removes the echo's words and cannot lower this.
+            net = result["words wrong, local"][0] - len(taken)
+            result["words wrong net of the echo, local"] = (net, len(was["local"]))
         result[f"words on the wrong side, given to the {side}"] = (len(taken) - elsewhere, len(theirs))
 
     exchanges = [(a, a + 1) for a in range(len(truth) - 1) if truth[a]["side"] != truth[a + 1]["side"]]
     known = [(a, b) for a, b in exchanges if a in found and b in found]
-    result["exchanges out of order"] = (sum(found[b] < found[a] for a, b in known), len(known))
+    # Speech over speech: the second turn of an exchange may have started first. The order
+    # said is the truth's own, not the script's.
+    reversed_ = sum((found[b] < found[a]) != (truth[b]["start"] < truth[a]["start"]) for a, b in known)
+    result["exchanges out of order"] = (reversed_, len(known))
     result["exchanges not found"] = (len(exchanges) - len(known), len(exchanges))
     result["turns far from their time"] = (sum(abs(found[n] - truth[n]["start"]) > FAR for n in found), len(found))
     result["turns not found"] = (len(truth) - len(found), len(truth))
@@ -160,26 +187,48 @@ def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int
 
 
 def read(folder: Path) -> tuple[list[dict], list[dict]]:
-    """A session's truth and its transcript — a whole one: opened by its header, closed by `complete`."""
+    """A session's truth and its transcript — a whole one, of that meeting, in the form this
+    reads: anything else is refused, never counted as if it were."""
     truth = json.loads((folder / "truth.json").read_text(encoding="utf-8"))["turns"]
     lines = [
         json.loads(line)
         for line in (folder / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    if not lines or lines[0].get("type") != "header" or lines[-1].get("type") != "complete":
-        raise ValueError(f"{folder}: the transcript is not a whole one — no header, or no `complete` line")
+    kinds = [line.get("type") for line in lines]
+    refusal = None
+    if (
+        not lines
+        or kinds[0] != "header"
+        or kinds[-1] != "complete"
+        or kinds.count("header") + kinds.count("complete") != 2
+    ):
+        refusal = "the transcript is not one whole transcript — a header first, `complete` last, each once"
+    elif lines[0].get("contract") != "transcript/v1":
+        refusal = f"the transcript is {lines[0].get('contract')}, and this reads transcript/v1"
+    elif any(line.get("speaker") not in SIDES for line in lines if line.get("type") == "segment"):
+        refusal = "a segment names a speaker this does not know"
+    elif not all(turn.get("words") for turn in truth):
+        refusal = "the truth does not hold each word's instant"
+    elif abs(lines[-1].get("duration", 0.0) - truth[-1]["end"]) > 5:
+        refusal = f"the transcript is of {lines[-1].get('duration')} s, the meeting of {truth[-1]['end']:.0f} s"
+    if refusal:
+        raise ValueError(f"{folder}: {refusal}")
     return truth, [line for line in lines if line.get("type") == "segment"]
 
 
 def main(argv: list[str]) -> int:
+    if len(argv) < 2:
+        print("usage: python -m bench.counts <session-folder> [<session-folder> …]", file=sys.stderr)
+        return 2
     results = [count(*read(Path(folder))) for folder in argv[1:]]
     for name in results[0]:
-        numbers, total = sorted(result[name][0] for result in results), results[0][name][1]
+        numbers, totals = sorted(result[name][0] for result in results), sorted(result[name][1] for result in results)
         spread = (
-            f"{numbers[0]}" if len(numbers) == 1 else f"{numbers[0]} – {statistics.median_low(numbers)} – {numbers[-1]}"
+            f"{numbers[0]}" if len(numbers) == 1 else f"{numbers[0]} – {statistics.median(numbers):g} – {numbers[-1]}"
         )
-        print(f"{name}: {spread} of {total}")
+        of = f"{totals[0]}" if totals[0] == totals[-1] else f"{totals[0]} to {totals[-1]}"
+        print(f"{name}: {spread} of {of}")
     return 0
 
 

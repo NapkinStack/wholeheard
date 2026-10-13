@@ -45,19 +45,22 @@ doing compares with another; it does not promise what a real room gives.
 | Count | Says |
 |---|---|
 | Words wrong, on each side — and those of turns not found | What the transcript gives a side against what it said; a turn dropped whole is said apart from a word misheard |
-| Local words lost under the remote | What the local side said while the remote spoke, and the transcript lacks: **what muting the microphone to kill an echo costs** |
+| Words wrong net of the echo, local | The local side's own words wrong, without the remote's it was given: **what a canceller is read on** — muting removes the echo's words and cannot lower this |
+| Local words lost under the remote | What the local side said while the remote spoke, or in the third of a second after, and the transcript lacks: **what muting the microphone to kill an echo costs** |
 | Words said twice | The remote side's words given to the local side too: the echo |
 | Words on the wrong side | A side's words given only to the other |
-| Exchanges out of order | Where the meeting passes from one side to the other, and the transcript puts the second turn first |
+| Exchanges out of order | Where the meeting passes from one side to the other, and the transcript puts the two turns the other way round than they were said |
 | Turns far from their time | Turns the transcript starts more than two seconds from where they were said |
 
 No count is read alone: an echo killed by muting the microphone is perfect on *said twice*
-and pays on *lost under the remote*.
+and pays on *lost under the remote*. A turn is where the transcript puts its first words;
+order and time are read as a share of the turns found, with those not found beside. A
+transcript that is not one whole `transcript/v1` of that meeting is refused, not counted.
 
 ```bash
 # Each draw of a condition is transcribed by the program under test, then counted together.
-summit-transcription <out-folder>/low/0 --model <model-file> --language fr   # and /1, /2
-uv run python -m bench.counts <out-folder>/low/0 <out-folder>/low/1 <out-folder>/low/2
+summit-transcription <out-folder>/low/0 --model <model-file> --language fr   # and /1 to /5
+uv run python -m bench.counts <out-folder>/low/0 <out-folder>/low/1 <out-folder>/low/2   # … /5
 ```
 
 ```bash

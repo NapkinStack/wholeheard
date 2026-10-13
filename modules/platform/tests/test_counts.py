@@ -6,21 +6,26 @@ import pytest
 
 from bench.counts import count, read, words
 
+
+def said(voice: str, side: str, start: float, end: float, text: str) -> dict:
+    """A turn of the truth, each word at its instant, as the renderer writes one."""
+    written, before = [], 0
+    for word in text.split():
+        written.append([word, round(start + (end - start) * before / len(text), 2)])
+        before += len(word) + 1
+    return {"voice": voice, "side": side, "start": start, "end": end, "text": text, "words": written}
+
+
 TRUTH = [
-    {"voice": "claire", "side": "local", "start": 0.0, "end": 4.0, "text": "Bonjour à tous, on commence la réunion."},
-    {
-        "voice": "sophie",
-        "side": "remote",
-        "start": 5.0,
-        "end": 9.0,
-        "text": "Bonjour Claire, je vous entends très bien.",
-    },
-    {"voice": "marc", "side": "local", "start": 10.0, "end": 14.0, "text": "La version de test sera prête jeudi."},
-    {"voice": "julien", "side": "remote", "start": 15.0, "end": 19.0, "text": "Parfait, le support sera au complet."},
+    said("claire", "local", 0.0, 4.0, "Bonjour à tous, on commence la réunion."),
+    said("sophie", "remote", 5.0, 9.0, "Bonjour Claire, je vous entends très bien."),
+    said("marc", "local", 10.0, 14.0, "La version de test sera prête jeudi."),
+    said("julien", "remote", 15.0, 19.0, "Parfait, le support sera au complet."),
 ]
 NOTHING = {
     "words wrong, local": (0, 14),
     "of which in turns not found, local": (0, 14),
+    "words wrong net of the echo, local": (0, 14),
     "words wrong, remote": (0, 13),
     "of which in turns not found, remote": (0, 13),
     "local words lost under the remote": (0, 0),
@@ -72,7 +77,11 @@ def test_words_wrong_are_those_to_change_add_or_take_out_on_their_side():
     transcript = right()
     transcript[0]["text"] = "Bonjour à tous, on commence la séance."  # one word changed
     transcript[3]["text"] = "Parfait, le support sera complet."  # one taken out
-    assert moved(count(TRUTH, transcript)) == {"words wrong, local": (1, 14), "words wrong, remote": (1, 13)}
+    assert moved(count(TRUTH, transcript)) == {
+        "words wrong, local": (1, 14),
+        "words wrong net of the echo, local": (1, 14),
+        "words wrong, remote": (1, 13),
+    }
 
 
 def test_a_turn_the_transcript_does_not_hold_is_said_apart_from_words_misheard():
@@ -91,7 +100,10 @@ def test_what_the_microphone_heard_of_the_loudspeakers_is_words_said_twice():
     assert moved(count(TRUTH, right() + cut))["words said twice"][0] >= 6
     # A word everybody says, added alone, is nobody's echo.
     stray = segment("me", 15.5, "le")
-    assert moved(count(TRUTH, right() + [stray])) == {"words wrong, local": (1, 14)}
+    assert moved(count(TRUTH, right() + [stray])) == {
+        "words wrong, local": (1, 14),
+        "words wrong net of the echo, local": (1, 14),
+    }
     # Said long after, it is not the loudspeakers any more.
     late = segment("me", 60.0, "Bonjour Claire, je vous entends très bien.")
     assert "words said twice" not in moved(count(TRUTH, right() + [late]))
@@ -128,13 +140,43 @@ def test_a_turn_placed_before_the_one_it_answers_is_out_of_order_and_far_from_it
 
 
 def test_words_said_over_the_remote_side_and_lost_are_counted_which_muting_the_microphone_costs():
-    over = {"voice": "marc", "side": "local", "start": 6.0, "end": 8.0, "text": "Oui, tout à fait d'accord."}
+    over = said("marc", "local", 6.0, 8.0, "Oui, tout à fait d'accord.")
     truth = [TRUTH[0], TRUTH[1], over, TRUTH[2], TRUTH[3]]
     kept = count(truth, right(truth))
     assert kept["local words lost under the remote"] == (0, 6) and kept["words wrong, local"] == (0, 20)
     muted = count(truth, [s for s in right(truth) if "tout à fait" not in s["text"]])
     assert muted["local words lost under the remote"] == (6, 6)
     assert muted["words said twice"] == (0, 13)  # an echo killed that way looks perfect on that count alone
+    # Words in the third of a second after the remote stopped are still under it.
+    after = said("marc", "local", 9.2, 9.6, "Entendu.")
+    assert count([*truth, after], right(truth))["local words lost under the remote"] == (1, 7)
+
+
+def test_the_echo_is_not_the_local_sides_own_mistakes_and_muting_cannot_hide_them():
+    echo = segment("me", 5.2, "Bonjour Claire, je vous entends très bien.")
+    heard = count(TRUTH, right() + [echo])
+    assert heard["words wrong, local"] == (7, 14) and heard["words wrong net of the echo, local"] == (0, 14)
+    # Muted while the remote speaks, the echo is gone and so are the local words said then:
+    # fewer words wrong in all, more of the local side's own.
+    over = said("marc", "local", 6.0, 8.0, "Oui, tout à fait d'accord.")
+    truth = [TRUTH[0], TRUTH[1], over, TRUTH[2], TRUTH[3]]
+    delivered = count(truth, right(truth) + [echo])
+    muted = count(truth, [s for s in right(truth) if "tout à fait" not in s["text"]])
+    assert muted["words wrong, local"][0] < delivered["words wrong, local"][0]
+    assert muted["words wrong net of the echo, local"][0] > delivered["words wrong net of the echo, local"][0]
+
+
+def test_a_turn_said_over_the_one_before_is_in_order_where_the_truth_puts_it():
+    # The answer starts before the question ends — and here before it starts: the script's
+    # order is not the order said.
+    over = said("marc", "local", 4.5, 6.5, "Oui, tout à fait d'accord.")
+    truth = [TRUTH[0], TRUTH[1], over, TRUTH[2], TRUTH[3]]
+    result = count(truth, right(truth))
+    assert result["exchanges out of order"][0] == 0 and result["turns far from their time"][0] == 0
+    # A long turn in several segments is where its first words are, not its middle.
+    long = said("claire", "local", 20.0, 40.0, " ".join(["Voici le point complet sur le budget de cette année."] * 5))
+    pieces = [segment("me", 20.0 + 4 * n, "Voici le point complet sur le budget de cette année.") for n in range(5)]
+    assert count([*TRUTH, long], right() + pieces)["turns far from their time"][0] == 0
 
 
 def test_a_side_the_transcript_never_heard_is_every_word_wrong_and_nothing_crashes():
@@ -143,11 +185,25 @@ def test_a_side_the_transcript_never_heard_is_every_word_wrong_and_nothing_crash
     assert count(TRUTH, [])["turns not found"] == (4, 4)
 
 
-def test_a_transcript_that_is_not_whole_is_not_counted(tmp_path):
-    (tmp_path / "truth.json").write_text(json.dumps({"turns": TRUTH}), encoding="utf-8")
-    lines = [{"type": "header", "contract": "transcript/v1"}, *right(), {"type": "complete", "duration": 20.0}]
-    (tmp_path / "transcript.jsonl").write_text("\n".join(json.dumps(line) for line in lines), encoding="utf-8")
+def test_a_transcript_that_is_not_one_whole_transcript_of_that_meeting_is_refused(tmp_path):
+    def given(lines: list[dict], truth: list[dict] = TRUTH) -> None:
+        (tmp_path / "truth.json").write_text(json.dumps({"turns": truth}), encoding="utf-8")
+        (tmp_path / "transcript.jsonl").write_text("\n".join(json.dumps(line) for line in lines), encoding="utf-8")
+
+    whole = [{"type": "header", "contract": "transcript/v1"}, *right(), {"type": "complete", "duration": 20.0}]
+    given(whole)
     assert count(*read(tmp_path)) == NOTHING
-    (tmp_path / "transcript.jsonl").write_text("\n".join(json.dumps(line) for line in lines[:-1]), encoding="utf-8")
-    with pytest.raises(ValueError, match="not a whole one"):
+    refused = {
+        "not one whole transcript": [whole[:-1], whole[1:], whole + whole],
+        "this reads transcript/v1": [[{"type": "header", "contract": "transcript/v2"}, *whole[1:]]],
+        "a speaker this does not know": [[whole[0], {**whole[1], "speaker": "local"}, *whole[2:]]],
+        "the meeting of": [[*whole[:-1], {"type": "complete", "duration": 256.0}]],
+    }
+    for reason, transcripts in refused.items():
+        for lines in transcripts:
+            given(lines)
+            with pytest.raises(ValueError, match=reason):
+                read(tmp_path)
+    given(whole, [{key: value for key, value in turn.items() if key != "words"} for turn in TRUTH])
+    with pytest.raises(ValueError, match="each word's instant"):
         read(tmp_path)
