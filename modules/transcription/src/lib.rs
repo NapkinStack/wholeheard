@@ -3,7 +3,6 @@
 //! last line. Nothing here knows an engine: one hears a span of sound, this writes it, once.
 
 use std::{
-    collections::HashSet,
     fs::{self, OpenOptions},
     io::{self, Write},
     path::Path,
@@ -13,9 +12,11 @@ use serde_json::{Value, json};
 
 /// The contract this module provides, as the transcript's first line names it.
 pub const CONTRACT: &str = "transcript/v1";
+/// Two starts of one speaker closer than this are one segment heard twice, not two.
+const SAME: i64 = 5;
 
 /// Who spoke: whoever recorded, or everyone else.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Speaker {
     Me,
     Others,
@@ -57,74 +58,49 @@ impl Making {
     }
 }
 
-/// Seconds, to the hundredth: what the file holds, and what two runs must agree on.
-fn hundredths(seconds: f64) -> i64 {
-    (seconds * 100.0).round() as i64
+fn refused<T>(kind: io::ErrorKind, why: &str) -> io::Result<T> {
+    Err(io::Error::new(kind, why.to_string()))
 }
 
-/// A session's transcript, open for adding.
+/// Seconds as the file holds them, in hundredths — or a refusal: a time is a number, not negative.
+fn hundredths(seconds: f64) -> io::Result<i64> {
+    if seconds.is_finite() && (0.0..1e9).contains(&seconds) {
+        return Ok((seconds * 100.0).round() as i64);
+    }
+    refused(
+        io::ErrorKind::InvalidInput,
+        "a time of the transcript is not a number of seconds from the session's start",
+    )
+}
+
+/// A time an engine gave a little before the session's start is its start; one that is no number stays so.
+fn not_before(seconds: f64) -> f64 {
+    if seconds < 0.0 { 0.0 } else { seconds }
+}
+
+/// A session's transcript, open for adding. A speaker is heard forward: what is added
+/// starts after what is there.
 pub struct Transcript {
     file: fs::File,
     covered: [i64; 2],
-    known: HashSet<(Speaker, i64)>,
+    last: [Option<i64>; 2],
     complete: bool,
 }
 
 impl Transcript {
-    /// Opens the transcript of a session's folder, or starts it. One that another making
-    /// started is refused: a better transcript is another file, never this one continued.
-    pub fn open(folder: &Path, making: &Making) -> io::Result<Self> {
-        let path = folder.join("transcript.jsonl");
-        let refused = |why: &str| Err(io::Error::new(io::ErrorKind::InvalidData, why.to_string()));
-        let written = match fs::read(&path) {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
-            Err(error) => return Err(error),
-        };
-        // What follows the last line feed was being written when the step stopped: it never
-        // was a line, and a line added after it would be glued to it.
-        let whole = written.iter().rposition(|&byte| byte == b'\n').map_or(0, |end| end + 1);
-        let file = OpenOptions::new().create(true).truncate(false).write(true).open(&path)?;
-        file.set_len(whole as u64)?;
+    /// Starts the transcript of a session's folder; one that is already there is not touched.
+    pub fn start(folder: &Path, making: &Making) -> io::Result<Self> {
+        let file = OpenOptions::new()
+            .create_new(true)
+            .append(true)
+            .open(folder.join("transcript.jsonl"))?;
         let mut transcript = Self {
             file,
             covered: [0, 0],
-            known: HashSet::new(),
+            last: [None, None],
             complete: false,
         };
-        let mut lines = std::str::from_utf8(&written[..whole]).unwrap_or("").lines();
-        match lines.next().map(serde_json::from_str::<Value>) {
-            None => {
-                io::Seek::seek(&mut transcript.file, io::SeekFrom::End(0))?;
-                transcript.add(&[making.header()])?;
-                return Ok(transcript);
-            }
-            Some(Ok(header)) if header == making.header() => {}
-            Some(Ok(header)) if header["type"] == "header" && header["contract"] == CONTRACT => {
-                return refused(
-                    "this transcript was made by another engine, model, language or context: make it again, it is not continued",
-                );
-            }
-            Some(_) => return refused("the file is not a transcript this version writes"),
-        }
-        for line in lines.filter_map(|line| serde_json::from_str::<Value>(line).ok()) {
-            let speaker = match line["speaker"].as_str() {
-                Some("me") => Speaker::Me,
-                Some("others") => Speaker::Others,
-                _ => {
-                    transcript.complete |= line["type"] == "complete";
-                    continue;
-                }
-            };
-            match (line["type"].as_str(), line["start"].as_f64(), line["until"].as_f64()) {
-                (Some("segment"), Some(start), _) => drop(transcript.known.insert((speaker, hundredths(start)))),
-                (Some("covered"), _, Some(until)) => {
-                    transcript.covered[speaker as usize] = transcript.covered[speaker as usize].max(hundredths(until));
-                }
-                _ => {}
-            }
-        }
-        io::Seek::seek(&mut transcript.file, io::SeekFrom::End(0))?;
+        transcript.add(&[making.header()])?;
         Ok(transcript)
     }
 
@@ -138,32 +114,46 @@ impl Transcript {
         self.complete
     }
 
-    /// Adds what an engine heard of one speaker, up to `until`. A segment already there — the
-    /// same speaker, the same start — is not added again: hearing a span twice changes nothing.
+    /// Adds what an engine heard of one speaker, up to `until`, in the order it was said. A
+    /// segment that starts before the last one written — or with it, to within a few
+    /// hundredths — is one already heard, and is not added again.
     pub fn heard(&mut self, speaker: Speaker, segments: &[Segment], until: f64) -> io::Result<()> {
-        let mut lines = Vec::new();
+        if self.complete {
+            return refused(
+                io::ErrorKind::InvalidInput,
+                "the transcript is complete: nothing is added after its last line",
+            );
+        }
+        let who = speaker as usize;
+        let (until, mut last, mut lines) = (hundredths(until)?, self.last[who], Vec::new());
         for segment in segments {
-            let (start, end) = (hundredths(segment.start.max(0.0)), hundredths(segment.end));
+            let (start, end) = (hundredths(not_before(segment.start))?, hundredths(not_before(segment.end))?);
             let text = segment.text.split_whitespace().collect::<Vec<_>>().join(" ");
-            if text.is_empty() || start < self.covered[speaker as usize] || !self.known.insert((speaker, start)) {
+            if text.is_empty() || start < self.covered[who] || last.is_some_and(|last| start < last + SAME) {
                 continue;
             }
+            last = Some(start);
             lines.push(json!({ "type": "segment", "speaker": speaker.name(), "start": start as f64 / 100.0,
                                "end": end.max(start) as f64 / 100.0, "text": text }));
         }
-        if hundredths(until) > self.covered[speaker as usize] {
-            self.covered[speaker as usize] = hundredths(until);
-            lines.push(json!({ "type": "covered", "speaker": speaker.name(), "until": self.covered(speaker) }));
+        if until > self.covered[who] {
+            lines.push(json!({ "type": "covered", "speaker": speaker.name(), "until": until as f64 / 100.0 }));
         }
-        self.add(&lines)
+        // What is known changes once the lines are in the file, not before.
+        self.add(&lines)?;
+        self.last[who] = last;
+        self.covered[who] = self.covered[who].max(until);
+        Ok(())
     }
 
     /// Says the whole session was heard, once: `duration` seconds of sound.
     pub fn complete(&mut self, duration: f64) -> io::Result<()> {
-        if std::mem::replace(&mut self.complete, true) {
-            return Ok(());
+        let duration = hundredths(duration)?;
+        if !self.complete {
+            self.add(&[json!({ "type": "complete", "duration": duration as f64 / 100.0 })])?;
+            self.complete = true;
         }
-        self.add(&[json!({ "type": "complete", "duration": hundredths(duration) as f64 / 100.0 })])
+        Ok(())
     }
 
     /// Whole lines, in one write: read at any moment, the file ends on a line or on one being written.
