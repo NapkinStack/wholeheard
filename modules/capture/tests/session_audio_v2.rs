@@ -3,7 +3,7 @@
 
 use std::{f32::consts::TAU, fs, path::Path};
 
-use summit_capture::v2::Track;
+use summit_capture::v2::{CONTRACT, Clock, Track, write_session};
 
 /// A tone at `level` of full scale, resting at `rest`, each channel a little weaker than the
 /// one before: channels that differ show a mix.
@@ -192,4 +192,49 @@ fn how_loud_a_source_is_is_measured_from_where_it_rests_and_the_track_is_untouch
     track.push(&voice).unwrap();
     assert!((track.loudest() - 0.2).abs() < 0.02);
     assert_eq!(track.loudest(), 0.0, "since the last call");
+}
+
+#[test]
+fn the_clock_is_one_line_per_thing_known_on_disk_when_said() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("clock.jsonl");
+    let mut clock = Clock::create(&path).unwrap();
+    clock.point("remote", 0, 0.021_04).unwrap();
+    clock.silence("remote", (96_000, 240_000)).unwrap();
+    clock.point("local", 480_000, 10.034_149).unwrap();
+    assert!(clock.point("local", 0, f64::NAN).is_err(), "an instant that is no number");
+    // Not closed: what a kill leaves.
+    let lines: Vec<serde_json::Value> = fs::read_to_string(&path)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            serde_json::json!({ "track": "remote", "sample": 0, "at": 0.021 }),
+            serde_json::json!({ "track": "remote", "silence": [96_000, 240_000] }),
+            serde_json::json!({ "track": "local", "sample": 480_000, "at": 10.0341 }),
+        ]
+    );
+}
+
+#[test]
+fn a_session_names_the_tracks_it_holds_and_says_whether_it_was_stopped() {
+    let folder = tempfile::tempdir().unwrap();
+    let read = || -> serde_json::Value { serde_json::from_slice(&fs::read(folder.path().join("session.json")).unwrap()).unwrap() };
+
+    // A microphone that could not be opened has no entry.
+    write_session(folder.path(), "2026-10-14T14:05:12+02:00", None, &[("remote", "Speaker")]).unwrap();
+    assert_eq!(
+        read(),
+        serde_json::json!({ "contract": CONTRACT, "started": "2026-10-14T14:05:12+02:00", "tracks": { "remote": { "device": "Speaker" } } })
+    );
+
+    let both = [("local", "Digital Microphone"), ("remote", "Speaker")];
+    write_session(folder.path(), "2026-10-14T14:05:12+02:00", Some("2026-10-14T15:05:12+02:00"), &both).unwrap();
+    let session = read();
+    assert_eq!(session["stopped"], "2026-10-14T15:05:12+02:00");
+    assert_eq!(session["tracks"]["local"]["device"], "Digital Microphone");
+    assert!(!folder.path().join("session.json.part").exists());
 }

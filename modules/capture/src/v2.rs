@@ -2,13 +2,16 @@
 //! source as it was delivered, and the session's clock beside.
 //!
 //! A [`Track`] writes what a source delivers and changes nothing in it — its rate, its
-//! channels, where it rests.
+//! channels, where it rests. A [`Clock`] says where the frames of each track are in time.
 
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{self, Seek, SeekFrom, Write},
     path::Path,
 };
+
+/// The contract's name, as `session.json` carries it.
+pub const CONTRACT: &str = "session-audio/v2";
 
 /// A header that says 24 bits needs the extensible form: 68 bytes before the first sample.
 const HEADER: usize = 68;
@@ -180,4 +183,50 @@ fn header(rate: u32, channels: u16, riff: u32, data: u32) -> [u8; HEADER] {
     bytes[60..64].copy_from_slice(b"data");
     bytes[64..68].copy_from_slice(&data.to_le_bytes());
     bytes
+}
+
+/// The session's clock, growing: one line per thing known, on disk when it is said.
+pub struct Clock {
+    file: File,
+}
+
+impl Clock {
+    pub fn create(path: &Path) -> io::Result<Self> {
+        File::create(path).map(|file| Self { file })
+    }
+
+    /// The frame `sample` of `track` was heard `at` seconds after the session started.
+    pub fn point(&mut self, track: &str, sample: u64, at: f64) -> io::Result<()> {
+        if !at.is_finite() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "an instant that is no number"));
+        }
+        // A ten-thousandth of a second: finer than a sample at 8 kHz, and no false digits.
+        let at = (at * 10_000.0).round() / 10_000.0;
+        self.say(serde_json::json!({ "track": track, "sample": sample, "at": at }))
+    }
+
+    /// The frames `from` up to, not including, `to` are zeros the capture wrote.
+    pub fn silence(&mut self, track: &str, (from, to): (u64, u64)) -> io::Result<()> {
+        self.say(serde_json::json!({ "track": track, "silence": [from, to] }))
+    }
+
+    fn say(&mut self, line: serde_json::Value) -> io::Result<()> {
+        self.file.write_all(format!("{line}\n").as_bytes())
+    }
+}
+
+/// Writes `session.json`, whole or not at all: each track the session holds, and the name
+/// the system gave its source. `stopped` absent means: still recording, or ended by a crash.
+pub fn write_session(folder: &Path, started: &str, stopped: Option<&str>, tracks: &[(&str, &str)]) -> io::Result<()> {
+    let tracks: serde_json::Map<String, serde_json::Value> = tracks
+        .iter()
+        .map(|(track, device)| (track.to_string(), serde_json::json!({ "device": device })))
+        .collect();
+    let mut session = serde_json::json!({ "contract": CONTRACT, "started": started, "tracks": tracks });
+    if let Some(stopped) = stopped {
+        session["stopped"] = stopped.into();
+    }
+    let draft = folder.join("session.json.part");
+    fs::write(&draft, serde_json::to_vec_pretty(&session)?)?;
+    fs::rename(draft, folder.join("session.json"))
 }
