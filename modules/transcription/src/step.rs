@@ -103,8 +103,7 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
             } else {
                 Some(engine.hear(sound, language, making.context.as_deref())?)
             };
-            // A time is the hundredth it falls on, or the next: heard again from its start, a
-            // segment gets the same times. A time that is no time is the span's edge.
+            // A time is the hundredth it falls on, or the next; one that is no time is the span's edge.
             let within = |seconds: f64| from + (seconds * 100.0 - 1e-6).ceil().clamp(0.0, (until - from) as f64) as usize;
             let mut segments: Vec<(usize, usize, String)> = answer
                 .into_iter()
@@ -129,10 +128,7 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
                 .map(|(start, end, text)| Segment { start, end, text })
                 .collect();
             transcript.heard(*speaker, &segments, covered as f64 / 100.0)?;
-            if again.is_some() && last {
-                break;
-            }
-            from = covered;
+            from = if again.is_some() && last { end } else { covered };
         }
     }
     // A recording still going on, or ended by a crash, has no last word yet: the step is run again.
