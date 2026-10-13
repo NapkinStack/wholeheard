@@ -92,16 +92,23 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
 pub fn request(segments: &[Segment], context: Option<&str>) -> String {
     let mut asked = String::from(
         "You write the minutes of a meeting from its transcript.\n\
-         Write in the language the meeting is held in — the section titles too.\n\
+         Write everything in the language the meeting is held in, the three titles included: \
+         never use an English word of these instructions as a title.\n\
          Write only what the transcript says: invent no name, no date, no decision.\n\
-         When the meeting did not settle who does an action or by when, say so in the meeting's \
+         When the meeting did not settle who does a task or by when, say so in the meeting's \
          language — \"not specified\", or that it was proposed and not accepted. Never guess.\n\
          A person the meeting talks about is not a participant: never give them an action.\n\
          In the transcript, \"me\" is the person who recorded and \"others\" is everyone else.\n\n\
-         Answer with exactly three sections of second level and nothing else, in this order:\n\
-         ## <highlights: a few sentences — what the meeting was for, what came out of it>\n\
-         ## <actions: one bullet each — what — who — by when>\n\
-         ## <key points: one bullet each — decisions, figures, dates, what stays open>\n\
+         Answer with exactly three sections and nothing before, between or after them. Each \
+         opens on a title of second level — a line starting with two number signs and a space, \
+         in plain text — in this order:\n\
+         1. What the meeting was for and what came out of it, in a few sentences.\n\
+         2. Every task the meeting agreed on or asked for, one bullet each, even when nobody \
+         took it and no date was set: what is to be done — who does it — by when. Go through \
+         the whole transcript before writing this section: a task said once counts, and so \
+         does one said as a need — something that must be done, prepared, sent again or kept \
+         in reserve. A task belongs here, not in the third section.\n\
+         3. What was decided, the figures, the dates, what stays open, one bullet each.\n\
          A section with nothing to say says that there is none.\n\n",
     );
     if let Some(context) = context.map(str::trim).filter(|context| !context.is_empty()) {
