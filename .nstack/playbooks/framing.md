@@ -135,7 +135,10 @@ from then on the plan check refuses an accepted charter over a form left as it c
 - **A deliverable** moves `proposed` → `ready` (testable acceptance criteria, set by the
   framer, confirmed when the decider accepts the cycle) → `in-progress` → `accepted`: its
   test sheet run and its pull request approved — or, for a spike outside the code, its result
-  recorded in the cycle and approved by the decider.
+  recorded in the cycle and approved by the decider. A deliverable that several pull requests
+  deliver, or that a person must try, is `accepted` when **each of its criteria** is held by a
+  scenario of one of their sheets or by an answer in its acceptance issue
+  (`.nstack/handbook/05-workflow.md` §7); the cycle names that issue beside the state.
 
 ## 5. The end of a cycle
 

@@ -121,6 +121,17 @@ indicator (`10-measurement.md`).
 Never produce a huge pull request simply because the agent can generate a lot of code
 quickly.
 
+**Splitting a change into pull requests that sit on one another.** Each is opened on the
+branch of the one before, and each carries its own sheet when the module asks for one. Two
+things the forge and the sheet do then, to know before the first merge:
+
+- merging the first **and deleting its branch** closes the next one, which was opened on it:
+  merge without deleting, point the next at the default branch, then delete;
+- the next one's head moves when the default branch is merged into it, and a sheet is tied to
+  the commit tested. When that merge brings no file the branch did not already carry, the two
+  commits hold the same tree and the sheet stands; when it brings one, the automated scenarios
+  are run again at the new head (§7).
+
 ---
 
 ## 5. The 3-failure circuit breaker
@@ -268,6 +279,8 @@ criticality are read before and after the change, and the stricter applies:
   checked against the history, not a proof of identity.
 - **No result without evidence**, tied to the commit tested. A new commit does not send the
   whole sheet back:
+  - a commit whose files are exactly the head's **is** the head: a hash changed by a merge
+    that brought nothing sends no scenario back;
   - an **automated** scenario is **run again** at the head — CI replays it when the module
     declares `e2e`, so it costs nothing; its Commit cell takes the head commit;
   - one **explored** by hand keeps the commit its evidence was produced on, and the verifier
@@ -278,9 +291,17 @@ criticality are read before and after the change, and the stricter applies:
 
   A confirmation is not a round. A project that wants another adversarial round decides so
   itself; the sheet never demands one because a fix landed.
-- **Kinds**: *automated* — replayable, run by CI through the module's `e2e` command;
+- **Kinds**: *automated* — replayable, run by CI through the module's `e2e` command, or
+  through `test` for a module that declares no `e2e`;
   *explored* — judged by driving the interface; *human only* — what no agent can run, with
   the reason, listed apart for the approver.
+- **A scenario that waits on a person** — a device, a real call, a colleague's machine — is
+  not asked in a conversation, which nobody finds again, nor left in a pull request held open
+  for days. It is asked in an **acceptance issue** (`.github/ISSUE_TEMPLATE/`), assigned to
+  whoever runs it; their answer is a comment, and the sheet's Evidence cell links it. The same
+  issue serves a deliverable several pull requests deliver: it says which criterion each
+  sheet holds, and which nobody holds yet. It copies no criterion and sets no state — both
+  stay in the cycle (`06-decisions.md` §9).
 
 **`Confirmed` is optional**: a sheet no fix has disturbed never carries it. The engine's pull
 request check reads the sheet in CI: missing, unfilled, without evidence, verified before the

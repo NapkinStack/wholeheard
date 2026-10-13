@@ -297,6 +297,7 @@ Every important piece of information has one identifiable source, and only one.
 | Interface between modules | The versioned contract |
 | A module's identity and dependencies | MANIFEST |
 | Planned work | The current cycle's deliverables, in `docs/project/cycles/` |
+| A deliverable tried by a person | An acceptance issue: what to run and what was seen. It tracks the deliverable; the criteria and the state stay in the cycle |
 | Unplanned work | A typed issue: a defect, an architecture question, a debt, a request |
 | What the project must remember | One named issue, the project's log: what was tried, what it cost, what was refused |
 | Real behaviour | Code and tests |

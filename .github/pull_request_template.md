@@ -108,6 +108,10 @@ Verifier: <@handle, or session and the agent session's identifier>
 |---|---|---|---|---|---|---|
 | S1 | <Given …, when …, then …> | <automated · explored · human only — reason> | <passed · failed · not verified> | <link> | <commit> | — |
 
+> A scenario that waits on a person is asked in an acceptance issue; its Evidence cell links the answer.
+
+Verifier's remarks: <what the verifier adds — a scenario that claims more than was exercised, a result obtained another way than the evidence cited; or "none">
+
 ---
 
 ## Summary
