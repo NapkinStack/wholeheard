@@ -8,7 +8,7 @@ Turns the audio of a session into a timestamped transcript.
 
 ```mermaid
 flowchart LR
-    A["me.wav · others.wav<br/>session.json · context.txt"]:::file --> P["summit-transcription<br/>a program, no window"]:::mod
+    A["The session's sound, in either form<br/>session.json · context.txt"]:::file --> P["summit-transcription<br/>a program, no window"]:::mod
     P -->|"one span of sound at a time"| E["The engine:<br/>Whisper, on this machine"]:::ext
     E -->|"segments"| P
     P -->|"transcript/v1, a file that only grows"| T["transcript.jsonl"]:::file
@@ -42,7 +42,7 @@ gets its last line once the session's record says `stopped`.
 the engine would otherwise write as it hears them.
 
 Whatever is wrong — a folder that is not a session, an audio file that is not what
-`session-audio/v1` describes, a language the engine does not know, a model that cannot be
+`session-audio/v1` or `v2` describes, a language the engine does not know, a model that cannot be
 loaded — is one sentence on the error stream, before anything is said to be heard, and no
 transcript is created or changed. What only shows once the model is there — a transcript
 another language or model made, a folder that cannot be written to — is said after `hearing`. Leave `--language` out to have the language detected.
@@ -56,8 +56,13 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 ## Contracts
 
 - Provided: [`transcript/v1`](../../contracts/transcript/v1/README.md), `experimental`
-- Consumed: [`session-audio/v1`](../../contracts/session-audio/v1/README.md)
+- Consumed: [`session-audio/v1`](../../contracts/session-audio/v1/README.md) and
+  [`session-audio/v2`](../../contracts/session-audio/v2/README.md) — `session.json` names
+  which, and `hearing` says which was read (`audio`)
 
 ## Decisions
 
-See `docs/adr/`.
+[ADR-0003](../../docs/adr/0003-transcribe-behind-one-interface-whisper-on-the-graphics-card.md):
+one interface, Whisper on the graphics card.
+[ADR-0004](../../docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md):
+the tracks are the recording; what an engine hears is made from them, in memory.

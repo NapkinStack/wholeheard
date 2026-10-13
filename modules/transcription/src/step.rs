@@ -1,15 +1,17 @@
 //! The step, written once for every engine (ADR-0003): it reads a session's sound as
-//! `contracts/session-audio/v1` describes it, hands an engine one span at a time, and writes
-//! what was heard. Stopped anywhere, it is run again and goes on from where it was.
+//! `contracts/session-audio/v1` or `v2` describes it, hands an engine one span at a time, and
+//! writes what was heard. Stopped anywhere, it is run again and goes on from where it was.
 
 use std::{fs, io, path::Path};
 
-use crate::{Making, Segment, Speaker, Transcript};
+use crate::{Making, Segment, Speaker, Transcript, tracks};
 
-/// Samples per second of a session's audio files: the contract's, and nothing else is read.
+/// Samples per second an engine hears: the first form's own rate, and what a track of the
+/// second is brought to.
 pub const RATE: usize = 16_000;
-/// Below this share of full scale a span is silence, as the audio contract writes it: an engine
-/// asked to hear silence finds words in it.
+/// A span that stays within this share of full scale of zero, or of the line from its first
+/// sample to its last, is silence — wherever its source rests, and across what a source did
+/// not deliver: an engine asked to hear silence finds words in it.
 const SILENCE: f32 = 0.001;
 /// A segment that ends this close to the end of a span — in hundredths of a second — may be
 /// a sentence cut in two.
@@ -60,29 +62,61 @@ pub type Session = (bool, Option<String>, [(Speaker, Vec<f32>); 2]);
 /// Reads a session's folder and judges it — or says which file is wrong, and what: a caller
 /// asks this before it loads an engine.
 pub fn session(folder: &Path) -> io::Result<Session> {
+    read(folder).map(|(_, session)| session)
+}
+
+/// The same, with the form the session was recorded in — the audio contract `session.json`
+/// names: a caller that reads both says which one it read.
+pub fn read(folder: &Path) -> io::Result<(&'static str, Session)> {
     let session = fs::read(folder.join("session.json")).or_else(|error| refused(format!("session.json cannot be read ({error})")))?;
     let session: serde_json::Value = serde_json::from_slice(&session).unwrap_or_default();
-    if session["contract"] != "session-audio/v1" {
-        return refused("this folder is not a session this version reads: session.json does not name session-audio/v1".into());
-    }
+    let form = match session["contract"].as_str() {
+        Some("session-audio/v1") => "session-audio/v1",
+        Some("session-audio/v2") => "session-audio/v2",
+        _ => {
+            return refused(
+                "this folder is not a session this version reads: session.json names neither session-audio/v1 nor session-audio/v2".into(),
+            );
+        }
+    };
     let context = match fs::read(folder.join("context.txt")).map(String::from_utf8) {
         Ok(Ok(text)) => Some(text.trim().to_string()).filter(|text| !text.is_empty()),
         Ok(Err(_)) => return refused("context.txt is not text: it must be UTF-8".into()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return refused(format!("context.txt cannot be read ({error})")),
     };
-    let sounds = [
-        (Speaker::Me, sound(&folder.join("me.wav"))?),
-        (Speaker::Others, sound(&folder.join("others.wav"))?),
-    ];
-    Ok((session["stopped"].is_string(), context, sounds))
+    let sounds = if form == "session-audio/v2" {
+        // Each source as it was delivered, on the session's clock. A track the session does
+        // not name is a side that said nothing; one it names and does not hold is said.
+        let named = |name: &str| session["tracks"][name].is_object();
+        if !named("local") && !named("remote") {
+            return refused("session.json names no track this version reads: neither local nor remote".into());
+        }
+        let track = |name: &str| match named(name) {
+            true => tracks::heard(&folder.join(format!("{name}.wav")), &tracks::clock(folder, name)),
+            false => Ok(Vec::new()),
+        };
+        [(Speaker::Me, track("local")?), (Speaker::Others, track("remote")?)]
+    } else {
+        [
+            (Speaker::Me, sound(&folder.join("me.wav"))?),
+            (Speaker::Others, sound(&folder.join("others.wav"))?),
+        ]
+    };
+    Ok((form, (session["stopped"].is_string(), context, sounds)))
 }
 
 /// Hears a session — its two files, `me` then `others` — span by span, and writes its
 /// transcript. `seconds` is the length of a span.
 pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>, seconds: usize) -> io::Result<()> {
     // Everything is read and judged first: a run that refuses hears nothing and leaves no transcript.
-    let (stopped, context, sounds) = session(folder)?;
+    hear(folder, session(folder)?, engine, language, seconds)
+}
+
+/// The same, of a session already read: a caller that judged the session before loading its
+/// engine does not read an hour of sound twice.
+pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: Option<&str>, seconds: usize) -> io::Result<()> {
+    let (stopped, context, sounds) = session;
     let (name, model) = engine.name();
     let making = Making {
         engine: name,
@@ -106,7 +140,12 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
             let until = (from + span).min(end);
             let last = until == end;
             let sound = &heard[from * HUNDREDTH..(until * HUNDREDTH).min(heard.len())];
-            let silent = sound.iter().all(|sample| sample.abs() < SILENCE);
+            let (first, slope) = match (sound.first(), sound.last()) {
+                (Some(first), Some(last)) => (*first, (last - first) / sound.len() as f32),
+                _ => (0.0, 0.0),
+            };
+            let silent = sound.iter().all(|sample| sample.abs() < SILENCE)
+                || (sound.iter().enumerate()).all(|(at, sample)| (sample - first - slope * at as f32).abs() < SILENCE);
             let answer = if silent {
                 None
             } else {
