@@ -1,6 +1,6 @@
 """Renders the bench's meeting: the tracks a recording of it would hold, and the truth beside.
 
-    uv run python -m bench.render <voices-folder> <out-folder> [<draws>]
+    uv run python -m bench.render <voices-folder> <out-folder> [<draws> [v1|v2]]
 
 Three listening conditions — `headset`, `low`, `loud`, see `CONDITIONS` — and for each, six
 draws of the microphone's and the line's noise unless told otherwise: `<out-folder>/<condition>/<draw>`.
@@ -207,14 +207,41 @@ def write_session(folder: Path, tracks: dict[str, np.ndarray], truth: list[dict]
     (folder / "truth.json").write_text(json.dumps({"turns": truth}, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+def write_as_delivered(folder: Path, tracks: dict[str, np.ndarray], truth: list[dict]) -> None:
+    """The same session as a recording keeps it since ADR-0004 (`session-audio/v2`): each
+    side as a laptop's devices deliver it — `RATE` samples a second, two channels, 24 bits —
+    and the session's clock: both tracks start with the session and hold their rate."""
+    folder.mkdir(parents=True, exist_ok=True)
+    clock = []
+    for side in ("local", "remote"):
+        steps = (np.clip(tracks[side], -1.0, 1.0) * 8_388_607).astype("<i4")
+        with wave.open(str(folder / f"{side}.wav"), "wb") as wav:
+            wav.setnchannels(2)
+            wav.setsampwidth(3)
+            wav.setframerate(RATE)
+            # Three bytes of each sample, the same on both channels.
+            wav.writeframes(np.repeat(steps.view(np.uint8).reshape(-1, 4)[:, :3], 2, axis=0).tobytes())
+        clock += [{"track": side, "sample": at, "at": at / RATE} for at in range(0, len(steps), 5 * RATE)]
+    record = {
+        "contract": "session-audio/v2",
+        "started": "2026-10-14T09:00:00+02:00",
+        "stopped": "2026-10-14T09:05:00+02:00",
+        "tracks": {"local": {"device": "bench"}, "remote": {"device": "bench"}},
+    }
+    (folder / "session.json").write_text(json.dumps(record), encoding="utf-8")
+    (folder / "clock.jsonl").write_text("".join(json.dumps(line) + "\n" for line in clock), encoding="utf-8")
+    (folder / "truth.json").write_text(json.dumps({"turns": truth}, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def main(argv: list[str]) -> int:
     voices, out = Path(argv[1]), Path(argv[2])
     draws = int(argv[3]) if len(argv) > 3 else 6
+    write = {"v1": write_session, "v2": write_as_delivered}[argv[4] if len(argv) > 4 else "v1"]
     meeting = script(Path(__file__).with_name("meeting.txt"))
     tracks, truth = lay_out(meeting, piper(voices, out / "cache"))
     for name in CONDITIONS:
         for seed in range(draws):
-            write_session(out / name / str(seed), condition(tracks, name, seed), truth)
+            write(out / name / str(seed), condition(tracks, name, seed), truth)
         print(f"{name}: {len(truth)} turns, {truth[-1]['end']:.0f} s, {draws} draws of the noise, in {out / name}")
     return 0
 

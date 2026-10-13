@@ -68,6 +68,8 @@ uv run python -m bench.counts <out-folder>/low/0 <out-folder>/low/1 <out-folder>
 uv run python -m piper.download_voices fr_FR-siwis-medium fr_FR-tom-medium fr_FR-upmc-medium fr_FR-gilles-low --download-dir <voices-folder>
 # The meeting under three conditions, six draws each: <out-folder>/<condition>/<draw>.
 nstack run platform <voices-folder> <out-folder>
+# The same as a recording keeps it since ADR-0004 — each side as delivered, with its clock.
+nstack run platform <voices-folder> <out-folder> 6 v2
 ```
 
 A synthetic voice is easier to transcribe than a person's: the bench says how one way of
@@ -83,6 +85,7 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 
 - Provided: none
 - Consumed: [`session-audio/v1`](../../contracts/session-audio/v1/README.md) — it writes a session as that contract describes one, for the programs to read
+- Consumed: [`session-audio/v2`](../../contracts/session-audio/v2/README.md) — and as the second version does, on asking: the same meeting, the same truth, for a program that reads either
 - Consumed: [`transcript/v1`](../../contracts/transcript/v1/README.md) — it reads the transcript the programs wrote of it
 
 ## Decisions

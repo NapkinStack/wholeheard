@@ -19,6 +19,7 @@ from bench.render import (
     lay_out,
     room,
     script,
+    write_as_delivered,
     write_session,
 )
 
@@ -152,3 +153,22 @@ def test_a_voice_that_does_not_speak_at_the_pace_of_a_person_is_refused(seconds_
 
     with pytest.raises(ValueError, match="not the pace of a person"):
         lay_out(script(MEETING), paced)
+
+
+def test_the_same_meeting_as_a_recording_keeps_it_is_each_side_as_delivered_with_its_clock(tmp_path):
+    tracks, truth = lay_out(script(MEETING), tone)
+    write_as_delivered(tmp_path, condition(tracks, "low"), truth)
+    record = json.loads((tmp_path / "session.json").read_text())
+    assert record["contract"] == "session-audio/v2" and set(record["tracks"]) == {"local", "remote"}
+    for side in ("local", "remote"):
+        with wave.open(str(tmp_path / f"{side}.wav")) as wav:
+            assert (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) == (2, 3, RATE)
+            assert wav.getnframes() == len(tracks[side])
+            frames = np.frombuffer(wav.readframes(RATE), np.uint8).reshape(-1, 2, 3)
+        assert np.array_equal(frames[:, 0], frames[:, 1]), "the two channels differ"
+    clock = [json.loads(line) for line in (tmp_path / "clock.jsonl").read_text().splitlines()]
+    for side in ("local", "remote"):
+        points = [(line["sample"], line["at"]) for line in clock if line["track"] == side]
+        assert points[0] == (0, 0.0) and all(at == sample / RATE for sample, at in points)
+        assert all(later[1] - earlier[1] <= 10 for earlier, later in itertools.pairwise(points))
+    assert json.loads((tmp_path / "truth.json").read_text())["turns"] == truth
