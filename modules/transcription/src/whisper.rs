@@ -17,12 +17,13 @@ fn failed<T>(what: &str, error: impl std::fmt::Display) -> io::Result<T> {
     Err(io::Error::other(format!("{what} ({error})")))
 }
 
-/// Whether Whisper knows a language by this code — `fr`, `en`. Its own word for "detect it"
-/// is not one: leaving the language out says that.
+/// Whether Whisper knows a language by this code — `fr`, `en`. Its word for "detect it" is not
+/// one: leaving the language out says that.
 pub fn knows(language: &str) -> bool {
     // whisper.cpp says what it does not know on the error stream: kept quiet, as in `load`.
     whisper_rs::install_logging_hooks();
-    language != "auto" && language.chars().all(|c| c.is_ascii_lowercase()) && whisper_rs::get_lang_id(language).is_some()
+    // A code, not a language's English name, which whisper.cpp takes too: one language, one word in a header.
+    whisper_rs::get_lang_id(language).and_then(whisper_rs::get_lang_str) == Some(language)
 }
 
 impl Whisper {

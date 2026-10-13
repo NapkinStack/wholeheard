@@ -49,6 +49,7 @@ fn what_cannot_be_heard_is_refused_in_one_sentence_before_anything_is_written() 
         // A code the engine does not know, and its own word for "detect it", are refused too.
         (vec![folder, "--model", model, "--language", "zz"], "the language is a code"),
         (vec![folder, "--model", model, "--language", "FR"], "the language is a code"),
+        (vec![folder, "--model", model, "--language", "french"], "the language is a code"),
         (vec![folder, "--model", model, "--language", "auto"], "leave it out"),
     ] {
         let (ok, out, err) = run(&args);

@@ -32,6 +32,7 @@ Turns the audio of a session into a timestamped transcript.
 
 - Whisper finds words in silence: a span of pure silence is never given to an engine.
 - A guard against one defect cut another case twice: hearing a last sentence again, then not crawling on an unbroken voice. Any change to the loop of `transcribe` is tried with random sessions against one huge span, not with a few placed stretches.
+- whisper.cpp trusts its model file: one cut after its first bytes crashes the program, one missing its last megabytes is used and writes nonsense. Whoever fetches a model checks it whole before this program sees it.
 - Hearing thirty seconds at a time cost eight points of words on the trial meeting: the span is long on purpose (`SPAN` in `src/main.rs`).
 
 ## Areas not to change without approval

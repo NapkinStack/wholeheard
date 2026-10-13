@@ -44,7 +44,8 @@ the engine would otherwise write as it hears them.
 Whatever is wrong — a folder that is not a session, an audio file that is not what
 `session-audio/v1` describes, a language the engine does not know, a model that cannot be
 loaded — is one sentence on the error stream, before anything is said to be heard, and no
-transcript is created or changed. Leave `--language` out to have the language detected.
+transcript is created or changed. What only shows once the model is there — a transcript
+another language or model made, a folder that cannot be written to — is said after `hearing`. Leave `--language` out to have the language detected.
 
 ## Getting started
 
