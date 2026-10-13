@@ -69,7 +69,11 @@ cut by a crash is ignored. Two kinds of line:
 | A point | `track`, `sample`, `at` | The frame `sample` of `track` — counted from 0, one frame holding one sample per channel — was heard `at` seconds after `started` |
 | A silence | `track`, `silence`: `[from, to]` | The frames `from` up to, not including, `to` were **not delivered by the source**: the capture wrote zeros there, to keep the track on the clock |
 
-- **A point at least every ten seconds** for each track, the first for frame 0.
+- **A point for the first frame a source delivers**, then at least every ten seconds while
+  it delivers, and for the first frame after each silence. A track that opens on a silence
+  has its first point after it.
+- **`at` may be a little below zero**: a frame the system had already heard when the session
+  started.
 - **From the points a reader gets** where a track starts on the session's clock, its true
   rate — how many frames a second it really holds, which is how far two tracks drift apart —
   and, with the silences, which zeros are the room's and which are the capture's.
