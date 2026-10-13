@@ -2,10 +2,10 @@
 
     uv run python -m bench.render <voices-folder> <out-folder> [<draws>]
 
-Three listening conditions — `headset`, `low`, `loud`, see `CONDITIONS` — and for each, three
-draws of the microphone's noise unless told otherwise: `<out-folder>/<condition>/<draw>`.
+Three listening conditions — `headset`, `low`, `loud`, see `CONDITIONS` — and for each, six
+draws of the microphone's and the line's noise unless told otherwise: `<out-folder>/<condition>/<draw>`.
 
-The voices are synthesised: nobody is recorded. `<voices-folder>` holds the four public
+The voices are synthesised: nobody is recorded. `<voices-folder>` holds the public
 models `VOICES` names, fetched once with `python -m piper.download_voices`.
 """
 
@@ -27,10 +27,22 @@ RATE = 48_000
 VOICES = {
     "claire": ("fr_FR-siwis-medium", 0),
     "marc": ("fr_FR-tom-medium", 0),
-    "sophie": ("fr_FR-upmc-medium", 0),
+    "sophie": ("fr_FR-gilles-low", 0),
     "julien": ("fr_FR-upmc-medium", 1),
 }
-"""Which public model, and which of its speakers, says each voice of the script."""
+"""Which public model, and which of its speakers, says each voice of the script.
+
+Chosen on a measure, 2026-10-13: each candidate said one voice's 192 words alone, with no
+chance in the synthesis, and the engine wrote them back. Words wrong: tom 2, siwis 3, upmc's
+second speaker 7, gilles 13 — and upmc's first speaker 43, the ten speakers tried of the
+many-voiced `mls` model 61 to 163: a voice the engine cannot follow alone measures nothing
+of a meeting."""
+
+PACE = (1.2, 5.0)
+"""Words a second a person says a sentence at, at the least and at the most. A voice outside
+it is not a voice an engine is built for: the first `sophie`, upmc's first speaker, said
+eight words a second — and most of what the bench first counted wrong on the remote side
+was that."""
 
 CONDITIONS = {"headset": None, "low": -10.0, "loud": -5.0}
 """How loud the microphone hears what the loudspeakers play, in decibels against what was
@@ -50,6 +62,10 @@ ECHO_RINGS = 0.2
 NOISE = {"headset": -50.0, "low": -36.0, "loud": -36.0}
 """What the microphone holds when nobody speaks, in decibels of full scale: -36 measured on
 the laptop's own microphone in both trials; a headset's was not measured, and is supposed."""
+
+LINE = -70.0
+"""What a call's sound holds when nobody speaks, in decibels of full scale — supposed, not
+measured: enough for each draw to be another, so that the remote side has a spread too."""
 
 DRIVE = {"low": 1.0, "loud": 4.0}
 """How hard the loudspeakers are pushed: near their maximum they no longer play what they
@@ -113,6 +129,11 @@ def lay_out(meeting: dict, say: Synth) -> tuple[dict[str, np.ndarray], list[dict
         sound = say(turn["voice"], turn["text"])
         start = max(0.0, cursor + turn["gap"])
         end = start + len(sound) / RATE
+        pace = len(turn["text"].split()) / (end - start)
+        if len(turn["text"].split()) >= 4 and not PACE[0] <= pace <= PACE[1]:
+            raise ValueError(
+                f"{turn['voice']} says {turn['text']!r} at {pace:.1f} words a second: not the pace of a person"
+            )
         side = meeting["voices"][turn["voice"]]["side"]
         placed.append((side, round(start * RATE), sound))
         # A word's instant is where it falls in its turn by the letters before it: near enough
@@ -150,14 +171,17 @@ def room(played: np.ndarray, name: str) -> np.ndarray:
 
 
 def condition(tracks: dict[str, np.ndarray], name: str, seed: int = 0) -> dict[str, np.ndarray]:
-    """The two tracks as that way of listening gives them: the remote as played; the local
-    with what it heard of it, and the microphone's own noise — another draw for each seed,
-    so that a count is read over several and not taken for more exact than it is."""
-    noise = np.random.default_rng([seed, sum(map(ord, name))]).standard_normal(len(tracks["local"]))
+    """The two tracks as that way of listening gives them: the remote as played, with the
+    line's own noise; the local with what it heard of it, and the microphone's own noise —
+    another draw of both for each seed, so that a count is read over several and not taken
+    for more exact than it is."""
+    draw = np.random.default_rng([seed, sum(map(ord, name))])
+    noise = draw.standard_normal(len(tracks["local"]))
     local = tracks["local"] + (10 ** (NOISE[name] / 20) * noise).astype(np.float32)
+    remote = tracks["remote"] + (10 ** (LINE / 20) * draw.standard_normal(len(tracks["remote"]))).astype(np.float32)
     if CONDITIONS[name] is not None:
-        local = local + room(tracks["remote"], name)
-    return {"local": local, "remote": tracks["remote"]}
+        local = local + room(remote, name)
+    return {"local": local, "remote": remote}
 
 
 def write_wav(path: Path, sound: np.ndarray, rate: int) -> None:
@@ -185,15 +209,13 @@ def write_session(folder: Path, tracks: dict[str, np.ndarray], truth: list[dict]
 
 def main(argv: list[str]) -> int:
     voices, out = Path(argv[1]), Path(argv[2])
-    draws = int(argv[3]) if len(argv) > 3 else 3
+    draws = int(argv[3]) if len(argv) > 3 else 6
     meeting = script(Path(__file__).with_name("meeting.txt"))
     tracks, truth = lay_out(meeting, piper(voices, out / "cache"))
     for name in CONDITIONS:
         for seed in range(draws):
             write_session(out / name / str(seed), condition(tracks, name, seed), truth)
-        print(
-            f"{name}: {len(truth)} turns, {truth[-1]['end']:.0f} s, {draws} draws of the microphone's noise, in {out / name}"
-        )
+        print(f"{name}: {len(truth)} turns, {truth[-1]['end']:.0f} s, {draws} draws of the noise, in {out / name}")
     return 0
 
 

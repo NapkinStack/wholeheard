@@ -43,9 +43,9 @@ doing compares with another; it does not promise what a real room gives.
 The counts that read a transcript against the truth come in the next pull request.
 
 ```bash
-# Once: the four voices, about 270 MB, from the synthesiser's public models.
-uv run python -m piper.download_voices fr_FR-siwis-medium fr_FR-tom-medium fr_FR-upmc-medium --download-dir <voices-folder>
-# The meeting under three conditions, three draws each: <out-folder>/<condition>/<draw>.
+# Once: the voices, about 330 MB, from the synthesiser's public models.
+uv run python -m piper.download_voices fr_FR-siwis-medium fr_FR-tom-medium fr_FR-upmc-medium fr_FR-gilles-low --download-dir <voices-folder>
+# The meeting under three conditions, six draws each: <out-folder>/<condition>/<draw>.
 nstack run platform <voices-folder> <out-folder>
 ```
 

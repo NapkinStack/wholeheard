@@ -8,7 +8,19 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from bench.render import CONDITIONS, ECHO_DELAY, NOISE, RATE, VOICES, condition, lay_out, room, script, write_session
+from bench.render import (
+    CONDITIONS,
+    ECHO_DELAY,
+    LINE,
+    NOISE,
+    RATE,
+    VOICES,
+    condition,
+    lay_out,
+    room,
+    script,
+    write_session,
+)
 
 MEETING = Path(__file__).parent.parent / "bench" / "meeting.txt"
 
@@ -114,9 +126,10 @@ def test_a_condition_is_the_remote_as_played_and_the_microphone_with_its_own_noi
     tracks, _ = lay_out(script(MEETING), tone)
     for name in CONDITIONS:
         heard = condition(tracks, name)
-        # What the machine plays is the same whoever listens; only the microphone changes.
-        assert np.array_equal(heard["remote"], tracks["remote"])
-        echo = room(tracks["remote"], name) if CONDITIONS[name] is not None else 0
+        # What the machine plays is what was said, with the line's own noise under it.
+        assert 20 * np.log10(level(heard["remote"] - tracks["remote"])) == pytest.approx(LINE, abs=0.2)
+        assert not np.array_equal(condition(tracks, name, 1)["remote"], heard["remote"])
+        echo = room(heard["remote"], name) if CONDITIONS[name] is not None else 0
         noise = heard["local"] - tracks["local"] - echo
         assert 20 * np.log10(level(noise)) == pytest.approx(NOISE[name], abs=0.2)
         # The same draw is the same noise; another draw is another, at the same level.
@@ -130,3 +143,12 @@ def test_a_condition_is_the_remote_as_played_and_the_microphone_with_its_own_noi
         > level(condition(tracks, "low")["local"])
         > level(condition(tracks, "headset")["local"])
     )
+
+
+@pytest.mark.parametrize("seconds_a_word", [0.1, 2.0])
+def test_a_voice_that_does_not_speak_at_the_pace_of_a_person_is_refused(seconds_a_word):
+    def paced(voice: str, text: str) -> np.ndarray:
+        return np.zeros(round(seconds_a_word * len(text.split()) * RATE), np.float32)
+
+    with pytest.raises(ValueError, match="not the pace of a person"):
+        lay_out(script(MEETING), paced)
