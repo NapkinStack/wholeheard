@@ -18,8 +18,12 @@ Turns the audio of a session into a timestamped transcript.
   a first conversion written here mirrored a voice's high notes into it at 44,100 and 8,000
   samples a second (the first verification of this reader, 2026-10-13). Nothing else is done
   to the sound: a source's rest is left where it is, and whether a span is silence is the
-  step's to measure — a reader that centred the sound failed two verifications. The step
-  does not read the second form yet.
+  step's to measure — a reader that centred the sound failed two verifications. It places
+  the track on the session's clock by every point of `clock.jsonl`; where a source delivered
+  nothing — zeros the clock names, an instant it leaves empty — what is heard goes in a line
+  from where the source left to where it came back, never down to zero and up again: a step
+  the source did not make rings in what the engine hears. The step does not read the second
+  form yet.
 - It says who spoke only as the two files do — `me`, `others`. Telling several voices of one file apart is not done here.
 - It fetches no model and contacts no host: the model file is the caller's to give.
 
