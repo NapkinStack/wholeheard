@@ -58,17 +58,17 @@ a headset unplugged — is said by `silent` alone, as today, or by an event of i
 Valid — a recording where nothing plays for a while, stopped by the line `stop`:
 
 ```text
-{"event":"started","folder":"/home/ana/Summit/2026-10-13_14-05","sources":{"me":"Digital Microphone","others":"Speaker"}}
+{"event":"started","folder":"<sessions-folder>/2026-10-13_14-05","sources":{"me":"Digital Microphone","others":"Speaker"}}
 {"event":"silent","source":"others"}
 {"event":"heard","source":"others"}
-{"event":"stopped","folder":"/home/ana/Summit/2026-10-13_14-05","seconds":1912.4}
+{"event":"stopped","folder":"<sessions-folder>/2026-10-13_14-05","seconds":1912.4}
 ```
 
 Valid — the microphone refused, the meeting still recorded:
 
 ```text
 {"event":"unavailable","source":"me","reason":"the system names no default device"}
-{"event":"started","folder":"/home/ana/Summit/2026-10-13_14-05","sources":{"me":"unavailable","others":"Speaker"}}
+{"event":"started","folder":"<sessions-folder>/2026-10-13_14-05","sources":{"me":"unavailable","others":"Speaker"}}
 ```
 
 To refuse: a line that is not a JSON object with an `event`.
