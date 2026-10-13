@@ -56,8 +56,7 @@ pub fn sound(path: &Path) -> io::Result<Vec<f32>> {
 /// Hears a session — its two files, `me` then `others` — span by span, and writes its
 /// transcript. `seconds` is the length of a span.
 pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>, seconds: usize) -> io::Result<()> {
-    // Everything the step reads is read and judged first: a run that refuses hears nothing
-    // and leaves no transcript behind.
+    // Everything is read and judged first: a run that refuses hears nothing and leaves no transcript.
     let session = fs::read(folder.join("session.json")).or_else(|error| refused(format!("session.json cannot be read ({error})")))?;
     let session: serde_json::Value = serde_json::from_slice(&session).unwrap_or_default();
     if session["contract"] != "session-audio/v1" {
@@ -104,22 +103,22 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
             segments.retain(|segment| segment.start < until);
             segments.sort_by(|a, b| a.start.total_cmp(&b.start));
             // A last segment that touches the end of what was heard may be half a sentence: it
-            // is heard again with what follows. Twice in a row for less than a second gained,
+            // is heard again with what follows. Twice in a row for less than half a span gained,
             // and the step would crawl: the second time it is written as it is.
             let touching = segments.last().filter(|last| last.end > until - EDGE).map(|last| last.start);
             if to == heard.len() {
-                // The end of the file: of a recording still going on, the sentence waits for
-                // the rest; of one that was stopped, there is no rest.
+                // At the end of a file still being written, the sentence waits for the rest.
                 if let Some(last) = touching.filter(|_| !stopped) {
                     segments.pop();
                     transcript.heard(*speaker, &segments, last)?;
                     break;
                 }
             } else if let Some(gain) = touching.map(|last| last - start).filter(|gain| *gain > 0.0) {
-                if gain >= EDGE || !crawled {
+                let small = gain < (until - start) / 2.0;
+                if !(small && crawled) {
                     until = segments.pop().map_or(until, |last| last.start);
                 }
-                crawled = gain < EDGE && !crawled;
+                crawled = small && !crawled;
             } else {
                 crawled = false;
             }
@@ -127,8 +126,7 @@ pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>
             from = ((until * RATE as f64).round() as usize).max(from + 1);
         }
     }
-    // A recording still going on, or ended by a crash, has no last word yet: its transcript
-    // is true up to here, and the step is run again when there is more.
+    // A recording still going on, or ended by a crash, has no last word yet: the step is run again.
     if !stopped {
         return Ok(());
     }

@@ -12,8 +12,8 @@ use summit_transcription::{
 /// can be told to fail at its n-th call, and it keeps what it was asked.
 #[derive(Default)]
 struct Played {
-    /// Hears the whole span as one segment that starts two hundredths in: an unbroken voice.
-    unbroken: bool,
+    /// Hears the whole span as one segment that starts this far in: an unbroken voice.
+    unbroken: Option<f64>,
     calls: usize,
     fails_at: Option<usize>,
     asked: Vec<(usize, Option<String>, Option<String>)>,
@@ -30,8 +30,8 @@ impl Engine for Played {
             return Err(io::Error::other("the engine stopped"));
         }
         self.asked.push((sound.len(), language.map(Into::into), context.map(Into::into)));
-        if self.unbroken {
-            let (start, end, text) = (0.02, sound.len() as f64 / RATE as f64, "one voice".into());
+        if let Some(start) = self.unbroken {
+            let (end, text) = (sound.len() as f64 / RATE as f64, "one voice".into());
             return Ok(vec![Segment { start, end, text }]);
         }
         let (mut segments, mut since) = (Vec::new(), None);
@@ -236,17 +236,19 @@ fn a_recording_still_going_on_is_heard_up_to_here_and_again_when_there_is_more()
 
 #[test]
 fn the_step_neither_crawls_on_an_unbroken_voice_nor_cuts_a_stretch_that_starts_with_a_span() {
-    // One voice for forty seconds, heard five at a time: a span at least every two calls.
-    let folder = session();
-    audio(&folder.path().join("me.wav"), 40.0, &[(0.0, 40.0)]);
-    audio(&folder.path().join("others.wav"), 40.0, &[]);
-    let unbroken = true;
-    let mut engine = Played {
-        unbroken,
-        ..Played::default()
-    };
-    transcribe(folder.path(), &mut engine, None, 5).unwrap();
-    assert!(engine.calls <= 17, "{} calls for eight spans", engine.calls);
+    // One voice for forty seconds, heard five at a time: half a span at least every two calls.
+    for start in [0.02, 1.0, 2.4, 2.5, 4.5] {
+        let folder = session();
+        audio(&folder.path().join("me.wav"), 40.0, &[(0.0, 40.0)]);
+        audio(&folder.path().join("others.wav"), 40.0, &[]);
+        let unbroken = Some(start);
+        let mut engine = Played {
+            unbroken,
+            ..Played::default()
+        };
+        transcribe(folder.path(), &mut engine, None, 5).unwrap();
+        assert!(engine.calls <= 33, "{} calls for eight spans, from {start} s in", engine.calls);
+    }
 
     // A stretch that starts three tenths into a span and reaches its end is still one segment.
     let folder = session();
