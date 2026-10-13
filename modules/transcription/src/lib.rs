@@ -143,41 +143,54 @@ impl Transcript {
             }
             _ => return refused(io::ErrorKind::InvalidData, "the file is not a transcript this version writes"),
         }
-        for line in lines.filter(|line| !line.trim().is_empty()) {
-            let unreadable = || {
-                refused::<()>(
-                    io::ErrorKind::InvalidData,
-                    &format!("the transcript holds a line this version refuses: {again}"),
-                )
+        // Every whole line is one of the contract's, or of a type this version does not know:
+        // anything else — a blank line, a line that is not an object, a segment that is not
+        // one, a line after the end — and the transcript is not continued.
+        let unreadable = || {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("the transcript holds a line this version refuses: {again}"),
+            )
+        };
+        let time = |value: &Value| value.as_f64().and_then(|seconds| hundredths(seconds).ok()).ok_or_else(unreadable);
+        for line in lines {
+            let line = serde_json::from_str::<Value>(line).map_err(|_| unreadable())?;
+            let Some(kind) = line.get("type").and_then(Value::as_str) else {
+                return Err(unreadable());
             };
-            let Ok(line) = serde_json::from_str::<Value>(line) else {
-                return unreadable().map(|()| transcript);
-            };
+            if !matches!(kind, "segment" | "covered" | "complete" | "header") {
+                continue;
+            }
             let speaker = match line["speaker"].as_str() {
                 Some("me") => Speaker::Me as usize,
                 Some("others") => Speaker::Others as usize,
-                _ => usize::MAX,
+                _ if kind == "complete" && !transcript.complete => usize::MAX,
+                _ => return Err(unreadable()),
             };
-            match (
-                line["type"].as_str(),
-                speaker,
-                line["start"].as_f64(),
-                line["end"].as_f64(),
-                line["until"].as_f64(),
-            ) {
-                (Some("segment"), 0 | 1, Some(start), Some(end), _) if end >= start => {
-                    transcript.last[speaker] = transcript.last[speaker].max(Some(hundredths(start)?));
+            match kind {
+                "complete" => {
+                    time(&line["duration"])?;
+                    transcript.complete = true;
                 }
-                (Some("covered"), 0 | 1, _, _, Some(until)) => {
-                    transcript.covered[speaker] = transcript.covered[speaker].max(hundredths(until)?)
+                _ if transcript.complete => return Err(unreadable()),
+                "segment" => {
+                    let (start, end) = (time(&line["start"])?, time(&line["end"])?);
+                    let one_line = line["text"]
+                        .as_str()
+                        .is_some_and(|text| !text.is_empty() && !text.contains(['\n', '\r']));
+                    if end < start || !one_line {
+                        return Err(unreadable());
+                    }
+                    transcript.last[speaker] = transcript.last[speaker].max(Some(start));
                 }
-                (Some("complete"), ..) => transcript.complete = true,
-                (Some("segment" | "covered" | "header"), ..) => return unreadable().map(|()| transcript),
-                _ => {}
+                "covered" => transcript.covered[speaker] = transcript.covered[speaker].max(time(&line["until"])?),
+                _ => return Err(unreadable()),
             }
         }
         // Only now, accepted: the end that never was a line goes, so that nothing is glued to it.
-        transcript.file.set_len(whole as u64)?;
+        if whole < written.len() {
+            transcript.file.set_len(whole as u64)?;
+        }
         Ok(transcript)
     }
 
