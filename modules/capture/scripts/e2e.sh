@@ -107,7 +107,11 @@ sed 's/^/    /' "$work/d.events" "$work/d.errors" >> .evidence/e2e.txt
 check test "$left_as" = 0 -a ! -s "$work/d.errors"
 check grep -q '"stopped"' "$(ls -d "$work"/alone/*/ | head -1)session.json"
 
-# The same three, each source as delivered (session-audio/v2, ADR-0004).
+# The same three, each source as delivered (session-audio/v2, ADR-0004). Their notes are
+# made to tell a recorder that changes them: the second channel at half the first's level, so
+# that channels mixed or swapped show, and both resting away from zero, so that centring does.
+tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -af "volume=0.5,pan=stereo|c0=c0|c1=0.5*c0,dcshift=0.02" -ar 48000 "$3"; }
+tone 440 40 "$work/me.wav"; tone 880 8 "$work/others-a.wav"; tone 880 8 "$work/others-b.wav"
 measure2() { python3 scripts/e2e_measure_v2.py "$@" 2>&1 | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
 pactl set-default-source summit_e2e_mic.monitor
 

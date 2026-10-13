@@ -8,10 +8,13 @@ import subprocess
 import sys
 import time
 
-# What the run's own devices deliver, and how loud its notes are played: ffmpeg's sine is an
-# eighth of full scale, halved by the run, and spread over two channels at 3 dB less.
+# What the run's own devices deliver, and what its notes are played as: ffmpeg's sine is an
+# eighth of full scale, halved by the run, the second channel at half the first — around a
+# rest away from zero.
 DELIVERED = (2, 48000)
-PEAK = 0.125 * 0.5 / 2 ** 0.5
+LEVELS = (0.125 * 0.5, 0.125 * 0.25)
+REST = 0.02
+FULL = 8_388_608
 
 
 def track(folder, name):
@@ -31,24 +34,45 @@ def track(folder, name):
     assert (channels, rate) == DELIVERED, f"{name}: {channels} channel(s) at {rate} Hz, where the run's devices deliver {DELIVERED}"
     # The first channel is enough to find a note and where it starts; every channel has its loudest.
     first = [int.from_bytes(body[n * 3 * channels:n * 3 * channels + 3], "little", signed=True) for n in range(frames)]
-    # A note's level, not a click's: the level one sample in two hundred of the loud ones passes.
-    peaks = []
+    # Where each channel rests while it sounds, and its note's level around that rest — a
+    # note's, not a click's: the level one sample in two hundred passes.
+    peaks, rests = [], []
     for c in range(channels):
-        loud = sorted(v for v in (abs(int.from_bytes(body[n:n + 3], "little", signed=True)) for n in range(3 * c, len(body) - 2, 3 * channels)) if v > 30_000)
-        peaks.append(loud[len(loud) * 199 // 200] if loud else 0)
-    return {"name": name, "rate": rate, "channels": channels, "frames": frames, "first": first, "peaks": peaks,
-            "said": struct.unpack("<I", data[at + 4:at + 8])[0], "bytes": len(body)}
+        played = [v for v in (int.from_bytes(body[n:n + 3], "little", signed=True) for n in range(3 * c, len(body) - 2, 3 * channels)) if v]
+        rests.append(sum(played) / max(len(played), 1))
+        around = sorted(abs(v - rests[-1]) for v in played)
+        peaks.append(around[len(around) * 199 // 200] if around else 0)
+    return {"name": name, "rate": rate, "channels": channels, "frames": frames, "first": first, "peaks": peaks, "rests": rests,
+            "said": struct.unpack("<I", data[at + 4:at + 8])[0], "bytes": len(body), "body": body}
+
+
+def nothing(one):
+    """The stretches of the track, a hundredth of a second or more, where every channel is zero."""
+    body, size, found, at = one["body"], 3 * one["channels"], [], 0
+    least = one["rate"] // 100
+    while (at := body.find(bytes(size * least), at)) >= 0:
+        start = -(-at // size)
+        end = start
+        while body[end * size:(end + 4096) * size] == bytes(size * 4096):
+            end += 4096
+        while end < one["frames"] and not any(body[end * size:(end + 1) * size]):
+            end += 1
+        if end - start >= least:
+            found.append((start, end))
+        at = max(end, start + 1) * size
+    return found
 
 
 def pitch(one):
     """The note the track holds, in Hz: its zero crossings while it sounds."""
-    first = one["first"]
-    loud = [at for at, value in enumerate(first) if abs(value) > 30_000]
+    rest = one["rests"][0]
+    first = [value - rest for value in one["first"]]
+    loud = [at for at, value in enumerate(one["first"]) if abs(value) > 30_000]
     if len(loud) < one["rate"]:
         return 0
     crossings = sounding = 0
     for at in range(loud[0], loud[-1]):
-        if abs(first[at]) > 3_000 or abs(first[at + 1]) > 3_000:
+        if one["first"][at] and one["first"][at + 1]:
             sounding += 1
             crossings += first[at] < 0 <= first[at + 1]
     return crossings * one["rate"] / max(sounding, 1)
@@ -136,13 +160,34 @@ def main(what, folder, *args):
     clocks = {}
     for one in tracks.values():
         points, silences, off = clocks[one["name"]] = placed(folder, one, stops=what == "stopped-source")
-        loudest = max(one["peaks"]) / 8_388_608
+        loudest = max(one["peaks"]) / FULL
         print(f"    {one['name']}: {one['frames'] / one['rate']:.2f} s, {one['channels']} channel(s) at {one['rate']} Hz, 24 bits, "
               f"{pitch(one):.0f} Hz at {loudest:.4f} of full scale · first heard at {points[0][1]:.3f} s, {len(points)} points, "
               f"{len(silences)} silence(s) of ours, {len(off)} place(s) the source stopped")
-        # As delivered: every channel as loud as it was played, not mixed, halved or brought to a level.
-        assert all(abs(peak / 8_388_608 / PEAK - 1) < 0.03 for peak in one["peaks"]), (
-            f"{one['name']}: its channels are at {[round(peak / 8_388_608, 4) for peak in one['peaks']]} of full scale, played at {PEAK:.4f}")
+        # As delivered: every channel as loud as it was played and resting where it was played
+        # — not mixed, swapped, halved, centred or brought to a level.
+        levels, rests = [peak / FULL for peak in one["peaks"]], [rest / FULL for rest in one["rests"]]
+        assert all(abs(level / played - 1) < 0.03 for level, played in zip(levels, LEVELS)), (
+            f"{one['name']}: its channels are at {[round(level, 4) for level in levels]} of full scale, played at {LEVELS}")
+        assert all(abs(rest / REST - 1) < 0.1 for rest in rests), (
+            f"{one['name']}: its channels rest at {[round(rest, 4) for rest in rests]} of full scale while they sound, played at {REST}")
+        # Zeros of ours are every channel's, and the clock is the session's: a track starts
+        # with the session and, once stopped, ends with it.
+        size = 3 * one["channels"]
+        for a, b in silences:
+            assert not any(one["body"][a * size:b * size]), f"{one['name']}: the frames {a} to {b} are said zeros of ours, and hold sound"
+        assert -0.5 <= points[0][1] - points[0][0] / one["rate"] <= 2.5, f"{one['name']}: its first frame is put {points[0][1]:.2f} s into the session"
+        if "stopped" in read:
+            late = when(points, one["frames"], one["rate"]) - (datetime.datetime.fromisoformat(read["stopped"]).timestamp() - start)
+            assert -2.5 <= late <= 0.25, f"{one['name']}: its clock puts its last frame {late:.2f} s after the session stopped"
+    # A source that played without a break delivered no zeros: every stretch of them is ours,
+    # and the clock names it. (The first tenth of a second apart: a stream may open on a piece of nothing.)
+    for name in {"stopped": ["local"], "killed": ["local"], "stopped-source": ["local", "remote"]}.get(what, []):
+        one, named = tracks[name], []
+        for a, b in sorted(clocks[name][1]):   # silences that touch are one stretch
+            named[-1:] = [[named[-1][0], max(b, named[-1][1])]] if named and a <= named[-1][1] else [*named[-1:], [a, b]]
+        unsaid = [(a, b) for a, b in nothing(one) if b > one["rate"] // 10 and not any(s <= a and b <= e for s, e in named)]
+        assert not unsaid, f"{name}: the frames {unsaid[0][0]} to {unsaid[0][1]} are zeros, the source played, and no line of the clock names them"
     if what == "stopped":
         assert "stopped" in read, "session.json carries no stopped"
         lasted = datetime.datetime.fromisoformat(read["stopped"]).timestamp() - start
@@ -159,8 +204,6 @@ def main(what, folder, *args):
         assert silences, "remote stopped for seconds, and the clock says no silence of ours"
         zeros = sum(to - start for start, to in silences)
         assert zeros >= 2 * rate, f"{zeros / rate:.1f} s of zeros said for a stop of several seconds"
-        for start, to in silences:
-            assert not any(remote["first"][start:min(to, remote["frames"])]), f"the frames {start} to {to} are said zeros of ours, and hold sound"
         after = [point for point in points if point[0] >= silences[-1][1]]
         assert after and after[0][0] == silences[-1][1], "the first sound after the zeros has no point of its own"
         # The note is played without a break: after the stop it is where the clock says, to the period.
@@ -184,6 +227,7 @@ def main(what, folder, *args):
             print(f"    {one['name']}: {lost:.1f} s lost, the second of started included")
             assert one["said"] == 0xFFFFFFFF, f"{one['name']}: never finished, and it carries a length"
             assert lost <= allowed + 1, f"{one['name']}: {lost:.1f} s lost"
+            assert lost >= -0.25, f"{one['name']}: its clock puts its last frame {-lost:.2f} s after the recording was killed"
             assert abs(pitch(one) - note) < 40, f"{one['name']}: {pitch(one):.0f} Hz"
     else:
         raise SystemExit(f"unknown measure: {what}")
