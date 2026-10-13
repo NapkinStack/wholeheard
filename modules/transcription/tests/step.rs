@@ -31,12 +31,8 @@ impl Engine for Played {
         }
         self.asked.push((sound.len(), language.map(Into::into), context.map(Into::into)));
         if self.unbroken {
-            let end = sound.len() as f64 / RATE as f64;
-            return Ok(vec![Segment {
-                start: 0.02,
-                end,
-                text: "one voice".into(),
-            }]);
+            let (start, end, text) = (0.02, sound.len() as f64 / RATE as f64, "one voice".into());
+            return Ok(vec![Segment { start, end, text }]);
         }
         let (mut segments, mut since) = (Vec::new(), None);
         for (at, sample) in sound.iter().chain(&[0.0]).enumerate() {
@@ -44,11 +40,8 @@ impl Engine for Played {
                 (None, true) => since = Some(at),
                 (Some(start), false) => {
                     let (start, end) = (start as f64 / RATE as f64, at as f64 / RATE as f64);
-                    segments.push(Segment {
-                        start,
-                        end,
-                        text: format!("{:.1} s", end - start),
-                    });
+                    let text = format!("{:.1} s", end - start);
+                    segments.push(Segment { start, end, text });
                     since = None;
                 }
                 _ => {}
@@ -70,6 +63,8 @@ fn audio(path: &Path, seconds: f64, speech: &[(f64, f64)]) {
     fs::write(path, bytes).unwrap();
 }
 
+/// The record of a recording still going on, or ended by a crash: no "stopped".
+const GOING: &str = r#"{"contract":"session-audio/v1","started":"2026-10-13T14:05:12+02:00"}"#;
 const STOPPED: &str = r#"{"contract":"session-audio/v1","started":"2026-10-13T14:05:12+02:00","stopped":"2026-10-13T14:06:22+02:00"}"#;
 
 fn session() -> tempfile::TempDir {
@@ -88,7 +83,7 @@ fn segments(folder: &Path) -> Vec<(String, f64, f64)> {
         .filter(|line| line["type"] == "segment")
         .map(|line| {
             (
-                line["speaker"].as_str().unwrap().to_string(),
+                line["speaker"].as_str().unwrap().into(),
                 line["start"].as_f64().unwrap(),
                 line["end"].as_f64().unwrap(),
             )
@@ -138,22 +133,13 @@ fn a_step_that_stops_halfway_is_run_again_and_gives_the_same_transcript_as_one_n
 
     for fails_at in 1..=5 {
         let folder = session();
-        let mut engine = Played {
-            fails_at: Some(fails_at),
-            ..Played::default()
-        };
-        assert!(
-            transcribe(folder.path(), &mut engine, None, 30).is_err(),
-            "call {fails_at} did not fail"
-        );
+        let (mut engine, mut again) = (Played::default(), Played::default());
+        engine.fails_at = Some(fails_at);
+        assert!(transcribe(folder.path(), &mut engine, None, 30).is_err());
         // Run again: it goes on from where it was, and asks nothing of what is covered.
-        let mut again = Played::default();
         transcribe(folder.path(), &mut again, None, 30).unwrap();
-        assert_eq!(
-            fs::read_to_string(folder.path().join("transcript.jsonl")).unwrap(),
-            expected,
-            "stopped at call {fails_at}"
-        );
+        let written = fs::read_to_string(folder.path().join("transcript.jsonl")).unwrap();
+        assert_eq!(written, expected, "stopped at call {fails_at}");
         assert!(
             again.calls + fails_at - 1 <= 6,
             "stopped at call {fails_at}: {} calls again",
@@ -223,20 +209,16 @@ fn a_file_that_is_not_what_a_session_holds_is_said_and_not_converted() {
 #[test]
 fn a_recording_still_going_on_is_heard_up_to_here_and_again_when_there_is_more() {
     let folder = session();
-    // No "stopped": still recording, or ended by a crash.
-    fs::write(
-        folder.path().join("session.json"),
-        r#"{"contract":"session-audio/v1","started":"2026-10-13T14:05:12+02:00"}"#,
-    )
-    .unwrap();
-    audio(&folder.path().join("me.wav"), 40.0, &[(3.0, 5.0)]);
+    fs::write(folder.path().join("session.json"), GOING).unwrap();
+    // The file ends in the middle of a sentence: that one waits for the rest.
+    audio(&folder.path().join("me.wav"), 40.0, &[(3.0, 5.0), (39.0, 40.0)]);
     audio(&folder.path().join("others.wav"), 40.0, &[(0.5, 2.5)]);
     transcribe(folder.path(), &mut Played::default(), None, 30).unwrap();
     let so_far = fs::read_to_string(folder.path().join("transcript.jsonl")).unwrap();
     assert!(!so_far.contains(r#""complete""#) && segments(folder.path()).len() == 2, "{so_far}");
 
     // The files grew, the recording was stopped: the step goes on, and only then says the end.
-    audio(&folder.path().join("me.wav"), 70.0, &[(3.0, 5.0), (50.0, 52.0)]);
+    audio(&folder.path().join("me.wav"), 70.0, &[(3.0, 5.0), (39.0, 41.0), (50.0, 52.0)]);
     audio(&folder.path().join("others.wav"), 70.0, &[(0.5, 2.5)]);
     fs::write(folder.path().join("session.json"), STOPPED).unwrap();
     transcribe(folder.path(), &mut Played::default(), None, 30).unwrap();
@@ -245,20 +227,22 @@ fn a_recording_still_going_on_is_heard_up_to_here_and_again_when_there_is_more()
         whole.starts_with(&so_far) && whole.trim_end().ends_with(r#"{"duration":70.0,"type":"complete"}"#),
         "{whole}"
     );
+    let written = segments(folder.path());
     assert_eq!(
-        segments(folder.path()).iter().map(|(_, start, _)| *start).collect::<Vec<_>>(),
-        [3.0, 0.5, 50.0]
+        written.iter().map(|(_, start, end)| (*start, *end)).collect::<Vec<_>>(),
+        [(3.0, 5.0), (0.5, 2.5), (39.0, 41.0), (50.0, 52.0)]
     );
 }
 
 #[test]
-fn the_step_neither_crawls_on_an_unbroken_voice_nor_cuts_what_a_growing_file_ends_on() {
+fn the_step_neither_crawls_on_an_unbroken_voice_nor_cuts_a_stretch_that_starts_with_a_span() {
     // One voice for forty seconds, heard five at a time: a span at least every two calls.
     let folder = session();
     audio(&folder.path().join("me.wav"), 40.0, &[(0.0, 40.0)]);
     audio(&folder.path().join("others.wav"), 40.0, &[]);
+    let unbroken = true;
     let mut engine = Played {
-        unbroken: true,
+        unbroken,
         ..Played::default()
     };
     transcribe(folder.path(), &mut engine, None, 5).unwrap();
@@ -269,20 +253,4 @@ fn the_step_neither_crawls_on_an_unbroken_voice_nor_cuts_what_a_growing_file_end
     audio(&folder.path().join("me.wav"), 70.0, &[(30.3, 60.2)]);
     transcribe(folder.path(), &mut Played::default(), None, 30).unwrap();
     assert_eq!(segments(folder.path())[0], ("me".to_string(), 30.3, 60.2));
-
-    // A recording still going on ends in the middle of a sentence: it is written once the rest is there.
-    let folder = session();
-    fs::write(
-        folder.path().join("session.json"),
-        r#"{"contract":"session-audio/v1","started":"2026-10-13T14:05:12+02:00"}"#,
-    )
-    .unwrap();
-    audio(&folder.path().join("me.wav"), 12.0, &[(11.0, 12.0)]);
-    audio(&folder.path().join("others.wav"), 12.0, &[]);
-    transcribe(folder.path(), &mut Played::default(), None, 30).unwrap();
-    assert!(segments(folder.path()).is_empty());
-    audio(&folder.path().join("me.wav"), 20.0, &[(11.0, 13.0)]);
-    fs::write(folder.path().join("session.json"), STOPPED).unwrap();
-    transcribe(folder.path(), &mut Played::default(), None, 30).unwrap();
-    assert_eq!(segments(folder.path()), [("me".to_string(), 11.0, 13.0)]);
 }
