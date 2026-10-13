@@ -40,7 +40,25 @@ the microphone's noise, so that a count is read as a spread:
 The room is a model set on one minute of one laptop in one room. It says how one way of
 doing compares with another; it does not promise what a real room gives.
 
-The counts that read a transcript against the truth come in the next pull request.
+**The counts** read transcripts against the truth, each with what it is counted out of:
+
+| Count | Says |
+|---|---|
+| Words wrong, on each side — and those of turns not found | What the transcript gives a side against what it said; a turn dropped whole is said apart from a word misheard |
+| Local words lost under the remote | What the local side said while the remote spoke, and the transcript lacks: **what muting the microphone to kill an echo costs** |
+| Words said twice | The remote side's words given to the local side too: the echo |
+| Words on the wrong side | A side's words given only to the other |
+| Exchanges out of order | Where the meeting passes from one side to the other, and the transcript puts the second turn first |
+| Turns far from their time | Turns the transcript starts more than two seconds from where they were said |
+
+No count is read alone: an echo killed by muting the microphone is perfect on *said twice*
+and pays on *lost under the remote*.
+
+```bash
+# Each draw of a condition is transcribed by the program under test, then counted together.
+summit-transcription <out-folder>/low/0 --model <model-file> --language fr   # and /1, /2
+uv run python -m bench.counts <out-folder>/low/0 <out-folder>/low/1 <out-folder>/low/2
+```
 
 ```bash
 # Once: the four voices, about 270 MB, from the synthesiser's public models.
@@ -62,6 +80,7 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 
 - Provided: none
 - Consumed: [`session-audio/v1`](../../contracts/session-audio/v1/README.md) — it writes a session as that contract describes one, for the programs to read
+- Consumed: [`transcript/v1`](../../contracts/transcript/v1/README.md) — it reads the transcript the programs wrote of it
 
 ## Decisions
 
