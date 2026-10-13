@@ -118,7 +118,7 @@ listen to, is `export`'s, in a later cycle.
 
 ### D8 — the line every later change is read against (2026-10-13)
 
-The bench is `modules/platform`: a meeting of 70 turns and five minutes, four synthesised
+The bench is `modules/platform`: a meeting of 70 turns and 4.3 minutes, four synthesised
 voices — two on each side — a fifth of the local speech said over the remote; three
 listening conditions set on one minute measured on the decider's laptop; six draws of each.
 Today's programs, lowest – median – highest:
@@ -170,7 +170,7 @@ parameters, on the laptop's processor, served by Ollama:
 | The same, the window set to 12,288 | about 8,500 tokens | all of it | Nothing within the program's ten minutes | — |
 
 **Result: refuted.** The threshold — minutes of an hour's meeting, on the decider's laptop,
-in less than the meeting's length — is not met: five minutes of meeting already take five,
+in less than the meeting's length — is not met: 4.3 minutes of meeting already take five,
 and sixteen take more than ten. The cause of 2026-10-13 is the window, not the model's
 wits: it never read the instructions. What would have to change, each a choice of the next
 framing: the window set by Summit, which the protocol it speaks to the server cannot ask
