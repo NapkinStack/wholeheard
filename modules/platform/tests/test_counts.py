@@ -24,9 +24,11 @@ TRUTH = [
 ]
 NOTHING = {
     "words wrong, local": (0, 14),
+    "words missing, local": (0, 14),
     "of which in turns not found, local": (0, 14),
     "words wrong net of the echo, local": (0, 14),
     "words wrong, remote": (0, 13),
+    "words missing, remote": (0, 13),
     "of which in turns not found, remote": (0, 13),
     "local words lost under the remote": (0, 0),
     "words said twice": (0, 13),
@@ -50,7 +52,7 @@ def right(truth: list[dict] = TRUTH) -> list[dict]:
 
 def moved(result: dict) -> dict:
     """What a transcript's counts say beyond those of the one that is right."""
-    return {name: value for name, value in result.items() if value != NOTHING[name]}
+    return {name: value for name, value in result.items() if value != NOTHING.get(name)}
 
 
 def test_words_are_counted_as_a_listener_counts_them_and_a_number_as_it_is_said():
@@ -76,12 +78,30 @@ def test_a_transcript_that_is_right_counts_nothing():
 def test_words_wrong_are_those_to_change_add_or_take_out_on_their_side():
     transcript = right()
     transcript[0]["text"] = "Bonjour à tous, on commence la séance."  # one word changed
+    transcript[2]["text"] = "La version de test sera bien prête jeudi."  # one added
     transcript[3]["text"] = "Parfait, le support sera complet."  # one taken out
     assert moved(count(TRUTH, transcript)) == {
-        "words wrong, local": (1, 14),
-        "words wrong net of the echo, local": (1, 14),
+        "words wrong, local": (2, 14),
+        "words wrong net of the echo, local": (2, 14),
         "words wrong, remote": (1, 13),
+        # A word added is wrong and misses nothing: what a side said and does not get is apart.
+        "words missing, local": (1, 14),
+        "words missing, remote": (1, 13),
     }
+
+
+def test_what_a_television_said_and_the_transcript_gives_a_participant_is_counted_as_its_own():
+    television = [said("television", "television", 2.0, 6.0, "Et maintenant la météo de demain sur le pays.")]
+    assert count(TRUTH, right(), television) == {**NOTHING, "the television's words written": (0, 9)}
+    heard = segment("me", 4.5, "météo de demain sur")
+    result = moved(count(TRUTH, right() + [heard], television))
+    assert result == {
+        "words wrong, local": (4, 14),
+        "words wrong net of the echo, local": (4, 14),
+        "the television's words written": (4, 9),
+    }
+    # Without a television, the same words are only words wrong: nothing tells whose they were.
+    assert "the television's words written" not in count(TRUTH, right() + [heard])
 
 
 def test_a_turn_the_transcript_does_not_hold_is_said_apart_from_words_misheard():

@@ -27,7 +27,7 @@ is captured or derived. Its meeting is a script written for the purpose, in Fren
 that is what the product hears, said by four public synthetic voices: **nobody is recorded**.
 Two sides, as a session has two tracks; two people on the local side, behind one microphone.
 
-**Three listening conditions**, the same meeting each time — and for each, several draws of
+**Four listening conditions**, the same meeting each time — and for each, several draws of
 the microphone's noise, so that a count is read as a spread:
 
 | Condition | The microphone holds | Set on |
@@ -35,6 +35,7 @@ the microphone's noise, so that a count is read as a spread:
 | `headset` | The local voices and a quiet microphone's noise; nothing of the remote ones | Supposed: no headset was measured |
 | `low` | The same voices, a laptop microphone's noise, and the remote side 46 ms late, 10 dB under what was played, four fifths of it at once and the rest ringing | The decider's laptop at a usual meeting's volume, 2026-10-13 |
 | `loud` | The same, 5 dB under, from loudspeakers pushed until they no longer play what they are sent | The same laptop, near its maximum |
+| `television` | The local voices, a laptop microphone's noise, nothing of the remote ones — and a room that is not silent: a television that talks from the first second to the last, 15 dB under the local voices, over a steady hum | Supposed: the decider's room on 2026-10-14, not measured |
 
 The room is a model set on one minute of one laptop in one room. It says how one way of
 doing compares with another; it does not promise what a real room gives.
@@ -44,12 +45,14 @@ doing compares with another; it does not promise what a real room gives.
 | Count | Says |
 |---|---|
 | Words wrong, on each side — and those of turns not found | What the transcript gives a side against what it said; a turn dropped whole is said apart from a word misheard |
+| Words missing, on each side | What a side said that the transcript does not have: a word added is wrong and misses nothing |
 | Words wrong net of the echo, local | The local side's own words wrong, without the remote's it was given: **what a canceller is read on** — muting removes the echo's words and cannot lower this |
 | Local words lost under the remote | What the local side said while the remote spoke, or in the third of a second after, and the transcript lacks: **what muting the microphone to kill an echo costs** |
 | Words said twice | The remote side's words given to the local side too: the echo |
 | Words on the wrong side | A side's words given only to the other |
 | Exchanges out of order | Where the meeting passes from one side to the other, and the transcript puts the two turns the other way round than they were said |
 | Turns far from their time | Turns the transcript starts more than two seconds from where they were said |
+| The television's words written | With `television` only: what it said that the transcript gives a participant, two words in a row at least |
 
 No count is read alone: an echo killed by muting the microphone is perfect on *said twice*
 and pays on *lost under the remote*. A turn is where the transcript puts its first words;
@@ -65,7 +68,7 @@ uv run python -m bench.counts <out-folder>/low/0 <out-folder>/low/1 <out-folder>
 ```bash
 # Once: the voices, about 330 MB, from the synthesiser's public models.
 uv run python -m piper.download_voices fr_FR-siwis-medium fr_FR-tom-medium fr_FR-upmc-medium fr_FR-gilles-low --download-dir <voices-folder>
-# The meeting under three conditions, six draws each: <out-folder>/<condition>/<draw>.
+# The meeting under four conditions, six draws each: <out-folder>/<condition>/<draw>.
 nstack run platform <voices-folder> <out-folder>
 # The same as a recording keeps it since ADR-0004 — each side as delivered, with its clock.
 nstack run platform <voices-folder> <out-folder> 6 v2

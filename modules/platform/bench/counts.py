@@ -12,6 +12,7 @@ The counts, each with what it is counted out of:
 - words wrong, on each side: the words to change, add or take out of what the transcript
   gives a side to get what that side said — of which, those of turns it did not hold at all;
   and, for the local side, net of the echo: without the remote's words it was given;
+- words missing, on each side: words a side said that the transcript does not have;
 - local words lost under the remote: words the local side said while the remote side spoke,
   or in the third of a second after, that the transcript does not have — what muting the
   microphone to kill an echo costs;
@@ -21,7 +22,9 @@ The counts, each with what it is counted out of:
 - exchanges out of order: places where the meeting passes from one side to the other and
   the transcript puts the two turns the other way round than they were said;
 - turns far from their time: turns the transcript starts more than two seconds away from
-  where they were said.
+  where they were said;
+- the television's words written, when one was on: words it said that the transcript gives
+  a participant — two in a row, said by it just then, as the echo is told.
 
 A turn is where the transcript puts its first words. Order and time are read as a share of
 the turns found, with the turns not found beside: a transcript that loses turns has fewer to
@@ -114,8 +117,9 @@ def borrowed(extra: list[dict], theirs: list[dict]) -> list[int | None]:
     return taken
 
 
-def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int]]:
-    """Every count of a transcript against the truth, each with what it is counted out of."""
+def count(truth: list[dict], transcript: list[dict], television: list[dict] = ()) -> dict[str, tuple[int, int]]:
+    """Every count of a transcript against the truth, each with what it is counted out of —
+    and, given what a television said, how much of it the transcript gives the participants."""
     result: dict[str, tuple[int, int]] = {}
     was = {side: said(truth, side) for side in SIDES.values()}
     got = {side: heard(transcript, side) for side in SIDES.values()}
@@ -150,6 +154,7 @@ def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int
         number: statistics.median(starts[:3]) for number, starts in placed.items() if 2 * len(starts) >= size[number]
     }
     for side in ("local", "remote"):
+        result[f"words missing, {side}"] = (len(was[side]) - len(matched[side]), len(was[side]))
         dropped = sum(1 for i, word in enumerate(was[side]) if word["turn"] not in found and i not in matched[side])
         result[f"of which in turns not found, {side}"] = (dropped, len(was[side]))
 
@@ -183,13 +188,18 @@ def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int
     result["exchanges not found"] = (len(exchanges) - len(known), len(exchanges))
     result["turns far from their time"] = (sum(abs(found[n] - truth[n]["start"]) > FAR for n in found), len(found))
     result["turns not found"] = (len(truth) - len(found), len(truth))
+    if television:
+        spoken = said(list(television), "television")
+        written = sum(turn is not None for side in extra for turn in borrowed(extra[side], spoken))
+        result["the television's words written"] = (written, len(spoken))
     return result
 
 
-def read(folder: Path) -> tuple[list[dict], list[dict]]:
-    """A session's truth and its transcript — a whole one, of that meeting, in the form this
+def read(folder: Path) -> tuple[list[dict], list[dict], list[dict]]:
+    """A session's truth, its transcript and what a television said in it — a whole one, of that meeting, in the form this
     reads: anything else is refused, never counted as if it were."""
-    truth = json.loads((folder / "truth.json").read_text(encoding="utf-8"))["turns"]
+    kept = json.loads((folder / "truth.json").read_text(encoding="utf-8"))
+    truth = kept["turns"]
     lines = [
         json.loads(line)
         for line in (folder / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
@@ -214,7 +224,7 @@ def read(folder: Path) -> tuple[list[dict], list[dict]]:
         refusal = f"the transcript is of {lines[-1].get('duration')} s, the meeting of {truth[-1]['end']:.0f} s"
     if refusal:
         raise ValueError(f"{folder}: {refusal}")
-    return truth, [line for line in lines if line.get("type") == "segment"]
+    return truth, [line for line in lines if line.get("type") == "segment"], kept.get("television", [])
 
 
 def main(argv: list[str]) -> int:
