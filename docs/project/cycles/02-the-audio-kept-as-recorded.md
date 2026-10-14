@@ -67,6 +67,14 @@ deliverables:
       - "Given the bench's meeting played in a room that is not silent — a steady noise, and a voice that is no participant's, between the turns — when its tracks are transcribed with and without the speech detector that the engine's own library carries (whisper.cpp's, with the Silero model), then the cycle records for each: the words written where no participant spoke, the words of the participants that are missing, and the time taken"
       - "Given that record, when it is read against the threshold — fewer words where nobody spoke, and no more words missing than without the detector — then the result is written as met or refuted, with the settings it was measured at: a refuted result is a delivered one"
       - "Given the detector's model is a file, when the spike is run, then the file is one the user was shown and placed, as the engine's own model is: nothing is fetched by the program"
+  - id: D15
+    title: "A contract a module relies on can be corrected where it stands, and cannot be broken there: each carries a schema, and a comparator judges its changes"
+    module: contracts
+    state: in-progress
+    acceptance:
+      - "Given a consumed contract whose page says something false — `recording/v1` on the second form of a recording, `transcript/v1` on the engine's name, a diagram on who reads — when the page is corrected in a pull request, then the project's comparator lets it through and it is merged without a new version"
+      - "Given a pull request that removes, renames or retypes a field of `recording/v1` or `transcript/v1`, when its checks run, then the comparator refuses it and gives an example of what a consumer would now receive"
+      - "Given the producer of `recording/v1` and of `transcript/v1`, when its tests run, then what it writes is validated against the contract's schema"
 ---
 
 # Cycle 02 — The audio kept as recorded
@@ -123,6 +131,13 @@ second criterion was restated in cycle 01.
 (`.nstack/handbook/09-platform.md`). No other is created: the echo-free microphone and the
 engine's copy are made by `transcription`, which is what needs them; `all`, the file to
 listen to, is `export`'s, in a later cycle.
+
+### D15 — why the contracts get schemas (2026-10-14)
+
+Decided by the decider on 2026-10-13, when a pull request that corrected an example and
+three diagrams of consumed contracts was refused (#96): the contracts were pages of prose,
+and nothing could call a change to one compatible. The decision, what was read and what was
+tried: [ADR-0005](../../adr/0005-a-contract-carries-a-schema-and-a-comparator-judges-its-changes.md).
 
 ### D14 — why a speech detector is tried, and which (2026-10-14)
 
