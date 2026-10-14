@@ -395,10 +395,12 @@ Computed, not measured: two tracks at 48,000 samples a second, two channels, 24 
 2.07 GB an hour as delivered. The limit that replaces 250 MB is the decider's to set on the
 real measure.
 
+**Decided by the decider on 2026-10-14**, once D14 was refuted: the tray keeps starting the
+first form until D10 holds. The second form stays written on asking, and measured.
+
 Left before D9 is offered for acceptance: the second form becomes what `record` writes, from
-the tray too — **which the remote side's count argues against, and D14 did not answer**:
-the decider's to weigh; a session of the first form is still read, or refused in one sentence;
-the hour's weight.
+the tray too — weighed again once D10 holds, on the remote side's count; a session of the
+first form is still read, or refused in one sentence; the hour's weight.
 
 ## Out of scope
 
