@@ -181,6 +181,7 @@ EXAMPLES = {
                 "end": 7.0,
                 "text": "x",
             },
+            {"type": "segment", "speaker": "me", "start": 7.0, "end": 8.0, "text": "Written before the track."},
             {"type": "covered", "speaker": "me", "until": 30.0},
             {"type": "complete", "duration": 1912.4},
             {"type": "a type of a later version", "anything": 1},
