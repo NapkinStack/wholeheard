@@ -12,23 +12,39 @@ not. **What cannot be decided is refused**, with the comparator's reason. Unchan
 structure with a changed meaning is seen by no comparison: contract tests see it.
 """
 
+import json
 import os
 import sys
 from pathlib import Path
 
 import jsoncompat
 
+DIALECT = "https://json-schema.org/draft/2020-12/schema"
+
 
 def schemas(folder):
-    """A version's schemas by name — and the files that look like one where none is read."""
+    """A version's schemas by name — and the schemas that are where none is read: any file
+    named as one, or any JSON document that names a schema's dialect, elsewhere than at the
+    version's top as `<document>.schema.json`. Other JSON files are examples, and are left alone."""
     folder = Path(folder)
     read = {path.name: path for path in sorted(folder.glob("*.schema.json")) if path.is_file()}
-    stray = {*folder.rglob("*.json"), *folder.rglob("*.schema.*")} - set(read.values())
-    return read, sorted(path.relative_to(folder).as_posix() for path in stray)
+    stray = set(folder.rglob("*.schema.*")) | {path for path in folder.rglob("*.json") if dialect(path)}
+    return read, sorted(path.relative_to(folder).as_posix() for path in stray - set(read.values()))
+
+
+def dialect(path):
+    """The dialect a JSON document says it is a schema of, if it says one."""
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return document.get("$schema") if isinstance(document, dict) else None
 
 
 def judged(merged, changed):
     """Nothing when the changed schema is compatible with the merged one; why not, otherwise."""
+    if dialect(changed) != DIALECT:
+        return f"it does not say it is a schema of {DIALECT}, the one dialect the comparator reads"
     try:
         texts = merged.read_text(encoding="utf-8"), changed.read_text(encoding="utf-8")
         found = jsoncompat.analyze_compat(*texts, "serializer")
@@ -52,9 +68,7 @@ def main():
         f"{path}: a schema is a `*.schema.json` file at the version's top — nothing reads this one" for path in stray
     ]
     if not merged and not changed:
-        refused.append(
-            "no schema in this version: nothing can be compared — give it one first, in a pull request of its own"
-        )
+        refused.append("no schema in this version: nothing can be compared, and what is not proven is refused")
     for schema in sorted(merged.keys() | changed.keys()):
         if schema not in changed:
             refused.append(f"{schema}: removed — what it promised is promised by nothing")
