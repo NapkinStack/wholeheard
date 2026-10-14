@@ -19,8 +19,9 @@ const FRAME: usize = RATE / 100;
 /// What the canceller found of a session's echo.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Echo {
-    /// What it took out, in decibels: the median of its estimate, one a second; `None` when
-    /// the remote track never sounded long enough for one.
+    /// What it took out, in decibels: the median of its estimate, one a second; `None` for a
+    /// local track shorter than a second, which gives none. A silent remote gives its floor,
+    /// about 0.2 dB.
     pub taken_out: Option<f64>,
     /// How late the microphone heard the loudspeakers, in milliseconds, as it last estimated.
     pub delay: Option<i32>,
@@ -35,9 +36,9 @@ impl Echo {
 
 /// The local track with what the remote track's echo in it taken out, and what was found.
 /// Both are one channel at [`RATE`], on the session's clock; the result is as long as the
-/// local track. The same tracks give the same samples, and a track's beginning, cut at a
-/// hundredth of a second, gives the beginning of what the whole gives: the canceller hears
-/// forward only, ten milliseconds at a time.
+/// local track. The same tracks give the same samples, and a track's beginning, cut anywhere,
+/// gives the beginning of what the whole gives: the canceller hears forward only, ten
+/// milliseconds at a time.
 pub fn cancelled(local: &[f32], remote: &[f32]) -> (Vec<f32>, Echo) {
     let config = Config {
         echo_canceller: Some(EchoCanceller::default()),

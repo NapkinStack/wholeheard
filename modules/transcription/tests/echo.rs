@@ -41,13 +41,13 @@ fn a_microphone_that_does_not_hear_the_loudspeakers_holds_no_echo() {
     let local = speaking(40.0, 2.0, 0.2, 2);
     let (_, found) = cancelled(&local, &remote);
     assert!(!found.is_measured(), "{found:?}");
-    // And a remote track that never sounds gives no measure at all.
+    // And a remote track that never sounds gives the canceller's floor, no echo.
     let (_, found) = cancelled(&local, &vec![0.0; local.len()]);
     assert!(!found.is_measured(), "{found:?}");
 }
 
 #[test]
-fn the_beginning_of_a_track_gives_the_beginning_of_what_the_whole_gives() {
+fn the_beginning_of_a_track_cut_anywhere_gives_the_beginning_of_what_the_whole_gives() {
     let remote = speaking(20.0, 0.0, 0.3, 3);
     let local: Vec<f32> = speaking(20.0, 2.0, 0.2, 4)
         .iter()
@@ -57,9 +57,9 @@ fn the_beginning_of_a_track_gives_the_beginning_of_what_the_whole_gives() {
     let (whole, _) = cancelled(&local, &remote);
     let (again, _) = cancelled(&local, &remote);
     assert_eq!(whole, again);
-    for hundredths in [1, 777, 1234] {
-        let cut = hundredths * RATE / 100;
+    // Anywhere: on a frame's edge, or within one — the bench's tracks end 44 samples into a frame.
+    for cut in [160, 777 * 160, 1234 * 160, 1, 12_345, 500 * 160 + 44] {
         let (part, _) = cancelled(&local[..cut], &remote);
-        assert_eq!(part, whole[..cut], "cut at {hundredths} hundredths");
+        assert_eq!(part, whole[..cut], "cut at sample {cut}");
     }
 }
