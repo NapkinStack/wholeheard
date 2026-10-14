@@ -49,6 +49,20 @@
         "speaker": {
           "$ref": "#/$defs/speaker"
         },
+        "track": {
+          "$ref": "#/$defs/track"
+        },
+        "voice": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "not": {
+            "type": "string",
+            "pattern": "[\\n\\r]"
+          }
+        },
         "start": {
           "$ref": "#/$defs/seconds"
         },
@@ -69,7 +83,28 @@
         "start",
         "end",
         "text"
-      ]
+      ],
+      "if": {
+        "properties": {
+          "speaker": {
+            "const": "me"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "track": {
+            "const": "local"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "track": {
+            "const": "remote"
+          }
+        }
+      }
     },
     {
       "type": "object",
@@ -136,6 +171,12 @@
     "seconds": {
       "type": "number",
       "minimum": 0
+    },
+    "track": {
+      "enum": [
+        "local",
+        "remote"
+      ]
     }
   }
 }

@@ -33,13 +33,20 @@ by a line feed. Lines are only ever added. Every line has a `type`.
 | `type` | When | Fields |
 |---|---|---|
 | `header` | First line, once | `contract`: `transcript/v1` · `engine` and `model`: what transcribed · `language`: the language asked for, or `null` when detected · `context`: the text the engine received, or `null` |
-| `segment` | Each stretch of speech | `speaker`: `me` or `others` · `start` and `end`: seconds from the session's `started`, to the hundredth · `text`: what was said, one line |
+| `segment` | Each stretch of speech | `speaker`: `me` or `others` · `track`: the track it was heard on, `local` for `me`, `remote` for `others` · `voice`: which voice within the track, `null` until voices are told apart · `start` and `end`: seconds from the session's `started`, to the hundredth · `text`: what was said, one line |
 | `covered` | After each span is done | `speaker` · `until`: seconds; every segment of that speaker that starts before `until` is in the file |
 | `complete` | Last line, once | `duration`: seconds of audio transcribed |
 
 - **Order.** Lines come in the order they were made, not the order of the meeting: a reader
   that wants the meeting sorts the segments by `start`.
 - **A segment is known by `speaker` and `start`.** No two segments share both.
+- **Who spoke is two questions** (ADR-0004, rule 6): which track — certain, `track`; which
+  voice within it — estimated, `voice`. `null` is a voice not told: no producer of this
+  version tells voices apart yet, and once one does, `null` still says the voice of that
+  segment could not be told. A voice told is a label of one line, the same for one voice
+  throughout a transcript, and a label of its track only: `1` on `local` and `1` on `remote`
+  are two voices. It names no one. A segment may carry neither field — those written before
+  they were — and its track is then its `speaker`'s.
 - **Running the step again adds nothing already there**: it starts, for each speaker, from
   the last `covered`.
 - **No `complete` line means not finished** — still running, or stopped. The lines there are
@@ -63,9 +70,10 @@ Valid, and not finished:
 ```json
 {"type": "header", "contract": "transcript/v1", "engine": "whisper.cpp", "model": "large-v3-turbo", "language": "fr", "context": "Quatre personnes, réunion d'organisation."}
 {"type": "segment", "speaker": "others", "start": 0.0, "end": 3.2, "text": "Du coup j'ai besoin que l'on confirme la date."}
-{"type": "segment", "speaker": "me", "start": 3.4, "end": 5.1, "text": "Première semaine de juin, je pense."}
+{"type": "segment", "speaker": "me", "track": "local", "voice": null, "start": 3.4, "end": 5.1, "text": "Première semaine de juin, je pense."}
 {"type": "covered", "speaker": "others", "until": 30.0}
 ```
 
 To refuse: a file whose first line is not a `header` of `transcript/v1`; a `segment` whose
-`speaker` is neither `me` nor `others`, or whose `end` is before its `start`.
+`speaker` is neither `me` nor `others`, whose `track` is neither `local` nor `remote` or not its
+speaker's, or whose `end` is before its `start`.
