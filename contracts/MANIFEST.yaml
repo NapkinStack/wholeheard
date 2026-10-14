@@ -13,15 +13,23 @@ consumes: []
 data:
   owns: []
   shared: []
-dependencies: []
+dependencies:
+  - name: jsoncompat
+    purpose: Says whether a contract's schema, as changed, still allows only what the merged one allowed
+    adr: docs/adr/0005-a-contract-carries-a-schema-and-a-comparator-judges-its-changes.md
+    exit_strategy: >
+      One call, analyze_compat, in scripts/compat.py, held by tests/test_compat.py on changes
+      made there; any comparator of JSON Schemas that passes them replaces it.
 
-# Declared with the first contract: check and test are required once this folder holds one
-# (fitness M7), and compat once a version is consumed or stable (nstack compat, V1). The
-# tools are the project's, named in .nstack/tooling-profile.md.
+# What `nstack <verb> contracts` runs, from this folder. `compat` is the project's
+# comparator (rule V1): it is run as merged, with the version as merged in
+# $NSTACK_BASE_PATH and the version as changed in $NSTACK_HEAD_PATH, and exits 0 when the
+# change is compatible. It compares the schemas a version holds, never its pages.
 commands:
-#  check:     # validates every contract document against its format
-#  test:      # the contract tests, run on both sides (.nstack/handbook/03-contracts.md §5)
-#  compat:    # exits 0 when $NSTACK_HEAD_PATH is compatible with $NSTACK_BASE_PATH
+  bootstrap: uv sync --locked
+  check: uv run --locked ruff check . && uv run --locked ruff format --check .
+  test: uv run --locked pytest -q
+  compat: uv run --locked python scripts/compat.py
 
 docs:
   readme: README.md

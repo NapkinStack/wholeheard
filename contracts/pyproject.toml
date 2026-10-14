@@ -1,0 +1,15 @@
+[project]
+name = "summit-contracts"
+version = "0.1.0"
+description = "What Summit's modules promise each other, and what says whether a change to a promise is compatible."
+requires-python = ">=3.12"
+dependencies = ["jsoncompat==0.5.0"]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.8"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
