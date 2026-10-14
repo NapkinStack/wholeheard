@@ -53,6 +53,13 @@ next run makes them again, the same to the byte, and the transcript with them. A
 begun while the meeting was recorded keeps the decision taken then — echo or not — for the
 rest: its beginning was heard so. Delete `made.json` with it, or not at all.
 
+**A turn starts where it was said.** Each word is timed by the model's alignment heads, and a
+segment is cut where the words stop for more than half a second: on the bench, at most two
+exchanges in forty-four are out of order, against one in four with the engine's own segments
+(cycle 02, D10). A model whose heads whisper.cpp does not hold — or the first two versions
+of `large`, which one header cannot tell apart — keeps the engine's segments, and `hearing`
+says so: `"times": "segments"` instead of `"words"`.
+
 **Attach a context** — `context.txt` in the session's folder: names and words of the trade
 the engine would otherwise write as it hears them.
 

@@ -7,7 +7,8 @@
 //! fetched. Stopped at any moment, the program is run again and goes on from where it was.
 //!
 //! It says what happens as one JSON object per line on its output — `hearing`, then
-//! `written` — and what failed in one sentence on the error stream.
+//! `written` — and what failed in one sentence on the error stream. `hearing` says whether the
+//! model times each word, which puts a turn where it was said, or each segment only.
 
 use std::{io::Write, path::Path, process::ExitCode};
 
@@ -56,10 +57,12 @@ fn run(folder: &Path, model: &Path, language: Option<&str>) -> Result<(), String
     let (form, session) = read(folder).map_err(|error| error.to_string())?;
     let mut engine = Whisper::load(model).map_err(|error| error.to_string())?;
     let (name, model) = summit_transcription::step::Engine::name(&engine);
+    // A model whose alignment heads are not known has its segments where the engine put them.
+    let times = if engine.times_words() { "words" } else { "segments" };
     let _ = writeln!(
         std::io::stdout(),
         "{}",
-        json!({ "event": "hearing", "engine": name, "model": model, "language": language, "audio": form })
+        json!({ "event": "hearing", "engine": name, "model": model, "language": language, "audio": form, "times": times })
     );
     hear(folder, session, &mut engine, language, SPAN).map_err(|error| error.to_string())?;
     let _ = writeln!(
