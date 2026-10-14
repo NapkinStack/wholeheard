@@ -73,7 +73,7 @@ deliverables:
     state: in-progress
     acceptance:
       - "Given a consumed contract whose page says something false — `recording/v1` on the second form of a recording, `transcript/v1` on the engine's name, a diagram on who reads — when the page is corrected in a pull request, then the project's comparator lets it through and it is merged without a new version"
-      - "Given a pull request that removes, renames or retypes a field of `recording/v1` or `transcript/v1`, when its checks run, then the comparator refuses it and gives an example of what a consumer would now receive"
+      - "Given a pull request that removes, renames or retypes a field of `recording/v1` or `transcript/v1`, when its checks run, then the comparator refuses it, with an example of what a consumer would now receive or the reason none could be made"
       - "Given the producer of `recording/v1` and of `transcript/v1`, when its tests run, then what it writes is validated against the contract's schema"
 ---
 

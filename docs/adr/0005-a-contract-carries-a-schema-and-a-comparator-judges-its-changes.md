@@ -86,7 +86,10 @@ with `jsoncompat`, from the consumers' side: everything a producer may write und
 changed schema must be something the merged one allowed.
 
 - A schema that was merged is never removed from its version.
-- A schema added where there was none is let through: nothing was promised by a machine yet.
+- A schema added where there was none is let through once the comparator reads it: nothing
+  was promised by a machine yet.
+- **A version that holds no schema cannot change**: nothing can be compared, and what is
+  not proven is refused. The same holds for a change the comparator cannot decide.
 - **A version's pages are not compared.** A promise made in prose only — "a track is never
   rewritten" — is held by review and by nothing else. What can be said in a schema is said
   there.
@@ -121,7 +124,16 @@ and the comparator is replaced behind its one script.
   whether a session of the second form with no clock is to be refused.
 - The `contracts` module now holds code: it has `check`, `test` and a locked environment.
 - The comparator is alpha software. It judges JSON Schemas only: a contract that is not
-  JSON would need another.
+  JSON — `minutes/v1`, a page of Markdown — would need another, and stays frozen until then.
+- What its first verification measured, on 327 changes to schemas written for this
+  project's contracts: **no break was let through**; 23 harmless changes of 124 were refused,
+  most because a union leaned on a keyword beside it — the module's rule for writing a
+  schema comes from there. It reads JSON Schema 2020-12 only, follows a `$ref` only inside
+  its own file, does not read `format`, and cannot decide a changed `pattern`. Whether an
+  example comes with a refusal can vary from one run to the next; the refusal does not.
+- An object left open is what makes "a field added" compatible. Each schema decides it,
+  object by object; the pages of `recording` and `transcript` tell a reader to ignore what
+  it does not know, and their schemas leave their objects open.
 
 ## Rejected alternatives
 
