@@ -13,12 +13,61 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde_json::json;
+
 /// Samples per second of every audio file of a session.
 pub const RATE: u32 = 16_000;
 /// The contract's name, as `session.json` carries it.
 pub const CONTRACT: &str = "session-audio/v1";
 /// Below this share of full scale, a source is silent.
 pub const SILENCE: f32 = 0.001;
+
+/// The sources, as what the program says names them: the microphone, then what the machine plays.
+pub const SOURCES: [&str; 2] = ["me", "others"];
+
+/// What the program says while it records (`contracts/recording/v1`): one line of its output
+/// each. Both forms of a session say the same lines, and say them only through these.
+pub enum Event<'a> {
+    /// A source — by its place in [`SOURCES`] — that could not be opened, and why.
+    Unavailable {
+        source: usize,
+        reason: &'a str,
+    },
+    /// The recording runs: its folder, and the name the system gave each source, or `unavailable`.
+    Started {
+        folder: &'a Path,
+        sources: [&'a str; 2],
+    },
+    Silent {
+        source: usize,
+    },
+    Heard {
+        source: usize,
+    },
+    /// The recording is whole: its folder, and its length in seconds.
+    Stopped {
+        folder: &'a Path,
+        seconds: f64,
+    },
+}
+
+impl Event<'_> {
+    /// The line, as a JSON object.
+    pub fn line(&self) -> serde_json::Value {
+        match *self {
+            Event::Unavailable { source, reason } => json!({ "event": "unavailable", "source": SOURCES[source], "reason": reason }),
+            Event::Started {
+                folder,
+                sources: [me, others],
+            } => {
+                json!({ "event": "started", "folder": folder, "sources": { "me": me, "others": others } })
+            }
+            Event::Silent { source } => json!({ "event": "silent", "source": SOURCES[source] }),
+            Event::Heard { source } => json!({ "event": "heard", "source": SOURCES[source] }),
+            Event::Stopped { folder, seconds } => json!({ "event": "stopped", "folder": folder, "seconds": seconds }),
+        }
+    }
+}
 
 const HEADER: u64 = 44;
 /// A length that says "not known yet": players then read to the end of the file.
