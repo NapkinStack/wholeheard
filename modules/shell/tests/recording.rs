@@ -88,7 +88,7 @@ exit 1"#,
     // Killed while it recorded: it says nothing of it, and that is said too.
     let (_recording, heard) = played(
         folder.path(),
-        r#"echo '{"event":"started","folder":"'"$sessions"'/s"}'; kill -9 $$"#,
+        r#"echo '{"event":"started","folder":"'"$sessions"'/s","sources":{"me":"Mic","others":"Speaker"}}'; kill -9 $$"#,
     );
     assert_eq!(all(&heard), [Said::Started(folder.path().join("s")), Said::Failed(String::new())]);
 
@@ -101,7 +101,7 @@ fn a_recording_goes_on_when_the_shell_lets_go_of_it() {
     let folder = tempfile::tempdir().unwrap();
     let (recording, heard) = played(
         folder.path(),
-        r#"echo '{"event":"started","folder":"'"$sessions"'/s"}'
+        r#"echo '{"event":"started","folder":"'"$sessions"'/s","sources":{"me":"Mic","others":"Speaker"}}'
 sleep 1
 touch "$sessions/still-recording""#,
     );
