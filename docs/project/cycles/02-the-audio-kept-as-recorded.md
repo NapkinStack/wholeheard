@@ -59,6 +59,14 @@ deliverables:
     acceptance:
       - "Given the bench's meeting and one of sixteen minutes made from it, when minutes are asked of the model on the machine, then the cycle records for each: whether minutes came, in how long, and — when they did not — what the model answered instead and how much of the transcript it had been given"
       - "Given that record, when it is read against the threshold — minutes of a meeting of an hour, on the decider's laptop, in less than the meeting's length — then the result is written as met or refuted, with what would have to change: a refuted result is a delivered one"
+  - id: D14
+    title: "Spike — does a speech detector, run before the engine, remove the words an engine finds where nobody speaks, without losing any that were said?"
+    module: null
+    state: ready
+    acceptance:
+      - "Given the bench's meeting played in a room that is not silent — a steady noise, and a voice that is no participant's, between the turns — when its tracks are transcribed with and without the speech detector that the engine's own library carries (whisper.cpp's, with the Silero model), then the cycle records for each: the words written where no participant spoke, the words of the participants that are missing, and the time taken"
+      - "Given that record, when it is read against the threshold — fewer words where nobody spoke, and no more words missing than without the detector — then the result is written as met or refuted, with the settings it was measured at: a refuted result is a delivered one"
+      - "Given the detector's model is a file, when the spike is run, then the file is one the user was shown and placed, as the engine's own model is: nothing is fetched by the program"
 ---
 
 # Cycle 02 — The audio kept as recorded
@@ -115,6 +123,39 @@ second criterion was restated in cycle 01.
 (`.nstack/handbook/09-platform.md`). No other is created: the echo-free microphone and the
 engine's copy are made by `transcription`, which is what needs them; `all`, the file to
 listen to, is `export`'s, in a later cycle.
+
+### D14 — why a speech detector is tried, and which (2026-10-14)
+
+Asked by the decider on 2026-10-14, while the step that reads a session as delivered was
+being verified: a measure of silence written here — a level against a threshold — was taken
+up three times in one pull request, and tells silence from sound, never speech from noise.
+A room is not silent: with a television on beside the microphone no span of that track is
+silence to a level, all of it goes to the engine, and an engine handed sound without speech
+writes words nobody said. Turning the sound down changes nothing: it lowers a voice and a
+noise together.
+
+What is established practice (read on 2026-10-14): a speech detector is run before the
+engine, and the engine hears only where it found speech. WhisperX is built on it and reports
+fewer invented and repeated words; faster-whisper carries it as an option; a 2025 study of
+what Whisper writes on sound without speech put Silero's, and WebRTC's, before it.
+`whisper.cpp` — the engine's library here, ADR-0003 — carries one since 2025, with the
+Silero model, and the Rust binding the module already uses exposes it: no dependency is
+added, one small model file is.
+
+| Detector | Licence | Kept or not |
+|---|---|---|
+| Silero, through `whisper.cpp` | MIT | **Tried in this spike**: the usual reference for accuracy, already in the library the module links |
+| WebRTC's | BSD | Not tried: smaller and faster, less accurate on the comparisons read |
+| TEN | Apache-2.0 with a clause against competing use | Refused: not a free licence |
+
+What it will not do, known before the spike: a detector finds speech, the television's
+included — whose voice it is, is D10's. And Silero is reported to find speech in some
+noises: the spike counts it, on the bench, before anything is adopted. The level measure
+stays in the step for what it does tell: a source that delivered nothing.
+
+Sources: WhisperX, arXiv 2303.00747; *Investigation of Whisper ASR Hallucinations Induced by
+Non-Speech Audio*, arXiv 2501.11378; the `whisper.cpp` README, "Voice Activity Detection";
+the TEN VAD licence as its repository states it.
 
 ### D8 — the line every later change is read against (2026-10-13)
 
