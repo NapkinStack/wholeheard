@@ -204,6 +204,7 @@ def write_session(folder: Path, tracks: dict[str, np.ndarray], truth: list[dict]
         "contract": "session-audio/v1",
         "started": "2026-10-14T09:00:00+02:00",
         "stopped": "2026-10-14T09:05:00+02:00",
+        "sources": {"me": {"device": "bench"}, "others": {"device": "bench"}},
     }
     (folder / "session.json").write_text(json.dumps(record), encoding="utf-8")
     (folder / "truth.json").write_text(json.dumps({"turns": truth}, ensure_ascii=False, indent=1), encoding="utf-8")

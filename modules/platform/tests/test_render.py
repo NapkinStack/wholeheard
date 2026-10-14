@@ -5,6 +5,7 @@ import json
 import wave
 from pathlib import Path
 
+import jsonschema
 import numpy as np
 import pytest
 
@@ -31,6 +32,13 @@ def tone(voice: str, text: str) -> np.ndarray:
     pitch = 200 + 100 * sorted(VOICES).index(voice)
     samples = np.arange(round(0.25 * len(text.split()) * RATE))
     return (0.3 * np.sin(2 * np.pi * pitch * samples / RATE)).astype(np.float32)
+
+
+def valid(schema: str, documents: list) -> bool:
+    """Whether every document is one the contract's own schema allows."""
+    path = Path(__file__).parent.parent.parent.parent / "contracts" / schema
+    reads = jsonschema.Draft202012Validator(json.loads(path.read_text(encoding="utf-8")))
+    return all(reads.is_valid(document) for document in documents)
 
 
 def test_the_script_is_a_meeting_of_two_sides_with_a_room_on_one_of_them():
@@ -91,6 +99,8 @@ def test_a_rendered_meeting_is_a_session_the_programs_read_with_its_truth_beside
         assert (tmp_path / "headset" / name).read_bytes() == (again / name).read_bytes()
     record = json.loads((tmp_path / "headset" / "session.json").read_text())
     assert record["contract"] == "session-audio/v1" and isinstance(record["stopped"], str)
+    # What the programs read is what the contract promises: the record, read against its schema.
+    assert valid("session-audio/v1/session.schema.json", [record])
     kept = json.loads((tmp_path / "headset" / "truth.json").read_text(encoding="utf-8"))["turns"]
     assert kept == truth and {"voice", "side", "start", "end", "text", "words"} == set(kept[0])
     # Each word has its instant, inside its turn and never before the word it follows.
@@ -162,6 +172,9 @@ def test_the_same_meeting_as_a_recording_keeps_it_is_each_side_as_delivered_and_
     record = json.loads((tmp_path / "session.json").read_text())
     assert record["contract"] == "session-audio/v2" and set(record["tracks"]) == {"local", "remote"}
     clock = [json.loads(line) for line in (tmp_path / "clock.jsonl").read_text().splitlines()]
+    assert valid("session-audio/v2/session.schema.json", [record]) and valid(
+        "session-audio/v2/clock.schema.json", clock
+    )
     for side in ("local", "remote"):
         data = (tmp_path / f"{side}.wav").read_bytes()
         # The header the capture writes: extensible, two channels, 24 bits, the meeting's rate.
