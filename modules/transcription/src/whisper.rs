@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn a_mark_of_punctuation_heard_late_stays_with_the_word_before_it() {
-        let cut = cut(&tokens(&[(100, " calendrier"), (180, " ?"), (300, " Oui")]));
+        let cut = cut(&tokens(&[(100, " calendrier"), (190, " ?"), (300, " Oui")]));
         let texts: Vec<&str> = cut.iter().map(|s| s.text.as_str()).collect();
         assert_eq!(texts, ["calendrier ?", "Oui"]);
     }
