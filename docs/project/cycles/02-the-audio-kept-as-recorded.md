@@ -139,6 +139,90 @@ three diagrams of consumed contracts was refused (#96): the contracts were pages
 and nothing could call a change to one compatible. The decision, what was read and what was
 tried: [ADR-0005](../../adr/0005-a-contract-carries-a-schema-and-a-comparator-judges-its-changes.md).
 
+### D14 — what the speech detector did (2026-10-14)
+
+**Result: refuted.** In a room that is not silent, the detector makes the engine write the
+words nobody at the meeting said; without it, the engine leaves them out.
+
+Tried on a branch of the spike's own, never merged: the detector `whisper.cpp` carries,
+with its Silero model (v5.1.2), at its default settings, called before the engine on each
+track of the second form. Three ways to hear what it finds:
+
+```mermaid
+flowchart LR
+    T["A track, on the<br/>session's clock"]:::file --> V["The detector<br/>finds speech"]:::spike
+    V --> A["Each stretch<br/>heard alone"]:::way
+    V --> B["Each stretch alone,<br/>0.2 s more at each edge"]:::way
+    V --> C["Stretches joined into<br/>pieces of 30 s at most,<br/>0.2 s more at each edge"]:::way
+    A --> E["The engine,<br/>as today"]:::other
+    B --> E
+    C --> E
+
+    classDef file fill:#374151,color:#fff
+    classDef spike fill:#92400e,color:#fff
+    classDef way fill:#065f46,color:#fff
+    classDef other fill:#1e3a8a,color:#fff
+```
+
+**Legend** — grey: the sound · orange: the detector · green: the three ways tried · blue:
+the engine, unchanged. The third is how WhisperX does it.
+
+**In the room that is not silent** — the bench's `television` condition (#110): no echo, a
+television that talks all along 15 dB under the local voices, a hum. Six draws, lowest –
+median – highest:
+
+| Count | Without | Each stretch alone, wider | Pieces of 30 s |
+|---|---|---|---|
+| Local words wrong, of 516 | 22 – 23.5 – 27 | 326 – 342 – 352 | 23 – 51.5 – 98 |
+| … of which the television's, two in a row, of 1,546 it said | 0 | 39 – 46 – 55 | 0 – 6 – 15 |
+| Words missing, local / remote | 21 / 9 | 20.5 / 11 | 21 / 8 |
+| Seconds to hear a session | 51 | 254 | 47 |
+
+- Without the detector the engine writes nothing of the television: a voice 15 dB under the
+  meeting's is passed over.
+- The detector finds speech in the television too, as was known before the spike: whose
+  voice it is, it cannot say. Heard alone, a stretch where only the television speaks is
+  written whole — most of it garbled, which is why the television's own count, words two in
+  a row, holds so few of the 300 words added. Joined in pieces, it is written where a piece
+  holds both.
+- No word of the participants more is missing with it, nor fewer: the second half of the
+  threshold holds, the first does not.
+
+**In the bench's three other conditions** (second form, medians, headset / loudspeakers low /
+loud; the first two columns are D9's):
+
+| Count | First form | Second form | Each stretch alone, wider | Pieces of 30 s |
+|---|---|---|---|---|
+| Remote words wrong, of 331 | 7 / 6 / 6 | 11.5 / 15.5 / 21.5 | 13.5 / 14 / 13.5 | 10.5 / 11 / 11 |
+| Local words wrong net of the echo, of 516 | 27.5 / 43 / 49.5 | 40.5 / 45.5 / 46.5 | 24 / 40.5 / 53.5 | 22.5 / 33.5 / 40.5 |
+| Exchanges out of order, of about 45 | 12 / 7 / 8 | 14.5 / 11 / 9.5 | **0 / 1 / 1** | 16 / 10.5 / 10.5 |
+| Turns far from their time, of about 69 | 30.5 / 17 / 18 | 32 / 20.5 / 20 | **1 / 2 / 1** | 28 / 15 / 14 |
+
+Each stretch alone with the detector's own edges, 30 ms, lost short words at the start of
+turns — *oui*, *on* — and gave 21 remote words wrong in each condition; 0.2 s more at each
+edge gave them back.
+
+**What it showed besides, and what it asks of the next steps:**
+
+- **When a turn was said is right when each stretch is heard alone**: one exchange in
+  forty-five out of order, where a headset gives one in four today. The order D10 asks for —
+  one in twenty — is reached by where the engine starts its windows, not by the words. It
+  costs five times the time: the engine hears thirty seconds for every *oui*.
+- **The words are best in pieces of 30 s**, and faster than today; the second form's loss on
+  the remote side is halved on loud loudspeakers. That holds only where the room is silent.
+- **A detector before the engine is not adopted as it is.** What would have to change, each
+  a choice for D10: the instants taken from the detector's stretches while the words come
+  from longer pieces; or a voice that is no participant's told apart before anything is
+  written — which is D10's question of who spoke, put to a television.
+- **The settings** were the detector's defaults — a threshold of 0.5, speech of 250 ms at
+  least, silence of 100 ms — and are not what was refuted: no setting tells a television's
+  voice from a participant's.
+
+The detector's model file was fetched by the framer, for the spike, from the public
+repository of `whisper.cpp`'s models (`ggml-org/whisper-vad`, MIT); the program fetched
+nothing. The third criterion asked for a file the user was shown and placed: it was not
+shown first. Nothing of the spike is in the product.
+
 ### D14 — why a speech detector is tried, and which (2026-10-14)
 
 Asked by the decider on 2026-10-14, while the step that reads a session as delivered was
@@ -312,8 +396,8 @@ Computed, not measured: two tracks at 48,000 samples a second, two channels, 24 
 real measure.
 
 Left before D9 is offered for acceptance: the second form becomes what `record` writes, from
-the tray too — **which the remote side's count argues against until D14 is read**: the
-decider's to weigh; a session of the first form is still read, or refused in one sentence;
+the tray too — **which the remote side's count argues against, and D14 did not answer**:
+the decider's to weigh; a session of the first form is still read, or refused in one sentence;
 the hour's weight.
 
 ## Out of scope
