@@ -41,9 +41,12 @@ by a line feed. Lines are only ever added. Every line has a `type`.
   that wants the meeting sorts the segments by `start`.
 - **A segment is known by `speaker` and `start`.** No two segments share both.
 - **Who spoke is two questions** (ADR-0004, rule 6): which track — certain, `track`; which
-  voice within it — estimated, `voice`. A voice, once told, is a label of one line, the same
-  for one voice throughout a transcript; it names no one. `track` and `voice` are written
-  since 2026-10-14: a segment written before has neither, and its track is its `speaker`'s.
+  voice within it — estimated, `voice`. `null` is a voice not told: no producer of this
+  version tells voices apart yet, and once one does, `null` still says the voice of that
+  segment could not be told. A voice told is a label of one line, the same for one voice
+  throughout a transcript, and a label of its track only: `1` on `local` and `1` on `remote`
+  are two voices. It names no one. A segment may carry neither field — those written before
+  they were — and its track is then its `speaker`'s.
 - **Running the step again adds nothing already there**: it starts, for each speaker, from
   the last `covered`.
 - **No `complete` line means not finished** — still running, or stopped. The lines there are

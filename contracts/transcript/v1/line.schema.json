@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "A line of transcript.jsonl",
-  "description": "transcript/v1 — one JSON object a line. What a schema cannot say is on the contract's page: the order of the lines, that they are only ever added, that a segment ends after it starts, that its track is its speaker's.",
+  "description": "transcript/v1 — one JSON object a line. What a schema cannot say is on the contract's page: the order of the lines, that they are only ever added, that a segment ends after it starts.",
   "oneOf": [
     {
       "type": "object",
@@ -83,7 +83,28 @@
         "start",
         "end",
         "text"
-      ]
+      ],
+      "if": {
+        "properties": {
+          "speaker": {
+            "const": "me"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "track": {
+            "const": "local"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "track": {
+            "const": "remote"
+          }
+        }
+      }
     },
     {
       "type": "object",

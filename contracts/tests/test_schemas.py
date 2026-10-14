@@ -201,6 +201,12 @@ EXAMPLES = {
             {"type": "segment", "speaker": "me", "voice": "", "start": 0.0, "end": 3.2, "text": "x"},
             {"type": "segment", "speaker": "me", "voice": "two\nlines", "start": 0.0, "end": 3.2, "text": "x"},
             {"type": "segment", "speaker": "me", "voice": 2, "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "track": "both", "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "track": "remote", "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "others", "track": "local", "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "voice": True, "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "voice": ["1"], "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "voice": "a\rb", "start": 0.0, "end": 3.2, "text": "x"},
             {"type": "covered", "speaker": "anyone", "until": 30.0},
             {"type": "complete", "duration": -1},
             {
