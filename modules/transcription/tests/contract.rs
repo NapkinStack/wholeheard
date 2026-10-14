@@ -72,6 +72,15 @@ fn every_line_the_step_writes_is_one_the_contracts_schema_allows_in_the_order_it
         assert_eq!(types.iter().filter(|kind| **kind == "complete").count(), usize::from(complete));
         assert_eq!(*types.last().unwrap() == "complete", complete);
         assert_eq!(types.iter().filter(|kind| **kind == "segment").count(), 3);
+        // Each segment says its track, and keeps the place of the voice, empty in this version.
+        for segment in lines.iter().filter(|line| line["type"] == "segment") {
+            let track = if segment["speaker"] == "me" { "local" } else { "remote" };
+            assert_eq!(
+                (&segment["track"], &segment["voice"]),
+                (&track.into(), &serde_json::Value::Null),
+                "{segment}"
+            );
+        }
     }
     // The step writes the four kinds the contract names, under those names, and no other: a
     // kind renamed would still be a line the schema allows — one of a type it does not name.
