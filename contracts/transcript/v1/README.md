@@ -5,9 +5,10 @@ grows: read at any moment, it is true up to its last line.
 
 ```mermaid
 flowchart LR
-    A["me.wav · others.wav<br/>context.txt"]:::file --> T["transcription"]:::producer
+    A["The session's sound, in either form<br/>context.txt"]:::file --> T["transcription"]:::producer
     T -->|"appends lines"| J["transcript.jsonl"]:::file
     J --> S["summary"]:::consumer
+    J --> B["platform<br/>the bench's counts"]:::consumer
     J -.-> E["export"]:::planned
 
     classDef producer fill:#065f46,color:#fff
