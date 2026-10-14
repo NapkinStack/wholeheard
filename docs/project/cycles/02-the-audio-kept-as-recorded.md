@@ -251,26 +251,70 @@ Their changes, drawn in the second round:
 Still owed to close D11: the decider's word on the second round — accepted, or changed
 again. What is accepted is the next cycle's criteria.
 
-### D9 — where it stands (2026-10-13)
+### D9 — where it stands (2026-10-14)
 
 In progress. The second form of a session (`contracts/session-audio/v2`) is written **on
-asking**; nothing reads it yet but the bench.
+asking**, read by the step that follows, and measured on the bench.
 
 | Piece | Today |
 |---|---|
-| `capture` | `summit-capture record <sessions> --as v2` writes each source as delivered — its rate, its channels, 24 bits — and the session's clock beside. Without `--as v2` it writes the first form, as before: that is still what the tray starts |
-| `platform` | The bench renders its meeting in either form, the second with a clock that has stops and silences in it |
-| `transcription` | Reads the first form only, and refuses the second in one sentence. Its reader of the second form is being verified |
+| `capture` | `summit-capture record <sessions> --as v2` writes each source as delivered — its rate, its channels, 24 bits — and the session's clock beside. Without `--as v2` it writes the first form, as before: that is still what the tray starts. Its end-to-end scenarios cover both forms, on devices made for the run |
+| `platform` | The bench renders its meeting in either form, the second with a clock that has two stops and a silence in it |
+| `transcription` | Reads either form — `session.json` names which — and says which it read. A track is brought to what an engine hears and placed on the session's clock; the first form is heard as it always was |
 | What the programs say while recording (`recording/v1`) | The same lines in both forms; they still name the sources `me` and `others` where the second form's files are `local` and `remote` |
+
+**The bench on the second form** (2026-10-14; one binary, built from `main` at `cdcef09`,
+for both forms; six draws of each condition; lowest – median – highest is in the runs, the
+medians here, headset / loudspeakers low / loud):
+
+| Count | First form | Second form |
+|---|---|---|
+| Words said twice, of 331 | 0 / 204 / 218.5 | 0 / 206.5 / 212.5 |
+| Local words wrong net of the echo, of 516 | 27.5 / 43 / 49.5 | 40.5 / 45.5 / 46.5 |
+| **Remote words wrong, of 331** | **7 / 6 / 6** | **11.5 / 15.5 / 21.5** |
+| Local words lost under the remote, of 109 | 7 / 9 / 21 | 12.5 / 10.5 / 18 |
+| Exchanges out of order, of about 45 | 12 / 7 / 8 | 14.5 / 11 / 9.5 |
+| Turns far from their time, of about 69 | 30.5 / 17 / 18 | 32 / 20.5 / 20 |
+
+The first form gives D8's line again, to the count: the programs have not moved it. The
+echo is where it was — nothing treats it yet. **The remote side is worse in the second
+form**, and that one was followed to its cause on the six loud draws:
+
+| The remote track, heard… | Remote words wrong, the six draws | Median |
+|---|---|---|
+| as the clock places it: two stops, 0.7 s at 104 s and 0.5 s at 147 s | 29, 14, 31, 33, 13, 7 | 21.5 |
+| the same, heard a second time | the same six transcripts, byte for byte | 21.5 |
+| with the two stops not placed | 7, 7, 8, 13, 7, 13 | 7.5 |
+| with no stop, the whole track 1.2 s later | 13, 6, 6, 6, 6, 6 | 6 |
+
+- The engine is the same twice on the same sound: the differences are of the sound, not of chance.
+- What is lost is one turn of sixteen words, at 251 s — a hundred seconds after the last
+  stop, in sound that is the same, at the same instants, in the first and in the last row
+  (by how the two are made: from 149 s on, both are the track 1.2 s later — not compared
+  sample for sample).
+  The stops fall in pauses between two turns, and the sound itself is the first form's:
+  same level, same spectrum.
+- So the engine writes something else at 251 s according to what it heard at 105 s. It
+  hears a long recording window after window, each started from where the one before said
+  it ended: a pause moved by half a second moves every window after it. **This is the
+  engine's way with long sound, shown by a recording that places its pauses truly; it is
+  not a sound the reader makes wrong.** The first form hides it only because its bench has
+  no stop in it — and loses whole turns too, on the local side (0 to 52 words a draw).
+- What it asks for is D14's: sound cut where nobody speaks, each piece heard by itself, so
+  that no piece depends on the one before. The four rows above are the line D14 is read
+  against, on the remote side.
+- On the local side the medians differ and the draws overlap widely; no direction is
+  established there.
 
 Not measured yet — D9's fourth criterion: what an hour weighs on the decider's laptop.
 Computed, not measured: two tracks at 48,000 samples a second, two channels, 24 bits are
 2.07 GB an hour as delivered. The limit that replaces 250 MB is the decider's to set on the
 real measure.
 
-Left before D9 is offered for acceptance: the step reads the second form; the bench's counts
-on it are recorded here beside the line above; the second form becomes what `record` writes,
-from the tray too; a session of the first form is still read, or refused in one sentence.
+Left before D9 is offered for acceptance: the second form becomes what `record` writes, from
+the tray too — **which the remote side's count argues against until D14 is read**: the
+decider's to weigh; a session of the first form is still read, or refused in one sentence;
+the hour's weight.
 
 ## Out of scope
 
