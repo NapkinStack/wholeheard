@@ -132,6 +132,60 @@ second criterion was restated in cycle 01.
 engine's copy are made by `transcription`, which is what needs them; `all`, the file to
 listen to, is `export`'s, in a later cycle.
 
+### D10 — the echo and the times, tried before they are built (2026-10-14)
+
+**Result: both hold on the bench**: no word said twice on loudspeakers, and at most two
+exchanges in forty-four out of order in any condition. What is built follows; what is open
+is said below.
+
+Tried on a branch of the spike's own, never merged, on the bench's first form (D8's material,
+six draws of each condition):
+
+```mermaid
+flowchart LR
+    L["local<br/>as recorded"]:::file --> C["The echo canceller<br/>remote as what was played"]:::spike
+    R["remote<br/>as recorded"]:::file --> C
+    C --> M["local without the echo"]:::derived
+    M --> E["The engine,<br/>as today"]:::other
+    R --> E
+    E --> W["Each word's time<br/>from the engine's<br/>alignment heads"]:::spike
+    W --> S["A segment cut where<br/>its words stop<br/>for more than 0.5 s"]:::derived
+    classDef file fill:#374151,color:#fff
+    classDef spike fill:#92400e,color:#fff
+    classDef derived fill:#065f46,color:#fff
+    classDef other fill:#1e3a8a,color:#fff
+```
+
+**Legend** — grey: the tracks · orange: the two things tried · green: what they make · blue:
+the engine, unchanged. On loudspeakers both are used; with a headset, the second only.
+
+| Count, medians, headset / loudspeakers low / loud | Today (D8) | The canceller | The canceller and the words' times |
+|---|---|---|---|
+| Words said twice, of 331 | 0 / 204 / 218.5 | 0 / **0** / **0** | 0 / 0 / 0 |
+| Local words wrong net of the echo, of 516 | 27.5 / 43 / 49.5 | — / 38.5 / 46 | 27.5 / 38.5 / 46 |
+| Local words lost under the remote, of 109 | 7 / 9 / 21 | — / 8.5 / **23.5** | 7 / 8.5 / 23.5 |
+| Words on the wrong side | 0 | 0 | 0 |
+| Exchanges out of order, of about 45 | 12 / 7 / 8 | — / 13 / 14 | **0.5 / 0 / 0** — at most 2 |
+| Turns far from their time, of about 69 | 30.5 / 17 / 18 | — / 29 / 27 | **1.5 / 2 / 2** |
+| Seconds to hear a session | about 50 | about 50 | 51 to 62 |
+
+- **The canceller** is WebRTC's, the one browsers and PipeWire use, in its Rust port
+  `sonora` 0.2.0 (BSD-3-Clause): fed the remote track as what the loudspeakers played, it
+  leaves a third to a half of the microphone's sound where only the remote speaks, and the
+  engine writes none of it. Cycle 01's attempt cut sentences; this one does not: the local
+  words wrong net of the echo go down, not up.
+- **Where it costs**: on loud loudspeakers, the local words said over the remote — 23.5 lost
+  of 109, against 21 as delivered; the draws overlap (20 – 30 against 14 – 25). This is the
+  criterion's half still open; the canceller's settings are its first lever.
+- **The order is the words' times, not the echo's doing.** Without the echo the order falls
+  back to a headset's, one in four. Each word timed by the alignment heads `whisper.cpp`
+  carries for this model, and a segment cut where the words stop, put each turn where it was
+  said — as hearing each stretch alone did in D14, at a tenth of its cost, and with no
+  detector to write a television. The words are the same, to the count.
+- **Not tried yet**: the canceller on the second form, at the rate a track was delivered;
+  telling where an echo is measured (ADR-0004, rule 5), so that a headset's microphone goes
+  to the engine untouched; a mark of punctuation alone, cut off as a segment of its own.
+
 ### D15 — why the contracts get schemas (2026-10-14)
 
 Decided by the decider on 2026-10-13, when a pull request that corrected an example and
