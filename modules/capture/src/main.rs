@@ -27,7 +27,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use serde_json::json;
-use summit_capture::{Heard, RATE, Track, Watch, new_folder, v2, write_session};
+use summit_capture::{Event, Heard, RATE, SOURCES, Track, Watch, new_folder, v2, write_session};
 
 /// A source is told silent after this long without a sound.
 const SILENT_AFTER: f64 = 10.0;
@@ -43,7 +43,6 @@ const POINT_EVERY: f64 = 5.0;
 const OFF: f64 = 0.005;
 
 /// The sources as `recording/v1` names them in what the program says.
-const SOURCES: [&str; 2] = ["me", "others"];
 /// The same two as `session-audio/v2` names their tracks.
 const TRACKS: [&str; 2] = ["local", "remote"];
 
@@ -53,8 +52,8 @@ type Sound = (usize, f64, Vec<f32>);
 
 /// Says an event to whoever started the program (`contracts/recording/v1`). Nobody may be
 /// listening any more — a shell that crashed, a pipe that closed: the recording goes on.
-fn say(event: serde_json::Value) {
-    let _ = writeln!(std::io::stdout().lock(), "{event}");
+fn say(event: Event) {
+    let _ = writeln!(std::io::stdout().lock(), "{}", event.line());
 }
 
 fn main() -> ExitCode {
@@ -134,7 +133,10 @@ fn record(sessions: &Path) -> Result<(), String> {
         let (name, stream, rate, channels) = match opened {
             Ok((name, stream, rate, channels)) => (name, Some(stream), rate, channels),
             Err(reason) => {
-                say(json!({ "event": "unavailable", "source": SOURCES[index], "reason": reason }));
+                say(Event::Unavailable {
+                    source: index,
+                    reason: &reason,
+                });
                 ("unavailable".to_string(), None, RATE, 1)
             }
         };
@@ -151,7 +153,10 @@ fn record(sessions: &Path) -> Result<(), String> {
     }
     let stamp = |time: chrono::DateTime<chrono::Local>| time.to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
     write_session(&folder, &stamp(started), None, &names[0], &names[1]).map_err(|e| e.to_string())?;
-    say(json!({ "event": "started", "folder": folder, "sources": { "me": names[0], "others": names[1] } }));
+    say(Event::Started {
+        folder: &folder,
+        sources: [&names[0], &names[1]],
+    });
 
     let stop = stop_asked()?;
 
@@ -177,8 +182,8 @@ fn record(sessions: &Path) -> Result<(), String> {
                         .map_err(|e| e.to_string())?;
                 }
                 match source.watch.after(since, source.track.loudest()) {
-                    Heard::Silent => say(json!({ "event": "silent", "source": SOURCES[index] })),
-                    Heard::Again => say(json!({ "event": "heard", "source": SOURCES[index] })),
+                    Heard::Silent => say(Event::Silent { source: index }),
+                    Heard::Again => say(Event::Heard { source: index }),
                     Heard::Nothing => {}
                 }
             }
@@ -198,7 +203,10 @@ fn record(sessions: &Path) -> Result<(), String> {
         track.pad_to(longest).and_then(|()| track.finish()).map_err(|e| e.to_string())?;
     }
     write_session(&folder, &stamp(started), Some(&stamp(chrono::Local::now())), &names[0], &names[1]).map_err(|e| e.to_string())?;
-    say(json!({ "event": "stopped", "folder": folder, "seconds": longest as f64 / f64::from(RATE) }));
+    say(Event::Stopped {
+        folder: &folder,
+        seconds: longest as f64 / f64::from(RATE),
+    });
     Ok(())
 }
 
@@ -287,7 +295,10 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
                 }));
             }
             Err(reason) => {
-                say(json!({ "event": "unavailable", "source": SOURCES[index], "reason": reason }));
+                say(Event::Unavailable {
+                    source: index,
+                    reason: &reason,
+                });
                 names.push("unavailable".to_string());
                 sources.push(None);
             }
@@ -304,7 +315,10 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
         .collect();
     let stamp = |time: chrono::DateTime<chrono::Local>| time.to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
     v2::write_session(&folder, &stamp(started), None, &held).map_err(|e| e.to_string())?;
-    say(json!({ "event": "started", "folder": folder, "sources": { "me": names[0], "others": names[1] } }));
+    say(Event::Started {
+        folder: &folder,
+        sources: [&names[0], &names[1]],
+    });
 
     let stop = stop_asked()?;
     let mut checked = Instant::now();
@@ -337,8 +351,8 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
                     source.owed = true;
                 }
                 match source.watch.after(since, source.track.loudest()) {
-                    Heard::Silent => say(json!({ "event": "silent", "source": SOURCES[index] })),
-                    Heard::Again => say(json!({ "event": "heard", "source": SOURCES[index] })),
+                    Heard::Silent => say(Event::Silent { source: index }),
+                    Heard::Again => say(Event::Heard { source: index }),
                     Heard::Nothing => {}
                 }
             }
@@ -361,7 +375,7 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
         seconds = seconds.max(source.track.finish().map_err(|e| e.to_string())? as f64 / rate);
     }
     v2::write_session(&folder, &stamp(started), Some(&stamp(chrono::Local::now())), &held).map_err(|e| e.to_string())?;
-    say(json!({ "event": "stopped", "folder": folder, "seconds": seconds }));
+    say(Event::Stopped { folder: &folder, seconds });
     Ok(())
 }
 
