@@ -5,23 +5,31 @@ while they are still being written and after a crash.
 
 ```mermaid
 flowchart LR
+    B["platform<br/>the bench, for its meeting"]:::producer -->|"writes"| F
     C["capture"]:::producer -->|"writes"| F["The session's folder<br/>session.json · me.wav · others.wav"]:::file
     U["The user"]:::human -.->|"may write"| X["context.txt"]:::file
     F -->|"read, never changed"| T["transcription"]:::consumer
     X -.-> T
     X -.-> S["summary"]:::consumer
-    F -->|"read, never changed"| E["export"]:::consumer
+    F -.->|"read, never changed"| E["export"]:::planned
 
     classDef producer fill:#065f46,color:#fff
     classDef consumer fill:#1e3a8a,color:#fff
     classDef file fill:#374151,color:#fff
+    classDef planned fill:#1e3a8a,color:#fff,stroke-dasharray: 5 5
     classDef human fill:#92400e,color:#fff
 ```
 
 **Legend** — green: the producer · grey: files on the machine · blue: consumers · orange: the
-user. Dotted: optional.
+user. Dotted: optional. Dashed box: a consumer that is planned, and
+reads nothing yet.
 
 ## What it carries
+
+**For a machine**: [`session.schema.json`](./session.schema.json) says what `session.json` is — and it is what the project's
+comparator judges a change to this version by (ADR-0005). What it does not say — the
+sound in the files, the shape of an instant, what an absent `stopped` means — is said here
+and nowhere else.
 
 **The folder.** One session, one folder, named by the local day and hour the recording
 started: `2026-10-13_14-05`. A second session in the same minute takes `-2`. Everything a

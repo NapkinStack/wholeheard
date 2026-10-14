@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A line of clock.jsonl (session-audio/v2)",
+  "description": "What a schema cannot say is on the contract's page: a point at least every ten seconds while a source delivers, the first frame after a silence pointed, a silence's end after its start.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "track": {
+          "$ref": "#/$defs/track"
+        },
+        "sample": {
+          "$ref": "#/$defs/frame"
+        },
+        "at": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "track",
+        "sample",
+        "at"
+      ],
+      "not": {
+        "required": [
+          "silence"
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "properties": {
+        "track": {
+          "$ref": "#/$defs/track"
+        },
+        "silence": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/frame"
+            },
+            {
+              "$ref": "#/$defs/frame"
+            }
+          ],
+          "items": false,
+          "minItems": 2
+        }
+      },
+      "required": [
+        "track",
+        "silence"
+      ],
+      "not": {
+        "required": [
+          "sample"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "track": {
+      "enum": [
+        "local",
+        "remote"
+      ]
+    },
+    "frame": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}
