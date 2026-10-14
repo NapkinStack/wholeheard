@@ -29,6 +29,18 @@ def objects(schema, at=()):
             yield from objects(value, (*at, number))
 
 
+def places(schema, wanted, at=()):
+    """Where in a schema something is said that `wanted` recognises."""
+    if isinstance(schema, dict):
+        if wanted(schema):
+            yield at
+        for key, value in schema.items():
+            yield from places(value, wanted, (*at, key))
+    elif isinstance(schema, list):
+        for number, value in enumerate(schema):
+            yield from places(value, wanted, (*at, number))
+
+
 def within(schema, at):
     for step in at:
         schema = schema[step]
@@ -105,6 +117,19 @@ def test_the_comparator_refuses_a_schemas_breaks_wherever_they_are(path, tmp_pat
         wider = copy.deepcopy(schema)
         wider["$defs"][name] = {"enum": [*values["enum"], "another"]} if "enum" in values else {}
         breaks[f"{name} allowed more"] = wider
+    for at in places(
+        schema,
+        lambda said: (
+            "minimum" in said or "minLength" in said or "pattern" in said or isinstance(said.get("type"), list)
+        ),
+    ):
+        unbounded, wider = copy.deepcopy(schema), copy.deepcopy(schema)
+        for bound in ("minimum", "minLength", "pattern"):
+            within(unbounded, at).pop(bound, None)
+        if isinstance(within(schema, at).get("type"), list):
+            within(wider, at)["type"] = [*within(schema, at)["type"], "boolean"]
+        breaks |= {f"a bound removed at {at}": unbounded, f"a type allowed more at {at}": wider}
+    breaks = {what: changed for what, changed in breaks.items() if changed != schema}
     let_through = [what for what, changed in breaks.items() if verdict(tmp_path, schema, changed) is None]
     assert len(breaks) > 5 and not let_through, let_through
 
@@ -118,6 +143,14 @@ EXAMPLES = {
                 "engine": "whisper.cpp",
                 "model": "large-v3-turbo",
                 "language": "fr",
+                "context": "Quatre personnes.",
+            },
+            {
+                "type": "header",
+                "contract": "transcript/v1",
+                "engine": "whisper.cpp",
+                "model": "large-v3-turbo",
+                "language": None,
                 "context": None,
             },
             {
@@ -127,15 +160,20 @@ EXAMPLES = {
                 "end": 3.2,
                 "text": "Du coup j'ai besoin que l'on confirme la date.",
             },
-            {"type": "covered", "speaker": "others", "until": 30.0},
+            {"type": "covered", "speaker": "me", "until": 30.0},
             {"type": "complete", "duration": 1912.4},
             {"type": "a type of a later version", "anything": 1},
         ],
         [
-            {"type": "segment", "speaker": "room", "start": 0.0, "end": 3.2, "text": ""},
-            {"type": "segment", "speaker": "me", "start": "0.0", "end": 3.2, "text": ""},
-            {"type": "segment", "speaker": "me", "start": -1, "end": 3.2, "text": ""},
-            {"type": "covered", "speaker": "me"},
+            {"type": "segment", "speaker": "room", "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "start": "0.0", "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "start": -1, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "start": 0.0, "end": -1, "text": "x"},
+            {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": "on two\nlines"},
+            {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": ""},
+            {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": None},
+            {"type": "covered", "speaker": "anyone", "until": 30.0},
+            {"type": "complete", "duration": -1},
             {
                 "type": "header",
                 "contract": "transcript/v2",
@@ -144,9 +182,39 @@ EXAMPLES = {
                 "language": None,
                 "context": None,
             },
-            {"type": "header", "contract": "transcript/v1", "engine": "e", "model": "m"},
-            {"speaker": "me", "start": 0.0, "end": 3.2, "text": ""},
+            {
+                "type": "header",
+                "contract": "transcript/v1",
+                "engine": 7,
+                "model": "m",
+                "language": None,
+                "context": None,
+            },
+            {"speaker": "me", "start": 0.0, "end": 3.2, "text": "x"},
             "a line that is no object",
+        ],
+    ),
+    "recording/v1/event.schema.json": (
+        [
+            {"event": "unavailable", "source": "me", "reason": "the system names no default device"},
+            {
+                "event": "started",
+                "folder": "<sessions-folder>/2026-10-13_14-05",
+                "sources": {"me": "unavailable", "others": "Speaker"},
+            },
+            {"event": "silent", "source": "others"},
+            {"event": "heard", "source": "others"},
+            {"event": "stopped", "folder": "<sessions-folder>/2026-10-13_14-05", "seconds": 1912.4},
+            {"event": "an event of a later version"},
+        ],
+        [
+            {"event": "silent", "source": "local"},
+            {"event": "silent"},
+            {"event": "started", "folder": "f", "sources": {"me": "Digital Microphone"}},
+            {"event": "started", "sources": {"me": "a", "others": "b"}},
+            {"event": "stopped", "folder": "f", "seconds": "1912.4"},
+            {"event": "stopped", "folder": "f", "seconds": -1},
+            {"source": "me"},
         ],
     ),
 }
@@ -158,7 +226,13 @@ def test_a_schema_allows_what_its_page_shows_and_refuses_what_its_page_refuses(p
     reads = jsonschema.Draft202012Validator(json.loads(path.read_text()))
     assert [line for line in allowed if not reads.is_valid(line)] == []
     assert [line for line in refused if reads.is_valid(line)] == []
-    # The page's own examples — its lines of JSON — are lines the schema allows.
-    page = (path.parent / "README.md").read_text()
-    shown = [json.loads(line) for line in page.splitlines() if line.startswith("{") and line.endswith("}")]
-    assert len(shown) >= 4 and [line for line in shown if not reads.is_valid(line)] == []
+    # Every field an example of a named kind carries is one its kind requires — the examples
+    # carry no other: without any one of them, the line is refused.
+    schema = json.loads(path.read_text())
+    for kind in schema["oneOf"]:
+        fixed = {name: said["const"] for name, said in kind["properties"].items() if "const" in said}
+        lines = [line for line in allowed if fixed and isinstance(line, dict) and fixed.items() <= line.items()]
+        assert not fixed or lines, f"no example of {fixed}"
+        for line in lines:
+            kept = [name for name in line if reads.is_valid({key: value for key, value in line.items() if key != name})]
+            assert kept == [], f"{fixed}: allowed without {kept}"

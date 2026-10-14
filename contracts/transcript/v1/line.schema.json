@@ -56,7 +56,9 @@
           "$ref": "#/$defs/seconds"
         },
         "text": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\n\\r]*$"
         }
       },
       "required": [

@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A line of the recording program's output",
+  "description": "recording/v1 — one JSON object a line. What a schema cannot say is on the contract's page: the order of the events, that `started` comes once and `stopped` last.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "unavailable"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "source",
+        "reason"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "started"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "sources": {
+          "type": "object",
+          "properties": {
+            "me": {
+              "type": "string"
+            },
+            "others": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "me",
+            "others"
+          ]
+        }
+      },
+      "required": [
+        "event",
+        "folder",
+        "sources"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "silent"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      },
+      "required": [
+        "event",
+        "source"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "heard"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      },
+      "required": [
+        "event",
+        "source"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "stopped"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "event",
+        "folder",
+        "seconds"
+      ]
+    },
+    {
+      "description": "An event this version does not name: a consumer ignores it.",
+      "type": "object",
+      "properties": {
+        "event": {
+          "type": "string",
+          "not": {
+            "enum": [
+              "unavailable",
+              "started",
+              "silent",
+              "heard",
+              "stopped"
+            ]
+          }
+        }
+      },
+      "required": [
+        "event"
+      ]
+    }
+  ],
+  "$defs": {
+    "source": {
+      "enum": [
+        "me",
+        "others"
+      ]
+    }
+  }
+}
