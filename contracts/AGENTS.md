@@ -27,10 +27,12 @@ Defines and versions the interface contracts between modules.
   that requires what tells it from the others**, never leaning on a `type` or a `required`
   beside the union; a shared field by its own `$ref` to `#/$defs/`, never a `$ref` or an
   `allOf` to a whole shared object; an object left open wherever a field may be added
-  later; a date as a `pattern`, right the first time — `format` is not read, and a pattern
-  cannot change in place. **A schema enters a version with a test that runs its own harmless
-  changes through the comparator**: that it decides them is shown for that schema, not
-  supposed of all.
+  later; text a field must keep on one line by what it must not contain, `not` a
+  `pattern` of `[\n\r]` — never an anchored `^…$`, which lets a final line feed through
+  in Python's reading; an instant's shape left to the page, as `session-audio`'s are —
+  `format` is not read, and a pattern cannot be loosened in place. **A schema enters a
+  version with a test that runs its own harmless changes through the comparator**: that it
+  decides them is shown for that schema, not supposed of all.
 - An example beside a schema is a document or lines (`examples/…json`, `…jsonl`): it does
   not say `$schema`. A file that does, anywhere but at the version's top, is refused.
 - Contract tests run on **both sides**: producer and consumer.
