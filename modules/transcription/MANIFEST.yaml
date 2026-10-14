@@ -82,6 +82,12 @@ dependencies:
     exit_strategy: >
       One function, `resampled` in src/tracks.rs, measured by tests/tracks.rs on notes; any
       resampler that passes them replaces it.
+  - name: sonora
+    purpose: Takes the echo of loudspeakers out of what an engine hears of the microphone — WebRTC's canceller, in Rust
+    adr: docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md
+    exit_strategy: >
+      One function, `cancelled` in src/echo.rs, held by tests/echo.rs and by the bench's
+      counts; any canceller that passes them replaces it.
 #  - name:
 #    purpose:
 #    adr:
