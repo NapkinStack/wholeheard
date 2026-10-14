@@ -42,8 +42,8 @@ const POINT_EVERY: f64 = 5.0;
 /// overrun looks like — and well over what the instants move by themselves: 0.1 ms, measured.
 const OFF: f64 = 0.005;
 
-/// The sources as `recording/v1` names them in what the program says.
-/// The same two as `session-audio/v2` names their tracks.
+/// The two sources as `session-audio/v2` names their tracks; what the program says names
+/// them as `recording/v1` does, `SOURCES`.
 const TRACKS: [&str; 2] = ["local", "remote"];
 
 /// What a source just delivered: which source, when it was heard — in seconds since the
