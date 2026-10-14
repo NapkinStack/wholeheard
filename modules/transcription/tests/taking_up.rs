@@ -235,14 +235,31 @@ fn a_transcript_is_taken_up_whatever_a_kill_left_and_refused_when_a_line_is_not_
     .unwrap();
     assert_eq!(Transcript::open(folder.path(), &making()).unwrap().covered(Speaker::Me), 30.0);
 
-    // A whole line that is not the contract's — a third speaker, an end before its start, a
-    // second header, something that is not JSON — and the transcript is not continued.
+    // A segment written before the track was, and one written since, are both taken up.
+    for line in [
+        r#"{"type":"segment","speaker":"me","start":40.0,"end":41.0,"text":"x"}"#,
+        r#"{"type":"segment","speaker":"me","track":"local","voice":null,"start":40.0,"end":41.0,"text":"x"}"#,
+        r#"{"type":"segment","speaker":"others","track":"remote","voice":"2","start":40.0,"end":41.0,"text":"x"}"#,
+    ] {
+        let elsewhere = tempfile::tempdir().unwrap();
+        fs::write(elsewhere.path().join("transcript.jsonl"), format!("{known}{line}\n")).unwrap();
+        assert!(Transcript::open(elsewhere.path(), &making()).is_ok(), "refused: {line}");
+    }
+
+    // A whole line that is not the contract's — a third speaker, a track not its speaker's or
+    // null, a voice that is no label, an end before its start, a second header, something that is not JSON — and the transcript is not continued.
     let rest = [
         r#"{"type":"segment","speaker":"them","start":40.0,"end":41.0,"text":"x"}"#,
         r#"{"type":"segment","speaker":"me","start":41.0,"end":40.0,"text":"x"}"#,
         r#"{"type":"segment","speaker":"me","start":-1.0,"end":2.0,"text":"x"}"#,
         r#"{"type":"segment","speaker":"me","start":40.0,"end":41.0}"#,
         r#"{"type":"segment","speaker":"me","start":40.0,"end":41.0,"text":"two\nlines"}"#,
+        r#"{"type":"segment","speaker":"me","track":"remote","voice":null,"start":40.0,"end":41.0,"text":"x"}"#,
+        r#"{"type":"segment","speaker":"others","track":"local","voice":null,"start":40.0,"end":41.0,"text":"x"}"#,
+        r#"{"type":"segment","speaker":"me","track":null,"voice":null,"start":40.0,"end":41.0,"text":"x"}"#,
+        r#"{"type":"segment","speaker":"me","track":"local","voice":5,"start":40.0,"end":41.0,"text":"x"}"#,
+        r#"{"type":"segment","speaker":"me","track":"local","voice":"","start":40.0,"end":41.0,"text":"x"}"#,
+        r#"{"type":"segment","speaker":"me","track":"local","voice":"a\nb","start":40.0,"end":41.0,"text":"x"}"#,
         r#"{"type":"complete","duration":30.0}"#,
         r#"{"speaker":"me"}"#,
         "42",

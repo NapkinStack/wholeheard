@@ -31,7 +31,7 @@ Turns the audio of a session into a timestamped transcript.
   One measure for both, a line from a span's first sample to its last, failed its
   verification: it changed what a first-form session gives, and was twice as strict away
   from zero.
-- It says who spoke only as the two files do — `me`, `others`. Telling several voices of one file apart is not done here.
+- It says who spoke only as the two files do — `me`, `others`, and each segment's `track`, `local` or `remote`. Telling several voices of one file apart is not done here: a segment's `voice` is written `null`, its place kept (ADR-0004, rule 6).
 - It fetches no model and contacts no host: the model file is the caller's to give.
 
 ## Internal conventions nobody could guess

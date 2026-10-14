@@ -30,6 +30,14 @@ impl Speaker {
             Speaker::Others => "others",
         }
     }
+
+    /// The track a speaker is heard on (ADR-0004): which side spoke, certain.
+    pub fn track(self) -> &'static str {
+        match self {
+            Speaker::Me => "local",
+            Speaker::Others => "remote",
+        }
+    }
 }
 
 /// A stretch of speech an engine heard: seconds from the session's start, and what was said.
@@ -182,7 +190,18 @@ impl Transcript {
                     let one_line = line["text"]
                         .as_str()
                         .is_some_and(|text| !text.is_empty() && !text.contains(['\n', '\r']));
-                    if end < start || !one_line {
+                    // A track, where there is one, is the speaker's: a segment written before has none.
+                    let tracked = line
+                        .get("track")
+                        .is_none_or(|track| track == [Speaker::Me, Speaker::Others][speaker].track());
+                    // A voice, where there is one, is not told, or a label of one line.
+                    let voice = line.get("voice").is_none_or(|voice| {
+                        voice.is_null()
+                            || voice
+                                .as_str()
+                                .is_some_and(|label| !label.is_empty() && !label.contains(['\n', '\r']))
+                    });
+                    if end < start || !one_line || !tracked || !voice {
                         return Err(unreadable());
                     }
                     transcript.last[speaker] = transcript.last[speaker].max(Some(start));
@@ -240,8 +259,11 @@ impl Transcript {
                 continue;
             }
             last = Some(start);
-            lines.push(json!({ "type": "segment", "speaker": speaker.name(), "start": start as f64 / 100.0,
-                               "end": end as f64 / 100.0, "text": text }));
+            // Which voice within the track is not told in this version: the place is kept, empty.
+            lines.push(
+                json!({ "type": "segment", "speaker": speaker.name(), "track": speaker.track(), "voice": null,
+                               "start": start as f64 / 100.0, "end": end as f64 / 100.0, "text": text }),
+            );
         }
         if until > self.covered[who] {
             lines.push(json!({ "type": "covered", "speaker": speaker.name(), "until": until as f64 / 100.0 }));

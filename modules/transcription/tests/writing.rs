@@ -59,7 +59,7 @@ fn a_transcript_opens_on_what_made_it_and_holds_what_was_heard_with_its_times_an
     // One line per segment, its text on one line, its times to the hundredth.
     assert_eq!(
         written[1],
-        serde_json::json!({ "type": "segment", "speaker": "others", "start": 0.0, "end": 3.2, "text": "Du coup, on confirme la date ?" })
+        serde_json::json!({ "type": "segment", "speaker": "others", "track": "remote", "voice": null, "start": 0.0, "end": 3.2, "text": "Du coup, on confirme la date ?" })
     );
     assert_eq!(
         written[2],
