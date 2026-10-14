@@ -11,20 +11,28 @@ flowchart LR
     F -->|"read, never changed"| T["transcription"]:::consumer
     T -->|"makes, and makes again"| D["derived/<br/>what was made from the tracks"]:::derived
     X -.-> T
-    F -->|"read, never changed"| E["export"]:::consumer
+    F -.->|"read, never changed"| E["export"]:::planned
 
     classDef producer fill:#065f46,color:#fff
     classDef consumer fill:#1e3a8a,color:#fff
     classDef file fill:#374151,color:#fff
+    classDef planned fill:#1e3a8a,color:#fff,stroke-dasharray: 5 5
     classDef derived fill:#6b21a8,color:#fff
     classDef human fill:#92400e,color:#fff
 ```
 
 **Legend** — green: the producer · grey: what a session keeps, the source of truth · blue:
 consumers · purple: what consumers make from the tracks, deleted and made again without
-loss · orange: the user. Dotted: optional.
+loss · orange: the user. Dotted: optional. Dashed box: a consumer that is planned, and
+reads nothing yet.
 
 ## What it carries
+
+**For a machine**: [`session.schema.json`](./session.schema.json) says what `session.json` is, and
+[`clock.schema.json`](./clock.schema.json) what a line of `clock.jsonl` is — and they are what the project's
+comparator judges a change to this version by (ADR-0005). What a schema cannot say — the
+sound in the files, the instants, what an absent `stopped` means — is said here and nowhere
+else.
 
 **The folder** is named as in version 1: the local day and hour the recording started,
 `2026-10-14_14-05`, then `-2` for a second session in the same minute.

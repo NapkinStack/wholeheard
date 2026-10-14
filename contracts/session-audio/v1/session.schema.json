@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "session.json of a session recorded as session-audio/v1",
+  "description": "What a schema cannot say is on the contract's page: that `started` is the instant of sample 0 of both files, and that an absent `stopped` means still recording or ended by a crash.",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "session-audio/v1"
+    },
+    "started": {
+      "$ref": "#/$defs/instant"
+    },
+    "stopped": {
+      "$ref": "#/$defs/instant"
+    },
+    "sources": {
+      "type": "object",
+      "properties": {
+        "me": {
+          "$ref": "#/$defs/device"
+        },
+        "others": {
+          "$ref": "#/$defs/device"
+        }
+      },
+      "required": [
+        "me",
+        "others"
+      ]
+    }
+  },
+  "required": [
+    "contract",
+    "started",
+    "sources"
+  ],
+  "$defs": {
+    "instant": {
+      "description": "ISO 8601 with the local offset, as the page says; the shape is read by the readers, not here.",
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "[\\n\\r]"
+      }
+    },
+    "device": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "device"
+      ]
+    }
+  }
+}

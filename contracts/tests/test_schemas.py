@@ -133,6 +133,9 @@ def test_the_comparator_refuses_a_schemas_breaks_wherever_they_are(path, tmp_pat
     assert len(breaks) > 5 and not let_through, let_through
 
 
+# The fields a page says may be absent: `stopped`, while a session is recording.
+OPTIONAL = {"stopped"}
+SHOWN_AS_LINES = {"transcript/v1/line.schema.json", "recording/v1/event.schema.json"}
 EXAMPLES = {
     "transcript/v1/line.schema.json": (
         [
@@ -224,6 +227,114 @@ EXAMPLES = {
             {"source": "me"},
         ],
     ),
+    "session-audio/v1/session.schema.json": (
+        [
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-13T14:05:12+02:00",
+                "sources": {"me": {"device": "Digital Microphone"}, "others": {"device": "Speaker"}},
+            },
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-13T14:05:12+02:00",
+                "stopped": "2026-10-13T14:37:04+02:00",
+                "sources": {"me": {"device": "unavailable"}, "others": {"device": "Speaker"}},
+            },
+        ],
+        [
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-13T14:05:12+02:00",
+                "sources": {"me": {"device": "a"}, "others": {"device": "b"}},
+            },
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-13T14:05:12+02:00\n",
+                "sources": {"me": {"device": "a"}, "others": {"device": "b"}},
+            },
+            {
+                "contract": "session-audio/v1",
+                "started": "",
+                "sources": {"me": {"device": "a"}, "others": {"device": "b"}},
+            },
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-13T14:05:12+02:00",
+                "sources": {"me": {"device": "a"}},
+            },
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-13T14:05:12+02:00",
+                "sources": {"me": {}, "others": {"device": "b"}},
+            },
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-13T14:05:12+02:00",
+                "stopped": 1,
+                "sources": {"me": {"device": "a"}, "others": {"device": "b"}},
+            },
+            "a record that is no object",
+        ],
+    ),
+    "session-audio/v2/session.schema.json": (
+        [
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"device": "Digital Microphone"}, "remote": {"device": "Speaker"}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "stopped": "2026-10-14T15:05:12+02:00",
+                "tracks": {"remote": {"device": "Speaker"}},
+            },
+        ],
+        [
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"remote": {"device": "Speaker"}},
+            },
+            {"contract": "session-audio/v2", "started": "2026-10-14T14:05:12+02:00", "tracks": {}},
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"name": "Speaker"}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00\n",
+                "tracks": {"remote": {"device": "Speaker"}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "sources": {"me": {"device": "a"}, "others": {"device": "b"}},
+            },
+            "a record that is no object",
+        ],
+    ),
+    "session-audio/v2/clock.schema.json": (
+        [
+            {"track": "remote", "sample": 0, "at": 0.021},
+            {"track": "local", "sample": 480000, "at": 10.0341},
+            {"track": "local", "sample": 0, "at": -0.004},
+            {"track": "remote", "silence": [96000, 240000]},
+        ],
+        [
+            {"track": "room", "sample": 0, "at": 0.0},
+            {"track": "local", "sample": -1, "at": 0.0},
+            {"track": "local", "sample": 1.5, "at": 0.0},
+            {"track": "local", "sample": 0, "at": "0.0"},
+            {"track": "remote", "silence": [96000]},
+            {"track": "remote", "silence": [96000, 240000, 3]},
+            {"track": "remote", "silence": [-1, 3]},
+            {"track": "remote", "silence": [96000, 240000], "sample": 96000, "at": 2.0},
+            {"sample": 0, "at": 0.0},
+            "a line that is no object",
+        ],
+    ),
 }
 
 
@@ -236,17 +347,24 @@ def test_a_schema_allows_what_its_page_shows_and_refuses_what_its_page_refuses(p
     # Every field an example of a named kind carries is one its kind requires — the examples
     # carry no other: without any one of them, the line is refused.
     schema = json.loads(path.read_text())
-    for kind in schema["oneOf"]:
+    for kind in schema.get("oneOf", [schema]):
         fixed = {name: said["const"] for name, said in kind["properties"].items() if "const" in said}
         lines = [line for line in allowed if fixed and isinstance(line, dict) and fixed.items() <= line.items()]
         assert not fixed or lines, f"no example of {fixed}"
         for line in lines:
-            kept = [name for name in line if reads.is_valid({key: value for key, value in line.items() if key != name})]
+            kept = [
+                name
+                for name in line
+                if name not in OPTIONAL and reads.is_valid({key: value for key, value in line.items() if key != name})
+            ]
             assert kept == [], f"{fixed}: allowed without {kept}"
             nullable = {name for other in lines for name, value in other.items() if value is None}
             nulled = [name for name in line if name not in nullable and reads.is_valid({**line, name: None})]
             assert nulled == [], f"{fixed}: allowed with {nulled} null"
-    # The page's own examples — its lines of JSON — are lines the schema allows.
+    # The page's own examples — its lines of JSON — are lines the schema allows, where the
+    # page shows its documents as lines; the others' examples are copied above.
+    if path.relative_to(CONTRACTS).as_posix() not in SHOWN_AS_LINES:
+        return
     page = (path.parent / "README.md").read_text()
     shown = [json.loads(line) for line in page.splitlines() if line.startswith("{") and line.endswith("}")]
     assert len(shown) >= 2 and [line for line in shown if not reads.is_valid(line)] == []
