@@ -194,7 +194,14 @@ impl Transcript {
                     let tracked = line
                         .get("track")
                         .is_none_or(|track| track == [Speaker::Me, Speaker::Others][speaker].track());
-                    if end < start || !one_line || !tracked {
+                    // A voice, where there is one, is not told, or a label of one line.
+                    let voice = line.get("voice").is_none_or(|voice| {
+                        voice.is_null()
+                            || voice
+                                .as_str()
+                                .is_some_and(|label| !label.is_empty() && !label.contains(['\n', '\r']))
+                    });
+                    if end < start || !one_line || !tracked || !voice {
                         return Err(unreadable());
                     }
                     transcript.last[speaker] = transcript.last[speaker].max(Some(start));
