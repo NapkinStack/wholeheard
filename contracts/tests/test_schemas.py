@@ -83,7 +83,7 @@ def test_a_schema_is_one_and_the_comparator_decides_its_harmless_changes(path, t
     # Where a schema leaves room for kinds it does not name, a kind added is one of those, named.
     for number, kind in enumerate(schema.get("oneOf", [])):
         for name, said in kind["properties"].items():
-            if "not" in said:
+            if "enum" in said.get("not", {}):
                 more = copy.deepcopy(schema)
                 more["oneOf"][number]["properties"][name]["not"]["enum"].append("added later")
                 more["oneOf"].insert(
@@ -117,18 +117,17 @@ def test_the_comparator_refuses_a_schemas_breaks_wherever_they_are(path, tmp_pat
         wider = copy.deepcopy(schema)
         wider["$defs"][name] = {"enum": [*values["enum"], "another"]} if "enum" in values else {}
         breaks[f"{name} allowed more"] = wider
-    for at in places(
-        schema,
-        lambda said: (
-            "minimum" in said or "minLength" in said or "pattern" in said or isinstance(said.get("type"), list)
-        ),
-    ):
-        unbounded, wider = copy.deepcopy(schema), copy.deepcopy(schema)
-        for bound in ("minimum", "minLength", "pattern"):
-            within(unbounded, at).pop(bound, None)
+    # A bound taken away, one at a time, and a list of types allowed one more.
+    for at in places(schema, lambda said: isinstance(said, dict) and "properties" not in said):
+        for bound in ("minimum", "minLength", "not"):
+            if bound in within(schema, at):
+                unbounded = copy.deepcopy(schema)
+                within(unbounded, at).pop(bound)
+                breaks[f"{bound} removed at {at}"] = unbounded
         if isinstance(within(schema, at).get("type"), list):
+            wider = copy.deepcopy(schema)
             within(wider, at)["type"] = [*within(schema, at)["type"], "boolean"]
-        breaks |= {f"a bound removed at {at}": unbounded, f"a type allowed more at {at}": wider}
+            breaks[f"a type allowed more at {at}"] = wider
     breaks = {what: changed for what, changed in breaks.items() if changed != schema}
     let_through = [what for what, changed in breaks.items() if verdict(tmp_path, schema, changed) is None]
     assert len(breaks) > 5 and not let_through, let_through
@@ -171,6 +170,9 @@ EXAMPLES = {
             {"type": "segment", "speaker": "me", "start": 0.0, "end": -1, "text": "x"},
             {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": "on two\nlines"},
             {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": ""},
+            {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": "ends on a line feed\n"},
+            {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": "\n"},
+            {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": "a carriage\rreturn"},
             {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": None},
             {"type": "covered", "speaker": "anyone", "until": 30.0},
             {"type": "complete", "duration": -1},
@@ -197,6 +199,7 @@ EXAMPLES = {
     "recording/v1/event.schema.json": (
         [
             {"event": "unavailable", "source": "me", "reason": "the system names no default device"},
+            {"event": "unavailable", "source": "others", "reason": "the system names no default output"},
             {
                 "event": "started",
                 "folder": "<sessions-folder>/2026-10-13_14-05",
@@ -209,6 +212,10 @@ EXAMPLES = {
         ],
         [
             {"event": "silent", "source": "local"},
+            {"event": "heard", "source": "room"},
+            {"event": "unavailable", "source": "anyone", "reason": "r"},
+            {"event": "started", "folder": "f", "sources": {"others": "Speaker"}},
+            "a line that is no object",
             {"event": "silent"},
             {"event": "started", "folder": "f", "sources": {"me": "Digital Microphone"}},
             {"event": "started", "sources": {"me": "a", "others": "b"}},
@@ -236,3 +243,10 @@ def test_a_schema_allows_what_its_page_shows_and_refuses_what_its_page_refuses(p
         for line in lines:
             kept = [name for name in line if reads.is_valid({key: value for key, value in line.items() if key != name})]
             assert kept == [], f"{fixed}: allowed without {kept}"
+            nullable = {name for other in lines for name, value in other.items() if value is None}
+            nulled = [name for name in line if name not in nullable and reads.is_valid({**line, name: None})]
+            assert nulled == [], f"{fixed}: allowed with {nulled} null"
+    # The page's own examples — its lines of JSON — are lines the schema allows.
+    page = (path.parent / "README.md").read_text()
+    shown = [json.loads(line) for line in page.splitlines() if line.startswith("{") and line.endswith("}")]
+    assert len(shown) >= 2 and [line for line in shown if not reads.is_valid(line)] == []
