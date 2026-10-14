@@ -248,8 +248,20 @@ def test_a_room_that_is_not_silent_is_a_television_said_from_first_to_last_and_a
 
 
 def test_the_bench_writes_what_the_television_said_beside_its_condition_only(tmp_path, monkeypatch):
+    # The meeting's first turns, in the first form: what is written, not how much.
+    meeting = script(MEETING)
+    monkeypatch.setattr("bench.render.script", lambda path: {**meeting, "turns": meeting["turns"][:6]})
     monkeypatch.setattr("bench.render.piper", lambda voices, cache: tone)
-    assert main(["render", str(tmp_path / "voices"), str(tmp_path / "out"), "1", "v2"]) == 0
+    assert main(["render", str(tmp_path / "voices"), str(tmp_path / "out"), "1"]) == 0
     for name in CONDITIONS:
         kept = json.loads((tmp_path / "out" / name / "0" / "truth.json").read_text(encoding="utf-8"))
         assert ("television" in kept) == (name == "television"), name
+
+
+def test_a_sentence_the_television_would_not_finish_is_not_said():
+    first = len(tone("television", TELEVISION[0]))
+    for length in (first - 1, first + round(0.8 * RATE) + 10):
+        sound, said = television(tone, length)
+        assert len(said) == 1 if length > first else not said
+        # What it said is whole, and after it the track is silent to the end.
+        assert np.abs(sound[first:]).max(initial=0.0) == 0.0

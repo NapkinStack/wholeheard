@@ -100,6 +100,10 @@ def test_what_a_television_said_and_the_transcript_gives_a_participant_is_counte
         "words wrong net of the echo, local": (4, 14),
         "the television's words written": (4, 9),
     }
+    # Just then is the second around what it said: half a second after, still; two, not.
+    for after, counted in ((0.5, 4), (2.0, 0)):
+        late = {**heard, "start": 6.0 + after, "end": 6.5 + after}
+        assert count(TRUTH, right() + [late], television)["the television's words written"] == (counted, 9)
     # Without a television, the same words are only words wrong: nothing tells whose they were.
     assert "the television's words written" not in count(TRUTH, right() + [heard])
     # Given the remote side, they are the television's too.
