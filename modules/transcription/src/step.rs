@@ -4,7 +4,7 @@
 
 use std::{fs, io, path::Path};
 
-use crate::{Making, Segment, Speaker, Transcript, tracks};
+use crate::{Making, Segment, Speaker, Transcript, echo, tracks};
 
 /// Samples per second an engine hears: the first form's own rate, and what a track of the
 /// second is brought to.
@@ -126,6 +126,75 @@ pub fn read(folder: &Path) -> io::Result<(&'static str, Session)> {
     Ok((form, (session["stopped"].is_string(), context, sounds, form == "session-audio/v2")))
 }
 
+/// Where a session keeps what is made from its tracks, and the record of how it was made.
+pub const DERIVED: &str = "derived";
+pub const MADE: &str = "made.json";
+
+/// What an engine hears of a session, made from its tracks and kept apart from them, each
+/// saying what made it (ADR-0004, rule 4): `derived/local.wav` and `derived/remote.wav` — one
+/// channel, [`RATE`] samples a second, 32-bit floating point, the samples the engine is given;
+/// `derived/made.json`, what made them. The local track has the echo of the loudspeakers
+/// taken out where one is measured, and is otherwise the microphone as recorded. Deleted, they
+/// are made again, the same to the byte: the tracks are the recording, these are not.
+pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: bool) -> io::Result<[(Speaker, Vec<f32>); 2]> {
+    let [(_, local), (_, remote)] = sounds;
+    let (cleaned, found) = echo::cancelled(&local, &remote);
+    let local = if found.is_measured() { cleaned } else { local };
+    let (from_local, from_remote) = if as_delivered {
+        ("local.wav", "remote.wav")
+    } else {
+        ("me.wav", "others.wav")
+    };
+    let made = serde_json::json!({
+        "made_by": format!("summit-transcription {}", env!("CARGO_PKG_VERSION")),
+        "rate": RATE,
+        "local": {
+            "from": [from_local, from_remote],
+            "echo": {
+                "canceller": "WebRTC AEC3, through sonora 0.2.0",
+                "taken_out": found.is_measured(),
+                "measured_db": found.taken_out.map(|decibels| (decibels * 10.0).round() / 10.0),
+                "threshold_db": echo::MEASURED,
+                "delay_ms": found.delay,
+            },
+        },
+        "remote": { "from": [from_remote] },
+    });
+    let place = folder.join(DERIVED);
+    fs::create_dir_all(&place)?;
+    // Each file whole or not there: written beside, then put in its place.
+    let keep = |name: &str, bytes: &[u8]| -> io::Result<()> {
+        let beside = place.join(format!(".{name}.part"));
+        fs::write(&beside, bytes)?;
+        fs::rename(&beside, place.join(name))
+    };
+    keep("local.wav", &wav(&local))?;
+    keep("remote.wav", &wav(&remote))?;
+    keep(MADE, format!("{made:#}\n").as_bytes())?;
+    Ok([(Speaker::Me, local), (Speaker::Others, remote)])
+}
+
+/// A sound as a WAV file of 32-bit floating point samples, one channel, [`RATE`] a second:
+/// what was heard, to the bit.
+fn wav(sound: &[f32]) -> Vec<u8> {
+    let bytes = (sound.len() * 4) as u32;
+    let mut wav = Vec::with_capacity(sound.len() * 4 + 44);
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + bytes).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&3u16.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&(RATE as u32).to_le_bytes());
+    wav.extend_from_slice(&(RATE as u32 * 4).to_le_bytes());
+    wav.extend_from_slice(&4u16.to_le_bytes());
+    wav.extend_from_slice(&32u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&bytes.to_le_bytes());
+    wav.extend(sound.iter().flat_map(|sample| sample.to_le_bytes()));
+    wav
+}
+
 /// Hears a session — its two files, `me` then `others` — span by span, and writes its
 /// transcript. `seconds` is the length of a span.
 pub fn transcribe(folder: &Path, engine: &mut dyn Engine, language: Option<&str>, seconds: usize) -> io::Result<()> {
@@ -145,9 +214,14 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
         context,
     };
     let mut transcript = Transcript::open(folder, &making)?;
+    // What the engine hears is made from the tracks, and kept apart: made again when it is not there.
     if transcript.is_complete() {
+        if !folder.join(DERIVED).join(MADE).is_file() {
+            derive(folder, sounds, as_delivered)?;
+        }
         return Ok(());
     }
+    let sounds = derive(folder, sounds, as_delivered)?;
     // Every place in the session is counted in whole hundredths of a second, as the transcript
     // writes them: a run taken up starts exactly where the run before decided to stop.
     const HUNDREDTH: usize = RATE / 100;
