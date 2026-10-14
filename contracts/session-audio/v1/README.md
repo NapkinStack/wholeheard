@@ -5,6 +5,7 @@ while they are still being written and after a crash.
 
 ```mermaid
 flowchart LR
+    B["platform<br/>the bench, for its meeting"]:::producer -->|"writes"| F
     C["capture"]:::producer -->|"writes"| F["The session's folder<br/>session.json · me.wav · others.wav"]:::file
     U["The user"]:::human -.->|"may write"| X["context.txt"]:::file
     F -->|"read, never changed"| T["transcription"]:::consumer
@@ -25,10 +26,10 @@ reads nothing yet.
 
 ## What it carries
 
-**For a machine**: [`session.schema.json`](./session.schema.json) says what `session.json` is — and they are what the project's
-comparator judges a change to this version by (ADR-0005). What a schema cannot say — the
-sound in the files, the instants, what an absent `stopped` means — is said here and nowhere
-else.
+**For a machine**: [`session.schema.json`](./session.schema.json) says what `session.json` is — and it is what the project's
+comparator judges a change to this version by (ADR-0005). What it does not say — the
+sound in the files, the shape of an instant, what an absent `stopped` means — is said here
+and nowhere else.
 
 **The folder.** One session, one folder, named by the local day and hour the recording
 started: `2026-10-13_14-05`. A second session in the same minute takes `-2`. Everything a

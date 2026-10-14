@@ -36,7 +36,7 @@
   ],
   "$defs": {
     "instant": {
-      "description": "ISO 8601 with the local offset, as the page says; the shape is read by the readers, not here.",
+      "description": "ISO 8601 with the local offset, as the page says: the page's promise, not this schema's — no reader reads its shape today.",
       "type": "string",
       "minLength": 1,
       "not": {

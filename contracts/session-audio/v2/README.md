@@ -6,6 +6,7 @@ source, never changed once written — and the session's clock beside them
 
 ```mermaid
 flowchart LR
+    B["platform<br/>the bench, for its meeting"]:::producer -->|"writes"| F
     C["capture"]:::producer -->|"writes, once"| F["The session's folder<br/>session.json · local.wav · remote.wav · clock.jsonl"]:::file
     U["The user"]:::human -.->|"may write"| X["context.txt"]:::file
     F -->|"read, never changed"| T["transcription"]:::consumer
@@ -30,9 +31,9 @@ reads nothing yet.
 
 **For a machine**: [`session.schema.json`](./session.schema.json) says what `session.json` is, and
 [`clock.schema.json`](./clock.schema.json) what a line of `clock.jsonl` is — and they are what the project's
-comparator judges a change to this version by (ADR-0005). What a schema cannot say — the
-sound in the files, the instants, what an absent `stopped` means — is said here and nowhere
-else.
+comparator judges a change to this version by (ADR-0005). What they do not say — the
+sound in the files, the shape of an instant, what an absent `stopped` means — is said here
+and nowhere else.
 
 **The folder** is named as in version 1: the local day and hour the recording started,
 `2026-10-14_14-05`, then `-2` for a second session in the same minute.

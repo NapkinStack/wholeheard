@@ -118,8 +118,8 @@ def test_the_comparator_refuses_a_schemas_breaks_wherever_they_are(path, tmp_pat
         wider["$defs"][name] = {"enum": [*values["enum"], "another"]} if "enum" in values else {}
         breaks[f"{name} allowed more"] = wider
     # A bound taken away, one at a time, and a list of types allowed one more.
-    for at in places(schema, lambda said: isinstance(said, dict) and "properties" not in said):
-        for bound in ("minimum", "minLength", "not"):
+    for at in places(schema, lambda said: isinstance(said, dict) and "oneOf" not in said):
+        for bound in ("minimum", "minLength", "minItems", "minProperties", "items", "anyOf", "not"):
             if bound in within(schema, at):
                 unbounded = copy.deepcopy(schema)
                 within(unbounded, at).pop(bound)
@@ -273,6 +273,21 @@ EXAMPLES = {
                 "stopped": 1,
                 "sources": {"me": {"device": "a"}, "others": {"device": "b"}},
             },
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-13T14:05:12\r+02:00",
+                "sources": {"me": {"device": "a"}, "others": {"device": "b"}},
+            },
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-13T14:05:12+02:00",
+                "sources": {"others": {"device": "b"}},
+            },
+            {
+                "contract": "session-audio/v1",
+                "started": "2026-10-13T14:05:12+02:00",
+                "sources": {"me": {"device": None}, "others": {"device": "b"}},
+            },
             "a record that is no object",
         ],
     ),
@@ -312,6 +327,27 @@ EXAMPLES = {
                 "started": "2026-10-14T14:05:12+02:00",
                 "sources": {"me": {"device": "a"}, "others": {"device": "b"}},
             },
+            {"contract": "session-audio/v2", "started": "", "tracks": {"remote": {"device": "Speaker"}}},
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12\r+02:00",
+                "tracks": {"remote": {"device": "Speaker"}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"room": {"device": "a mixer"}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"device": "a"}, "remote": None},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"remote": {"device": None}},
+            },
             "a record that is no object",
         ],
     ),
@@ -321,6 +357,7 @@ EXAMPLES = {
             {"track": "local", "sample": 480000, "at": 10.0341},
             {"track": "local", "sample": 0, "at": -0.004},
             {"track": "remote", "silence": [96000, 240000]},
+            {"track": "local", "silence": [0, 2048]},
         ],
         [
             {"track": "room", "sample": 0, "at": 0.0},
@@ -349,8 +386,17 @@ def test_a_schema_allows_what_its_page_shows_and_refuses_what_its_page_refuses(p
     schema = json.loads(path.read_text())
     for kind in schema.get("oneOf", [schema]):
         fixed = {name: said["const"] for name, said in kind["properties"].items() if "const" in said}
-        lines = [line for line in allowed if fixed and isinstance(line, dict) and fixed.items() <= line.items()]
-        assert not fixed or lines, f"no example of {fixed}"
+        # A kind is known by its constants, or else by the fields it requires; the kind left
+        # open for what a later version may add is no kind of its own.
+        if any("not" in said for said in kind.get("properties", {}).values()):
+            continue
+        named = set(kind.get("required", [])) if not fixed else set()
+        lines = [
+            line
+            for line in allowed
+            if isinstance(line, dict) and (fixed.items() <= line.items() if fixed else named and named <= set(line))
+        ]
+        assert not (fixed or named) or lines, f"no example of {fixed or named}"
         for line in lines:
             kept = [
                 name
