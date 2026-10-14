@@ -12,7 +12,7 @@ const SCHEMA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../contracts/recor
 fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are_five() {
     let schema: serde_json::Value = serde_json::from_str(&fs::read_to_string(SCHEMA).unwrap()).unwrap();
     let allows = jsonschema::validator_for(&schema).unwrap();
-    let folder = Path::new("/home/someone/Summit/2026-10-14_14-05");
+    let folder = Path::new("sessions/2026-10-14_14-05");
     let events = [
         Event::Unavailable {
             source: 0,
