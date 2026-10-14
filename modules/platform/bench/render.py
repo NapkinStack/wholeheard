@@ -185,7 +185,9 @@ def television(say: Synth, length: int) -> tuple[np.ndarray, list[dict]]:
     at = 0
     while at < length:
         text = next(sentences)
-        voice = say("television", text)[: length - at]
+        voice = say("television", text)
+        if at + len(voice) > length:
+            break  # A sentence it would not finish is not said: the truth holds whole sentences.
         sound[at : at + len(voice)] = voice
         start, end = at / RATE, (at + len(voice)) / RATE
         words, before = [], 0

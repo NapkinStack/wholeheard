@@ -18,11 +18,13 @@ from bench.render import (
     RATE,
     TELEVISION,
     TELEVISION_LEVEL,
+    TELEVISION_VOICE,
     VOICES,
     condition,
     hum,
     in_the_room,
     lay_out,
+    main,
     room,
     script,
     speaking,
@@ -219,6 +221,9 @@ def test_a_room_that_is_not_silent_is_a_television_said_from_first_to_last_and_a
     assert said[0]["start"] == 0 and said[-1]["end"] >= truth[-1]["end"] - 5
     assert [turn["text"] for turn in said[: len(TELEVISION)]] == list(TELEVISION)
     assert all(turn["side"] == "television" and turn["words"] for turn in said)
+    # A voice no participant has, which pauses as one does between sentences.
+    assert TELEVISION_VOICE not in VOICES.values()
+    assert all(0.7 <= b["start"] - a["end"] <= 0.9 for a, b in itertools.pairwise(said))
     heard = in_the_room(tracks, 0)
     steady = hum(len(heard), 0)
     voice = heard - steady
@@ -240,3 +245,11 @@ def test_a_room_that_is_not_silent_is_a_television_said_from_first_to_last_and_a
         kept = json.loads((tmp_path / folder / "truth.json").read_text(encoding="utf-8"))
         assert kept == {"turns": truth, "television": said}
     assert set(json.loads((tmp_path / "quiet" / "truth.json").read_text(encoding="utf-8"))) == {"turns"}
+
+
+def test_the_bench_writes_what_the_television_said_beside_its_condition_only(tmp_path, monkeypatch):
+    monkeypatch.setattr("bench.render.piper", lambda voices, cache: tone)
+    assert main(["render", str(tmp_path / "voices"), str(tmp_path / "out"), "1", "v2"]) == 0
+    for name in CONDITIONS:
+        kept = json.loads((tmp_path / "out" / name / "0" / "truth.json").read_text(encoding="utf-8"))
+        assert ("television" in kept) == (name == "television"), name

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from bench.counts import count, read, words
+from bench.counts import count, main, read, words
 
 
 def said(voice: str, side: str, start: float, end: float, text: str) -> dict:
@@ -102,6 +102,35 @@ def test_what_a_television_said_and_the_transcript_gives_a_participant_is_counte
     }
     # Without a television, the same words are only words wrong: nothing tells whose they were.
     assert "the television's words written" not in count(TRUTH, right() + [heard])
+    # Given the remote side, they are the television's too.
+    assert count(TRUTH, right() + [{**heard, "speaker": "others"}], television)["the television's words written"] == (
+        4,
+        9,
+    )
+
+
+def test_a_word_the_television_said_alone_or_at_another_moment_is_not_counted_as_its():
+    television = [said("television", "television", 2.0, 6.0, "Et maintenant la météo de demain sur le pays.")]
+    alone = segment("me", 4.5, "météo")
+    assert count(TRUTH, right() + [alone], television)["the television's words written"] == (0, 9)
+    # It says the same few sentences over and over: the same words a while later are not its.
+    later = {**segment("me", 9.0, "météo de demain sur"), "end": 9.5}
+    assert count(TRUTH, right() + [later], television)["the television's words written"] == (0, 9)
+
+
+def test_what_a_television_said_is_read_with_the_truth_and_draws_of_two_conditions_are_refused(tmp_path, capsys):
+    television = [said("television", "television", 2.0, 6.0, "Et maintenant la météo de demain sur le pays.")]
+    whole = [{"type": "header", "contract": "transcript/v1"}, *right(), {"type": "complete", "duration": 20.0}]
+    for name, kept in (("quiet", {"turns": TRUTH}), ("television", {"turns": TRUTH, "television": television})):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "truth.json").write_text(json.dumps(kept), encoding="utf-8")
+        (tmp_path / name / "transcript.jsonl").write_text("\n".join(json.dumps(line) for line in whole))
+    assert read(tmp_path / "television")[2] == television and read(tmp_path / "quiet")[2] == []
+    for folders in ([tmp_path / "quiet", tmp_path / "television"], [tmp_path / "television", tmp_path / "quiet"]):
+        assert main(["counts", *map(str, folders)]) == 2
+        assert "not draws of one condition" in capsys.readouterr().err
+    assert main(["counts", str(tmp_path / "television")]) == 0
+    assert "the television's words written: 0 of 9" in capsys.readouterr().out
 
 
 def test_a_turn_the_transcript_does_not_hold_is_said_apart_from_words_misheard():
