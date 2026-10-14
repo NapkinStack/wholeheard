@@ -136,10 +136,35 @@ pub const MADE: &str = "made.json";
 /// `derived/made.json`, what made them. The local track has the echo of the loudspeakers
 /// taken out where one is measured, and is otherwise the microphone as recorded. Deleted, they
 /// are made again, the same to the byte: the tracks are the recording, these are not.
-pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: bool) -> io::Result<[(Speaker, Vec<f32>); 2]> {
+///
+/// Whether there is an echo is decided once a transcript has begun, and kept: a recording
+/// heard while it goes on is measured on what there was, and a later, longer measure must not
+/// change what the beginning was heard as. `begun` says the transcript holds something heard.
+pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: bool, begun: bool) -> io::Result<[(Speaker, Vec<f32>); 2]> {
     let [(_, local), (_, remote)] = sounds;
-    let (cleaned, found) = echo::cancelled(&local, &remote);
-    let local = if found.is_measured() { cleaned } else { local };
+    let place = folder.join(DERIVED);
+    let said = |error: io::Error| io::Error::new(error.kind(), format!("{} cannot be written ({error})", place.display()));
+    let decided = begun
+        .then(|| fs::read(place.join(MADE)).ok())
+        .flatten()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .map(|made| made["local"]["echo"].clone())
+        .filter(|echo| echo["taken_out"].is_boolean());
+    let (local, echo) = match decided {
+        Some(echo) if echo["taken_out"] == true => (echo::cancelled(&local, &remote).0, echo),
+        Some(echo) => (local, echo),
+        None => {
+            let (cleaned, found) = echo::cancelled(&local, &remote);
+            let echo = serde_json::json!({
+                "canceller": "WebRTC AEC3, through sonora 0.2.0",
+                "taken_out": found.is_measured(),
+                "measured_db": found.taken_out.map(|decibels| (decibels * 10.0).round() / 10.0),
+                "threshold_db": echo::MEASURED,
+                "delay_ms": found.delay,
+            });
+            (if found.is_measured() { cleaned } else { local }, echo)
+        }
+    };
     let (from_local, from_remote) = if as_delivered {
         ("local.wav", "remote.wav")
     } else {
@@ -148,29 +173,19 @@ pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: boo
     let made = serde_json::json!({
         "made_by": format!("summit-transcription {}", env!("CARGO_PKG_VERSION")),
         "rate": RATE,
-        "local": {
-            "from": [from_local, from_remote],
-            "echo": {
-                "canceller": "WebRTC AEC3, through sonora 0.2.0",
-                "taken_out": found.is_measured(),
-                "measured_db": found.taken_out.map(|decibels| (decibels * 10.0).round() / 10.0),
-                "threshold_db": echo::MEASURED,
-                "delay_ms": found.delay,
-            },
-        },
+        "local": { "from": [from_local, from_remote], "echo": echo },
         "remote": { "from": [from_remote] },
     });
-    let place = folder.join(DERIVED);
-    fs::create_dir_all(&place)?;
+    fs::create_dir_all(&place).map_err(said)?;
     // Each file whole or not there: written beside, then put in its place.
     let keep = |name: &str, bytes: &[u8]| -> io::Result<()> {
         let beside = place.join(format!(".{name}.part"));
         fs::write(&beside, bytes)?;
         fs::rename(&beside, place.join(name))
     };
-    keep("local.wav", &wav(&local))?;
-    keep("remote.wav", &wav(&remote))?;
-    keep(MADE, format!("{made:#}\n").as_bytes())?;
+    keep("local.wav", &wav(&local)).map_err(said)?;
+    keep("remote.wav", &wav(&remote)).map_err(said)?;
+    keep(MADE, format!("{made:#}\n").as_bytes()).map_err(said)?;
     Ok([(Speaker::Me, local), (Speaker::Others, remote)])
 }
 
@@ -215,13 +230,17 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
     };
     let mut transcript = Transcript::open(folder, &making)?;
     // What the engine hears is made from the tracks, and kept apart: made again when it is not there.
+    let begun = transcript.covered(Speaker::Me) > 0.0 || transcript.covered(Speaker::Others) > 0.0;
     if transcript.is_complete() {
-        if !folder.join(DERIVED).join(MADE).is_file() {
-            derive(folder, sounds, as_delivered)?;
+        if !["local.wav", "remote.wav", MADE]
+            .iter()
+            .all(|name| folder.join(DERIVED).join(name).is_file())
+        {
+            derive(folder, sounds, as_delivered, begun)?;
         }
         return Ok(());
     }
-    let sounds = derive(folder, sounds, as_delivered)?;
+    let sounds = derive(folder, sounds, as_delivered, begun)?;
     // Every place in the session is counted in whole hundredths of a second, as the transcript
     // writes them: a run taken up starts exactly where the run before decided to stop.
     const HUNDREDTH: usize = RATE / 100;

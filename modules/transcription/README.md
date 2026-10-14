@@ -49,7 +49,9 @@ remote words written a second time under the local side fall from about 210 to n
 `remote.wav`, one channel, 16,000 samples a second, the samples it was given, to the bit; and
 `made.json`, what made them — the files they come from, whether an echo was taken out, how
 much was measured. They weigh about 230 MB an hour of meeting each, and may be deleted: the
-next run makes them again, the same to the byte, and the transcript with them.
+next run makes them again, the same to the byte, and the transcript with them. A transcript
+begun while the meeting was recorded keeps the decision taken then — echo or not — for the
+rest: its beginning was heard so. Delete `made.json` with it, or not at all.
 
 **Attach a context** — `context.txt` in the session's folder: names and words of the trade
 the engine would otherwise write as it hears them.
