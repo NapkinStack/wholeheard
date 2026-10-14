@@ -132,6 +132,44 @@ second criterion was restated in cycle 01.
 engine's copy are made by `transcription`, which is what needs them; `all`, the file to
 listen to, is `export`'s, in a later cycle.
 
+### D10 — where it stands (2026-10-14)
+
+Built and merged: the turns timed by their words (#117), a segment's track and the voice's
+place (#118, #119), the echo canceller (#120) and what the engine heard kept (#121) — each
+verified by a session of its own; three failed once, and were redesigned where they failed.
+
+```mermaid
+flowchart LR
+    T["The tracks<br/>as recorded"]:::file --> C{"An echo<br/>measured?"}:::built
+    C -->|"loudspeakers"| L["local without<br/>the echo"]:::derived
+    C -->|"headset"| U["local as recorded"]:::derived
+    L & U --> D["derived/<br/>what the engine heard"]:::derived
+    D --> E["Whisper, each word timed"]:::built
+    E --> S["Segments cut where the words stop:<br/>track · voice (empty) · start"]:::derived
+    classDef file fill:#374151,color:#fff
+    classDef built fill:#92400e,color:#fff
+    classDef derived fill:#065f46,color:#fff
+```
+
+**Legend** — grey: the recording, never touched · orange: what D10 built · green: what it
+makes, kept apart and made again the same.
+
+| Criterion | Where it stands, on the bench's first form |
+|---|---|
+| No more words said twice than with a headset | **Holds but on one draw**: none on 23 of the 24 loudspeaker draws measured — 6 low, 18 loud — and 3 words on one |
+| No more local words wrong than as delivered — the echo gone without the speaker's words | **Holds on the median, not on every draw**: loud, 18 draws, 49 → 42.5; low 43 → 27. Worse on 7 of 18 loud draws: whole turns the engine does not write, their sound kept by the canceller within 0.4 dB — D9's finding, the engine hearing a long recording window after window. The framer's proposed half (D8), local words said over the remote: 18.5 → 22 lost of 109 — the canceller's suppression while both speak |
+| At most one exchange in twenty out of order, one word in fifty on the wrong side | **Holds in every draw**: at most 2 of 47 out of order (a headset gave one in four); no word on the wrong side |
+| A headset's local track goes to the engine as recorded | **Holds**: sample for sample, every headset and television draw (the canceller measures 0.2 to 1.2 dB, the threshold is 3) |
+| What was made kept apart, saying what made it; deleted, made again, the transcript the same | **Holds** — but a transcript begun while the meeting is recorded keeps the echo decision of its beginning: begun before the remote spoke, it keeps the echo. The product transcribes a stopped recording |
+| Each segment says its track, and has a place for the voice | **Holds**, in `transcript/v1`: both fields optional, so the transcripts written before still read. ADR-0004 foresaw a `transcript/v2`; it is owed only the day `speaker` is dropped |
+| The meeting of 2026-10-13, recorded again by the decider, on loudspeakers then with a headset | **Owed — the decider's gesture** |
+
+**What the measures say next.** The words a meeting loses are no longer the echo's: they are
+whole turns the engine skips in a long recording, on the bench's loud draws with or without
+the canceller, and fewer local words where both sides speak at once. The first is what D14
+showed a way out of — the engine hearing speech in pieces — and the second is the
+canceller's suppression while both speak: each a change measured on this bench first.
+
 ### D10 — the echo and the times, tried before they are built (2026-10-14)
 
 **Result: both hold on the bench**: no word said twice on loudspeakers, and at most two
