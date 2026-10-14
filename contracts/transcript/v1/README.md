@@ -8,14 +8,21 @@ flowchart LR
     A["me.wav · others.wav<br/>context.txt"]:::file --> T["transcription"]:::producer
     T -->|"appends lines"| J["transcript.jsonl"]:::file
     J --> S["summary"]:::consumer
-    J --> E["export"]:::consumer
+    J -.-> E["export"]:::planned
 
     classDef producer fill:#065f46,color:#fff
     classDef consumer fill:#1e3a8a,color:#fff
     classDef file fill:#374151,color:#fff
+    classDef planned fill:#1e3a8a,color:#fff,stroke-dasharray: 5 5
 ```
 
-**Legend** — green: the producer · grey: files in the session's folder · blue: consumers.
+**Legend** — green: the producer · grey: files in the session's folder · blue: consumers ·
+dashed: a consumer that is planned, and reads nothing yet.
+
+**For a machine**: [`line.schema.json`](./line.schema.json) says what a line is — and is what
+the project's comparator judges a change to this version by (ADR-0005). The order of the
+lines, that they are only ever added, and that a segment ends after it starts, are said here
+and nowhere else.
 
 ## What it carries
 
@@ -53,7 +60,7 @@ by a line feed. Lines are only ever added. Every line has a `type`.
 Valid, and not finished:
 
 ```json
-{"type": "header", "contract": "transcript/v1", "engine": "faster-whisper", "model": "large-v3-turbo", "language": "fr", "context": "Quatre personnes, réunion d'organisation."}
+{"type": "header", "contract": "transcript/v1", "engine": "whisper.cpp", "model": "large-v3-turbo", "language": "fr", "context": "Quatre personnes, réunion d'organisation."}
 {"type": "segment", "speaker": "others", "start": 0.0, "end": 3.2, "text": "Du coup j'ai besoin que l'on confirme la date."}
 {"type": "segment", "speaker": "me", "start": 3.4, "end": 5.1, "text": "Première semaine de juin, je pense."}
 {"type": "covered", "speaker": "others", "until": 30.0}

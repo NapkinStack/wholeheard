@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A line of transcript.jsonl",
+  "description": "transcript/v1 — one JSON object a line. What a schema cannot say is on the contract's page: the order of the lines, that they are only ever added, that a segment ends after it starts.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "header"
+        },
+        "contract": {
+          "const": "transcript/v1"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "context": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "contract",
+        "engine",
+        "model",
+        "language",
+        "context"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "segment"
+        },
+        "speaker": {
+          "$ref": "#/$defs/speaker"
+        },
+        "start": {
+          "$ref": "#/$defs/seconds"
+        },
+        "end": {
+          "$ref": "#/$defs/seconds"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "speaker",
+        "start",
+        "end",
+        "text"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "covered"
+        },
+        "speaker": {
+          "$ref": "#/$defs/speaker"
+        },
+        "until": {
+          "$ref": "#/$defs/seconds"
+        }
+      },
+      "required": [
+        "type",
+        "speaker",
+        "until"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "complete"
+        },
+        "duration": {
+          "$ref": "#/$defs/seconds"
+        }
+      },
+      "required": [
+        "type",
+        "duration"
+      ]
+    },
+    {
+      "description": "A line of a type this version does not name: a reader skips it.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "not": {
+            "enum": [
+              "header",
+              "segment",
+              "covered",
+              "complete"
+            ]
+          }
+        }
+      },
+      "required": [
+        "type"
+      ]
+    }
+  ],
+  "$defs": {
+    "speaker": {
+      "enum": [
+        "me",
+        "others"
+      ]
+    },
+    "seconds": {
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}
