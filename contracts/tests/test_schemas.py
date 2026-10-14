@@ -133,8 +133,9 @@ def test_the_comparator_refuses_a_schemas_breaks_wherever_they_are(path, tmp_pat
     assert len(breaks) > 5 and not let_through, let_through
 
 
-# The fields a page says may be absent: `stopped`, while a session is recording.
-OPTIONAL = {"stopped"}
+# The fields a page says may be absent: `stopped`, while a session is recording; a segment's
+# `track` and `voice`, in a transcript written before they were.
+OPTIONAL = {"stopped", "track", "voice"}
 SHOWN_AS_LINES = {"transcript/v1/line.schema.json", "recording/v1/event.schema.json"}
 EXAMPLES = {
     "transcript/v1/line.schema.json": (
@@ -162,6 +163,24 @@ EXAMPLES = {
                 "end": 3.2,
                 "text": "Du coup j'ai besoin que l'on confirme la date.",
             },
+            {
+                "type": "segment",
+                "speaker": "me",
+                "track": "local",
+                "voice": None,
+                "start": 3.4,
+                "end": 5.1,
+                "text": "Première semaine de juin, je pense.",
+            },
+            {
+                "type": "segment",
+                "speaker": "others",
+                "track": "remote",
+                "voice": "2",
+                "start": 6.0,
+                "end": 7.0,
+                "text": "x",
+            },
             {"type": "covered", "speaker": "me", "until": 30.0},
             {"type": "complete", "duration": 1912.4},
             {"type": "a type of a later version", "anything": 1},
@@ -177,6 +196,11 @@ EXAMPLES = {
             {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": "\n"},
             {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": "a carriage\rreturn"},
             {"type": "segment", "speaker": "me", "start": 0.0, "end": 3.2, "text": None},
+            {"type": "segment", "speaker": "me", "track": "room", "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "track": None, "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "voice": "", "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "voice": "two\nlines", "start": 0.0, "end": 3.2, "text": "x"},
+            {"type": "segment", "speaker": "me", "voice": 2, "start": 0.0, "end": 3.2, "text": "x"},
             {"type": "covered", "speaker": "anyone", "until": 30.0},
             {"type": "complete", "duration": -1},
             {
