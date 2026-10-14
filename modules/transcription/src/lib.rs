@@ -10,6 +10,7 @@ use std::{
 
 use serde_json::{Value, json};
 
+pub mod echo;
 pub mod step;
 pub mod tracks;
 pub mod whisper;
