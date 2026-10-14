@@ -12,14 +12,23 @@ import pytest
 from bench.render import (
     CONDITIONS,
     ECHO_DELAY,
+    HUM,
     LINE,
     NOISE,
     RATE,
+    TELEVISION,
+    TELEVISION_LEVEL,
+    TELEVISION_VOICE,
     VOICES,
     condition,
+    hum,
+    in_the_room,
     lay_out,
+    main,
     room,
     script,
+    speaking,
+    television,
     write_as_delivered,
     write_session,
 )
@@ -29,7 +38,7 @@ MEETING = Path(__file__).parent.parent / "bench" / "meeting.txt"
 
 def tone(voice: str, text: str) -> np.ndarray:
     """A quarter of a second a word, at a pitch of the voice's own."""
-    pitch = 200 + 100 * sorted(VOICES).index(voice)
+    pitch = 200 + 100 * [*sorted(VOICES), "television"].index(voice)
     samples = np.arange(round(0.25 * len(text.split()) * RATE))
     return (0.3 * np.sin(2 * np.pi * pitch * samples / RATE)).astype(np.float32)
 
@@ -116,7 +125,7 @@ def level(sound: np.ndarray) -> float:
 
 def test_on_loudspeakers_the_microphone_hears_the_remote_side_later_weaker_and_as_loud_as_measured():
     tracks, truth = lay_out(script(MEETING), tone)
-    assert list(CONDITIONS) == ["headset", "low", "loud"]
+    assert list(CONDITIONS) == ["headset", "low", "loud", "television"]
     first = next(turn for turn in truth if turn["side"] == "remote")
     starts, ends = round(first["start"] * RATE), round(first["end"] * RATE)
     for name in ("low", "loud"):
@@ -135,12 +144,14 @@ def test_on_loudspeakers_the_microphone_hears_the_remote_side_later_weaker_and_a
 
 def test_a_condition_is_the_remote_as_played_and_the_microphone_with_its_own_noise():
     tracks, _ = lay_out(script(MEETING), tone)
+    tracks["television"], _ = television(tone, len(tracks["local"]))
     for name in CONDITIONS:
         heard = condition(tracks, name)
         # What the machine plays is what was said, with the line's own noise under it.
         assert 20 * np.log10(level(heard["remote"] - tracks["remote"])) == pytest.approx(LINE, abs=0.2)
         assert not np.array_equal(condition(tracks, name, 1)["remote"], heard["remote"])
         echo = room(heard["remote"], name) if CONDITIONS[name] is not None else 0
+        echo = in_the_room(tracks, 0) if name == "television" else echo
         noise = heard["local"] - tracks["local"] - echo
         assert 20 * np.log10(level(noise)) == pytest.approx(NOISE[name], abs=0.2)
         # The same draw is the same noise; another draw is another, at the same level.
@@ -200,3 +211,57 @@ def test_the_same_meeting_as_a_recording_keeps_it_is_each_side_as_delivered_and_
             assert all((delivered[a:b] == 0).all() for a, b in ours)
         assert len(delivered) < len(heard[side])
     assert json.loads((tmp_path / "truth.json").read_text())["turns"] == truth
+
+
+def test_a_room_that_is_not_silent_is_a_television_said_from_first_to_last_and_a_hum(tmp_path):
+    tracks, truth = lay_out(script(MEETING), tone)
+    tracks["television"], said = television(tone, len(tracks["local"]))
+    # The television speaks all along — over the turns and between them — and nobody answers it.
+    assert len(tracks["television"]) == len(tracks["local"])
+    assert said[0]["start"] == 0 and said[-1]["end"] >= truth[-1]["end"] - 5
+    assert [turn["text"] for turn in said[: len(TELEVISION)]] == list(TELEVISION)
+    assert all(turn["side"] == "television" and turn["words"] for turn in said)
+    # A voice no participant has, which pauses as one does between sentences.
+    assert TELEVISION_VOICE not in VOICES.values()
+    assert all(0.7 <= b["start"] - a["end"] <= 0.9 for a, b in itertools.pairwise(said))
+    heard = in_the_room(tracks, 0)
+    steady = hum(len(heard), 0)
+    voice = heard - steady
+    said_at = tracks["television"] != 0
+    assert 20 * np.log10(level(voice[said_at]) / speaking(tracks["local"])) == pytest.approx(TELEVISION_LEVEL, abs=0.1)
+    # The hum is as loud as set, louder low than high, and another with each draw.
+    assert 20 * np.log10(level(steady)) == pytest.approx(HUM, abs=0.1)
+    spectrum = np.abs(np.fft.rfft(steady))
+    assert spectrum[1 : len(spectrum) // 100].mean() > 3 * spectrum[len(spectrum) // 2 :].mean()
+    assert not np.array_equal(in_the_room(tracks, 1), heard)
+    # Only the condition named for it hears it; only its truth says what it said.
+    assert level(condition(tracks, "television")["local"] - tracks["local"]) > 3 * level(
+        condition(tracks, "headset")["local"] - tracks["local"]
+    )
+    write_session(tmp_path / "v1", condition(tracks, "television"), truth, said)
+    write_as_delivered(tmp_path / "v2", condition(tracks, "television"), truth, said)
+    write_session(tmp_path / "quiet", condition(tracks, "headset"), truth)
+    for folder in ("v1", "v2"):
+        kept = json.loads((tmp_path / folder / "truth.json").read_text(encoding="utf-8"))
+        assert kept == {"turns": truth, "television": said}
+    assert set(json.loads((tmp_path / "quiet" / "truth.json").read_text(encoding="utf-8"))) == {"turns"}
+
+
+def test_the_bench_writes_what_the_television_said_beside_its_condition_only(tmp_path, monkeypatch):
+    # The meeting's first turns, in the first form: what is written, not how much.
+    meeting = script(MEETING)
+    monkeypatch.setattr("bench.render.script", lambda path: {**meeting, "turns": meeting["turns"][:6]})
+    monkeypatch.setattr("bench.render.piper", lambda voices, cache: tone)
+    assert main(["render", str(tmp_path / "voices"), str(tmp_path / "out"), "1"]) == 0
+    for name in CONDITIONS:
+        kept = json.loads((tmp_path / "out" / name / "0" / "truth.json").read_text(encoding="utf-8"))
+        assert ("television" in kept) == (name == "television"), name
+
+
+def test_a_sentence_the_television_would_not_finish_is_not_said():
+    first = len(tone("television", TELEVISION[0]))
+    for length in (first - 1, first + round(0.8 * RATE) + 10):
+        sound, said = television(tone, length)
+        assert len(said) == 1 if length > first else not said
+        # What it said is whole, and after it the track is silent to the end.
+        assert np.abs(sound[first:]).max(initial=0.0) == 0.0

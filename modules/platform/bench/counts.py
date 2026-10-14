@@ -12,6 +12,7 @@ The counts, each with what it is counted out of:
 - words wrong, on each side: the words to change, add or take out of what the transcript
   gives a side to get what that side said — of which, those of turns it did not hold at all;
   and, for the local side, net of the echo: without the remote's words it was given;
+- words missing, on each side: words a side said that the transcript does not have;
 - local words lost under the remote: words the local side said while the remote side spoke,
   or in the third of a second after, that the transcript does not have — what muting the
   microphone to kill an echo costs;
@@ -21,7 +22,9 @@ The counts, each with what it is counted out of:
 - exchanges out of order: places where the meeting passes from one side to the other and
   the transcript puts the two turns the other way round than they were said;
 - turns far from their time: turns the transcript starts more than two seconds away from
-  where they were said.
+  where they were said;
+- the television's words written, when one was on: words it said that the transcript gives
+  a participant — two in a row, said by it just then, as the echo is told.
 
 A turn is where the transcript puts its first words. Order and time are read as a share of
 the turns found, with the turns not found beside: a transcript that loses turns has fewer to
@@ -43,6 +46,10 @@ from num2words import num2words
 
 NEAR = 10.0
 """Seconds around a transcript's segment in which the other side's words are "just then"."""
+
+ON_TELEVISION = 1.0
+"""The same for the television's words: it says its few sentences over and over, so that
+any of them is said somewhere in twenty seconds — "just then" is the second around them."""
 
 TAIL = 0.3
 """Seconds after a remote turn in which a local word is still under it: an echo rings, and
@@ -88,7 +95,7 @@ def heard(transcript: list[dict], side: str) -> list[dict]:
     return [{"word": word, "start": s["start"], "end": s["end"]} for s in mine for word in words(s["text"])]
 
 
-def borrowed(extra: list[dict], theirs: list[dict]) -> list[int | None]:
+def borrowed(extra: list[dict], theirs: list[dict], within: float = NEAR) -> list[int | None]:
     """For each word a side was given and did not say: the turn of the other side it was
     taken from — said by them just then, next to the word they said it next to — or none.
     One word alone proves nothing: `le` is said by everyone, all the time."""
@@ -102,7 +109,7 @@ def borrowed(extra: list[dict], theirs: list[dict]) -> list[int | None]:
         near = [
             t
             for t in spoken.get((a["word"], b["word"]), [])
-            if t["start"] - NEAR <= a["end"] and a["start"] <= t["end"] + NEAR
+            if t["start"] - within <= a["end"] and a["start"] <= t["end"] + within
         ]
         return min(near, key=lambda t: abs(t["at"] - a["start"]))["turn"] if near else None
 
@@ -114,8 +121,9 @@ def borrowed(extra: list[dict], theirs: list[dict]) -> list[int | None]:
     return taken
 
 
-def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int]]:
-    """Every count of a transcript against the truth, each with what it is counted out of."""
+def count(truth: list[dict], transcript: list[dict], television: list[dict] = ()) -> dict[str, tuple[int, int]]:
+    """Every count of a transcript against the truth, each with what it is counted out of —
+    and, given what a television said, how much of it the transcript gives the participants."""
     result: dict[str, tuple[int, int]] = {}
     was = {side: said(truth, side) for side in SIDES.values()}
     got = {side: heard(transcript, side) for side in SIDES.values()}
@@ -150,6 +158,7 @@ def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int
         number: statistics.median(starts[:3]) for number, starts in placed.items() if 2 * len(starts) >= size[number]
     }
     for side in ("local", "remote"):
+        result[f"words missing, {side}"] = (len(was[side]) - len(matched[side]), len(was[side]))
         dropped = sum(1 for i, word in enumerate(was[side]) if word["turn"] not in found and i not in matched[side])
         result[f"of which in turns not found, {side}"] = (dropped, len(was[side]))
 
@@ -183,13 +192,19 @@ def count(truth: list[dict], transcript: list[dict]) -> dict[str, tuple[int, int
     result["exchanges not found"] = (len(exchanges) - len(known), len(exchanges))
     result["turns far from their time"] = (sum(abs(found[n] - truth[n]["start"]) > FAR for n in found), len(found))
     result["turns not found"] = (len(truth) - len(found), len(truth))
+    if television:
+        spoken = said(list(television), "television")
+        written = sum(turn is not None for side in extra for turn in borrowed(extra[side], spoken, ON_TELEVISION))
+        result["the television's words written"] = (written, len(spoken))
     return result
 
 
-def read(folder: Path) -> tuple[list[dict], list[dict]]:
-    """A session's truth and its transcript — a whole one, of that meeting, in the form this
-    reads: anything else is refused, never counted as if it were."""
-    truth = json.loads((folder / "truth.json").read_text(encoding="utf-8"))["turns"]
+def read(folder: Path) -> tuple[list[dict], list[dict], list[dict]]:
+    """A session's truth, its transcript and what a television said in it — a whole
+    transcript, of that meeting, in the form this reads: anything else is refused, never
+    counted as if it were."""
+    kept = json.loads((folder / "truth.json").read_text(encoding="utf-8"))
+    truth = kept["turns"]
     lines = [
         json.loads(line)
         for line in (folder / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
@@ -214,7 +229,7 @@ def read(folder: Path) -> tuple[list[dict], list[dict]]:
         refusal = f"the transcript is of {lines[-1].get('duration')} s, the meeting of {truth[-1]['end']:.0f} s"
     if refusal:
         raise ValueError(f"{folder}: {refusal}")
-    return truth, [line for line in lines if line.get("type") == "segment"]
+    return truth, [line for line in lines if line.get("type") == "segment"], kept.get("television", [])
 
 
 def main(argv: list[str]) -> int:
@@ -222,6 +237,9 @@ def main(argv: list[str]) -> int:
         print("usage: python -m bench.counts <session-folder> [<session-folder> …]", file=sys.stderr)
         return 2
     results = [count(*read(Path(folder))) for folder in argv[1:]]
+    if len({tuple(result) for result in results}) > 1:
+        print("the folders are not draws of one condition: some had a television, some not", file=sys.stderr)
+        return 2
     for name in results[0]:
         numbers, totals = sorted(result[name][0] for result in results), sorted(result[name][1] for result in results)
         spread = (
