@@ -7,10 +7,12 @@ use whisper_rs::{DtwMode, DtwModelPreset, DtwParameters, FullParams, SamplingStr
 
 use crate::{Segment, step::Engine};
 
-/// Where a segment is cut: the words stop for longer than this, in hundredths of a second.
-/// Whisper starts a segment where it starts a window, not where a turn starts: cut where the
-/// words stop, a turn starts where it was said (cycle 02, D10).
-const PAUSE: i64 = 50;
+/// Where a segment of the engine is cut: from one word's time to the next's, longer than this,
+/// in hundredths of a second. Whisper starts a segment where it starts a window, not where a
+/// turn starts: cut where the words stop, a turn starts where it was said (cycle 02, D10). A
+/// word's time is where it starts: half a second cut a sentence after each long word, one
+/// second missed the turns; 0.8 holds the order and leaves a word alone twice a session.
+const PAUSE: i64 = 80;
 
 pub struct Whisper {
     engine: WhisperContext,
@@ -71,6 +73,22 @@ fn cut(tokens: &[(i64, Vec<u8>)]) -> Vec<Segment> {
         })
         .filter(|segment| !segment.text.is_empty())
         .collect()
+}
+
+/// Pieces added to what a span gave so far: a piece that does not start after the one before
+/// is part of it. The engine may write a sentence twice, every word at one instant, and what
+/// follows at that instant too: kept apart, the transcript would keep the first only — two
+/// segments of one speaker never share a start.
+fn joined(segments: &mut Vec<Segment>, pieces: Vec<Segment>) {
+    for piece in pieces {
+        match segments.last_mut() {
+            Some(last) if piece.start <= last.start => {
+                last.text = format!("{} {}", last.text, piece.text);
+                last.end = last.end.max(piece.end);
+            }
+            _ => segments.push(piece),
+        }
+    }
 }
 
 fn failed<T>(what: &str, error: impl std::fmt::Display) -> io::Result<T> {
@@ -160,7 +178,7 @@ impl Engine for Whisper {
         state
             .full(params, sound)
             .or_else(|error| failed("the engine could not hear this span", error))?;
-        let mut segments = Vec::new();
+        let mut segments: Vec<Segment> = Vec::new();
         if self.words {
             let ends = self.engine.token_eot();
             for segment in state.as_iter() {
@@ -174,7 +192,7 @@ impl Engine for Whisper {
                         (at, token.to_bytes().unwrap_or_default().to_vec())
                     })
                     .collect();
-                segments.extend(cut(&tokens));
+                joined(&mut segments, cut(&tokens));
             }
             return Ok(segments);
         }
@@ -219,15 +237,33 @@ mod tests {
 
     #[test]
     fn a_mark_of_punctuation_heard_late_stays_with_the_word_before_it() {
-        let cut = cut(&tokens(&[(100, " calendrier"), (180, " ?"), (240, " Oui")]));
+        let cut = cut(&tokens(&[(100, " calendrier"), (180, " ?"), (300, " Oui")]));
         let texts: Vec<&str> = cut.iter().map(|s| s.text.as_str()).collect();
         assert_eq!(texts, ["calendrier ?", "Oui"]);
     }
 
     #[test]
-    fn a_pause_of_exactly_half_a_second_does_not_cut() {
-        assert_eq!(cut(&tokens(&[(100, " un"), (150, " deux")])).len(), 1);
-        assert_eq!(cut(&tokens(&[(100, " un"), (151, " deux")])).len(), 2);
+    fn segments_the_engine_wrote_at_one_instant_are_one_with_what_follows_them_there() {
+        // A sentence written twice in two segments, every word at one time, then the sentence
+        // said there in a third: one segment, none of its words lost to a start already taken.
+        let twice = tokens(&[(17130, " on"), (17130, " a"), (17130, " un"), (17130, " guide")]);
+        let said = tokens(&[(17130, " il"), (17150, " faudrait"), (17190, " aussi")]);
+        let mut segments = Vec::new();
+        for segment in [&twice, &twice, &said] {
+            joined(&mut segments, cut(segment));
+        }
+        let texts: Vec<(f64, &str)> = segments.iter().map(|s| (s.start, s.text.as_str())).collect();
+        assert_eq!(texts, [(171.3, "on a un guide on a un guide il faudrait aussi")]);
+        assert_eq!(segments[0].end, 171.9);
+        // One that starts later is a segment of its own.
+        joined(&mut segments, cut(&tokens(&[(17500, " Oui")])));
+        assert_eq!(segments.len(), 2);
+    }
+
+    #[test]
+    fn a_pause_of_exactly_eight_tenths_of_a_second_does_not_cut() {
+        assert_eq!(cut(&tokens(&[(100, " un"), (180, " deux")])).len(), 1);
+        assert_eq!(cut(&tokens(&[(100, " un"), (181, " deux")])).len(), 2);
     }
 
     #[test]
@@ -254,12 +290,35 @@ mod tests {
             std::fs::write(&path, bytes).unwrap();
             path
         };
-        let turbo = header([51866, 1500, 1280, 20, 32, 448, 1280, 20, 4, 128, 2007]);
-        assert!(matches!(heads(&turbo), Some(DtwModelPreset::LargeV3Turbo)));
-        let large = header([51866, 1500, 1280, 20, 32, 448, 1280, 20, 32, 128, 1]);
-        assert!(matches!(heads(&large), Some(DtwModelPreset::LargeV3)));
+        // The models whisper.cpp holds heads for, by what their headers say: words, layers heard, layers written, bands.
+        let models = [
+            ((51864, 4, 4, 80), "TinyEn"),
+            ((51865, 4, 4, 80), "Tiny"),
+            ((51864, 6, 6, 80), "BaseEn"),
+            ((51865, 6, 6, 80), "Base"),
+            ((51864, 12, 12, 80), "SmallEn"),
+            ((51865, 12, 12, 80), "Small"),
+            ((51864, 24, 24, 80), "MediumEn"),
+            ((51865, 24, 24, 80), "Medium"),
+            ((51866, 32, 32, 128), "LargeV3"),
+            ((51866, 32, 4, 128), "LargeV3Turbo"),
+        ];
+        for ((words, heard, written, bands), preset) in models {
+            let model = header([words, 1500, 1280, 20, heard, 448, 1280, 20, written, bands, 1]);
+            assert_eq!(
+                heads(&model).map(|found| format!("{found:?}")),
+                Some(preset.to_string()),
+                "{preset}"
+            );
+        }
         let large_v2 = header([51865, 1500, 1280, 20, 32, 448, 1280, 20, 32, 80, 1]);
         assert!(heads(&large_v2).is_none());
+        // A header of the right fields after another magic is no model of whisper.cpp's.
+        let mut other = std::fs::read(header([51866, 1500, 1280, 20, 32, 448, 1280, 20, 4, 128, 1])).unwrap();
+        other[..4].copy_from_slice(b"GGUF");
+        let other_magic = folder.path().join("other.bin");
+        std::fs::write(&other_magic, other).unwrap();
+        assert!(heads(&other_magic).is_none());
         let not_a_model = folder.path().join("short.bin");
         std::fs::write(&not_a_model, b"ggml").unwrap();
         assert!(heads(&not_a_model).is_none());

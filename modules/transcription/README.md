@@ -54,7 +54,7 @@ begun while the meeting was recorded keeps the decision taken then — echo or n
 rest: its beginning was heard so. Delete `made.json` with it, or not at all.
 
 **A turn starts where it was said.** Each word is timed by the model's alignment heads, and a
-segment is cut where the words stop for more than half a second: on the bench, at most two
+segment is cut where the words stop for more than 0.8 s: on the bench, at most two
 exchanges in forty-four are out of order, against one in four with the engine's own segments
 (cycle 02, D10). A model whose heads whisper.cpp does not hold — or the first two versions
 of `large`, which one header cannot tell apart — keeps the engine's segments, and `hearing`
