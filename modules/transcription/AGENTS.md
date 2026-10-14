@@ -33,6 +33,7 @@ Turns the audio of a session into a timestamped transcript.
   from zero.
 - It says who spoke only as the two files do — `me`, `others`, and each segment's `track`, `local` or `remote`. Telling several voices of one file apart is not done here: a segment's `voice` is written `null`, its place kept (ADR-0004, rule 6).
 - It fetches no model and contacts no host: the model file is the caller's to give.
+- It writes nothing beside the transcript but `derived/`: what the engine heard, made from the tracks, never the tracks themselves (ADR-0004, rule 4).
 
 ## Internal conventions nobody could guess
 

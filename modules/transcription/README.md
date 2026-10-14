@@ -38,6 +38,21 @@ summit-transcription <session-folder> --model ggml-large-v3-turbo-q8_0.bin --lan
 covers is not heard twice. A recording still going on is heard up to here; its transcript
 gets its last line once the session's record says `stopped`.
 
+**On loudspeakers, the echo is taken out** of what the engine hears of the microphone — never
+out of the recording. WebRTC's canceller, fed what the loudspeakers played, takes the remote
+voices out of the local track; it is used only where it measures an echo — 3 dB taken out at
+least — so that a headset's microphone goes to the engine as recorded. On the bench, the
+remote words written a second time under the local side fall from about 210 to none
+(cycle 02, D10).
+
+**What the engine heard is kept**, in `derived/` in the session's folder: `local.wav` and
+`remote.wav`, one channel, 16,000 samples a second, the samples it was given, to the bit; and
+`made.json`, what made them — the files they come from, whether an echo was taken out, how
+much was measured. They weigh about 230 MB an hour of meeting each, and may be deleted: the
+next run makes them again, the same to the byte, and the transcript with them. A transcript
+begun while the meeting was recorded keeps the decision taken then — echo or not — for the
+rest: its beginning was heard so. Delete `made.json` with it, or not at all.
+
 **Attach a context** — `context.txt` in the session's folder: names and words of the trade
 the engine would otherwise write as it hears them.
 
@@ -65,4 +80,4 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 [ADR-0003](../../docs/adr/0003-transcribe-behind-one-interface-whisper-on-the-graphics-card.md):
 one interface, Whisper on the graphics card.
 [ADR-0004](../../docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md):
-the tracks are the recording; what an engine hears is made from them, in memory.
+the tracks are the recording; what an engine hears is made from them, and kept apart.
