@@ -5,7 +5,7 @@ use std::{fs, io, path::Path};
 
 use summit_transcription::{
     Segment,
-    step::{Engine, RATE, sound, transcribe},
+    step::{Engine, RATE, read, sound, transcribe},
 };
 
 /// Hears each stretch of non-silent samples as one segment, and says how long it was. It
@@ -94,6 +94,7 @@ fn segments(folder: &Path) -> Vec<(String, f64, f64)> {
 #[test]
 fn a_session_is_heard_span_by_span_and_a_sentence_across_two_spans_is_heard_whole() {
     let folder = session();
+    assert_eq!(read(folder.path()).unwrap().0, "session-audio/v1");
     fs::write(folder.path().join("context.txt"), "  Quatre personnes.\n").unwrap();
     let mut engine = Played::default();
     transcribe(folder.path(), &mut engine, Some("fr"), 30).unwrap();
@@ -123,6 +124,21 @@ fn a_session_is_heard_span_by_span_and_a_sentence_across_two_spans_is_heard_whol
     assert!(engine.asked.iter().all(|(length, language, context)| {
         *length <= 30 * RATE && language.as_deref() == Some("fr") && context.as_deref() == Some("Quatre personnes.")
     }));
+}
+
+#[test]
+fn a_first_form_session_is_measured_from_zero_as_it_always_was() {
+    // A level that never moves, away from zero: sound in the first form, which is centred.
+    let folder = tempfile::tempdir().unwrap();
+    fs::write(folder.path().join("session.json"), STOPPED).unwrap();
+    audio(&folder.path().join("me.wav"), 20.0, &[(0.0, 20.0)]);
+    audio(&folder.path().join("others.wav"), 20.0, &[]);
+    let mut engine = Played {
+        unbroken: Some(0.0),
+        ..Played::default()
+    };
+    transcribe(folder.path(), &mut engine, None, 10).unwrap();
+    assert_eq!(engine.calls, 2);
 }
 
 #[test]
@@ -198,7 +214,7 @@ fn a_file_that_is_not_what_a_session_holds_is_said_and_not_converted() {
     // A folder that is not a session of this version is not heard either.
     for not_one in ["", "{}", r#"{"contract":"session-audio/v0"}"#] {
         fs::write(folder.path().join("session.json"), not_one).unwrap();
-        refused(folder.path(), &["session.json does not name session-audio/v1"]);
+        refused(folder.path(), &["session.json names neither session-audio/v1 nor session-audio/v2"]);
     }
     fs::write(folder.path().join("session.json"), STOPPED).unwrap();
     // A context that is not text is said too, before anything is heard.

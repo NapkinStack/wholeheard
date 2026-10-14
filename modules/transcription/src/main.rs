@@ -13,7 +13,7 @@ use std::{io::Write, path::Path, process::ExitCode};
 
 use serde_json::json;
 use summit_transcription::{
-    step::{session, transcribe},
+    step::{hear, read},
     whisper::{Whisper, knows},
 };
 
@@ -53,15 +53,15 @@ fn run(folder: &Path, model: &Path, language: Option<&str>) -> Result<(), String
         );
     }
     // The session is judged before the model is loaded: nothing is said to be heard that is refused.
-    session(folder).map_err(|error| error.to_string())?;
+    let (form, session) = read(folder).map_err(|error| error.to_string())?;
     let mut engine = Whisper::load(model).map_err(|error| error.to_string())?;
     let (name, model) = summit_transcription::step::Engine::name(&engine);
     let _ = writeln!(
         std::io::stdout(),
         "{}",
-        json!({ "event": "hearing", "engine": name, "model": model, "language": language })
+        json!({ "event": "hearing", "engine": name, "model": model, "language": language, "audio": form })
     );
-    transcribe(folder, &mut engine, language, SPAN).map_err(|error| error.to_string())?;
+    hear(folder, session, &mut engine, language, SPAN).map_err(|error| error.to_string())?;
     let _ = writeln!(
         std::io::stdout(),
         "{}",

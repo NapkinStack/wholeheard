@@ -334,7 +334,32 @@ fn where_a_source_delivered_nothing_no_step_is_heard_that_it_never_made() {
         );
         assert!((stop[3 * RATE / 2] - 0.05).abs() < 0.0005 && stop.windows(2).all(|pair| pair[1] <= pair[0] + 0.00001));
     }
-    // Left at 0.2 and back at -0.1: a line between the two, and nothing beyond them.
+    // The same with the capture's zeros between the two, the clock placing what follows from
+    // the middle of them, its silences given out of order and a point given twice: one line.
+    track(&path, 48_000, 1, 144_000, |frame, _| [0.2, 0.0, -0.1][frame / 48_000]);
+    let within = Clock {
+        points: vec![(0, 0.0), (72_000, 2.5), (0, 9.0)],
+        silences: vec![(72_000, 96_000), (48_000, 72_000)],
+    };
+    let within = heard(&path, &within).unwrap();
+    assert!(rests(&within[..RATE], 0.2) && rests(&within[7 * RATE / 2..], -0.1) && within.len() == 4 * RATE);
+    assert!(within.windows(2).all(|pair| pair[1] <= pair[0] + 0.00001) && (within[2 * RATE] - 0.05).abs() < 0.03);
+    // A first run of one frame, heard late: the track opens where its source rests, not on zeros.
+    track(&path, 48_000, 1, 48_000, |_, _| 0.3);
+    assert!(rests(&heard(&path, &at(&[(0, 0.4), (1, 1.0)])).unwrap(), 0.3));
+    // A zero the source delivered right after the capture's is the room's: it is heard.
+    track(
+        &path,
+        16_000,
+        1,
+        16_000,
+        |frame, _| if (4_000..=8_000).contains(&frame) { 0.0 } else { 0.3 },
+    );
+    let after = Clock {
+        points: Vec::new(),
+        silences: vec![(4_000, 8_000)],
+    };
+    assert!(heard(&path, &after).unwrap()[8_000] < 0.1);
     track(&path, 48_000, 1, 144_000, |frame, _| [0.2, 0.0, -0.1][frame / 48_000]);
     let line = heard(
         &path,

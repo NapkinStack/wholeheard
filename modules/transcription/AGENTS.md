@@ -12,7 +12,7 @@ Turns the audio of a session into a timestamped transcript.
 
 ## What this module does not do
 
-- It records nothing: the audio files are `capture`'s, read as `session-audio/v1` describes them.
+- It records nothing: the audio files are `capture`'s, read as `session-audio/v1` or `v2` describes them.
 - `src/tracks.rs` brings a track of `session-audio/v2` to what an engine hears, in memory: the
   track is never written to (ADR-0004). The rate is changed by a library that does only that —
   a first conversion written here mirrored a voice's high notes into it at 44,100 and 8,000
@@ -22,8 +22,15 @@ Turns the audio of a session into a timestamped transcript.
   the track on the session's clock by every point of `clock.jsonl`; where a source delivered
   nothing — zeros the clock names, an instant it leaves empty — what is heard goes in a line
   from where the source left to where it came back, never down to zero and up again: a step
-  the source did not make rings in what the engine hears. The step does not read the second
-  form yet.
+  the source did not make rings in what the engine hears. The step reads both
+  forms and measures silence by the form: the first is centred, and silence is within a
+  thousandth of zero, as it always was; in the second, where a span rests is taken out of the
+  measure — never of the sound — by one pole at 20 Hz, as the capture does for its own watch,
+  run once from the track's first sample to its last: restarted at every span, it took each
+  span's first sample for its rest and heard a quiet hum at twice its size.
+  One measure for both, a line from a span's first sample to its last, failed its
+  verification: it changed what a first-form session gives, and was twice as strict away
+  from zero.
 - It says who spoke only as the two files do — `me`, `others`. Telling several voices of one file apart is not done here.
 - It fetches no model and contacts no host: the model file is the caller's to give.
 
