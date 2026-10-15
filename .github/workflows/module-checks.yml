@@ -27,7 +27,7 @@ permissions:
 jobs:
   discover:
     name: Changed modules
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
     outputs:
       modules: ${{ steps.list.outputs.modules }}
       any: ${{ steps.list.outputs.any }}
@@ -67,7 +67,7 @@ jobs:
     name: ${{ matrix.module.name }}
     needs: discover
     if: needs.discover.outputs.any == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -136,7 +136,7 @@ jobs:
     name: Module checks
     needs: [discover, validate]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
     steps:
       - name: Every changed module passed
         env:

@@ -191,7 +191,7 @@ The expected path:
 3. run bootstrap then check        → a working environment, validations green
 4. read the contracts consumed     → what it can rely on
 5. read the module's ADRs          → why it is the way it is
-6. pick up a Ready issue           → scope and criteria already explicit
+6. pick up a ready deliverable     → scope and criteria already explicit, in the current cycle
 ```
 
 If one of these steps requires asking somebody, that is a defect of the system, not of

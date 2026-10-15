@@ -26,7 +26,8 @@ flowchart TD
 
     B -->|No| C["FRAME: intent, scope,<br/>out of scope, risks"]
     C --> C2["SCOPE: identify THE module,<br/>load the bounded context"]
-    C2 --> D["ORACLE: write the executable<br/>success criterion"]
+    C2 --> C3["INVENTORY: what exists already,<br/>here and in established tools"]
+    C3 --> D["ORACLE: write the executable<br/>success criterion"]
     D --> E{"Oracle<br/>executable?"}
     E -->|No| E1["Do not generate.<br/>Make the criterion verifiable<br/>or send the framing back"] --> D
     E -->|Yes| F["Oracle RED — commit"]
@@ -45,8 +46,10 @@ flowchart TD
 
     K --> L["DOCUMENT the<br/>sources of truth affected"]
     L --> M["SUMMARISE: done / verified /<br/>assumed / not verified / risks"]
-    M --> V["VERIFY: a verifier who is not the author<br/>runs the test sheet — when §7 requires one"]
+    M --> S["SYNC: bring the branch current<br/>before its pull request"]
+    S --> V["VERIFY: a verifier who is not the author<br/>runs the test sheet — when §7 requires one"]
     V --> N["Human review + CI"]
+    N --> Z["CLOSE: once merged, the branch is gone —<br/>forge, workstation, worktree"]
 
     style D fill:#1f2937,color:#fff
     style F fill:#1f2937,color:#fff
@@ -121,6 +124,15 @@ indicator (`10-measurement.md`).
 Never produce a huge pull request simply because the agent can generate a lot of code
 quickly.
 
+**Bringing a branch current before its pull request.** Fetch the default branch and merge it
+into yours as the last thing before opening the pull request — and again when the forge
+shows a conflict while it waits. Whoever wrote the change settles its conflict in minutes;
+whoever approves it finds it too late and has to guess. What is numbered in sequence — a
+decision record, a row in a register — takes its number at that moment, not when the work
+started: two branches that each took "the next one" on the same morning meet on the same
+line. It narrows the window and does not close it: a pull request merged while yours waits
+can still conflict with it, and the branch is brought current again by its author.
+
 **Splitting a change into pull requests that sit on one another.** Each is opened on the
 branch of the one before, and each carries its own sheet when the module asks for one. Two
 things the forge and the sheet do then, to know before the first merge:
@@ -131,6 +143,18 @@ things the forge and the sheet do then, to know before the first merge:
   the commit tested. When that merge brings no file the branch did not already carry, the two
   commits hold the same tree and the sheet stands; when it brings one, the automated scenarios
   are run again at the new head (§7).
+
+**Once merged, a branch is gone.** A merged branch is history, not a place to work: left
+there, it is one more name to read past, and one day somebody builds on it. The forge
+deletes it at the merge when it is set to (`G16`, `07-governance.md` §7) — a guardrail worth
+turning on, and not the whole of it. Whoever merges looks: a merge made from a tool, or from
+a worktree, may report the merge and leave the branch; a setting nobody could read may be
+off. And the forge knows nothing of a workstation: the local branch and the worktree it was
+written in go too, and `git fetch --prune` drops the names of branches that no longer exist.
+After a squash the local branch is not an ancestor of the default one, and git refuses to
+delete it as unmerged: it is deleted once its pull request is seen merged, not before. A
+branch whose pull request was closed without a merge, or that never had one, is not
+cleaned up in passing: its author says whether anything on it is still wanted.
 
 ---
 
@@ -173,7 +197,7 @@ quietest way to accumulate debt.
 Do not start a significant task without:
 
 - [ ] a **deliverable of the current cycle**, ready (`docs/project/`) — in a framed project;
-      an unframed one has no cycle, and the four lines below are its whole definition of ready
+      an unframed one has no cycle, and the seven lines below are its whole definition of ready
 - [ ] a goal understandable without a spoken conversation
 - [ ] scope **and out of scope**
 - [ ] the target module identified

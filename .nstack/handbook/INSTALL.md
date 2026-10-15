@@ -50,11 +50,18 @@ fails when a commit reached `main` outside a pull request, and names it. It reco
 not refuse — on a repository where nothing can refuse, it is the only thing that will ever
 mention such a commit, and where a ruleset does refuse, it catches a bypass.
 
+**Where the CI runs.** Every job runs on GitHub's hosted Ubuntu unless the repository
+variable `NSTACK_RUNS_ON` names another runner label — a self-hosted runner, for a private
+repository whose hosted minutes are spent: `gh variable set NSTACK_RUNS_ON --body
+<label>`. Such a runner needs `git` and `yq` (mikefarah's) on its path; the workflows
+install uv themselves. Never on a public repository: there, a pull request from a
+fork would run its code on that machine — and hosted minutes are unlimited anyway.
+
 ## Installation
 
 ```bash
 # 1. Tooling at the project's NapkinStack version (prerequisite: uv)
-uv tool install "napkinstack==0.7.5" --with-executables-from pre-commit
+uv tool install "napkinstack==0.7.6-5-g7f89c6b" --with-executables-from pre-commit
 
 # 2. Hooks, once per clone
 pre-commit install

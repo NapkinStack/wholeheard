@@ -26,7 +26,7 @@ permissions:
 jobs:
   architecture:
     name: Fitness functions
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,7 +43,7 @@ jobs:
   scope:
     name: PR scope and review budget
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
     steps:
       # fetch-depth: 0 fetches every branch: no authenticated git fetch to do.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -64,7 +64,7 @@ jobs:
 
   hooks:
     name: Hooks and secrets
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

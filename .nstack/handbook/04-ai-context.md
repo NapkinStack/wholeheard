@@ -69,13 +69,15 @@ during implementation is the symptom of a failed framing, not of a useful discov
 
 ```
 1. kernel AGENTS.md                     always        ~250 lines
-2. the target module's MANIFEST         always        short
-3. the module's local AGENTS.md         always        ~50-100 lines
-4. triggered playbook(s)                conditional   1 to 2 at most
-5. relevant local code and tests        targeted      not the whole module
-6. contracts consumed                   targeted      the contract, not the implementation
-7. ADR/PDR tied to the area changed     when they exist
-8. another module                       NEVER without an explicit crossing
+2. the charter and the current cycle    always        docs/project/
+3. the project's own rules              always        always.md, then <x>.md with playbook <x>
+4. the target module's MANIFEST         always        short
+5. the module's local AGENTS.md         always        ~50-100 lines
+6. triggered playbook(s)                conditional   1 to 2 at most
+7. relevant local code and tests        targeted      not the whole module
+8. contracts consumed                   targeted      the contract, not the implementation
+9. ADR/PDR tied to the area changed     when they exist
+10. another module                      NEVER without an explicit crossing
 ```
 
 Before exploring, an agent must be able to answer five questions. If one has no answer,
