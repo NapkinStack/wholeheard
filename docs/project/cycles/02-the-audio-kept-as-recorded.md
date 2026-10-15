@@ -241,13 +241,15 @@ makes, kept apart and made again the same.
 | Each segment says its track, and has a place for the voice | Holds |
 | The meeting of 2026-10-13, recorded again by the decider, on loudspeakers then with a headset | **Owed — the decider's gesture** |
 
-**Next:** the local words said over the remote that are lost — the canceller's suppression
-while both speak, its settings the first lever; and a repetition loop the engine falls into
+**Next:** the local words said over the remote that are lost — `bench.counts`' *local words
+lost under the remote*; the canceller's suppression while both speak, its settings the first
+lever; and a repetition loop the engine falls into
 on one remote track in eight draws, as on `main`.
 
 **How a change is measured.** On the bench (`modules/platform`, its `README.md`: four draws
 at least of each condition, `bench.counts`) and on the trial meeting — cycle 01's D4
-recording, scored as the share of its words wrong. A change is read against `main` run on the
+recording and its reference transcript, kept outside the repository on the decider's machine,
+scored as the share of its words wrong. A change is read against `main` run on the
 same draws, on the medians: the bench's earlier figures were taken on other forms and other
 draws, and are not a baseline. The bench alone cannot judge the engine: a change better on it
 can be worse on a real meeting.
