@@ -29,7 +29,7 @@ started, tested, validated and shipped.
 flowchart TB
     subgraph P["PLATFORM — uniform, imposed, versioned"]
         direction LR
-        P1["Standard verbs<br/>bootstrap · check · test<br/>run · migrate · release"]
+        P1["Standard verbs<br/>one list: 09-platform.md §2"]
         P2["File envelope<br/>MANIFEST · AGENTS.md<br/>README · docs/ · tests/"]
         P3["Mandatory checks<br/>identical everywhere"]
         P4["Issue / PR templates<br/>DoR · DoD"]
@@ -189,7 +189,7 @@ flowchart LR
 
     MF --> U2["FITNESS FUNCTION<br/>declared graph vs real graph<br/>extracted from the code<br/>→ any gap is a violation"]
 
-    MF --> U3["COORDINATION<br/>a producer/consumer matrix<br/>is generated → you always<br/>know who breaks whom"]
+    MF --> U3["COORDINATION<br/>nstack modules names both sides<br/>of a contract → you always<br/>know who breaks whom"]
 
     U2 --> CI["CI: blocking check"]
     U3 --> CI

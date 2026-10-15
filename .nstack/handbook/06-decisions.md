@@ -136,7 +136,9 @@ history of abandoned decisions is often worth more than the current one: it expl
 the apparently obvious does not work.
 
 A record is a file of `docs/adr/`, named `NNNN-verb-phrase-title.md` — `0001-adopt-postgres.md`
-— and listed in that folder's index, which the project keeps.
+— and listed in that folder's index, which the project keeps. There is one such folder, at the
+project's root: a decision about one module says so in its `Scope` field, and no module keeps a
+register of its own.
 
 ### PDR — Product Decision Record
 
@@ -371,7 +373,7 @@ a sentence written then is invented. Each form waits for the event of its row, a
 that asked for it earlier would be paid in counterfeit.
 
 **The standard** these documents are written to — shape first, a source, a date, current or
-deleted — is `.nstack/playbooks/documentation.md`: a playbook, because the handbook is never loaded
+deleted, one home for each fact — is `.nstack/playbooks/documentation.md`: a playbook, because the handbook is never loaded
 into an agent's context and agents write most of these documents.
 
 **What a machine reads, and what is owed.** Three moments are readable from the repository

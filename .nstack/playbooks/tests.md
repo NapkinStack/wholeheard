@@ -1,8 +1,7 @@
 # Playbook — Tests
 
-> **Trigger.** Load this playbook when the test strategy is not obvious: an untested
-> area, a flaky test, a behaviour that is hard to isolate, doubt about the right test
-> level.
+> **Trigger.** Load this playbook when you are touching: a non-trivial test strategy, a
+> flaky test.
 >
 > For an ordinary task the kernel rule is enough: **write the oracle, watch it fail,
 > implement**.

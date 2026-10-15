@@ -1,7 +1,7 @@
 # Playbook — Verification
 
-> **Trigger.** Load this playbook when you are asked to verify a change you did not write,
-> or to fill in the results of a test sheet.
+> **Trigger.** Load this playbook when you are touching: verifying a change you did not
+> write, filling in a test sheet.
 >
 > **This project's own rules** on the subject, when it has any: `docs/project/rules/verification.md`
 > — read them with this playbook. They add to it or tighten it.

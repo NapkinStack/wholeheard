@@ -26,7 +26,14 @@ deliverables:
 
 ## Deliverables
 
-<Notes the front matter cannot hold: order, dependencies.>
+One section per deliverable, under its identifier: a session reads the front matter and its
+own deliverable's section, never the others. What binds goes here — order, dependencies, its
+decisions and their links; what was tried, what it cost and what was refuted goes to the
+project's log issue (`.nstack/handbook/06-decisions.md` §9).
+
+### D1
+
+<What binds this deliverable that the front matter cannot hold.>
 
 ## Out of scope
 

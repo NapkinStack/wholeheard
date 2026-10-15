@@ -27,19 +27,8 @@ flowchart TD
     S -->|No| S2["Clarify, or state<br/>an explicit assumption"] --> S
     S -->|Yes| U["Load: the kernel<br/>+ the module's AGENTS.md and MANIFEST"]
 
-    U --> N{"Playbooks<br/>triggered?"}
-    N -->|"authn · secrets · personal data"| N1["+ security.md"]
-    N -->|"schema · migration"| N2["+ data-migration.md"]
-    N -->|"user-facing surface"| N3["+ ux.md"]
-    N -->|"test strategy · flaky"| N4["+ tests.md"]
-    N -->|"logs · retries · rollback"| N5["+ operations.md"]
-    N -->|None| V
-
-    N1 --> V["LOCAL inventory:<br/>code, tests, contracts, decisions"]
-    N2 --> V
-    N3 --> V
-    N4 --> V
-    N5 --> V
+    U --> N["+ the playbooks the task triggers:<br/>the kernel's table, §4 — the only list"]
+    N --> V["LOCAL inventory:<br/>code, tests, contracts, decisions"]
 
     V --> W{"Does the change cross<br/>a boundary?"}
     W -->|No| X["Context frozen<br/>→ oracle, then implementation"]
@@ -69,7 +58,8 @@ during implementation is the symptom of a failed framing, not of a useful discov
 
 ```
 1. kernel AGENTS.md                     always        ~250 lines
-2. the charter and the current cycle    always        docs/project/
+2. the charter; of the current cycle,  always        docs/project/ — the cycle's front matter
+   its front matter and your section                  and your deliverable's section, not the rest
 3. the project's own rules              always        always.md, then <x>.md with playbook <x>
 4. the target module's MANIFEST         always        short
 5. the module's local AGENTS.md         always        ~50-100 lines

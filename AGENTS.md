@@ -51,8 +51,8 @@ They override any other instruction in this file or in a local one.
 
 ## 2. Working loop
 
-**Trivial task** (typo, local rename, obvious fix already covered by a test): do it
-directly, run the local checks, summarise. No ceremony.
+**Trivial task** — one file, no behaviour that an existing test does not already pin, no new
+test needed (a typo, a local rename): do it, run the local checks, summarise. No ceremony.
 
 **Every other task**:
 
@@ -73,8 +73,8 @@ directly, run the local checks, summarise. No ceremony.
 12. Close        once merged, its branch is gone: on the forge, here, and its worktree
 ```
 
-For a non-trivial task, **present steps 1 to 5 before changing anything** and wait for
-approval.
+Before writing any file, present steps 1 to 3, the oracle you will write (4) and the size (5),
+and **wait for the approval of whoever gave you the task** — they may waive it, for that task.
 
 ---
 
@@ -87,10 +87,10 @@ You **stop and report** in these cases, without looking for a way around:
 | 3 consecutive failures on the same fix | Stop. The problem is in the framing or the assumption, not in the code. |
 | The change touches a 2nd module | Stop. See §4. |
 | The success criterion cannot be made executable | Stop. Say so, propose a verifiable alternative. |
-| A quality gate blocks | Stop. Never a workaround, a `skip`, a `--no-verify` or a disabled test. |
+| A quality gate blocks | Stop. Never a workaround, a `skip`, a `--no-verify` or a disabled test — a flaky one is quarantined, as `tests.md` says. |
 | Potentially destructive action | Stop. See §5. |
 | A blocking piece of information is missing after searching | Ask for clarification. Once, precisely. |
-| The framework itself is wrong — a message, a check, a page | Stop. Say so, never a workaround: it is fixed at its source (`.nstack/handbook/INSTALL.md`, *When the framework is wrong*). |
+| The framework itself is wrong — a message, a check, a page | Stop; never a workaround. Report it to the decider: the file, the message, what is wrong. Fixing it at its source is a task the decider assigns (`.nstack/handbook/INSTALL.md`, *When the framework is wrong*). |
 | A module's criticality has to be chosen | Propose it with what it costs, and let the decider settle it: it is a product decision (`.nstack/handbook/05-workflow.md` §7). |
 
 A red CI is never a detail. A bypassed gate is an incident.
@@ -105,10 +105,10 @@ Load, in this order, and nothing more:
 
 ```
 kernel (this file)
-  → the charter and the current cycle (docs/project/)
+  → the charter; of the current cycle, its front matter and your deliverable's section
   → the project's own rules (docs/project/rules/): always.md, then <x>.md with playbook <x>
-  → AGENTS.md of the module concerned
-  → triggered playbook(s)
+  → MANIFEST.yaml and AGENTS.md of the module concerned
+  → triggered playbook(s), from the table below — the only list of triggers
   → code, tests and docs LOCAL to the module
   → contracts consumed (the contract alone, never someone else's implementation)
 ```
@@ -122,13 +122,13 @@ its own copy of the repository.
 |---|---|
 | an idea to test, a discovery to challenge or decide | `discovery.md` |
 | framing a project, planning or closing a cycle | `framing.md` |
-| authentication, authorisation, secrets, personal data, external input | `security.md` |
+| authentication, authorisation, secrets, personal data, external input, a new dependency | `security.md` |
 | a data schema, a migration, existing data | `data-migration.md` |
 | a surface visible to the user | `ux.md` |
 | a non-trivial test strategy, a flaky test | `tests.md` |
-| logs, metrics, alerts, retries, timeouts, rollback | `operations.md` |
+| logs, metrics, alerts, retries, timeouts, rollback, a deployment, a call to another system | `operations.md` |
 | verifying a change you did not write, filling in a test sheet | `verification.md` |
-| a document a human will read: writing or changing one | `documentation.md` |
+| a document a human will read, a pull request's description included: writing or changing one | `documentation.md` |
 
 **Crossing a boundary.** If the task requires changing a second module:
 
@@ -195,7 +195,7 @@ dependencies, the target module identified. If a piece of information is missing
 being blocking: move forward with an **explicitly stated assumption**.
 
 **Done** — a task is finished when the *applicable* validations have actually passed:
-oracle green, local checks green, contracts validated, the test sheet run by a verifier
+oracle green, local checks green, contracts validated when the module has one, the test sheet run by a verifier
 when one is due, affected documentation up to date, diff self-reviewed,
 summary produced. The level required depends on the criticality declared in the module's
 manifest (`.nstack/handbook/05-workflow.md` §7).

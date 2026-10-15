@@ -53,15 +53,16 @@ mention such a commit, and where a ruleset does refuse, it catches a bypass.
 **Where the CI runs.** Every job runs on GitHub's hosted Ubuntu unless the repository
 variable `NSTACK_RUNS_ON` names another runner label — a self-hosted runner, for a private
 repository whose hosted minutes are spent: `gh variable set NSTACK_RUNS_ON --body
-<label>`. Such a runner needs `git` and `yq` (mikefarah's) on its path; the workflows
-install uv themselves. Never on a public repository: there, a pull request from a
+<label>`. Such a runner needs `git` on its path; the workflows install uv themselves. What a
+pull request costs there or on hosted minutes: about five jobs across the workflows for a
+change to one module, each billed at least a minute, plus what the module's own commands take. Never on a public repository: there, a pull request from a
 fork would run its code on that machine — and hosted minutes are unlimited anyway.
 
 ## Installation
 
 ```bash
-# 1. Tooling at the project's NapkinStack version (prerequisite: uv)
-uv tool install "napkinstack==0.7.6-5-g7f89c6b" --with-executables-from pre-commit
+# 1. Tooling at the project's NapkinStack version, as CI installs it (prerequisite: uv)
+bash .nstack/install-engine.sh
 
 # 2. Hooks, once per clone
 pre-commit install
@@ -74,7 +75,8 @@ nstack fitness
 ```
 
 That version is the one in `.copier-answers.yml`; it only changes through `nstack update`,
-in a reviewed pull request.
+in a reviewed pull request. A release comes from the registry; a commit, from the framework's
+repository, and every run then says an unpublished framework judges it.
 
 ## Receiving a new version of NapkinStack
 
@@ -107,13 +109,15 @@ flowchart LR
     C --> T["A failing test,<br/>then the fix"]:::fw
     T --> J["This project, judged<br/>by the sources"]:::pr
     J --> P["A pull request<br/>to the framework"]:::fw
-    P -->|"merged"| U["nstack update --ref,<br/>then the next version"]:::pr
+    P -.->|"while it is reviewed"| R["nstack update --ref<br/>the fix's commit"]:::pr
+    P -->|"merged"| U["nstack update --ref<br/>the merged commit, then the release"]:::pr
 
     classDef pr fill:#065f46,color:#fff
     classDef fw fill:#1e3a8a,color:#fff
 ```
 
-**Legend** — green: in this project · blue: in the framework's repository.
+**Legend** — green: in this project · blue: in the framework's repository · dotted: if the
+project needs the fix before its merge.
 
 ```bash
 git clone <the framework's repository> ../framework    # its address: _src_path in .copier-answers.yml
@@ -121,10 +125,11 @@ uv run --project ../framework nstack fitness --root .  # this project, judged by
 ```
 
 Any command runs that way, with nothing installed. The rest is the framework's own page:
-its `CONTRIBUTING.md` says how a fix is tested, proposed and reviewed. Once merged,
-`nstack update --ref <commit>` lets this project run on the fix before it is released: CI
-installs that commit, and every run says an unpublished framework judged it, until a
-published version replaces it.
+its `CONTRIBUTING.md` says how a fix is tested, proposed and reviewed. While it is reviewed,
+`nstack update --ref <commit>` lets this project run on the fix: CI installs that commit, and
+every run says an unpublished framework judged it. Once it is merged, the pin moves — to the
+commit the framework's default branch received, which the squash made, or to the first release
+that carries it. `nstack doctor` says when the pinned commit is on no branch any more.
 
 **A private project stays private.** The framework's repository is public: what is reported
 there describes the defect, never the project — no name, no domain, no content.
@@ -159,6 +164,10 @@ Settings → Actions → General:
 - [ ] SHA-pinned actions required
 - [ ] Workflow approval for every outside contributor
 - [ ] Workflow token read-only; Actions neither creates nor approves pull requests
+
+Settings → General → Default branch:
+
+- [ ] Default branch `main`: the branch every workflow and ruleset here watches
 
 Settings → General → Pull Requests — three that need no paid plan and no Administration
 permission, so they hold on any repository. Auto-merge is armed on each pull request by its
@@ -242,11 +251,14 @@ nstack plan          # the discovery, the charter and the cycles (docs/project/)
 nstack skills        # generates the Claude Code skills from the playbooks
 nstack doctor        # the workstation and the forge's settings, read-only
 nstack settings      # the calls that would bring the forge's settings to the checklist
-nstack new-module <name> <owner> <criticality>
+nstack new-module <name> <owner> <criticality> [--user-facing]   # --user-facing: a user sees it, which decides a test sheet
 nstack new-contract <name>   # a contract, and the first time the module that holds them all
-nstack check [module]   # MANIFEST commands: check, test, bootstrap; default: all
+nstack check [module]   # the module's commands.check; default: every module
+nstack test [module]    # commands.test, likewise
+nstack bootstrap [module]   # commands.bootstrap, when declared
 nstack run <module>     # local start, when commands.run is declared
 nstack e2e [module]     # end-to-end scenarios, when commands.e2e is declared
+nstack clean [module]   # removes a module's build outputs, when commands.clean is declared
 nstack pr-check --body-file <file>   # test sheet and cycle, as CI reads them from the pull request
 nstack modules --changed-since <base>   # the modules with a file changed, as CI lists them
 nstack modules --changed-since <base> --with-contract-sides   # ... and both sides of a changed contract

@@ -20,6 +20,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  actions: read  # the record's own last success, where the next run starts reading (a run that never started)
 
 jobs:
   landed:

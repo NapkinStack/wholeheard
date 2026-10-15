@@ -1,7 +1,7 @@
 # Playbook — Framing
 
-> **Trigger.** Load this playbook when you are asked to frame a project, to plan its next
-> cycle, to re-frame the current one, or to write a cycle's closure.
+> **Trigger.** Load this playbook when you are touching: framing a project, planning or
+> closing a cycle.
 >
 > **This project's own rules** on the subject, when it has any: `docs/project/rules/framing.md`
 > — read them with this playbook. They add to it or tighten it.
@@ -135,7 +135,8 @@ from then on the plan check refuses an accepted charter over a form left as it c
 - **A deliverable** moves `proposed` → `ready` (testable acceptance criteria, set by the
   framer, confirmed when the decider accepts the cycle) → `in-progress` → `accepted`: its
   test sheet run and its pull request approved — or, for a spike outside the code, its result
-  recorded in the cycle and approved by the decider. A deliverable that several pull requests
+  approved by the decider: a decision record when it binds the project (*Decisions* below),
+  otherwise a line in the project's log issue, which the deliverable's section links. A deliverable that several pull requests
   deliver, or that a person must try, is `accepted` when **each of its criteria** is held by a
   scenario of one of their sheets or by an answer in its acceptance issue
   (`.nstack/handbook/05-workflow.md` §7); the cycle names that issue beside the state.
@@ -159,3 +160,17 @@ three choices, with the state of every deliverable:
 
 The closure is where the next framing starts. When the charter's success criteria are met,
 the project is finished: say so to the decider.
+
+## Decisions
+
+A decision lives in a record, never in the charter, the cycle or a conversation
+(`.nstack/handbook/06-decisions.md`): one register of each kind at the project's root —
+`docs/pdr/` for the product, `docs/adr/` for the technique — and `Scope: module <name>` when it
+concerns one module.
+
+| When | Then |
+|---|---|
+| An accepted charter has to change — a constraint, a user, what the project is not | A **PDR** first, which the change cites; the charter is never rewritten in place (CI warns, C9) |
+| The framing chooses a module, a stack, a contract | An **ADR**: the module's creation decision is one |
+| A spike's result binds the project | A PDR or an ADR; otherwise a line in the project's log issue |
+| A cycle's **closure** | Read again every decision anchored to this cycle, and every one whose criterion's date has passed: met, missed, or superseded — say which in the record |

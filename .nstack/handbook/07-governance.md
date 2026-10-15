@@ -114,7 +114,8 @@ flowchart LR
     style FF fill:#1f2937,color:#fff
 ```
 
-**Legend** — dark grey: the checks themselves · green: the blocking verdict.
+**Legend** — dark grey: the checks themselves · green: the blocking verdict. Layering (F3) and
+budgets (F6) are the project's to build: the framework ships no check for them.
 
 ### The basic fitness functions
 
@@ -131,7 +132,7 @@ To put in place from the second module onwards, in order of return:
 | 7 | Deprecation dates not passed | Permanent intermediate states |
 | 8 | One PR = one module | Boundary erosion |
 | 9 | Complete module envelope (manifest, owner, tests) | An orphan module |
-| 10 | Performance and size budgets | A silent regression |
+| 10 | Performance and size budgets | A silent regression — the project's to build: no check ships with the framework |
 
 The first six are cheap: they are computed from data already present (manifests, imports,
 contract schemas). There is **no semantic analysis** — these are comparisons of graphs
