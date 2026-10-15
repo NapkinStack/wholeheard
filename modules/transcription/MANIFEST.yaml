@@ -102,6 +102,7 @@ commands:
   check: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
   test: cargo test --locked
   run: cargo run --locked --release --
+  clean: cargo clean
 
 docs:
   readme: README.md
