@@ -27,7 +27,7 @@ deliverables:
   - id: D10
     title: "The transcript of a meeting says the same thing about who spoke, and in what order, whether it was taken on loudspeakers or with a headset"
     module: transcription
-    state: ready
+    state: in-progress
     acceptance:
       - "Given the bench's meeting on loudspeakers, low and loud, when it is transcribed, then no more words are said twice than with a headset, and no more words of the local side are wrong than when the same tracks are transcribed as delivered — the echo gone without the speaker's own words"
       - "Given the bench's meeting in any condition, when it is transcribed, then at most one exchange in twenty is out of order, and at most one word in fifty is given to the wrong side"
@@ -55,14 +55,14 @@ deliverables:
   - id: D13
     title: "Spike — why did a model on the machine give no minutes of a sixteen-minute meeting?"
     module: null
-    state: ready
+    state: accepted
     acceptance:
       - "Given the bench's meeting and one of sixteen minutes made from it, when minutes are asked of the model on the machine, then the cycle records for each: whether minutes came, in how long, and — when they did not — what the model answered instead and how much of the transcript it had been given"
       - "Given that record, when it is read against the threshold — minutes of a meeting of an hour, on the decider's laptop, in less than the meeting's length — then the result is written as met or refuted, with what would have to change: a refuted result is a delivered one"
   - id: D14
     title: "Spike — does a speech detector, run before the engine, remove the words an engine finds where nobody speaks, without losing any that were said?"
     module: null
-    state: ready
+    state: accepted
     acceptance:
       - "Given the bench's meeting played in a room that is not silent — a steady noise, and a voice that is no participant's, between the turns — when its tracks are transcribed with and without the speech detector that the engine's own library carries (whisper.cpp's, with the Silero model), then the cycle records for each: the words written where no participant spoke, the words of the participants that are missing, and the time taken"
       - "Given that record, when it is read against the threshold — fewer words where nobody spoke, and no more words missing than without the detector — then the result is written as met or refuted, with the settings it was measured at: a refuted result is a delivered one"
@@ -195,10 +195,9 @@ first form is still read, or refused in one sentence; the hour's weight.
 
 ### D10
 
-In progress — its state in the front matter is the decider's to move. Built and merged: the
-turns timed by their words (#117), a segment's track and the voice's place (#118, #119), the
-echo canceller (#120), what the engine heard kept (#121), a turn the engine jumped over heard
-again (#124).
+In progress. Built and merged: the turns timed by their words (#117), a segment's track and
+the voice's place (#118, #119), the echo canceller (#120), what the engine heard kept (#121),
+a turn the engine jumped over heard again (#124).
 
 ```mermaid
 flowchart LR
