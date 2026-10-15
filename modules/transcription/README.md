@@ -60,6 +60,15 @@ exchanges in forty-four are out of order, against one in four with the engine's 
 of `large`, which one header cannot tell apart — keeps the engine's segments, and `hearing`
 says so: `"times": "segments"` instead of `"words"`.
 
+**A turn the engine jumped over is heard again.** Whisper sometimes goes from one sentence
+to a later one over a whole turn whose sound is intact. Where a span holds a voice at the
+level of the words the engine wrote there, for a second and a half with no word written,
+that stretch is heard again alone; where it wrote nothing, nothing is. On the bench, the
+local words wrong fall from 57.5 to 43 on loudspeakers and from 41.5 to 27.5 with a
+headset, a median of four draws, and no local turn is lost with a headset; with a
+television in the room, at a quiet level and on the trial meeting, nothing is heard again
+and the transcript is the same (cycle 02, D10).
+
 **Attach a context** — `context.txt` in the session's folder: names and words of the trade
 the engine would otherwise write as it hears them.
 

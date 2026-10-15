@@ -55,7 +55,8 @@ Turns the audio of a session into a timestamped transcript.
 - A guard against one defect cut another case twice: hearing a last sentence again, then not crawling on an unbroken voice. Any change to the loop of `transcribe` is tried with random sessions against one huge span, not with a few placed stretches.
 - whisper.cpp trusts its model file: one cut after its first bytes crashes the program, one missing its last megabytes is used and writes nonsense. Whoever fetches a model checks it whole before this program sees it.
 - Whisper starts a segment where it starts a window, not where a turn starts: one exchange in four out of order on the bench. A segment is cut where its words stop, each word timed by the model's alignment heads (`src/whisper.rs`). The engine's own word times, without the heads, leave one in five out of order: they are no fallback for the order.
-- Hearing thirty seconds at a time cost eight points of words on the trial meeting: the span is long on purpose (`SPAN` in `src/main.rs`).
+- Hearing thirty seconds at a time cost eight points of words on the trial meeting: the span is long on purpose (`SPAN` in `src/main.rs`). Cut where the sound is quietest, thirty-second pieces still cost seven (cycle 02, D10): they found the turns the engine jumps over on the bench, and lost the short replies of a real meeting. A bench of read sentences cannot decide how the engine hears; the trial meeting is heard too.
+- Whisper sometimes jumps from one sentence to a later one, over a whole turn whose sound is intact — beam search too, elsewhere. What it leaves unwritten at the speaker's level is heard again alone (`unwritten` in `src/whisper.rs`); a television in the room sits below that level on the bench, and is not.
 
 ## Areas not to change without approval
 
