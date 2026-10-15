@@ -26,6 +26,14 @@ const UNDER: f64 = 12.0;
 /// The least a stretch at the speaker's level, with no word written, lasts to be heard again:
 /// in tenths of a second. Between two words a voice rests a few tenths; a turn lasts seconds.
 const UNWRITTEN: usize = 15;
+/// The most a stretch is joined across where a word was written, in tenths of a second: a
+/// stray word the engine wrote alone in a turn it otherwise jumped over, its margins with it,
+/// is heard again with the turn. Kept written, it cut a name out of the turn (D10).
+const STRAY: usize = 15;
+/// How deep a stretch heard again is looked at again. Heard alone, Whisper may jump once more,
+/// from where the stretch starts: a turn of 38 words gave its first three, and the rest heard
+/// alone was written (D10).
+const AGAIN: usize = 2;
 
 pub struct Whisper {
     engine: WhisperContext,
@@ -137,14 +145,17 @@ fn unwritten(sound: &[f32], segments: &[Segment]) -> Vec<Range<usize>> {
     }
     words.sort_by(f64::total_cmp);
     let own = words[(words.len() * 95 / 100).min(words.len() - 1)];
-    // Tenths at the speaker's level and not written, one stretch across rests of up to three tenths.
+    // Tenths at the speaker's level and not written, one stretch across rests of up to three
+    // tenths, and across a stray word written alone in it, with its margins.
     let mut stretches: Vec<Range<usize>> = Vec::new();
     for (at, loud) in level.iter().enumerate() {
         if written[at] || *loud < own - UNDER {
             continue;
         }
         match stretches.last_mut() {
-            Some(last) if at <= last.end + 3 => last.end = at + 1,
+            Some(last) if at - last.end <= STRAY && written[last.end..at].iter().filter(|written| !**written).count() <= 3 => {
+                last.end = at + 1
+            }
             _ => stretches.push(at..at + 1),
         }
     }
@@ -223,22 +234,45 @@ impl Engine for Whisper {
     }
 
     fn hear(&mut self, sound: &[f32], language: Option<&str>, context: Option<&str>) -> io::Result<Vec<Segment>> {
-        let mut segments = self.heard(sound, language, context)?;
-        for stretch in unwritten(sound, &segments) {
-            let offset = stretch.start as f64 / RATE as f64;
-            for segment in self.heard(&sound[stretch], language, context)? {
-                segments.push(Segment {
-                    start: segment.start + offset,
-                    end: segment.end + offset,
-                    text: segment.text,
-                });
-            }
-        }
-        segments.sort_by(|one, other| one.start.total_cmp(&other.start));
-        let mut ordered = Vec::new();
-        joined(&mut ordered, segments);
-        Ok(ordered)
+        let segments = self.heard(sound, language, context)?;
+        heard_again(sound, segments, &mut |stretch| self.heard(stretch, language, context), AGAIN)
     }
+}
+
+/// What a span gave, with each [`unwritten`] stretch heard again alone and put back in its
+/// place, in the order of the starts — `rounds` deep: what a stretch gives is looked at the
+/// same way. A stray word inside a stretch leaves for what the stretch gives there.
+fn heard_again(
+    sound: &[f32],
+    mut segments: Vec<Segment>,
+    hear: &mut dyn FnMut(&[f32]) -> io::Result<Vec<Segment>>,
+    rounds: usize,
+) -> io::Result<Vec<Segment>> {
+    if rounds == 0 {
+        return Ok(segments);
+    }
+    let stretches = unwritten(sound, &segments);
+    let seconds = |sample: usize| sample as f64 / RATE as f64;
+    segments.retain(|segment| {
+        !stretches
+            .iter()
+            .any(|stretch| segment.start >= seconds(stretch.start) && segment.end <= seconds(stretch.end))
+    });
+    for stretch in stretches {
+        let offset = seconds(stretch.start);
+        let again = hear(&sound[stretch.clone()])?;
+        for segment in heard_again(&sound[stretch], again, hear, rounds - 1)? {
+            segments.push(Segment {
+                start: segment.start + offset,
+                end: segment.end + offset,
+                text: segment.text,
+            });
+        }
+    }
+    segments.sort_by(|one, other| one.start.total_cmp(&other.start));
+    let mut ordered = Vec::new();
+    joined(&mut ordered, segments);
+    Ok(ordered)
 }
 
 impl Whisper {
@@ -422,6 +456,17 @@ mod tests {
         sound
     }
 
+    /// A sound of `seconds` with a tone at each level over its stretch, in seconds.
+    fn mixed(seconds: f64, tones: &[(f32, f64, f64)]) -> Vec<f32> {
+        let mut sound = vec![0.0_f32; (seconds * RATE as f64) as usize];
+        for (level, from, until) in tones {
+            for (at, tone) in voiced(seconds, *level, &[(*from, *until)]).into_iter().enumerate() {
+                sound[at] += tone;
+            }
+        }
+        sound
+    }
+
     fn said(start: f64, end: f64) -> Segment {
         Segment {
             start,
@@ -450,18 +495,12 @@ mod tests {
 
     #[test]
     fn a_sound_well_below_the_speakers_level_is_not_heard_again() {
-        // The speaker at 0.3, a television at 0.06 (14 dB under), never written.
-        let mut sound = voiced(60.0, 0.3, &[(2.0, 30.0)]);
-        for (at, tv) in voiced(60.0, 0.06, &[(31.0, 59.0)]).into_iter().enumerate() {
-            sound[at] += tv;
-        }
+        // The speaker at 0.3, a television at 0.0735 (12.2 dB under), never written.
+        let sound = mixed(60.0, &[(0.3, 2.0, 30.0), (0.0735, 31.0, 59.0)]);
         assert!(unwritten(&sound, &[said(2.0, 29.5)]).is_empty());
-        // At 10 dB under, it is taken for the speaker.
-        let mut sound = voiced(60.0, 0.3, &[(2.0, 30.0)]);
-        for (at, near) in voiced(60.0, 0.095, &[(31.0, 59.0)]).into_iter().enumerate() {
-            sound[at] += near;
-        }
-        assert_eq!(unwritten(&sound, &[said(2.0, 29.5)]).len(), 1);
+        // At 11.8 dB under, it is taken for the speaker.
+        let sound = mixed(60.0, &[(0.3, 2.0, 30.0), (0.077, 31.0, 59.0)]);
+        assert_eq!(unwritten(&sound, &[said(2.0, 29.5)]), vec![307 * TENTH..593 * TENTH]);
     }
 
     #[test]
@@ -483,5 +522,93 @@ mod tests {
         // 1.4 s alone is left; two stretches of 0.8 s with a rest of 0.2 s are one of 1.8 s.
         let again = unwritten(&sound, &[said(2.0, 9.5)]);
         assert_eq!(again, vec![147 * TENTH..171 * TENTH]);
+    }
+
+    #[test]
+    fn a_stretch_of_a_second_and_a_half_is_heard_again_and_a_rest_of_four_tenths_splits_one() {
+        let written = [said(2.0, 9.5)];
+        let sound = voiced(30.0, 0.3, &[(2.0, 10.0), (12.0, 13.5)]);
+        assert_eq!(unwritten(&sound, &written), vec![117 * TENTH..138 * TENTH]);
+        // Two stretches of 0.8 s: one across a rest of three tenths, two too short across four.
+        let sound = voiced(30.0, 0.3, &[(2.0, 10.0), (15.0, 15.8), (16.1, 16.9)]);
+        assert_eq!(unwritten(&sound, &written), vec![147 * TENTH..172 * TENTH]);
+        let sound = voiced(30.0, 0.3, &[(2.0, 10.0), (15.0, 15.8), (16.2, 17.0)]);
+        assert!(unwritten(&sound, &written).is_empty());
+    }
+
+    #[test]
+    fn a_segment_covers_three_tenths_before_its_first_word_and_six_after_the_start_of_its_last() {
+        let sound = voiced(40.0, 0.3, &[(17.0, 33.0)]);
+        let again = unwritten(&sound, &[said(20.05, 30.05)]);
+        assert_eq!(again, vec![167 * TENTH..200 * TENTH, 303 * TENTH..333 * TENTH]);
+    }
+
+    #[test]
+    fn the_speakers_level_is_that_of_the_loudest_twentieth_of_the_tenths_written() {
+        // Written: eight silent tenths of margin, ninety quiet, five at 0.1, five at 1.0. The
+        // twentieth from the top is at 0.1: a voice 6 dB under it is theirs, 16 dB under is not.
+        let sound = mixed(
+            60.0,
+            &[
+                (0.01, 10.0, 19.0),
+                (0.1, 19.0, 19.5),
+                (1.0, 19.5, 20.0),
+                (0.05, 30.0, 35.0),
+                (0.016, 40.0, 45.0),
+            ],
+        );
+        assert_eq!(unwritten(&sound, &[said(10.05, 19.95)]), vec![297 * TENTH..353 * TENTH]);
+    }
+
+    #[test]
+    fn a_stray_word_written_alone_in_a_turn_jumped_over_is_heard_again_with_the_turn() {
+        let sound = voiced(40.0, 0.3, &[(2.0, 10.0), (20.0, 30.0)]);
+        // Its margins with it, fifteen tenths: one stretch. Sixteen are a word of the speaker's.
+        let again = unwritten(&sound, &[said(2.0, 9.5), said(24.0, 24.65)]);
+        assert_eq!(again, vec![197 * TENTH..303 * TENTH]);
+        let again = unwritten(&sound, &[said(2.0, 9.5), said(24.0, 24.75)]);
+        assert_eq!(again, vec![197 * TENTH..240 * TENTH, 250 * TENTH..303 * TENTH]);
+    }
+
+    #[test]
+    fn what_a_stretch_gives_takes_its_place_in_time_and_the_stray_word_in_it_leaves() {
+        let sound = voiced(60.0, 0.3, &[(2.0, 10.0), (20.0, 30.0), (40.0, 45.0)]);
+        let segments = vec![said(2.0, 9.5), said(24.0, 24.3), said(40.0, 44.5)];
+        let mut lengths = Vec::new();
+        let mut hear = |stretch: &[f32]| {
+            lengths.push(stretch.len());
+            Ok(vec![Segment {
+                start: 0.5,
+                end: 9.0,
+                text: "again".into(),
+            }])
+        };
+        let again = heard_again(&sound, segments, &mut hear, AGAIN).unwrap();
+        assert_eq!(lengths, [106 * TENTH]);
+        let times: Vec<(i64, i64, &str)> = again
+            .iter()
+            .map(|s| ((s.start * 10.0).round() as i64, (s.end * 10.0).round() as i64, s.text.as_str()))
+            .collect();
+        assert_eq!(times, [(20, 95, "written"), (202, 287, "again"), (400, 445, "written")]);
+    }
+
+    #[test]
+    fn a_stretch_heard_again_is_looked_at_again_twice_deep() {
+        // An engine that writes only the first two seconds of what it hears.
+        let sound = voiced(60.0, 0.3, &[(2.0, 10.0), (20.0, 30.0)]);
+        let mut lengths = Vec::new();
+        let mut hear = |stretch: &[f32]| {
+            lengths.push(stretch.len());
+            Ok(vec![Segment {
+                start: 0.5,
+                end: 2.0,
+                text: "first".into(),
+            }])
+        };
+        let again = heard_again(&sound, vec![said(2.0, 9.5)], &mut hear, AGAIN).unwrap();
+        // The turn heard alone, then what it left unwritten heard alone, and no deeper.
+        assert_eq!(lengths, [106 * TENTH, 83 * TENTH]);
+        let starts: Vec<(i64, &str)> = again.iter().map(|s| ((s.start * 10.0).round() as i64, s.text.as_str())).collect();
+        assert_eq!(starts, [(20, "written"), (202, "first"), (225, "first")]);
     }
 }

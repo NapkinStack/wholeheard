@@ -63,11 +63,14 @@ says so: `"times": "segments"` instead of `"words"`.
 **A turn the engine jumped over is heard again.** Whisper sometimes goes from one sentence
 to a later one over a whole turn whose sound is intact. Where a span holds a voice at the
 level of the words the engine wrote there, for a second and a half with no word written,
-that stretch is heard again alone; where it wrote nothing, nothing is. On the bench, the
-local words wrong fall from 57.5 to 43 on loudspeakers and from 41.5 to 27.5 with a
-headset, a median of four draws, and no local turn is lost with a headset; with a
-television in the room, at a quiet level and on the trial meeting, nothing is heard again
-and the transcript is the same (cycle 02, D10).
+that stretch is heard again alone; where it wrote nothing, nothing is. A stray word it
+wrote alone in such a turn is heard again with the turn, in place of where it stood. On
+the bench, the local words wrong fall from 57.5 to 41 on loudspeakers and from 41.5 to 27
+with a headset, a median of four draws, and no local turn is lost with a headset. Heard alone,
+Whisper may jump once more from where the stretch starts: what it leaves there is heard
+again, twice deep. With a television in the room and at a quiet level, nothing is heard
+again and the transcript is the same; on the trial meeting a stray word of a remote turn
+becomes the turn (cycle 02, D10).
 
 **Attach a context** — `context.txt` in the session's folder: names and words of the trade
 the engine would otherwise write as it hears them.
