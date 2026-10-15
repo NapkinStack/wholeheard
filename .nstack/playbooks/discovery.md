@@ -1,8 +1,7 @@
 # Playbook — Discovery
 
-> **Trigger.** Load this playbook when a project starts from an idea — a few lines, notes,
-> a wish — before any charter: to test the idea, compare it with what exists, challenge it,
-> and reach a decision.
+> **Trigger.** Load this playbook when you are touching: an idea to test, a discovery to
+> challenge or decide.
 >
 > **This project's own rules** on the subject, when it has any: `docs/project/rules/discovery.md`
 > — read them with this playbook. They add to it or tighten it.

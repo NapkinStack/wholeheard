@@ -27,16 +27,15 @@ flowchart TD
     B -->|No| C["FRAME: intent, scope,<br/>out of scope, risks"]
     C --> C2["SCOPE: identify THE module,<br/>load the bounded context"]
     C2 --> C3["INVENTORY: what exists already,<br/>here and in established tools"]
-    C3 --> D["ORACLE: write the executable<br/>success criterion"]
+    C3 --> G{"Batch ≤ review<br/>budget?"}
+    G -->|No| G1["Split it<br/>and start again at framing"] --> C
+    G -->|Yes| P["Present the plan — steps 1 to 3,<br/>the oracle you will write, the size —<br/>and wait for approval"]
+    P --> D["ORACLE: write the executable<br/>success criterion"]
     D --> E{"Oracle<br/>executable?"}
     E -->|No| E1["Do not generate.<br/>Make the criterion verifiable<br/>or send the framing back"] --> D
     E -->|Yes| F["Oracle RED — commit"]
 
-    F --> G{"Batch ≤ review<br/>budget?"}
-    G -->|No| G1["Split it<br/>and start again at framing"] --> C
-    G -->|Yes| P["Present the plan<br/>and wait for approval"]
-
-    P --> H["IMPLEMENT the<br/>minimal change"]
+    F --> H["IMPLEMENT the<br/>minimal change"]
     H --> I["VALIDATE: actually<br/>run the checks"]
     I --> J{"Green?"}
     J -->|No| J1{"3rd consecutive<br/>failure?"}

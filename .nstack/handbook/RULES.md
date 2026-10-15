@@ -25,7 +25,7 @@ a family, a number a rule; a retired rule's number is never reused.
 | `M1` | A module without its manifest | `02-modules.md` §5 |
 | `M2` | A required field missing, or still holding its template's words | `02-modules.md` §5 |
 | `M3` | An unknown lifecycle or criticality value | `02-modules.md` §6 |
-| `M4` | A responsibility that takes two sentences, or joins two capabilities | `02-modules.md` §3 |
+| `M4` | *(warning)* A responsibility that takes two sentences, or joins two capabilities | `02-modules.md` §3 |
 | `M5` | A deprecated module with no removal date, or past it | `02-modules.md` §6 |
 | `M6` | A deprecated contract with no removal date, or past it | `03-contracts.md` §4 |
 | `M7` | A module holding code and declaring no `check` and `test` | `09-platform.md` §2 |
@@ -67,6 +67,7 @@ a family, a number a rule; a retired rule's number is never reused.
 | `C6` | A closed or stopped cycle with no outcome or no end date | `.nstack/handbook/project.md` |
 | `C7` | A discovery decided with no decider, date or challenger — or a charter with no go before it | `.nstack/handbook/project.md` |
 | `C8` | A document left as its form once its moment has come: the front page's sentence at a go, the whole front page at an accepted charter, the module map once a module holds code | `06-decisions.md` §10 |
+| `C9` | *(warning)* An accepted charter changed by a pull request that carries no decision record | `06-decisions.md` §4 |
 
 ## H — hygiene
 
@@ -107,19 +108,19 @@ it has no cycle, K1 to K3 say nothing there, and every other rule applies.
 
 | Code | Refuses | Why |
 |---|---|---|
-| `V1` | A frozen contract version changed without the compatibility proof | `03-contracts.md` §4 |
+| `V1` | A frozen contract version changed without the compatibility proof — and, as a *(warning)*, contracts consumed while the contracts module declares no comparator | `03-contracts.md` §4 |
 
 ## W — what reached the default branch
 
 | Code | Records, never refuses | Why |
 |---|---|---|
-| `W1` | A commit that arrived outside a pull request | `07-governance.md` §7 |
+| `W1` | A commit that arrived outside a pull request — read from the last commit the record recorded, so that a run that never started is caught up | `07-governance.md` §7 |
 
 ## L — the workstation
 
 | Code | Reports as a gap | Why |
 |---|---|---|
-| `L1` | An engine that is not the project's version, or is not a published one | `INSTALL.md` |
+| `L1` | An engine that is not the project's version, or is not a published one — and a pinned commit the framework's default branch no longer holds | `INSTALL.md` |
 | `L2` | git or the hook runner missing | `INSTALL.md` |
 | `L3` | Hooks not installed in this clone | `INSTALL.md` |
 | `L6` | Code owners that do not start with a default owner | `07-governance.md` §7 |
@@ -127,7 +128,7 @@ it has no cycle, K1 to K3 say nothing there, and every other rule applies.
 
 ## G — the forge's settings
 
-The eighteen lines of the checklist, in its order (`INSTALL.md`, "To do once on GitHub").
+The nineteen lines of the checklist, in its order (`INSTALL.md`, "To do once on GitHub").
 
 | Code | Reports as a gap | Why |
 |---|---|---|
@@ -149,3 +150,4 @@ The eighteen lines of the checklist, in its order (`INSTALL.md`, "To do once on 
 | `G16` | Merged branches kept | `07-governance.md` §7 |
 | `G17` | The main branch can be deleted | `07-governance.md` §7 |
 | `G18` | The main branch's history can be rewritten by a force push | `07-governance.md` §7 |
+| `G19` | A default branch other than `main`, which no workflow watches | `07-governance.md` §7 |

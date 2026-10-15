@@ -42,4 +42,6 @@ success_criteria:             # when the goal is reached: measurable, dated or r
 
 **Blocking:** <none left once the charter is accepted>
 
-**Not blocking:**
+Once it is accepted, this charter holds no open question: one that arrives goes to the
+current cycle's questions, and an answer that changes the charter is a PDR, which the change
+cites (`.nstack/playbooks/framing.md`, *Decisions*).

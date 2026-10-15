@@ -1,8 +1,7 @@
 # Playbook — Documentation
 
-> **Trigger.** Load this playbook when the task writes or changes a document a human will
-> read: a front page, a decision, a charter, a cycle, a module's page, a runbook — and the
-> description of a pull request.
+> **Trigger.** Load this playbook when you are touching: a document a human will read, a
+> pull request's description included: writing or changing one.
 >
 > **This project's own rules** on the subject, when it has any: `docs/project/rules/documentation.md`
 > — read them with this playbook. They add to it or tighten it.
@@ -29,7 +28,7 @@ follows it · red: the document that no longer says what is true.
 
 ---
 
-## The standard — four rules, and no content
+## The standard — five rules, and no content
 
 1. **Shape first**: a diagram with its legend before the prose, wherever there is a structure,
    a flow or a state to show. A reader who stops after the diagram has understood.
@@ -38,6 +37,10 @@ follows it · red: the document that no longer says what is true.
 3. **A date on every decision**, and on every criterion that will judge it.
 4. **Current, or deleted.** A stale page costs more than a missing one, because it is
    believed.
+5. **A fact has one home.** Its home is the file a check or a command reads — a module's
+   manifest for its responsibility, owner and criticality; the cycle for a deliverable's state;
+   the charter for the decider. Every other document that needs the fact links to it, never
+   copies it: two copies agree on the day they are written, and only on that day.
 
 The framework asks for this form and writes none of the content: what the document says is
 the project's.

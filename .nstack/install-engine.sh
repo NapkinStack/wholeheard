@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Installs the NapkinStack engine this project records, for CI (.nstack/handbook/INSTALL.md).
+# Installs the NapkinStack engine this project records, in CI and on a workstation
+# (.nstack/handbook/INSTALL.md).
 #
 # A published version (_commit: vX.Y.Z) comes from PyPI, the only published channel.
 # Anything else comes from the framework's repository at that commit, and is
@@ -7,12 +8,14 @@
 # A ref that cannot be fetched fails here; no published version is ever used in its place.
 set -euo pipefail
 
-VERSION=$(yq '._commit' .copier-answers.yml)
+# Two lines of the answers file, read with sed alone: a runner may hold any YAML tool, or none.
+answer() { sed -n "s/^$1: *['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\} *$/\1/p" .copier-answers.yml; }
+VERSION=$(answer _commit)
 if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exec uv tool install "napkinstack==${VERSION#v}" --with-executables-from pre-commit
 fi
 
-SOURCE=$(yq '._src_path' .copier-answers.yml)
+SOURCE=$(answer _src_path)
 case "$SOURCE" in  # Copier's remote forms, as nstack doctor L7 reads them
   https://*|ssh://*) ;;
   gh:*) SOURCE="https://github.com/${SOURCE#gh:}" ;;

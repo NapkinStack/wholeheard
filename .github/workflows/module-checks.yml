@@ -1,13 +1,14 @@
 name: Modules
 
 # Runs the standard verbs on the changed modules only: nstack reads their commands
-# from the module's MANIFEST.yaml, assuming no stack (P1). A module is a folder holding a
+# from the module's MANIFEST.yaml, assuming no stack. A module is a folder holding a
 # MANIFEST.yaml, contracts/ included: nstack lists them, the workflow defines nothing.
 # The level of validation is proportionate to the criticality declared in the MANIFEST
 # (.nstack/handbook/07-governance.md §6).
 #
-# `Module checks` is the required check: a matrix job carries each module's name, which no
-# ruleset can require in advance, so this job fails whenever one of them failed.
+# `Module checks` is the required check, and the only job: every changed module runs in it, one
+# after another, through .nstack/check-modules.sh. Each job is billed at least a minute: one job
+# costs what the modules' verbs take, where a job per module, a listing and a summary cost three.
 #
 # A change to a contract version also runs the checks of the module that provides it and of
 # every module that declares it in consumes: the contract tests of both sides, which is what
@@ -25,123 +26,38 @@ permissions:
   contents: read
 
 jobs:
-  discover:
-    name: Changed modules
+  checks:
+    name: Module checks
     runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
-    outputs:
-      modules: ${{ steps.list.outputs.modules }}
-      any: ${{ steps.list.outputs.any }}
-      base: ${{ steps.list.outputs.base }}
     steps:
+      # A job starts clean: what an earlier job left in the checkout — a build that failed
+      # half-way on a self-hosted runner — is removed before this one runs.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
+          clean: true
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: NapkinStack, the project version
         run: bash .nstack/install-engine.sh
 
-      - id: list
+      # bootstrap, check, test, compat even after a failure, e2e, and clean on a self-hosted
+      # runner — module by module (.nstack/handbook/05-workflow.md §7, 09-platform.md §2).
+      - name: Every changed module
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          if ! git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
-            if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-              echo "::error::Base $BASE of the pull request not found: its modules cannot be listed." \
-                "Action: run the jobs again; the checkout fetches the whole history."
-              exit 1
-            fi
-            # The first push of a branch has no previous commit: every file is new.
-            BASE=$(git rev-list --max-parents=0 HEAD | tail -1)
-          fi
-          MODS=$(nstack modules --root . --changed-since "$BASE" --with-contract-sides --json)
-          echo "modules=$MODS" >> "$GITHUB_OUTPUT"
-          echo "base=$BASE" >> "$GITHUB_OUTPUT"
-          if [ "$MODS" = '[]' ]; then echo "any=false" >> "$GITHUB_OUTPUT";
-          else echo "any=true" >> "$GITHUB_OUTPUT"; fi
-          echo "Modules with a file changed: $MODS"
+        run: bash .nstack/check-modules.sh
 
-  validate:
-    name: ${{ matrix.module.name }}
-    needs: discover
-    if: needs.discover.outputs.any == 'true'
-    runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        module: ${{ fromJson(needs.discover.outputs.modules) }}
-    env:
-      MODULE: ${{ matrix.module.name }}
-      FOLDER: ${{ matrix.module.folder }}
-      BASE: ${{ needs.discover.outputs.base }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-
-      - name: NapkinStack, the project version
-        run: bash .nstack/install-engine.sh
-
-      # Printed, not branched on: what the value requires is judged by the rules that read the
-      # matrix of .nstack/handbook/05-workflow.md §7, and never twice. A run says under which value it
-      # judged, as every other verdict does.
-      - name: Declared criticality
-        run: |
-          value=$(yq '.module.criticality // "undeclared"' "$FOLDER/MANIFEST.yaml")
-          echo "Criticality: $value"
-          case "$value" in
-            prototype|standard|high|critical) ;;
-            *) echo "Not a value the engine knows: judged as critical until M3 is satisfied." ;;
-          esac
-
-      - name: bootstrap
-        run: nstack bootstrap "$MODULE"
-
-      # All levels — .nstack/handbook/05-workflow.md §7
-      - name: check
-        run: nstack check "$MODULE"
-
-      - name: test
-        run: nstack test "$MODULE"
-
-      # A contract version someone relies on changes only with the merged proof (V1,
-      # .nstack/handbook/03-contracts.md §4). The step runs even when an earlier one failed: a pull
-      # request that breaks a frozen version AND a test would otherwise meet V1 a round trip
-      # later, once the tests are green.
-      - name: compat
-        if: ${{ !cancelled() }}
-        run: nstack compat "$MODULE" --base "$BASE"
-
-      # Optional verb: the module's end-to-end scenarios, when declared (.nstack/handbook/09-platform.md §2).
-      - name: e2e
-        run: nstack e2e "$MODULE"
-
-      # The evidence the test sheet links to (.nstack/handbook/05-workflow.md §7), kept even on failure.
+      # The evidence the test sheet links to (.nstack/handbook/05-workflow.md §7), kept even on
+      # failure: one archive, a folder per module.
       - name: Evidence of the scenarios
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: evidence-${{ matrix.module.name }}
-          path: ${{ matrix.module.folder }}/.evidence/
+          name: evidence
+          path: "**/.evidence/"
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30
-
-  checks:
-    name: Module checks
-    needs: [discover, validate]
-    if: always()
-    runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
-    steps:
-      - name: Every changed module passed
-        env:
-          DISCOVERED: ${{ needs.discover.result }}
-          VALIDATED: ${{ needs.validate.result }}
-        run: |
-          echo "Changed modules: $DISCOVERED. Their checks: $VALIDATED."
-          [ "$DISCOVERED" = success ] && { [ "$VALIDATED" = success ] || [ "$VALIDATED" = skipped ]; }

@@ -196,8 +196,9 @@ without a meeting.
 
 ## 6. Discovery and traceability
 
-The producer/consumer matrix is **generated** from the manifests, never kept by hand. It
-answers three questions no team should have to ask in a meeting:
+Who provides and who consumes a contract is read from the manifests, never kept by hand:
+`nstack modules --with-contract-sides` names both sides of a changed version, and B6 refuses a
+version consumed and provided by nobody. Together they answer three questions no team should have to ask in a meeting:
 
 - Who consumes my contract, and in which version?
 - What does my module consume, and which versions are deprecated?
