@@ -233,18 +233,29 @@ makes, kept apart and made again the same.
 
 | Criterion | Where it stands |
 |---|---|
-| No more words said twice than with a headset | Holds, but on one draw of 24 |
-| No more local words wrong than as delivered, the echo gone without the speaker's words | Holds on the median, not on every draw; the local words said over the remote are still lost more — the canceller's suppression while both speak |
+| No more words said twice than with a headset | Holds on 23 loudspeaker draws of 24; one loud draw gave 3 words |
+| No more local words wrong than as delivered, the echo gone without the speaker's words | Holds on the median, not on every draw; more local words said over the remote are lost than as delivered — the canceller's suppression while both speak |
 | At most one exchange in twenty out of order, one word in fifty on the wrong side | Holds in every draw |
 | A headset's local track goes to the engine as recorded | Holds |
 | What was made kept apart, saying what made it; made again, the same | Holds |
 | Each segment says its track, and has a place for the voice | Holds |
 | The meeting of 2026-10-13, recorded again by the decider, on loudspeakers then with a headset | **Owed — the decider's gesture** |
 
-**Next, each a change measured on the bench and on the trial meeting:** the local words lost
-where both sides speak at once (the canceller's suppression while both speak); a repetition
-loop the engine falls into on one remote track in eight draws, as on main. What was tried, its
-measures, and what was refuted: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196158029).
+**Next:** the local words said over the remote that are lost — the canceller's suppression
+while both speak, its settings the first lever; and a repetition loop the engine falls into
+on one remote track in eight draws, as on `main`.
+
+**How a change is measured.** On the bench (`modules/platform`, its `README.md`: four draws
+at least of each condition, `bench.counts`) and on the trial meeting — cycle 01's D4
+recording, scored as the share of its words wrong. A change is read against `main` run on the
+same draws, on the medians: the bench's earlier figures were taken on other forms and other
+draws, and are not a baseline. The bench alone cannot judge the engine: a change better on it
+can be worse on a real meeting.
+
+**Refuted — not to be tried again as such:** thirty-second pieces, fixed or cut at the
+quietest tenth (better on the bench, worse on the trial meeting: its short replies lost);
+beam search; the engine's no-speech and log-probability thresholds; a speech detector before
+the engine (D14). What was tried, its measures, and what was refuted: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196158029).
 
 ### D11
 
