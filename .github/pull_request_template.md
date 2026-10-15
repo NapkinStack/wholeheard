@@ -98,8 +98,8 @@ other: <specify>
 > reason. Result: passed · failed — what was observed · not verified.
 >
 > **Confirmed** is for a fix landed after the verification: an *automated* scenario is simply run
-> again at the head, one *explored* by hand keeps its commit and gets the head commit here with
-> what moved since — except at criticality `critical`, where every scenario is run again. Leave
+> again at the head and its **Commit** cell takes the head — nothing here; one *explored* by hand
+> keeps its commit and gets the head commit here with what moved since — except at criticality `critical`, where every scenario is run again. Leave
 > it empty when nothing moved — a confirmation is not a round.
 
 Verifier: <@handle, or session and the agent session's identifier>

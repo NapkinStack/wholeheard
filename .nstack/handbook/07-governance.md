@@ -140,6 +140,7 @@ and schemas.
 Beside them, the engine checks what a shared repository must not carry: a path rooted in one
 person's home directory, in any tracked file (H1). It exists on no other machine and
 publishes the layout of the one it was written on; an image's or a runner's home, a
+folder software keeps its own files in — `~/.config`, or `~/Library` on a Mac — a
 placeholder or a variable is the same everywhere.
 
 ### Writing a fitness function
@@ -263,7 +264,7 @@ to use (GitHub wording, transposable elsewhere):
 | Required checks | A red CI blocks the merge, without exception |
 | CODEOWNERS | The right owner is asked automatically |
 | Rulesets / branch protection | The rules do not depend on goodwill |
-| Issue forms | The DoR is structurally filled in |
+| Issue forms | What nobody planned arrives with what is needed to judge it |
 | PR template | The DoD is visible at review time |
 | Labels | Exceptions are visible and counted |
 | Protected environments | Deployment goes through an approval |

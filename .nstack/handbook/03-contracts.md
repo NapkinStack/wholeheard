@@ -128,6 +128,11 @@ sequenceDiagram
 | **3 — Migration** | Each consumer | Switches to v2, at its own pace | Manifest updated: version consumed |
 | **4 — Contract** | Producer | Removal of v1 | v1 consumers = 0, checked (B6) |
 
+**The order holds for a version's name too.** B1 reads a version named in a consumer's files
+as that version consumed, and B6 refuses a consumer declared before its producer: a consumer
+that names v2 before step 1 is merged — even in a test that shows v2 refused — fails B1 in
+every pull request, and cannot declare it. Write the name after step 1.
+
 ### The three guardrails
 
 **① The deprecation date is a check.** From PR 1 onwards, v1 carries a removal date. A

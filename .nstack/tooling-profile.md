@@ -4,7 +4,7 @@
 > The OS declares **capabilities**; this file maps them onto the tools of the moment.
 > Changing tool must never force a change to the kernel or the playbooks.
 >
-> This file is the only place in the repository where a tool name appears.
+> This file is the only place the kernel and the playbooks take a tool's name from.
 
 | Capability | What it is for | Tool chosen | Decision |
 |---|---|---|---|

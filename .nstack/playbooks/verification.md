@@ -48,7 +48,8 @@ change's authors and refuses a match.
    have to add goes on the line **`Verifier's remarks:`** under the table, never in a cell: a
    scenario that passed by your own probe and not by the test it cites, a wording that claims
    more than was exercised. A remark is not a result, and the approver reads it. After a
-   fix, an *automated* scenario is run again at the head; an *explored* one is confirmed in
+   fix, an *automated* scenario is run again at the head and its Commit cell takes the head —
+   it is never confirmed; an *explored* one keeps its commit and is confirmed in
    the `Confirmed` column with the head commit and what moved since; at criticality
    `critical`, every scenario is run again (`.nstack/handbook/05-workflow.md` §7).
 5. **Only then read the diff**, to explain a failure — never to decide a result — and ask one

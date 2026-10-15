@@ -89,7 +89,7 @@ preserving them.
 
 ## How to read these documents
 
-The documents in `docs/` are **the reference**: they explain, justify and detail. They
+The documents in `.nstack/handbook/` are **the reference**: they explain, justify and detail. They
 are **not** meant to be loaded into an agent's context.
 
 What an agent loads is:
@@ -107,4 +107,4 @@ rule live?" first. The answer is very often "in CI", not "in the prompt".
 
 This OS is subject to its own rules: it evolves in small steps, its structuring changes
 get an ADR, and every rule it contains is a candidate for automation. See
-`10-measurement.md` § "Improving the OS".
+`10-measurement.md` § "Improving the OS itself".

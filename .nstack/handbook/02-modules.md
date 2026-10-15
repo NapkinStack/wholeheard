@@ -165,7 +165,7 @@ This is the piece that makes multi-team work operational. A single declarative f
 readable by a human, by an agent **and by CI**.
 
 The manifest `nstack new-module` writes is the reference for the full format;
-`contracts/MANIFEST.yaml` is the one every project already holds. It declares:
+`contracts/MANIFEST.yaml`, written by the first contract, is another. It declares:
 
 - identity and responsibility in one sentence;
 - owner (a team, not an individual);
