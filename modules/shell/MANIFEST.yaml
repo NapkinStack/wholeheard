@@ -104,6 +104,7 @@ commands:
   test: cargo test --locked
   run: cargo run --locked --release --bin summit
   e2e: bash scripts/e2e.sh
+  clean: cargo clean
 
 docs:
   readme: README.md

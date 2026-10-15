@@ -103,7 +103,7 @@ commands:
   test: cargo test --locked
   run: cargo run --locked --release -- devices
   e2e: bash scripts/e2e.sh
-#  e2e:                          # optional: end-to-end scenarios; evidence written to .evidence/
+  clean: cargo clean
 
 docs:
   readme: README.md
