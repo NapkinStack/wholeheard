@@ -12,7 +12,9 @@ set -euo pipefail
 answer() { sed -n "s/^$1: *['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\} *$/\1/p" .copier-answers.yml; }
 VERSION=$(answer _commit)
 if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  exec uv tool install "napkinstack==${VERSION#v}" --with-executables-from pre-commit
+  # --refresh-package: a runner that outlives its jobs keeps uv's cache, and a page of the
+  # registry read before a release would say this version does not exist.
+  exec uv tool install "napkinstack==${VERSION#v}" --refresh-package napkinstack --with-executables-from pre-commit
 fi
 
 SOURCE=$(answer _src_path)

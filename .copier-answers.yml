@@ -1,6 +1,6 @@
 # The project creation answers and the NapkinStack version (_commit).
 # Managed by Copier: changed by nstack update, never by hand.
-_commit: v0.9.0
+_commit: v0.9.1
 _src_path: https://github.com/NapkinStack/engineering-os.git
 github_repo: NapkinStack/summit
 owner_team: NapkinStack/maintainers
