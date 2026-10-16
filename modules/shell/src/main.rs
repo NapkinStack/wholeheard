@@ -8,6 +8,7 @@
 //! and tried there. Here is only what needs a desktop.
 
 use std::{
+    collections::VecDeque,
     path::PathBuf,
     sync::{Mutex, mpsc::Receiver},
     time::{Duration, Instant},
@@ -49,8 +50,9 @@ struct Shell {
     transcribe: MenuItem<Wry>,
     /// The transcript being made, when there is one: one at a time.
     transcription: Mutex<Option<Transcription>>,
-    /// A session whose transcript waits for the one being made, or for the model.
-    waiting: Mutex<Option<PathBuf>>,
+    /// The sessions whose transcripts wait for the one being made, or for the model — in
+    /// the order they were asked, each once.
+    waiting: Mutex<VecDeque<PathBuf>>,
     /// The tray's menu, and its entry that fetches the default model — in it only while the
     /// model is needed and not there.
     menu: Menu<Wry>,
@@ -111,7 +113,7 @@ fn main() {
                 stopping: Mutex::new(false),
                 transcribe: again,
                 transcription: Mutex::new(None),
-                waiting: Mutex::new(None),
+                waiting: Mutex::new(VecDeque::new()),
                 menu,
                 download,
                 fetching: Mutex::new(false),
@@ -253,21 +255,31 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     }
 }
 
+/// Puts a session in line for its transcript, once.
+fn wait(shell: &Shell, folder: PathBuf) {
+    let mut waiting = shell.waiting.lock().unwrap();
+    if !waiting.contains(&folder) {
+        waiting.push_back(folder);
+    }
+}
+
 /// Makes the transcript of a session — after the one being made, if there is one. What is
 /// missing — the model, the program — is said in one sentence; the recording is never touched.
 fn transcribe(app: &AppHandle, folder: PathBuf) {
     let shell = app.state::<Shell>();
     let mut running = shell.transcription.lock().unwrap();
     if running.is_some() {
-        *shell.waiting.lock().unwrap() = Some(folder);
-        return;
+        return wait(&shell, folder);
     }
     let model = &shell.settings.model;
     if !model.is_file() {
         // The default model is offered, its size and host shown; one the user named is theirs.
         if *model == Settings::default().model {
-            *shell.waiting.lock().unwrap() = Some(folder);
-            offer(app);
+            wait(&shell, folder);
+            // Already coming: the session waits for it, and nothing is offered twice.
+            if !*shell.fetching.lock().unwrap() {
+                offer(app);
+            }
         } else {
             tell(app, &words::trouble(&Trouble::NoModel(model.display().to_string()), shell.language));
         }
@@ -295,8 +307,8 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
             Made::Written(folder) => tell_opening(&app, &notice, folder),
             Made::Failed(_) => tell(&app, &notice),
         }
-        let waiting = shell.waiting.lock().unwrap().take();
-        if let Some(folder) = waiting {
+        let next = shell.waiting.lock().unwrap().pop_front();
+        if let Some(folder) = next {
             transcribe(&app, folder);
         }
     });
@@ -361,19 +373,14 @@ fn fetch(app: &AppHandle) {
             let _ = shell.download.set_enabled(enabled);
         });
     };
-    label(app, words::downloading(language, 0), false);
+    label(app, words::fetching(language, 0, wanted.bytes), false);
     let app = app.clone();
     std::thread::spawn(move || {
-        let mut shown = 0;
+        let mut shown = String::new();
         let outcome = model::fetch(&wanted, wanted.address, &to, &mut |held| {
-            let percent = held * 100 / wanted.bytes.max(1);
-            if percent != shown {
-                shown = percent;
-                let text = if held == wanted.bytes {
-                    words::checking(language).to_string()
-                } else {
-                    words::downloading(language, percent)
-                };
+            let text = words::fetching(language, held, wanted.bytes);
+            if text != shown {
+                shown.clone_from(&text);
                 label(&app, text, false);
             }
         });
@@ -388,8 +395,8 @@ fn fetch(app: &AppHandle) {
             let shell = handle.state::<Shell>();
             let _ = shell.menu.remove(&shell.download);
         });
-        let waiting = shell.waiting.lock().unwrap().take();
-        if let Some(folder) = waiting.or_else(|| transcription::latest(&shell.settings.sessions)) {
+        let next = shell.waiting.lock().unwrap().pop_front();
+        if let Some(folder) = next.or_else(|| transcription::latest(&shell.settings.sessions)) {
             transcribe(&app, folder);
         }
     });

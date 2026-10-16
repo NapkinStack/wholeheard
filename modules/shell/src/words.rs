@@ -335,12 +335,17 @@ pub fn downloading(language: Language, percent: u64) -> String {
     }
 }
 
-/// The same entry once every byte has come, while its fingerprint is checked.
-pub fn checking(language: Language) -> &'static str {
-    match language {
-        Language::English => "Checking the model…",
-        Language::French => "Vérification du modèle…",
+/// The entry while the model comes, from the bytes held: the share come — then, once every
+/// byte is there, that its fingerprint is being checked.
+pub fn fetching(language: Language, held: u64, bytes: u64) -> String {
+    if held >= bytes {
+        return match language {
+            Language::English => "Checking the model…",
+            Language::French => "Vérification du modèle…",
+        }
+        .to_string();
     }
+    downloading(language, held * 100 / bytes.max(1))
 }
 
 /// Said when a transcript needs the default model and it is not on the machine: nothing is
@@ -379,12 +384,12 @@ pub fn fetched(outcome: &Result<(), String>, language: Language) -> Notice {
         ),
         (Err(why), English) => (
             "The model was not downloaded",
-            "Nothing of it is used. The menu’s entry goes on from where it stopped.",
+            "Nothing of it is used. The menu’s entry tries again.",
             why.as_str(),
         ),
         (Err(why), French) => (
             "Le modèle n’a pas été téléchargé",
-            "Rien n’en est utilisé. L’entrée du menu reprend là où il s’est arrêté.",
+            "Rien n’en est utilisé. L’entrée du menu réessaie.",
             why.as_str(),
         ),
     };

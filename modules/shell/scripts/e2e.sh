@@ -196,27 +196,26 @@ check is "$(wc -l < "$work/sessions/heard")" 7
 click 4
 
 say "G. the default model missing: offered with its size and host, fetched on the click, then the transcript"
-mkdir -p "$work/served"; head -c 300000 /dev/urandom > "$work/served/model.bin"
+mkdir -p "$work/served"; head -c 300000 /dev/urandom > "$work/served/model.bin"; head -c 300000 /dev/urandom > "$work/right.bin"
 (cd "$work/served" && exec python3 -u -m http.server 0 --bind 127.0.0.1 > "$work/server" 2>&1) &
 for _ in $(seq 50); do port=$(grep -o 'port [0-9]*' "$work/server" | cut -d' ' -f2) && [ -n "$port" ] && break; sleep 0.1; done
-sum=$(sha256sum "$work/served/model.bin" | cut -d' ' -f1)
-published="http://127.0.0.1:$port/model.bin 300000 0000000000000000000000000000000000000000000000000000000000000000"
+published="http://127.0.0.1:$port/model.bin 300000 $(sha256sum "$work/right.bin" | cut -d' ' -f1)"
 start en_GB.UTF-8 "reminder = false" "$work/summit-capture"
+before=$(wc -l < "$work/sessions/heard")
 click 2; click 2; sleep 1
 check is "$(titles 'The transcription model is needed')" 1
 check is "$(labels)" "Start recording|Transcribe the last recording|Download the model (0 MB, 127.0.0.1:$port)|Quit Summit"
+check is "$(grep -c 'GET' "$work/server")" 0      # nothing fetched before the click
+# Served first is not the published file: refused, nothing in place, and the entry tries again.
 click "$(entry Download)"; sleep 2
 check is "$(titles 'The model was not downloaded')" 1
 check test ! -e "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin"
 check test ! -e "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin.part"
-click 4
-published="http://127.0.0.1:$port/model.bin 300000 $sum"
-start en_GB.UTF-8 "reminder = false" "$work/summit-capture"
-before=$(wc -l < "$work/sessions/heard")
-click 2; click 2; sleep 1
+check is "$(greyed)" 0
+cp "$work/right.bin" "$work/served/model.bin"
 click "$(entry Download)"; sleep 2
 check is "$(titles 'Model ready')" 1
-check cmp -s "$work/served/model.bin" "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin"
+check cmp -s "$work/right.bin" "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin"
 check is "$(wc -l < "$work/sessions/heard")" "$((before + 1))"
 check is "$(labels)" "Start recording|Transcribe the last recording|Quit Summit"
 click 4

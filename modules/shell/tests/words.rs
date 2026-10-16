@@ -300,8 +300,22 @@ fn the_model_is_offered_with_its_size_and_host_and_its_fetch_is_said() {
         // The notice names the very entry to choose, and keeps the recording.
         let needed = words::model_needed(language, "874 MB", "huggingface.co");
         assert!(needed.body.contains(&entry), "{}", needed.body);
+        let kept = if language == Language::French {
+            "L’enregistrement est conservé"
+        } else {
+            "The recording is kept"
+        };
+        assert!(needed.body.contains(kept), "{}", needed.body);
         assert!(words::downloading(language, 37).contains("37"));
-        assert_ne!(words::checking(language), words::downloading(language, 100));
+        // While it comes, its share; every byte there, the check — never "100 %" for a while.
+        assert_eq!(words::fetching(language, 0, 874), words::downloading(language, 0));
+        assert_eq!(words::fetching(language, 437, 874), words::downloading(language, 50));
+        assert_eq!(words::fetching(language, 873, 874), words::downloading(language, 99));
+        let checking = words::fetching(language, 874, 874);
+        assert!(
+            !checking.contains('%') && checking != words::downloading(language, 100),
+            "{checking}"
+        );
         let refused = words::fetched(&Err("what came is not the published model".into()), language);
         assert!(refused.body.ends_with("(what came is not the published model)"), "{}", refused.body);
         assert_ne!(words::fetched(&Ok(()), language).title, refused.title);
