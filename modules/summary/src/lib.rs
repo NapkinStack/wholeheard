@@ -99,6 +99,15 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
          language — \"not specified\", or that it was proposed and not accepted. Never guess.\n\
          A person the meeting talks about is not a participant: never give them an action.\n\
          In the transcript, \"me\" is the person who recorded and \"others\" is everyone else.\n\n\
+         The transcript was written by a speech recogniser, and holds its errors: a word heard \
+         as another that sounds alike, a name or a figure misheard, a sentence written twice or \
+         several times in a row, a sentence of \"others\" written again under \"me\" as an echo, \
+         a reply missing. Read the meeting through them: where what was meant is certain from \
+         the rest of the meeting, write what was meant; where a name, a figure, a date or who \
+         does a task is uncertain, write it as heard and say it is uncertain. A sentence written \
+         twice counts once. The user's context, when there is one, names who was there and the \
+         words of the trade: read the names, the words and who speaks on which side through \
+         it.\n\n\
          Answer with exactly three sections and nothing before, between or after them. Each \
          opens on a title of second level — a line starting with two number signs and a space, \
          in plain text — in this order:\n\

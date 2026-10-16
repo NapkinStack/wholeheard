@@ -99,6 +99,10 @@ fn the_provider_is_asked_with_the_meeting_the_rules_and_the_users_context() {
         "even when nobody took it and no date was set",
         "A task belongs here, not in the third section",
         "one said as a need",
+        "written by a speech recogniser",
+        "write it as heard and say it is uncertain",
+        "A sentence written twice counts once",
+        "who speaks on which side through it",
     ] {
         assert!(asked.contains(rule), "the request lost the rule: {rule}");
     }
