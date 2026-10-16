@@ -37,8 +37,12 @@ says when it is there, and a click on it opens the session's folder under a Linu
 A transcript that failed is said in one sentence, the recording untouched: *Transcribe the
 last recording*, in the menu, makes it again from where it stopped; it is greyed while a
 recording runs, whose transcript follows its stop. One transcript at a time: a stop during
-another waits for it. Quitting Summit ends a transcript being made; it goes on the same way. No model on the machine is said too — where
-it was looked for.
+another waits for it. Quitting Summit ends a transcript being made; it goes on the same way. **The model, on the user's word.** The first transcript needs the Whisper model. Summit says
+so, and puts one entry in its menu: *Download the model (874 MB, huggingface.co)*. Nothing is
+fetched before it is chosen. The model comes into a part file beside its place. A cut is
+taken up where it stopped, and the model is used only whole and with the SHA-256 its authors
+publish. Then the waiting transcript is made. A model the settings name, and which is not
+there, is said with where it was looked for: it is the user's own, never fetched.
 
 ```bash
 nstack bootstrap shell && nstack bootstrap capture
@@ -63,7 +67,7 @@ by hand until the window exists: `reminder = false` to stop the reminder, `sessi
 for where sessions go, `transcript = false` to make transcripts only from the menu, `model =
 "…"` for the Whisper model. Out of the box, sessions go to a folder `Summit` in the user's
 documents, and the model is `summit/models/ggml-large-v3-turbo-q8_0.bin` in the user's data
-folder — placed there by hand until Summit offers to fetch it.
+folder — fetched there on the user's word, or placed by hand.
 
 ## Getting started
 

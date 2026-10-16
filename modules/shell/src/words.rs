@@ -317,3 +317,81 @@ pub fn follows(language: Language) -> &'static str {
         Language::French => "La transcription suit.",
     }
 }
+
+/// The menu's entry that fetches the default model: what it is, how big, and from where — the
+/// user's click on it is their agreement.
+pub fn download(language: Language, size: &str, host: &str) -> String {
+    match language {
+        Language::English => format!("Download the model ({size}, {host})"),
+        Language::French => format!("Télécharger le modèle ({size}, {host})"),
+    }
+}
+
+/// The same entry while the model comes.
+pub fn downloading(language: Language, percent: u64) -> String {
+    match language {
+        Language::English => format!("Downloading the model… {percent} %"),
+        Language::French => format!("Téléchargement du modèle… {percent}\u{a0}%"),
+    }
+}
+
+/// The entry while the model comes, from the bytes held: the share come — then, once every
+/// byte is there, that its fingerprint is being checked.
+pub fn fetching(language: Language, held: u64, bytes: u64) -> String {
+    if held >= bytes {
+        return match language {
+            Language::English => "Checking the model…",
+            Language::French => "Vérification du modèle…",
+        }
+        .to_string();
+    }
+    downloading(language, held * 100 / bytes.max(1))
+}
+
+/// Said when a transcript needs the default model and it is not on the machine: nothing is
+/// fetched until the user chooses the menu's entry.
+pub fn model_needed(language: Language, size: &str, host: &str) -> Notice {
+    let entry = download(language, size, host);
+    let (title, body) = match language {
+        Language::English => (
+            "The transcription model is needed",
+            format!("It is fetched once, on your word: choose “{entry}” in Summit’s menu. The recording is kept."),
+        ),
+        Language::French => (
+            "Le modèle de transcription est nécessaire",
+            format!(
+                "Il est téléchargé une fois, sur votre accord\u{a0}: choisissez «\u{a0}{entry}\u{a0}» dans le menu de Summit. L’enregistrement est conservé."
+            ),
+        ),
+    };
+    notice(title, body, "").expect("always said")
+}
+
+/// Said when the model's fetch ended: ready, and the transcript begun — or not, with why, and
+/// that nothing of it was used.
+pub fn fetched(outcome: &Result<(), String>, language: Language) -> Notice {
+    use Language::{English, French};
+    let (title, body, why) = match (outcome, language) {
+        (Ok(()), English) => (
+            "Model ready",
+            "Checked against its published fingerprint. The transcript is being made.",
+            "",
+        ),
+        (Ok(()), French) => (
+            "Modèle prêt",
+            "Vérifié par son empreinte publiée. La transcription est en cours.",
+            "",
+        ),
+        (Err(why), English) => (
+            "The model was not downloaded",
+            "Nothing of it is used. The menu’s entry tries again.",
+            why.as_str(),
+        ),
+        (Err(why), French) => (
+            "Le modèle n’a pas été téléchargé",
+            "Rien n’en est utilisé. L’entrée du menu réessaie.",
+            why.as_str(),
+        ),
+    };
+    notice(title, body.to_string(), why).expect("always said")
+}
