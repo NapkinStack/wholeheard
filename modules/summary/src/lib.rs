@@ -109,7 +109,9 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
          does a task is uncertain, write it as heard and say it is uncertain. A sentence written \
          twice counts once. The user's context, when there is one, names who was there and the \
          words of the trade: read the names, the words and who speaks on which side through \
-         it.\n\n\
+         it. A task said as \"I\" names nobody, and each side may hold several people: give it \
+         an owner without doubt only when the meeting names them; otherwise write the likely \
+         owner with \"probably\", or none.\n\n\
          Answer with exactly three sections and nothing before, between or after them. Each \
          opens on a title of second level — a line starting with two number signs and a space, \
          in plain text — in this order:\n\
