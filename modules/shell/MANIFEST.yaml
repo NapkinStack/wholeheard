@@ -96,6 +96,14 @@ dependencies:
     purpose: A notification whose click opens the session's folder, under Linux; the toolkit's plugin tells no click
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One function, tell_opening, in src/main.rs; the toolkit's plugin, the day it tells a click.
+  - name: ureq
+    purpose: Fetches the default model, on the user's word, from where its authors publish it
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One function, receive, in src/model.rs; any HTTP client that sends a Range.
+  - name: sha2
+    purpose: Checks a fetched model against its published SHA-256 before it is used
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One function, fingerprint, in src/model.rs; any SHA-256.
   - name: sys-locale
     purpose: Reads the language the user's system is set to, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
