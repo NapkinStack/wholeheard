@@ -48,8 +48,13 @@ start() { # the language, the settings file's text, the recorder
   printf 'sessions = "%s"\n%s\n' "$work/sessions" "$2" > "$work/config/summit/settings.toml"
   LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" SUMMIT_CAPTURE="$3" "$bin" 2>> "$work/errors" &
   app=$!
-  for _ in $(seq 50); do
-    item=$(busctl --user get-property $watcher RegisteredStatusNotifierItems | grep -o ':[0-9.]*@[^" ]*summit[^" ]*' | tail -1) && [ -n "$item" ] && break
+  # Its own tray item, found by its program's number: a Summit the user runs has one too.
+  item=""
+  for _ in $(seq 100); do
+    for one in $(busctl --user get-property $watcher RegisteredStatusNotifierItems | grep -o ':[0-9.]*@[^" ]*summit[^" ]*'); do
+      [ "$(busctl --user status "${one%@*}" 2>/dev/null | awk -F= '/^PID=/ {print $2}')" = "$app" ] && item=$one
+    done
+    [ -n "$item" ] && break
     sleep 0.1
   done
   bus=${item%@*}; menu=${item#*@}/Menu

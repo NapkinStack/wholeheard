@@ -46,7 +46,7 @@ deliverables:
   - id: D12
     title: "A user gets the transcript of a recording from the tray, without a terminal"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a recording stopped from the tray, when the setting says the transcript follows — and it does, out of the box — then the transcript is made without another gesture, the user is told when it is there, and the click on that notification opens the session's folder"
       - "Given no model on the machine, when a transcript is first needed, then the user is shown the model's size and the host it comes from; nothing is fetched before they agree; the file is checked whole against its published fingerprint before any use; and a fetch that was cut is started again, never used as it is"
@@ -294,8 +294,10 @@ again. What is accepted is the next cycle's criteria.
 
 ### D12
 
-Not started: it comes once D10 holds — a transcript that is wrong is not worth bringing to
-the tray.
+In progress, before D10 holds: the decider's word of 2026-10-16. D10's double-talk lever is
+closed: on the minutes' measure (D16), the engine's remaining errors change no figure, and
+what they cost is who said what — which no lever of the transcript recovers. Built: the
+transcript made and judged by the library, with the model the settings name (#140).
 
 ### D13
 
