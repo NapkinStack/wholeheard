@@ -216,11 +216,14 @@ pub enum Trouble {
     NoModel(String),
     /// The program that hears could not be started: what the system said of it.
     NoTranscriber(String),
+    /// A transcript was asked for, and no recording is in the folder of sessions.
+    NoSession,
 }
 
 /// What the user is told of a trouble: what it is, and what still works.
 pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
     use Language::{English, French};
+    let nothing = String::new();
     let (title, body, why) = match (trouble, language) {
         (Trouble::NoRecorder(why), English) => (
             "Summit cannot record",
@@ -266,6 +269,16 @@ pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
             "Summit cannot transcribe",
             "Its transcription program could not be started. The recording is kept; installing Summit again puts the program back.",
             why,
+        ),
+        (Trouble::NoSession, English) => (
+            "No recording to transcribe",
+            "Record a meeting first: its transcript follows the stop.",
+            &nothing,
+        ),
+        (Trouble::NoSession, French) => (
+            "Aucun enregistrement à transcrire",
+            "Enregistrez d’abord une réunion\u{a0}: sa transcription suit l’arrêt.",
+            &nothing,
         ),
         (Trouble::NoTranscriber(why), French) => (
             "Summit ne peut pas transcrire",

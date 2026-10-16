@@ -234,6 +234,7 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
             | Trouble::Shortcut(why)
             | Trouble::NoModel(why)
             | Trouble::NoTranscriber(why) => why.clone(),
+            Trouble::NoSession => unreachable!("it has no detail"),
         };
         for language in BOTH {
             let Notice { title, body } = words::trouble(&trouble, language);
@@ -285,6 +286,8 @@ fn a_transcript_is_said_ready_or_not_with_how_to_have_it_again() {
             words::trouble(&Trouble::NoModel(String::new()), language).body.contains(entry),
             "{entry}"
         );
+        let none = words::trouble(&Trouble::NoSession, language);
+        assert!(!none.title.is_empty() && !none.body.contains('('), "{}", none.body);
     }
     assert_ne!(words::follows(Language::English), words::follows(Language::French));
 }

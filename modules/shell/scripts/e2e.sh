@@ -60,6 +60,7 @@ start() { # the language, the settings file's text, the recorder
   done
   bus=${item%@*}; menu=${item#*@}/Menu
 }
+greyed() { busctl --user call "$bus" "$menu" com.canonical.dbusmenu GetLayout iias 0 -- -1 0 | grep -o '"enabled" b false' | wc -l; }
 labels() { # busctl writes what is not ASCII as escapes: printf reads them back
   printf '%b' "$(busctl --user call "$bus" "$menu" com.canonical.dbusmenu GetLayout iias 0 -- -1 0 | grep -o '"label" s "[^"]*"' | cut -d'"' -f4 | paste -sd'|')"
 }
@@ -67,6 +68,18 @@ click() { busctl --user call "$bus" "$menu" com.canonical.dbusmenu Event isvu "$
 failed=0
 check() { if "$@"; then say "  ok    $*"; else say "  FAIL  $*"; failed=1; fi; }
 is() { [ "$1" = "$2" ] || { say "        got: $1"; return 1; }; }
+
+# The program that hears, played: it notes what it was given, fails, is slow or stuck when told.
+cat > "$work/summit-transcription" <<'PLAYED'
+#!/bin/sh
+here=$(dirname "$1"); echo "$*" >> "$here/heard"
+if [ -e "$here/fail-once" ]; then rm "$here/fail-once"; echo "summit-transcription: the engine stopped" >&2; exit 1; fi
+if [ -e "$here/slow" ]; then rm "$here/slow"; sleep 3; fi
+if [ -e "$here/stuck" ]; then echo $$ > "$here/hearing"; sleep 30; fi
+mkdir -p "$1" && echo '{}' > "$1/transcript.jsonl"
+PLAYED
+chmod +x "$work/summit-transcription"
+: > "$work/model.bin"
 
 say "A. in French: start from the menu, the reminder, a silent source, stop"
 start fr_FR.UTF-8 "transcript = false" "$work/summit-capture"
@@ -81,6 +94,8 @@ check is "$(cat "$work/sessions/told")" "stop"
 check is "$(labels)" "Démarrer l’enregistrement|Transcrire le dernier enregistrement|Quitter Summit"
 check is "$(titles 'Enregistrement arrêté')" 1
 check grep -q 'Durée.: 32 min' "$work/notified"
+check test ! -e "$work/sessions/heard"
+check is "$(grep -c 'La transcription suit' "$work/notified")" 0
 
 say "B. quit while recording: the recording is stopped first, then Summit leaves"
 click 2; rm -f "$work/sessions/told"
@@ -126,16 +141,6 @@ click 4
 check is "$(kill -0 "$app" 2>/dev/null && echo waiting || echo gone)" "gone"
 
 say "F. the transcript follows the stop; a failed one is made again from the menu; no model is said"
-# The program that hears, played: it notes what it was given, fails the first time it is told
-# to, and otherwise writes the transcript where the session is.
-cat > "$work/summit-transcription" <<'PLAYED'
-#!/bin/sh
-echo "$*" >> "$(dirname "$1")/heard"
-if [ -e "$(dirname "$1")/fail-once" ]; then rm "$(dirname "$1")/fail-once"; echo "summit-transcription: the engine stopped" >&2; exit 1; fi
-mkdir -p "$1" && echo '{}' > "$1/transcript.jsonl"
-PLAYED
-chmod +x "$work/summit-transcription"
-: > "$work/model.bin"
 start en_GB.UTF-8 "reminder = false\nmodel = \"$work/model.bin\"" "$work/summit-capture"
 click 2; click 2; sleep 1
 check grep -q '32 min recorded. The transcript follows.' "$work/notified"
@@ -149,11 +154,32 @@ check grep -q 'tries again from where it stopped. (the engine stopped)' "$work/n
 click 3; sleep 1
 check is "$(titles 'Transcript ready')" 2
 check is "$(wc -l < "$work/sessions/heard")" 3
-click 4
+check is "$(greyed)" 0
+# Asked for while recording, it is greyed: the recording's transcript follows its stop.
+click 2
+check is "$(greyed)" 1
+click 3; click 2; sleep 1
+check is "$(wc -l < "$work/sessions/heard")" 4
+check is "$(titles 'Transcript ready')" 3
+touch "$work/sessions/slow"
+click 3
+check is "$(greyed)" 1
+click 2; click 2; sleep 5
+check is "$(wc -l < "$work/sessions/heard")" 6
+check is "$(titles 'Transcript ready')" 5
+check is "$(greyed)" 0
+touch "$work/sessions/stuck"
+click 3; sleep 1; hearing=$(cat "$work/sessions/hearing"); click 4; sleep 1
+check is "$(kill -0 "$hearing" 2>/dev/null && echo hearing || echo ended)" "ended"
+check is "$(kill -0 "$app" 2>/dev/null && echo running || echo gone)" "gone"
+start en_GB.UTF-8 "reminder = false\nmodel = \"$work/model.bin\"" "$work/summit-capture"
+click 2; click 4; sleep 1
+check is "$(cat "$work/sessions/told") $(kill -0 "$app" 2>/dev/null || echo gone)" "stop gone"
+check is "$(wc -l < "$work/sessions/heard")" 7
 start en_GB.UTF-8 "reminder = false\nmodel = \"$work/no-model.bin\"" "$work/summit-capture"
 click 2; click 2; sleep 1
 check is "$(titles 'No transcript: the model is missing')" 1
-check is "$(wc -l < "$work/sessions/heard")" 3
+check is "$(wc -l < "$work/sessions/heard")" 7
 click 4
 
 check test ! -s "$work/errors"

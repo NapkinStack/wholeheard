@@ -48,6 +48,8 @@ struct Shell {
     transcribe: MenuItem<Wry>,
     /// The transcript being made, when there is one: one at a time.
     transcription: Mutex<Option<Transcription>>,
+    /// A session whose transcript waits for the one being made.
+    waiting: Mutex<Option<PathBuf>>,
 }
 
 /// Where the tray is in the life of a recording.
@@ -76,9 +78,14 @@ fn main() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "toggle" => toggle_recording(app),
                     "transcribe" => {
-                        let sessions = app.state::<Shell>().settings.sessions.clone();
-                        if let Some(last) = transcription::latest(&sessions) {
-                            transcribe(app, last);
+                        let shell = app.state::<Shell>();
+                        // The latest session is the one being recorded: its transcript follows its stop.
+                        if shell.recording.lock().unwrap().is_some() {
+                            return;
+                        }
+                        match transcription::latest(&shell.settings.sessions) {
+                            Some(last) => transcribe(app, last),
+                            None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
                         }
                     }
                     "quit" => leave(app),
@@ -95,6 +102,7 @@ fn main() {
                 stopping: Mutex::new(false),
                 transcribe: again,
                 transcription: Mutex::new(None),
+                waiting: Mutex::new(None),
             });
             if let Err(why) = read {
                 tell(app.handle(), &words::trouble(&Trouble::Settings(why), language));
@@ -140,6 +148,9 @@ fn show(app: &AppHandle, shown: Shown) {
         };
         let _ = shell.toggle.set_text(label);
         let _ = shell.toggle.set_enabled(enabled);
+        // A transcript is asked for at rest only, and one at a time.
+        let free = shown == Shown::Idle && shell.transcription.lock().unwrap().is_none();
+        let _ = shell.transcribe.set_enabled(free);
         if let Some(tray) = app.tray_by_id(TRAY) {
             let _ = tray.set_icon(Image::from_bytes(icon).ok());
             let _ = tray.set_tooltip(Some(tooltip));
@@ -224,17 +235,19 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     if let Some(ended) = ended {
         ended.wait();
     }
-    if let Some(folder) = stopped {
+    // Quitting, the stop's transcript is not begun: it is made from the menu next time.
+    if let Some(folder) = stopped.filter(|_| !*shell.leaving.lock().unwrap()) {
         transcribe(app, folder);
     }
 }
 
-/// Makes the transcript of a session, unless one is being made. What is missing — the model,
-/// the program — is said in one sentence; the recording is never touched.
+/// Makes the transcript of a session — after the one being made, if there is one. What is
+/// missing — the model, the program — is said in one sentence; the recording is never touched.
 fn transcribe(app: &AppHandle, folder: PathBuf) {
     let shell = app.state::<Shell>();
     let mut running = shell.transcription.lock().unwrap();
     if running.is_some() {
+        *shell.waiting.lock().unwrap() = Some(folder);
         return;
     }
     let model = &shell.settings.model;
@@ -264,6 +277,10 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
             Made::Written(folder) => tell_opening(&app, &notice, folder),
             Made::Failed(_) => tell(&app, &notice),
         }
+        let waiting = shell.waiting.lock().unwrap().take();
+        if let Some(folder) = waiting {
+            transcribe(&app, folder);
+        }
     });
 }
 
@@ -274,7 +291,7 @@ fn transcribing(app: &AppHandle, now: bool) {
         let shell = app.state::<Shell>();
         let labels = words::menu(shell.language);
         let _ = shell.transcribe.set_text(if now { labels.transcribing } else { labels.transcribe });
-        let _ = shell.transcribe.set_enabled(!now);
+        let _ = shell.transcribe.set_enabled(!now && shell.recording.lock().unwrap().is_none());
     });
 }
 

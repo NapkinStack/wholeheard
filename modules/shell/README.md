@@ -35,8 +35,9 @@ window yet. In French where the system is, in English anywhere else.
 without another gesture, on this machine, with the model the settings name; a notification
 says when it is there, and a click on it opens the session's folder under a Linux desktop.
 A transcript that failed is said in one sentence, the recording untouched: *Transcribe the
-last recording*, in the menu, makes it again from where it stopped. Quitting Summit ends a
-transcript being made; it goes on the same way. No model on the machine is said too — where
+last recording*, in the menu, makes it again from where it stopped; it is greyed while a
+recording runs, whose transcript follows its stop. One transcript at a time: a stop during
+another waits for it. Quitting Summit ends a transcript being made; it goes on the same way. No model on the machine is said too — where
 it was looked for.
 
 ```bash
