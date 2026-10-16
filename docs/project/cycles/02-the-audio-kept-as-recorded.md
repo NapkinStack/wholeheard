@@ -80,7 +80,7 @@ deliverables:
     module: summary
     state: in-progress
     acceptance:
-      - "Given the bench's meeting — its script, and the engine's transcripts of loudspeakers loud draws 0 and 1, headset draw 0 and the television — with a context that names who was in the room and who was remote, when minutes are asked of the example's model, then none states a figure, a date or a decision the meeting contradicts, and the support rota is right in more of them than with the request of 2026-10-16"
+      - "Given the bench's meeting — the engine's transcripts of loudspeakers loud draws 0 and 1, headset draw 0 and the television, as main writes them on 2026-10-16 — with a context that names who was in the room and who was remote, when the example's model is asked three times for the minutes of each, then none states a figure or a date the meeting contradicts, and the support rota is right in more of them than the 5 of 12 of the request as it was on 2026-10-16"
       - "Given a name, a figure, a date or an owner that the transcript leaves uncertain, when the minutes are written, then it is written as heard and said to be uncertain, not guessed"
       - "Given a transcript, when its minutes are written, then the transcript is unchanged: the reading through its errors exists only in the minutes"
 ---
@@ -329,12 +329,14 @@ tried: [ADR-0005](../../adr/0005-a-contract-carries-a-schema-and-a-comparator-ju
 
 ### D16
 
-Decided by the decider on 2026-10-16, on a measure: minutes made from the bench's script and
-from five of the engine's transcripts, with `summary`'s request as it is, told of a
-recogniser's errors, given a context, and both. The engine's errors cost the minutes little:
-none stated a figure the meeting contradicts. The support rota, said over six turns, was right
-in 2 of 6 as the request is, and in 6 of 6 told of the errors with a context. What none
-recovers is who: two people on each track, a task said in the first person loses its owner.
+Decided by the decider on 2026-10-16, on a measure. Minutes were made from the bench's script
+and from the engine's transcripts, with `summary`'s request as it is, told of a recogniser's
+errors, given a context, and both. The engine's errors cost the figures nothing measured: no
+minutes stated one the meeting contradicts. Who does what is where they show. On four of
+today's transcripts, three answers each, the support rota was right in 5 of 12 with the request
+as it is. Told of the errors and given a context, it was right in 12 of 12, and tasks given to
+the wrong person fell from 4 to 1. What no request recovers is a task said as "I": each track
+holds two people.
 [The measure, in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6220693775).
 
 ## Out of scope
