@@ -7,7 +7,7 @@
 # pre-commit autoupdate only sees tags on the default branch: do not use it.
 
 minimum_pre_commit_version: "3.0.0"
-default_install_hook_types: [pre-commit, commit-msg]  # the message is read too
+default_install_hook_types: [pre-commit, commit-msg, pre-push]  # the message is read too
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -88,3 +88,17 @@ repos:
           |copilot\.microsoft\.com/(chats/|shares/)
           )
         stages: [pre-commit, commit-msg, manual]
+
+      # Before a push, the fitness functions CI runs on every pull request — a fault seen here,
+      # not after a round trip. The skills are left to CI: what they are generated from is
+      # the engine's version, which a contributor's may not be. Where nstack is not
+      # installed, it says so and lets the push go: CI still judges.
+      - id: nstack-fitness
+        name: NapkinStack fitness functions (manifests, boundaries, plan, hygiene)
+        language: system
+        entry: >-
+          sh -c 'command -v nstack >/dev/null 2>&1 || { echo "nstack is not installed: CI judges"; exit 0; };
+          for check in manifests boundaries plan hygiene; do nstack "$check" --root . || exit 1; done'
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

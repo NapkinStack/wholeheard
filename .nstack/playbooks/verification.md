@@ -26,6 +26,22 @@ context, or hand the sheet to a human. Sign the sheet with your session's identi
 `Verifier: session <id>` — or, as a person, `Verifier: @<handle>`. CI compares it with the
 change's authors and refuses a match.
 
+### Your own ground
+
+You verify on someone's machine, beside work that goes on. Leave it as you found it.
+
+- **A copy of your own**: a working tree checked out at the head, and build outputs of your
+  own. A tree another session edits, or outputs another branch built, give results that are
+  not this change's.
+- **The machine's shared state** — a default device, a setting, a service, data others read —
+  is touched only as the scenario needs, and is put back after each run, also on failure.
+  What another program holds — a user's own running copy of the product, their files — is
+  never touched.
+- **What you start, you stop, by its process number** — never by a name or a pattern, which
+  also matches what is not yours. When you leave, nothing of yours is left running.
+- **The description is fetched again just before you write it**: the author may have edited
+  it since you read it, and your edit must keep theirs.
+
 ---
 
 ## The procedure
