@@ -25,7 +25,7 @@ for tool in ffmpeg ffprobe pw-play pw-dump pw-cli python3; do
 done
 
 cargo build --release --locked 2>&1 | tail -3 >> .evidence/e2e.txt
-bin=$PWD/target/release/summit-capture
+bin=${CARGO_TARGET_DIR:-$PWD/target}/release/summit-capture   # where cargo built it
 work=$(mktemp -d)
 # A run that was killed outright could not put anything back: its devices are removed first,
 # and the system falls back on its own.
