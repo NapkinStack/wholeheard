@@ -38,9 +38,27 @@ summit-summary <session-folder> --provider http://localhost:11434/v1 --model mis
 | A fast online model | 2 to 3 | 3 s |
 | A 7B model on a laptop's processor | 4 | minutes |
 
-**Attach a context** — `context.txt` in the session's folder, a few lines: who was there, who
-is only talked about. Without it, a person the meeting talks about was written as the owner
-of an action.
+**The transcript is read through its errors.** The model is told the transcript comes from a
+speech recogniser and names its errors: a word heard as another, a name or a figure misheard,
+a sentence written twice, the remote side written again as an echo, a reply missing. Where the
+rest of the meeting makes what was meant certain, it writes that. Where a name, a figure, a
+date or an owner stays uncertain, it writes it as heard and says so. A task said as "I" gets
+its owner only when the meeting names them, otherwise "probably" someone, or nobody: the
+minutes are less often wrong about who, and less often sure. The price, too:
+a stray word can make a fact said clearly read as uncertain — "c'est nantes" misheard beside
+"je garde celui de Paris" made the kept server "Paris or Nantes". The transcript itself is
+never changed.
+
+**Attach a context** — `context.txt` in the session's folder, a few lines: who was there, on
+which side — in the room or remote — and who is only talked about. Without it, a person the
+meeting talks about was written as the owner of an action.
+
+On the bench's meeting, four of the engine's transcripts, the model of the example asked three
+times each at temperature 0: told of the errors and given a context, the minutes give the
+support rota — said over six turns — right 12 times in 12, against 5 in 12 without either, and
+a task to the wrong person once instead of four times. Which of the two does the most is not
+measured apart. What no request recovers is the owner of a task said as "I": each track holds
+two people (cycle 02, D16).
 
 A key, when the provider wants one, is read from `SUMMIT_PROVIDER_KEY` and written nowhere.
 Whatever fails — no network, a refused key, an unknown model, an answer cut short or that is
