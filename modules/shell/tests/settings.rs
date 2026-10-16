@@ -72,7 +72,7 @@ fn the_transcript_follows_a_recording_with_the_model_the_settings_name() {
     let defaults = Settings::default();
     assert!(defaults.transcript && defaults.model.is_absolute());
     assert!(defaults.model.ends_with(format!("summit/models/{}", summit_shell::settings::MODEL)));
-    let chosen = written("transcript = false\nmodel = \"~/models/ggml-small.bin\"\n").unwrap();
+    let chosen = written(&format!("transcript = false\nmodel = \"{}/models/ggml-small.bin\"\n", '~')).unwrap();
     assert!(!chosen.transcript && chosen.model.is_absolute() && chosen.model.ends_with("models/ggml-small.bin"));
     let said = written("\nmodel = \"ggml-small.bin\"\n").unwrap_err();
     assert!(said.starts_with("<file>, line 2: model is the file's whole path"), "{said}");

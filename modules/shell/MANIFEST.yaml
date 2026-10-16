@@ -49,6 +49,9 @@ consumes:
   - contract: recording
     version: v1
     module: capture
+  - contract: transcript
+    version: v1
+    module: transcription
 #  - contract: identity-api
 #    version: v1
 #    module: identity
