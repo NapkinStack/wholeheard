@@ -296,8 +296,18 @@ again. What is accepted is the next cycle's criteria.
 
 In progress, before D10 holds: the decider's word of 2026-10-16. D10's double-talk lever is
 closed: on the minutes' measure (D16), the engine's remaining errors change no figure, and
-what they cost is who said what — which no lever of the transcript recovers. Built: the
-transcript made and judged by the library, with the model the settings name (#140).
+what they cost is who said what — which no lever of the transcript recovers. Built:
+- the transcript made and judged by the library, with the model the settings name (#140);
+- the transcript following the stop, from the tray (#141);
+- the default model fetched whole, resumed and checked (#142), offered in the menu and fetched
+  on the user's word (#144).
+
+| Criterion | Where it stands |
+|---|---|
+| The transcript follows the stop; the user is told; a click opens the folder | Holds. The real chain was run by #141's verifier: a bench session transcribed with no other gesture, "Transcript ready". The click works under Linux only; a person's click is owed (#145) |
+| No model: its size and host shown, nothing fetched before the user agrees, checked whole, a cut fetch started again | Holds. The real host was cut at 210 MB, resumed and checked (#142); from the tray, with a served model (#144) |
+| A failure said in one sentence, the recording untouched, asked again from the menu | Holds (#141, the e2e's scenario F) |
+| The decider records one real meeting from the tray and reads its transcript | **Owed — the decider's gesture (#145)** |
 
 ### D13
 
