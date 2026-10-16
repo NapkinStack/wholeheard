@@ -197,7 +197,7 @@ first form is still read, or refused in one sentence; the hour's weight.
 
 In progress. Built and merged: the turns timed by their words (#117), a segment's track and
 the voice's place (#118, #119), the echo canceller (#120), what the engine heard kept (#121),
-a turn the engine jumped over heard again (#124).
+a turn the engine jumped over heard again (#124), a loop heard again (#133).
 
 ```mermaid
 flowchart LR
@@ -225,6 +225,10 @@ makes, kept apart and made again the same.
   carries for this model, and a segment is cut where the words stop for more than 0.5 s.
 - A stretch of a speaker's sound at the level of the words written, 1.5 s or more, where no
   word was written, is heard again alone (#124).
+- A run of four words written three times or more in what a span gave is a loop: from the
+  segment before to the one after, it is heard again alone, after no text of the window
+  before, and before #124's rule; the text of the window before stays everywhere else, as
+  `context.txt` rides with it (#133).
 - The product transcribes a stopped recording: a transcript begun while the meeting is
   recorded keeps the echo decision of its beginning.
 - Each segment's track and voice are optional fields of `transcript/v1`, so the transcripts
@@ -241,9 +245,9 @@ makes, kept apart and made again the same.
 | The meeting of 2026-10-13, recorded again by the decider, on loudspeakers then with a headset | **Owed — the decider's gesture** |
 
 **Next:** the local words said over the remote that are lost — `bench.counts`' *local words
-lost under the remote*; the canceller's suppression while both speak, its settings the first
-lever; and a repetition loop the engine falls into
-on one remote track in eight draws, as on `main`.
+lost under the remote* (24.5 of 109 on loudspeakers, loud). The canceller's own variants
+trade them for the echo written as words; the trial meeting, with no local track, cannot
+judge a lever here.
 
 **How a change is measured.** On the bench (`modules/platform`, its `README.md`: four draws
 at least of each condition, `bench.counts`) and on the trial meeting — cycle 01's D4
@@ -256,7 +260,12 @@ can be worse on a real meeting.
 **Refuted — not to be tried again as such:** thirty-second pieces, fixed or cut at the
 quietest tenth (better on the bench, worse on the trial meeting: its short replies lost);
 beam search; the engine's no-speech and log-probability thresholds; a speech detector before
-the engine (D14). What was tried, its measures, and what was refuted: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196158029).
+the engine (D14); the canceller's linear filter alone, and the echo removed from the text;
+against the loop, no text of the window before or a short one, `context.txt` in every window
+(`carry_initial_prompt`), a stricter repetition guard (`entropy_thold`, with five samples or
+without); Parakeet TDT as the default engine (57.1 % on the trial meeting). What was tried,
+its measures, and what was refuted: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196158029),
+and [the double-talk and the loop](https://github.com/NapkinStack/summit/issues/129#issuecomment-6219946187).
 
 ### D11
 
