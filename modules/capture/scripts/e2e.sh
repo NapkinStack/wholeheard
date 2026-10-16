@@ -46,12 +46,6 @@ restore() {
 trap restore EXIT
 pactl set-default-sink summit_e2e_out
 pactl set-default-source summit_e2e_mic.monitor
-# A stream another application holds open follows the new default: it would play into what is
-# recorded. Each goes back to the output it was on; one opened during the run still follows.
-sleep 0.5
-for stream in $(pactl list short sink-inputs | awk '{print $1}'); do
-  pactl move-sink-input "$stream" "$old_sink" 2>/dev/null || true
-done
 
 # "me" is a 440 Hz note; "others" is an 880 Hz one, with fourteen seconds of nothing in it.
 tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -af volume=0.5 -ar 48000 -ac 2 "$3"; }
