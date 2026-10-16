@@ -108,12 +108,21 @@ fn the_provider_is_asked_with_the_meeting_the_rules_and_the_users_context() {
         "is certain from the rest of the meeting",
         "a name or a figure misheard",
         "A task said as \"I\" names nobody",
+        "an owner without doubt only when the meeting names them",
+        "with \"probably\", or none",
+        "an echo",
     ] {
         assert!(asked.contains(rule), "the request lost the rule: {rule}");
     }
     // The rules come before the meeting: after it, they read as part of what was said.
     let meeting = asked.find("Transcript:\n").unwrap();
-    for rule in ["written by a speech recogniser", "Read the meeting through them", "A task said as"] {
+    for rule in [
+        "written by a speech recogniser",
+        "Read the meeting through them",
+        "counts once",
+        "The user's context",
+        "A task said as",
+    ] {
         assert!(asked.find(rule).unwrap() < meeting, "after the meeting: {rule}");
     }
     // Nothing in it reads as a title to copy: the model once titled French minutes "Highlights".

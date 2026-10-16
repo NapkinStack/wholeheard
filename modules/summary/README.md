@@ -43,7 +43,8 @@ speech recogniser and names its errors: a word heard as another, a name or a fig
 a sentence written twice, the remote side written again as an echo, a reply missing. Where the
 rest of the meeting makes what was meant certain, it writes that. Where a name, a figure, a
 date or an owner stays uncertain, it writes it as heard and says so. A task said as "I" gets
-its owner only when the meeting names them, otherwise "probably" someone, or nobody. The price:
+its owner only when the meeting names them, otherwise "probably" someone, or nobody: the
+minutes are less often wrong about who, and less often sure. The price, too:
 a stray word can make a fact said clearly read as uncertain — "c'est nantes" misheard beside
 "je garde celui de Paris" made the kept server "Paris or Nantes". The transcript itself is
 never changed.
