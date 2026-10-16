@@ -21,6 +21,8 @@ enum Serve {
     Cut(usize),
     /// Sends the file whole whatever range is asked.
     WholeAlways,
+    /// Answers this status, with a page of its own.
+    Status(u16),
 }
 
 /// The file served: bytes no one would take for another file.
@@ -52,6 +54,11 @@ fn served(answers: Vec<Serve>) -> (String, thread::JoinHandle<Vec<Option<u64>>>)
                 }
             }
             asked.push(from);
+            if let Serve::Status(status) = serve {
+                let page = format!("HTTP/1.1 {status} Status\r\nContent-Length: 9\r\nConnection: close\r\n\r\nan error.");
+                let _ = stream.write_all(page.as_bytes());
+                continue;
+            }
             let (status, start) = match (serve, from) {
                 (Serve::WholeAlways, _) | (_, None) => ("200 OK", 0),
                 (_, Some(from)) => ("206 Partial Content", from as usize),
@@ -147,4 +154,35 @@ fn nothing_is_fetched_from_a_host_that_cannot_be_reached_and_the_size_reads_as_p
     assert_eq!(model::size(model::DEFAULT.bytes), "874 MB");
     assert_eq!(model::size(1_624_555_275), "1.6 GB");
     assert!(model::DEFAULT.address.starts_with("https://huggingface.co/") && model::DEFAULT.host == "huggingface.co");
+}
+
+#[test]
+fn a_server_that_fails_leaves_the_part_as_it_was_and_one_without_it_has_it_begun_again() {
+    let folder = tempfile::tempdir().unwrap();
+    let to = folder.path().join("ggml.bin");
+    fs::write(model::part(&to), &file()[..50_000]).unwrap();
+    // An error answered to a resume is no file: the part is kept, byte for byte, and said.
+    let (address, server) = served(vec![Serve::Status(503)]);
+    let said = model::fetch(&published(&file()), &address, &to, &mut |_| {}).unwrap_err();
+    assert!(said.contains("HTTP 503"), "{said}");
+    assert_eq!(fs::read(model::part(&to)).unwrap(), &file()[..50_000]);
+    assert_eq!(server.join().unwrap(), [Some(50_000)]);
+    // A server that no longer has what was begun: the part is removed, the next fetch starts anew.
+    let (address, server) = served(vec![Serve::Status(416)]);
+    let said = model::fetch(&published(&file()), &address, &to, &mut |_| {}).unwrap_err();
+    assert!(said.contains("from the start"), "{said}");
+    assert!(!model::part(&to).exists() && !to.exists());
+    server.join().unwrap();
+}
+
+#[test]
+fn a_whole_part_with_the_published_fingerprint_is_put_in_place_without_asking_again() {
+    let folder = tempfile::tempdir().unwrap();
+    let to = folder.path().join("ggml.bin");
+    fs::write(model::part(&to), file()).unwrap();
+    // No server answers there: a request would fail the fetch.
+    let (address, server) = served(vec![]);
+    server.join().unwrap();
+    model::fetch(&published(&file()), &address, &to, &mut |_| {}).unwrap();
+    assert_eq!(fs::read(&to).unwrap(), file());
 }
