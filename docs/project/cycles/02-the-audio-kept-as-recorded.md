@@ -78,7 +78,7 @@ deliverables:
   - id: D16
     title: "The minutes read through the transcript's errors: the model is told it reads a recogniser's text, and reads it through the user's context"
     module: summary
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given the bench's meeting — the engine's transcripts of loudspeakers loud draws 0 and 1, headset draw 0 and the television, as main writes them on 2026-10-16 — with a context that names who was in the room and who was remote, when the example's model is asked three times for the minutes of each, then none states a figure or a date the meeting contradicts, and the support rota is right in more of them than the 5 of 12 of the request as it was on 2026-10-16"
       - "Given a name, a figure, a date or an owner that the transcript leaves uncertain, when the minutes are written, then it is written as heard and said to be uncertain, not guessed"
@@ -338,6 +338,16 @@ as it is. Told of the errors and given a context, it was right in 12 of 12, and 
 the wrong person fell from 4 to 1. What no request recovers is a task said as "I": each track
 holds two people.
 [The measure, in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6220693775).
+
+**Result: accepted** (#136). Through `summit-summary` itself, at the provider's default
+temperature, three answers on each of four transcripts of today's engine:
+- the support rota is right in 12 of 12;
+- no figure or date is contradicted;
+- no owner is stated wrongly without doubt. A task said as "I" is given an owner only when the
+  meeting names them; otherwise "probably" someone.
+
+The price: the minutes are less often sure of who, and a stray misheard word can make a fact
+said clearly read as uncertain.
 
 ## Out of scope
 
