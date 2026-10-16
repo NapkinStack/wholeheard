@@ -53,12 +53,12 @@ never changed.
 which side — in the room or remote — and who is only talked about. Without it, a person the
 meeting talks about was written as the owner of an action.
 
-On the bench's meeting, four of the engine's transcripts, the model of the example asked three
-times each at temperature 0: told of the errors and given a context, the minutes give the
-support rota — said over six turns — right 12 times in 12, against 5 in 12 without either, and
-a task to the wrong person once instead of four times. Which of the two does the most is not
-measured apart. What no request recovers is the owner of a task said as "I": each track holds
-two people (cycle 02, D16).
+On the bench's meeting, four of the engine's transcripts, three answers each from the model of
+the example: told of the errors and given a context, the minutes give the support rota — said
+over six turns — right 12 times in 12, against 5 in 12 without either, and no task to the wrong
+person without doubt, against four. Which of the two does the most is not measured apart. What
+no request recovers is the owner of a task said as "I": each track holds two people (cycle 02,
+D16).
 
 A key, when the provider wants one, is read from `SUMMIT_PROVIDER_KEY` and written nowhere.
 Whatever fails — no network, a refused key, an unknown model, an answer cut short or that is
