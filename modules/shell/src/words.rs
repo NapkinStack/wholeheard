@@ -1,7 +1,10 @@
 //! What the user is told, in one place: every sentence of the shell is here, in each language
 //! it speaks, so that it is read as a whole and a language is added by adding its sentences.
 
-use crate::recording::{Said, Source};
+use crate::{
+    recording::{Said, Source},
+    transcription::Made,
+};
 
 /// A language the shell speaks. The interface follows the system's; any other is English.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +56,11 @@ pub fn length(seconds: f64) -> String {
 /// gives nothing.
 fn detail(said: &str) -> String {
     let said = said.trim();
-    let said = said.strip_prefix("summit-capture:").unwrap_or(said).trim();
+    let said = ["summit-capture:", "summit-transcription:"]
+        .iter()
+        .find_map(|name| said.strip_prefix(name))
+        .unwrap_or(said)
+        .trim();
     let said = said.strip_prefix('(').and_then(|inner| inner.strip_suffix(')')).unwrap_or(said);
     // One line, whatever it held: a notification is no place for a program's line ends.
     let said = said
@@ -167,6 +174,10 @@ pub struct Menu {
     pub quit: &'static str,
     /// What the tray's icon says of itself while a recording runs.
     pub recording: &'static str,
+    /// Makes the transcript of the last recording, again when it failed.
+    pub transcribe: &'static str,
+    /// The same entry while a transcript is being made.
+    pub transcribing: &'static str,
 }
 
 pub fn menu(language: Language) -> Menu {
@@ -177,6 +188,8 @@ pub fn menu(language: Language) -> Menu {
             stopping: "Stopping…",
             quit: "Quit Summit",
             recording: "Summit — recording",
+            transcribe: "Transcribe the last recording",
+            transcribing: "Transcribing…",
         },
         Language::French => Menu {
             start: "Démarrer l’enregistrement",
@@ -184,6 +197,8 @@ pub fn menu(language: Language) -> Menu {
             stopping: "Arrêt en cours…",
             quit: "Quitter Summit",
             recording: "Summit — enregistrement en cours",
+            transcribe: "Transcrire le dernier enregistrement",
+            transcribing: "Transcription en cours…",
         },
     }
 }
@@ -197,6 +212,10 @@ pub enum Trouble {
     Settings(String),
     /// The desktop did not bind the global shortcut: what it said of it.
     Shortcut(String),
+    /// The model a transcript is heard with is not on the machine: where it was looked for.
+    NoModel(String),
+    /// The program that hears could not be started: what the system said of it.
+    NoTranscriber(String),
 }
 
 /// What the user is told of a trouble: what it is, and what still works.
@@ -233,6 +252,55 @@ pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
             "Le menu de l’icône Summit permet toujours de démarrer et d’arrêter un enregistrement.",
             why,
         ),
+        (Trouble::NoModel(at), English) => (
+            "No transcript: the model is missing",
+            "The recording is kept. Place the Whisper model there, then use “Transcribe the last recording”.",
+            at,
+        ),
+        (Trouble::NoModel(at), French) => (
+            "Pas de transcription\u{a0}: le modèle manque",
+            "L’enregistrement est conservé. Placez le modèle Whisper à cet endroit, puis utilisez «\u{a0}Transcrire le dernier enregistrement\u{a0}».",
+            at,
+        ),
+        (Trouble::NoTranscriber(why), English) => (
+            "Summit cannot transcribe",
+            "Its transcription program could not be started. The recording is kept; installing Summit again puts the program back.",
+            why,
+        ),
+        (Trouble::NoTranscriber(why), French) => (
+            "Summit ne peut pas transcrire",
+            "Son programme de transcription n’a pas pu démarrer. L’enregistrement est conservé\u{a0}; réinstaller Summit remet le programme en place.",
+            why,
+        ),
     };
     notice(title, body.to_string(), why).expect("a trouble is always said")
+}
+
+/// What the user is told of a transcript's end: there, with where it is — or not, with why,
+/// and how to have it made again.
+pub fn made(made: &Made, language: Language) -> Notice {
+    use Language::{English, French};
+    let (title, body, why) = match (made, language) {
+        (Made::Written(_), English) => ("Transcript ready", "Click to open the session’s folder.", ""),
+        (Made::Written(_), French) => ("Transcription prête", "Cliquez pour ouvrir le dossier de la session.", ""),
+        (Made::Failed(why), English) => (
+            "The transcript was not made",
+            "The recording is untouched. “Transcribe the last recording” in Summit’s menu tries again from where it stopped.",
+            why.as_str(),
+        ),
+        (Made::Failed(why), French) => (
+            "La transcription n’a pas été faite",
+            "L’enregistrement est intact. «\u{a0}Transcrire le dernier enregistrement\u{a0}», dans le menu de Summit, reprend là où elle s’est arrêtée.",
+            why.as_str(),
+        ),
+    };
+    notice(title, body.to_string(), why).expect("a transcript's end is always said")
+}
+
+/// Said after a recording's stop when its transcript is made next, without another gesture.
+pub fn follows(language: Language) -> &'static str {
+    match language {
+        Language::English => "The transcript follows.",
+        Language::French => "La transcription suit.",
+    }
 }

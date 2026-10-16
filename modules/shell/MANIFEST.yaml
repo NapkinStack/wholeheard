@@ -92,6 +92,10 @@ dependencies:
     purpose: Ends a transcript with what its program started, by signalling its process group, on Linux and macOS
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One call in src/transcription.rs; the `kill` command, or nix, replaces it.
+  - name: notify-rust
+    purpose: A notification whose click opens the session's folder, under Linux; the toolkit's plugin tells no click
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One function, tell_opening, in src/main.rs; the toolkit's plugin, the day it tells a click.
   - name: sys-locale
     purpose: Reads the language the user's system is set to, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md

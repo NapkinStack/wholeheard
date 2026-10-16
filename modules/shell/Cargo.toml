@@ -27,6 +27,7 @@ libc = "0.2.190"
 # The global shortcut: the desktop's portal on Linux, the system's own elsewhere (ADR-0002).
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd = { version = "0.13.13", default-features = false, features = ["async-io", "global_shortcuts"] }
+notify-rust = "4.18.2"
 futures-util = "0.3.34"
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
