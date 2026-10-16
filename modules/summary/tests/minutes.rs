@@ -103,9 +103,14 @@ fn the_provider_is_asked_with_the_meeting_the_rules_and_the_users_context() {
         "write it as heard and say it is uncertain",
         "A sentence written twice counts once",
         "who speaks on which side through it",
+        "write what was meant",
+        "whoever sat beside them",
     ] {
         assert!(asked.contains(rule), "the request lost the rule: {rule}");
     }
+    // The rules come before the meeting: after it, they read as part of what was said.
+    let meeting = asked.find("Transcript:\n").unwrap();
+    assert!(asked.find("written by a speech recogniser").unwrap() < meeting, "{asked}");
     // Nothing in it reads as a title to copy: the model once titled French minutes "Highlights".
     assert!(
         !asked.lines().any(|line| line.starts_with('#')) && !asked.to_lowercase().contains("highlights"),

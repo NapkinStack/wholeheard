@@ -98,7 +98,9 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
          When the meeting did not settle who does a task or by when, say so in the meeting's \
          language — \"not specified\", or that it was proposed and not accepted. Never guess.\n\
          A person the meeting talks about is not a participant: never give them an action.\n\
-         In the transcript, \"me\" is the person who recorded and \"others\" is everyone else.\n\n\
+         In the transcript, \"me\" is what the recording machine's microphone heard — the \
+         person who recorded and whoever sat beside them — and \"others\" is everyone heard \
+         through the machine.\n\n\
          The transcript was written by a speech recogniser, and holds its errors: a word heard \
          as another that sounds alike, a name or a figure misheard, a sentence written twice or \
          several times in a row, a sentence of \"others\" written again under \"me\" as an echo, \
