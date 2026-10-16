@@ -77,8 +77,9 @@ impl Transcription {
     /// Stops the program now: Summit is quitting. What it had heard stays written.
     pub fn end(&self) {
         if let Ok(mut child) = self.program.lock() {
+            // Only while it runs: once it is waited for, its group's number may be another's.
             #[cfg(unix)]
-            if let Ok(group) = i32::try_from(child.id()) {
+            if let (Ok(None), Ok(group)) = (child.try_wait(), i32::try_from(child.id())) {
                 // SAFETY: a signal sent to the group this program leads, which it was started in.
                 unsafe { libc::kill(-group, libc::SIGKILL) };
             }
