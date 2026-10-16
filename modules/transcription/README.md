@@ -72,13 +72,14 @@ again, twice deep. With a television in the room and at a quiet level, nothing i
 again and the transcript is the same; on the trial meeting a stray word of a remote turn
 becomes the turn (cycle 02, D10).
 
-**A loop is heard again.** Whisper hears each thirty seconds of a span after the text of
-the thirty before; where a track falls silent, it may write that text again and again and
-lose what follows. Where a run of four words is written three times or more in what a span
-gave, the stretch from the segment before to the segment after is heard again alone, after
-no text. On the bench, the two draws in eight whose remote track looped fall from 113 and
-139 remote words wrong to 24 and 31; every other draw, the television and the trial
-meeting are unchanged (cycle 02, D10).
+**A loop is heard again.** Whisper hears each thirty seconds of a span after the text of the
+thirty before; where a track falls silent, it may write that text again and again and lose what
+follows. Where a run of four words is written three times or more in what a span gave, with the
+pieces of its words cut beside it, the stretch from the segment before to the segment after is
+heard again alone, after no text of the window before — the context, if any, still before it —
+and what is heard there as marks alone (`...`) is not written. On the bench, the two draws in
+eight whose remote track looped fall from 113 and 139 remote words wrong to 22 and 21; every
+other draw, the television and the trial meeting are unchanged (cycle 02, D10).
 
 **Attach a context** — `context.txt` in the session's folder: names and words of the trade
 the engine would otherwise write as it hears them.

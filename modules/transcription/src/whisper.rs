@@ -246,33 +246,53 @@ impl Engine for Whisper {
     }
 }
 
-/// Where the engine wrote a loop: from the end of the segment before the first that holds one
-/// of its runs to the start of the segment after the last, the ranges of samples to hear
-/// again, alone. Heard alone, a stretch is heard after no text: on the bench, the two draws in
-/// eight that looped went from 113 and 139 words wrong to 24 and 31, the others unchanged (D10).
-fn looped(sound: &[f32], segments: &[Segment]) -> Vec<Range<usize>> {
-    let runs: Vec<Vec<String>> = segments
+/// Where the engine wrote a loop: the segments that hold one of its runs, one after another,
+/// and the samples from the end of the segment before them to the start of the segment after,
+/// to hear again alone. Heard alone, a stretch is heard after no text of the window before: on
+/// the bench, the two draws in eight that looped went from 113 and 139 words wrong to 22 and 21,
+/// the others unchanged (D10).
+fn looped(sound: &[f32], segments: &[Segment]) -> Vec<(Range<usize>, Range<usize>)> {
+    let words: Vec<Vec<String>> = segments
         .iter()
         .map(|segment| {
-            let words: Vec<String> = segment
+            segment
                 .text
                 .split_whitespace()
                 .map(|word| word.chars().filter(|c| c.is_alphanumeric()).collect::<String>().to_lowercase())
                 .filter(|word| !word.is_empty())
-                .collect();
-            words.windows(RUN).map(|run| run.join(" ")).collect()
+                .collect()
         })
+        .collect();
+    let runs: Vec<Vec<String>> = words
+        .iter()
+        .map(|words| words.windows(RUN).map(|run| run.join(" ")).collect())
         .collect();
     let mut times: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
     for run in runs.iter().flatten() {
         *times.entry(run).or_default() += 1;
     }
-    let looping: Vec<bool> = runs
+    let mut looping: Vec<bool> = runs
         .iter()
         .map(|runs| runs.iter().any(|run| times[run.as_str()] >= TIMES))
         .collect();
+    // The engine cuts a loop where its words' times stop: a piece of a few of its words, beside
+    // it, is of the loop too — and a word that is none of them, said at its edge, is not.
+    let looped: std::collections::HashSet<&str> = runs
+        .iter()
+        .zip(&looping)
+        .filter(|(_, looping)| **looping)
+        .flat_map(|(runs, _)| runs.iter().filter(|run| times[run.as_str()] >= TIMES))
+        .flat_map(|run| run.split(' '))
+        .collect();
+    let piece = |at: usize| !words[at].is_empty() && words[at].iter().all(|word| looped.contains(word.as_str()));
+    for at in 1..segments.len() {
+        looping[at] = looping[at] || (looping[at - 1] && piece(at));
+    }
+    for at in (0..segments.len().saturating_sub(1)).rev() {
+        looping[at] = looping[at] || (looping[at + 1] && piece(at));
+    }
     let sample = |seconds: f64| ((seconds.max(0.0) * RATE as f64).round() as usize).min(sound.len());
-    let mut stretches = Vec::new();
+    let mut loops = Vec::new();
     let mut at = 0;
     while at < segments.len() {
         if !looping[at] {
@@ -287,14 +307,16 @@ fn looped(sound: &[f32], segments: &[Segment]) -> Vec<Range<usize>> {
             .checked_sub(1)
             .map_or(0.0, |before| segments[before].end.min(segments[first].start));
         let until = segments.get(at).map_or(sound.len(), |after| sample(after.start));
-        stretches.push(sample(from)..until);
+        loops.push((sample(from)..until, first..at));
     }
-    stretches
+    loops
 }
 
 /// What a span gave, with each [`unwritten`] and each [`looped`] stretch heard again alone and
 /// put back in its place, in the order of the starts — `rounds` deep: what a stretch gives is
-/// looked at the same way. A stray word inside a stretch leaves for what the stretch gives there.
+/// looked at the same way. A stray word inside an unwritten stretch leaves for what the stretch
+/// gives there; a loop's segments leave for what its stretch gives, and the segments around it
+/// stay, a word said at its edge with them.
 fn heard_again(
     sound: &[f32],
     mut segments: Vec<Segment>,
@@ -304,22 +326,38 @@ fn heard_again(
     if rounds == 0 {
         return Ok(segments);
     }
-    // An unwritten stretch lies within the segments around a loop: it is heard with the loop.
-    let loops = looped(sound, &segments);
-    let mut stretches: Vec<Range<usize>> = unwritten(sound, &segments)
-        .into_iter()
-        .filter(|stretch| !loops.iter().any(|other| stretch.start < other.end && other.start < stretch.end))
-        .collect();
-    stretches.extend(loops);
+    let unwritten = unwritten(sound, &segments);
+    let mut loops = looped(sound, &segments);
+    // An unwritten stretch that meets a loop's is heard with it, the loop's stretch widened to
+    // hold it whole: across a stray word, it may reach past the segment around the loop.
+    let mut stretches: Vec<(Range<usize>, bool)> = Vec::new();
+    for stretch in &unwritten {
+        match loops
+            .iter_mut()
+            .find(|(other, _)| stretch.start < other.end && other.start < stretch.end)
+        {
+            Some((other, _)) => *other = other.start.min(stretch.start)..other.end.max(stretch.end),
+            None => stretches.push((stretch.clone(), false)),
+        }
+    }
+    let written: Vec<Range<usize>> = loops.iter().map(|(_, written)| written.clone()).collect();
+    stretches.extend(loops.into_iter().map(|(stretch, _)| (stretch, true)));
     let seconds = |sample: usize| sample as f64 / RATE as f64;
+    let mut at = 0;
     segments.retain(|segment| {
-        !stretches
-            .iter()
-            .any(|stretch| segment.start >= seconds(stretch.start) && segment.end <= seconds(stretch.end))
+        at += 1;
+        !written.iter().any(|written| written.contains(&(at - 1)))
+            && !unwritten
+                .iter()
+                .any(|stretch| segment.start >= seconds(stretch.start) && segment.end <= seconds(stretch.end))
     });
-    for stretch in stretches {
+    for (stretch, looping) in stretches {
         let offset = seconds(stretch.start);
-        let again = hear(&sound[stretch.clone()])?;
+        let mut again = hear(&sound[stretch.clone()])?;
+        // Where a loop was, the track is often silent: what is heard there may be marks alone.
+        if looping {
+            again.retain(|segment| segment.text.chars().any(char::is_alphanumeric));
+        }
         for segment in heard_again(&sound[stretch], again, hear, rounds - 1)? {
             segments.push(Segment {
                 start: segment.start + offset,
@@ -691,7 +729,7 @@ mod tests {
             wrote(22.0, 29.5, "je réponds aux clients la première semaine"),
             said(40.0, 44.5),
         ];
-        assert_eq!(looped(&sound, &segments), vec![95 * TENTH..400 * TENTH]);
+        assert_eq!(looped(&sound, &segments), vec![(95 * TENTH..400 * TENTH, 1..4)]);
         let mut lengths = Vec::new();
         let mut hear = |stretch: &[f32]| {
             lengths.push(stretch.len());
@@ -729,6 +767,13 @@ mod tests {
             wrote(20.0, 22.0, "la première semaine"),
         ];
         assert_eq!(looped(&voiced(40.0, 0.3, &[]), &three), vec![]);
+        // A mark alone between two words is no word: the run is the same.
+        let marked = [
+            wrote(2.0, 4.0, "je réponds aux clients"),
+            wrote(10.0, 12.0, "je réponds — aux clients"),
+            wrote(20.0, 22.0, "je réponds aux clients"),
+        ];
+        assert_eq!(looped(&voiced(40.0, 0.3, &[]), &marked), vec![(0..40 * RATE, 0..3)]);
         // The segment before ends after the loop starts: the stretch starts with the loop.
         let alone = [
             wrote(2.0, 5.5, "parfait"),
@@ -738,7 +783,7 @@ mod tests {
                 "les deux semaines je vais les deux semaines je vais les deux semaines je vais",
             ),
         ];
-        assert_eq!(looped(&voiced(40.0, 0.3, &[]), &alone), vec![5 * RATE..40 * RATE]);
+        assert_eq!(looped(&voiced(40.0, 0.3, &[]), &alone), vec![(5 * RATE..40 * RATE, 1..2)]);
     }
 
     #[test]
@@ -751,5 +796,129 @@ mod tests {
         };
         heard_again(&sound, vec![said(2.0, 9.5)], &mut hear, AGAIN).unwrap();
         assert_eq!(lengths, [26 * TENTH, 26 * TENTH]);
+    }
+
+    #[test]
+    fn a_loop_from_the_first_segment_starts_with_the_span_and_digits_are_words() {
+        let segments = [
+            wrote(3.0, 5.0, "le 12 novembre le 12 novembre le 12 novembre le 12"),
+            wrote(8.0, 9.0, "oui"),
+        ];
+        assert_eq!(looped(&voiced(20.0, 0.3, &[]), &segments), vec![(0..8 * RATE, 0..1)]);
+        // Without its digits, the run is three words: no loop.
+        let words = [wrote(3.0, 5.0, "le novembre le novembre le novembre le"), wrote(8.0, 9.0, "oui")];
+        assert_eq!(looped(&voiced(20.0, 0.3, &[]), &words), vec![]);
+    }
+
+    #[test]
+    fn an_unwritten_stretch_that_reaches_past_the_segment_before_a_loop_is_heard_whole_with_it() {
+        // A turn from 11 to 17 s with a stray word in it: the turn's stretch reaches the loop's.
+        let sound = voiced(40.0, 0.3, &[(2.0, 10.0), (11.0, 17.0), (20.0, 30.0)]);
+        let segments = vec![
+            said(2.0, 9.5),
+            wrote(14.0, 14.2, "Oui."),
+            wrote(20.0, 22.0, "je réponds aux clients"),
+            wrote(22.0, 24.0, "je réponds aux clients"),
+            wrote(24.0, 29.5, "je réponds aux clients"),
+        ];
+        let mut lengths = Vec::new();
+        let mut hear = |stretch: &[f32]| {
+            lengths.push(stretch.len());
+            Ok(vec![wrote(0.3, 6.3, "the turn"), wrote(9.3, 18.8, "and on")])
+        };
+        let again = heard_again(&sound, segments, &mut hear, AGAIN).unwrap();
+        // From where the turn's stretch starts to the end of the span, heard once.
+        assert_eq!(lengths, [293 * TENTH]);
+        let texts: Vec<(i64, &str)> = again.iter().map(|s| ((s.start * 10.0).round() as i64, s.text.as_str())).collect();
+        assert_eq!(texts, [(20, "written"), (110, "the turn"), (200, "and on")]);
+    }
+
+    #[test]
+    fn a_word_at_a_loops_edge_stays_and_marks_alone_heard_in_its_place_leave() {
+        let sound = voiced(40.0, 0.3, &[(2.0, 30.0)]);
+        let segments = vec![
+            wrote(2.0, 19.5, "Bien, on avance sur le planning et le budget du lancement."),
+            wrote(19.6, 19.6, "Bien."),
+            wrote(20.0, 22.0, "je réponds aux clients"),
+            wrote(22.0, 24.0, "je réponds aux clients"),
+            wrote(24.0, 29.0, "je réponds aux clients"),
+            wrote(29.5, 29.5, "Oui."),
+        ];
+        let mut lengths = Vec::new();
+        let mut hear = |stretch: &[f32]| {
+            lengths.push(stretch.len());
+            Ok(vec![wrote(0.2, 0.4, "..."), wrote(0.5, 9.4, "said there")])
+        };
+        let again = heard_again(&sound, segments, &mut hear, AGAIN).unwrap();
+        assert_eq!(lengths, [99 * TENTH]);
+        let texts: Vec<(i64, &str)> = again.iter().map(|s| ((s.start * 10.0).round() as i64, s.text.as_str())).collect();
+        assert_eq!(
+            texts,
+            [
+                (20, "Bien, on avance sur le planning et le budget du lancement."),
+                (196, "Bien."),
+                (201, "said there"),
+                (295, "Oui.")
+            ]
+        );
+    }
+
+    #[test]
+    fn a_stretch_heard_again_is_looked_at_for_a_loop_too() {
+        // Heard alone, the turn gives a loop: it is heard again, alone, in its turn.
+        let sound = voiced(40.0, 0.3, &[(2.0, 10.0), (20.0, 30.0)]);
+        let mut lengths = Vec::new();
+        let mut hear = |stretch: &[f32]| {
+            lengths.push(stretch.len());
+            Ok(if lengths.len() == 1 {
+                vec![
+                    wrote(0.3, 2.0, "on fait le point"),
+                    wrote(2.0, 4.0, "on fait le point"),
+                    wrote(4.0, 10.0, "on fait le point"),
+                ]
+            } else {
+                vec![wrote(0.0, 10.0, "the turn")]
+            })
+        };
+        let again = heard_again(&sound, vec![said(2.0, 9.5)], &mut hear, AGAIN).unwrap();
+        assert_eq!(lengths, [106 * TENTH, 106 * TENTH]);
+        let texts: Vec<(i64, &str)> = again.iter().map(|s| ((s.start * 10.0).round() as i64, s.text.as_str())).collect();
+        assert_eq!(texts, [(20, "written"), (197, "the turn")]);
+    }
+
+    #[test]
+    fn marks_alone_heard_in_an_unwritten_stretch_stay_as_on_main() {
+        let sound = voiced(40.0, 0.3, &[(2.0, 10.0), (20.0, 30.0)]);
+        let mut hear = |_: &[f32]| Ok(vec![wrote(0.5, 9.0, "...")]);
+        let again = heard_again(&sound, vec![said(2.0, 9.5)], &mut hear, 1).unwrap();
+        let texts: Vec<&str> = again.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(texts, ["written", "..."]);
+    }
+
+    #[test]
+    fn a_piece_of_a_loops_words_beside_it_is_of_the_loop_and_another_word_is_not() {
+        let segments = [
+            wrote(2.0, 9.5, "Et pour le support ?"),
+            wrote(10.0, 10.0, "je"),
+            wrote(11.0, 13.0, "je réponds aux clients"),
+            wrote(13.0, 15.0, "je réponds aux clients"),
+            wrote(15.0, 17.0, "je réponds aux clients la première"),
+            wrote(18.0, 18.0, "aux clients"),
+            wrote(18.5, 18.5, "la première"),
+            wrote(19.0, 19.0, "clients"),
+            wrote(20.0, 20.0, "Oui."),
+            wrote(25.0, 26.0, "réponds"),
+        ];
+        // The pieces of its words beside it are of the loop; "la première" is none of them, and
+        // ends it. The last word, after "Oui.", is not beside it.
+        assert_eq!(looped(&voiced(40.0, 0.3, &[]), &segments), vec![(95 * TENTH..185 * TENTH, 1..6)]);
+        // Marks alone, or a word of the loop with another, are no piece of it.
+        let after = |text: &str| {
+            let mut segments = segments[..5].to_vec();
+            segments.push(wrote(18.0, 18.0, text));
+            looped(&voiced(40.0, 0.3, &[]), &segments)
+        };
+        assert_eq!(after("..."), vec![(95 * TENTH..180 * TENTH, 1..5)]);
+        assert_eq!(after("clients et budget"), vec![(95 * TENTH..180 * TENTH, 1..5)]);
     }
 }
