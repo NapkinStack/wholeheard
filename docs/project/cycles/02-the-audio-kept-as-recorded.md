@@ -75,6 +75,14 @@ deliverables:
       - "Given a consumed contract whose page says something false — `recording/v1` on the second form of a recording, `transcript/v1` on the engine's name, a diagram on who reads — when the page is corrected in a pull request, then the project's comparator lets it through and it is merged without a new version"
       - "Given a pull request that removes, renames or retypes a field of `recording/v1` or `transcript/v1`, when its checks run, then the comparator refuses it, with an example of what a consumer would now receive or the reason none could be made"
       - "Given the producer of `recording/v1` and of `transcript/v1`, when its tests run, then what it writes is validated against the contract's schema"
+  - id: D16
+    title: "The minutes read through the transcript's errors: the model is told it reads a recogniser's text, and reads it through the user's context"
+    module: summary
+    state: in-progress
+    acceptance:
+      - "Given the bench's meeting — its script, and the engine's transcripts of loudspeakers loud draws 0 and 1, headset draw 0 and the television — with a context that names who was in the room and who was remote, when minutes are asked of the example's model, then none states a figure, a date or a decision the meeting contradicts, and the support rota is right in more of them than with the request of 2026-10-16"
+      - "Given a name, a figure, a date or an owner that the transcript leaves uncertain, when the minutes are written, then it is written as heard and said to be uncertain, not guessed"
+      - "Given a transcript, when its minutes are written, then the transcript is unchanged: the reading through its errors exists only in the minutes"
 ---
 
 # Cycle 02 — The audio kept as recorded
@@ -318,6 +326,16 @@ Decided by the decider on 2026-10-13, when a pull request that corrected an exam
 three diagrams of consumed contracts was refused (#96): the contracts were pages of prose,
 and nothing could call a change to one compatible. The decision, what was read and what was
 tried: [ADR-0005](../../adr/0005-a-contract-carries-a-schema-and-a-comparator-judges-its-changes.md).
+
+### D16
+
+Decided by the decider on 2026-10-16, on a measure: minutes made from the bench's script and
+from five of the engine's transcripts, with `summary`'s request as it is, told of a
+recogniser's errors, given a context, and both. The engine's errors cost the minutes little:
+none stated a figure the meeting contradicts. The support rota, said over six turns, was right
+in 2 of 6 as the request is, and in 6 of 6 told of the errors with a context. What none
+recovers is who: two people on each track, a task said in the first person loses its owner.
+[The measure, in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6220693775).
 
 ## Out of scope
 
