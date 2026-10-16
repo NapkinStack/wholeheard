@@ -1,8 +1,10 @@
 //! `summit` — Summit as the user meets it: an icon in the tray, a global shortcut, and
-//! notifications. No window. It starts the program that records and stops it; it records
-//! nothing itself, and a recording goes on if this process does not.
+//! notifications. No window. It starts the program that records and stops it, then the one
+//! that hears; it records and hears nothing itself, and a recording goes on if this process
+//! does not.
 //!
-//! Everything it decides is in the library beside it — `recording`, `settings`, `words` —
+//! Everything it decides is in the library beside it — `recording`, `settings`,
+//! `transcription`, `words` —
 //! and tried there. Here is only what needs a desktop.
 
 use std::{
@@ -14,6 +16,7 @@ use std::{
 use summit_shell::{
     recording::{Recording, Said},
     settings::{self, Settings},
+    transcription::{self, Made, Transcription},
     words::{self, Language, Notice, Trouble},
 };
 use tauri::{
@@ -41,6 +44,12 @@ struct Shell {
     pressed: Mutex<Option<Instant>>,
     /// The recording was told to stop and has not ended yet.
     stopping: Mutex<bool>,
+    /// The menu's entry that makes the transcript of the last recording.
+    transcribe: MenuItem<Wry>,
+    /// The transcript being made, when there is one: one at a time.
+    transcription: Mutex<Option<Transcription>>,
+    /// A session whose transcript waits for the one being made.
+    waiting: Mutex<Option<PathBuf>>,
 }
 
 /// Where the tray is in the life of a recording.
@@ -59,14 +68,26 @@ fn main() {
             let labels = words::menu(language);
             let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
             let toggle = MenuItem::with_id(app, "toggle", labels.start, true, None::<&str>)?;
+            let again = MenuItem::with_id(app, "transcribe", labels.transcribe, true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&toggle, &quit])?;
+            let menu = Menu::with_items(app, &[&toggle, &again, &quit])?;
             TrayIconBuilder::with_id(TRAY)
                 .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
                 .tooltip("Summit")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "toggle" => toggle_recording(app),
+                    "transcribe" => {
+                        let shell = app.state::<Shell>();
+                        // The latest session is the one being recorded: its transcript follows its stop.
+                        if shell.recording.lock().unwrap().is_some() {
+                            return;
+                        }
+                        match transcription::latest(&shell.settings.sessions) {
+                            Some(last) => transcribe(app, last),
+                            None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
+                        }
+                    }
                     "quit" => leave(app),
                     _ => {}
                 })
@@ -79,6 +100,9 @@ fn main() {
                 leaving: Mutex::new(false),
                 pressed: Mutex::new(None),
                 stopping: Mutex::new(false),
+                transcribe: again,
+                transcription: Mutex::new(None),
+                waiting: Mutex::new(None),
             });
             if let Err(why) = read {
                 tell(app.handle(), &words::trouble(&Trouble::Settings(why), language));
@@ -124,6 +148,9 @@ fn show(app: &AppHandle, shown: Shown) {
         };
         let _ = shell.toggle.set_text(label);
         let _ = shell.toggle.set_enabled(enabled);
+        // A transcript is asked for at rest only, and one at a time.
+        let free = shown == Shown::Idle && shell.transcription.lock().unwrap().is_none();
+        let _ = shell.transcribe.set_enabled(free);
         if let Some(tray) = app.tray_by_id(TRAY) {
             let _ = tray.set_icon(Image::from_bytes(icon).ok());
             let _ = tray.set_tooltip(Some(tooltip));
@@ -131,12 +158,12 @@ fn show(app: &AppHandle, shown: Shown) {
     });
 }
 
-/// The program that records: beside this one, as an installation puts it — or, for whoever
-/// builds Summit, where `SUMMIT_CAPTURE` says, or on the path.
-fn recorder() -> PathBuf {
-    let name = if cfg!(windows) { "summit-capture.exe" } else { "summit-capture" };
-    let beside = std::env::current_exe().ok().and_then(|own| Some(own.parent()?.join(name)));
-    std::env::var_os("SUMMIT_CAPTURE")
+/// A step's program: beside this one, as an installation puts it — or, for whoever builds
+/// Summit, where its variable says (`SUMMIT_CAPTURE`, `SUMMIT_TRANSCRIPTION`), or on the path.
+fn program(name: &str, variable: &str) -> PathBuf {
+    let name = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
+    let beside = std::env::current_exe().ok().and_then(|own| Some(own.parent()?.join(&name)));
+    std::env::var_os(variable)
         .map(PathBuf::from)
         .or_else(|| beside.filter(|path| path.is_file()))
         .unwrap_or_else(|| PathBuf::from(name))
@@ -161,7 +188,8 @@ fn toggle_recording(app: &AppHandle) {
         }
         return;
     }
-    let started = std::fs::create_dir_all(&shell.settings.sessions).and_then(|()| Recording::start(&recorder(), &shell.settings.sessions));
+    let started = std::fs::create_dir_all(&shell.settings.sessions)
+        .and_then(|()| Recording::start(&program("summit-capture", "SUMMIT_CAPTURE"), &shell.settings.sessions));
     match started {
         Ok((running, said)) => {
             *recording = Some(running);
@@ -177,11 +205,19 @@ fn toggle_recording(app: &AppHandle) {
 fn listen(app: &AppHandle, said: &Receiver<Said>) {
     let shell = app.state::<Shell>();
     let mut started = false;
+    let mut stopped = None;
     for event in said {
         started |= matches!(event, Said::Started(_));
         let notice = match &event {
             // Ended before it had started: nothing was recorded, and that is the trouble.
             Said::Failed(why) if !started => Some(words::trouble(&Trouble::NoRecorder(why.clone()), shell.language)),
+            Said::Stopped(folder, _) if shell.settings.transcript => {
+                stopped = Some(folder.clone());
+                words::of(&event, shell.settings.reminder, shell.language).map(|notice| Notice {
+                    body: format!("{} {}", notice.body, words::follows(shell.language)),
+                    ..notice
+                })
+            }
             _ => words::of(&event, shell.settings.reminder, shell.language),
         };
         if let Some(notice) = notice {
@@ -199,6 +235,95 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     if let Some(ended) = ended {
         ended.wait();
     }
+    // Quitting, the stop's transcript is not begun: it is made from the menu next time.
+    if let Some(folder) = stopped.filter(|_| !*shell.leaving.lock().unwrap()) {
+        transcribe(app, folder);
+    }
+}
+
+/// Makes the transcript of a session — after the one being made, if there is one. What is
+/// missing — the model, the program — is said in one sentence; the recording is never touched.
+fn transcribe(app: &AppHandle, folder: PathBuf) {
+    let shell = app.state::<Shell>();
+    let mut running = shell.transcription.lock().unwrap();
+    if running.is_some() {
+        *shell.waiting.lock().unwrap() = Some(folder);
+        return;
+    }
+    let model = &shell.settings.model;
+    if !model.is_file() {
+        tell(app, &words::trouble(&Trouble::NoModel(model.display().to_string()), shell.language));
+        return;
+    }
+    let started = Transcription::start(&program("summit-transcription", "SUMMIT_TRANSCRIPTION"), &folder, model);
+    let (transcription, made) = match started {
+        Ok(started) => started,
+        Err(error) => return tell(app, &words::trouble(&Trouble::NoTranscriber(error.to_string()), shell.language)),
+    };
+    *running = Some(transcription);
+    transcribing(app, true);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let made = made.recv().unwrap_or(Made::Failed(String::new()));
+        let shell = app.state::<Shell>();
+        shell.transcription.lock().unwrap().take();
+        transcribing(&app, false);
+        // Ended by Summit as it quits: nothing to tell, it goes on next time.
+        if *shell.leaving.lock().unwrap() {
+            return;
+        }
+        let notice = words::made(&made, shell.language);
+        match made {
+            Made::Written(folder) => tell_opening(&app, &notice, folder),
+            Made::Failed(_) => tell(&app, &notice),
+        }
+        let waiting = shell.waiting.lock().unwrap().take();
+        if let Some(folder) = waiting {
+            transcribe(&app, folder);
+        }
+    });
+}
+
+/// The menu's transcript entry: its words, and whether it answers.
+fn transcribing(app: &AppHandle, now: bool) {
+    let app = app.clone();
+    let _ = app.clone().run_on_main_thread(move || {
+        let shell = app.state::<Shell>();
+        let labels = words::menu(shell.language);
+        let _ = shell.transcribe.set_text(if now { labels.transcribing } else { labels.transcribe });
+        let _ = shell.transcribe.set_enabled(!now && shell.recording.lock().unwrap().is_none());
+    });
+}
+
+/// Shows a notification whose click opens a folder. Under a Linux desktop the notification
+/// server says when it was clicked; elsewhere it is a notification alone, for now.
+#[cfg(target_os = "linux")]
+fn tell_opening(_: &AppHandle, notice: &Notice, folder: PathBuf) {
+    let (title, body) = (notice.title.clone(), notice.body.clone());
+    std::thread::spawn(move || {
+        let shown = notify_rust::Notification::new()
+            .appname("Summit")
+            .summary(&title)
+            .body(&body)
+            .action("default", &title)
+            .show();
+        if let Ok(shown) = shown {
+            shown.wait_for_action(|action| {
+                if action == "default" {
+                    // Waited for, so that nothing of it is left in the system's table of programs.
+                    let _ = std::process::Command::new("xdg-open")
+                        .arg(&folder)
+                        .spawn()
+                        .and_then(|mut opened| opened.wait());
+                }
+            });
+        }
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn tell_opening(app: &AppHandle, notice: &Notice, _: PathBuf) {
+    tell(app, notice);
 }
 
 /// Quits Summit. A recording in progress is stopped first, as the user would stop it: its
@@ -208,6 +333,10 @@ fn leave(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let mut recording = shell.recording.lock().unwrap();
     let asked_before = std::mem::replace(&mut *shell.leaving.lock().unwrap(), true);
+    // A transcript being made is ended: run again, it goes on from where it was.
+    if let Some(transcription) = shell.transcription.lock().unwrap().as_ref() {
+        transcription.end();
+    }
     match recording.as_mut() {
         Some(running) if !asked_before => {
             if !std::mem::replace(&mut *shell.stopping.lock().unwrap(), true) {

@@ -31,10 +31,21 @@ global shortcut — Super+Alt+M under a Linux desktop — and a notification for
 the reminder to announce the recording, a source that is silent, the stop, a failure. No
 window yet. In French where the system is, in English anywhere else.
 
+**The transcript follows the stop.** Once a recording is stopped, its transcript is made
+without another gesture, on this machine, with the model the settings name; a notification
+says when it is there, and a click on it opens the session's folder under a Linux desktop.
+A transcript that failed is said in one sentence, the recording untouched: *Transcribe the
+last recording*, in the menu, makes it again from where it stopped; it is greyed while a
+recording runs, whose transcript follows its stop. One transcript at a time: a stop during
+another waits for it. Quitting Summit ends a transcript being made; it goes on the same way. No model on the machine is said too — where
+it was looked for.
+
 ```bash
 nstack bootstrap shell && nstack bootstrap capture
 (cd modules/capture && cargo build --locked --release)
-SUMMIT_CAPTURE=$PWD/modules/capture/target/release/summit-capture nstack run shell
+(cd modules/transcription && cargo build --locked --release)
+SUMMIT_CAPTURE=$PWD/modules/capture/target/release/summit-capture \
+  SUMMIT_TRANSCRIPTION=$PWD/modules/transcription/target/release/summit-transcription nstack run shell
 ```
 
 | On a Linux desktop | What it takes |
@@ -49,7 +60,10 @@ sed "s#^Exec=.*#Exec=$PWD/modules/shell/target/release/summit#" modules/shell/li
 
 **Settings** — `summit/settings.toml` in the user's configuration folder, a few lines written
 by hand until the window exists: `reminder = false` to stop the reminder, `sessions = "…"`
-for where sessions go. Out of the box they go to a folder `Summit` in the user's documents.
+for where sessions go, `transcript = false` to make transcripts only from the menu, `model =
+"…"` for the Whisper model. Out of the box, sessions go to a folder `Summit` in the user's
+documents, and the model is `summit/models/ggml-large-v3-turbo-q8_0.bin` in the user's data
+folder — placed there by hand until Summit offers to fetch it.
 
 ## Getting started
 

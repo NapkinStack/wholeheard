@@ -212,6 +212,8 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
         (english.stopping, french.stopping),
         (english.quit, french.quit),
         (english.recording, french.recording),
+        (english.transcribe, french.transcribe),
+        (english.transcribing, french.transcribing),
     ] {
         assert!(
             !one.is_empty() && !other.is_empty() && one != other && !one.contains('\'') && !other.contains('\''),
@@ -223,9 +225,16 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
         Trouble::NoRecorder("No such file or directory (os error 2)".into()),
         Trouble::Settings("settings.toml, line 3: invalid boolean".into()),
         Trouble::Shortcut("the dialog was dismissed".into()),
+        Trouble::NoModel("<data>/summit/models/ggml.bin".into()),
+        Trouble::NoTranscriber("No such file or directory (os error 2)".into()),
     ] {
         let detail = match &trouble {
-            Trouble::NoRecorder(why) | Trouble::Settings(why) | Trouble::Shortcut(why) => why.clone(),
+            Trouble::NoRecorder(why)
+            | Trouble::Settings(why)
+            | Trouble::Shortcut(why)
+            | Trouble::NoModel(why)
+            | Trouble::NoTranscriber(why) => why.clone(),
+            Trouble::NoSession => unreachable!("it has no detail"),
         };
         for language in BOTH {
             let Notice { title, body } = words::trouble(&trouble, language);
@@ -248,4 +257,37 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
     assert!(body(Trouble::Shortcut(String::new()), Language::French).contains("permet toujours de démarrer"));
     // What the system said comes out on one line.
     assert!(body(Trouble::Settings("line one\n\tline two".into()), Language::English).ends_with("(line one line two)"));
+}
+
+#[test]
+fn a_transcript_is_said_ready_or_not_with_how_to_have_it_again() {
+    use summit_shell::{transcription::Made, words::Trouble};
+    let ready = |language| words::made(&Made::Written("/s/2026-10-16_09-30".into()), language);
+    assert_eq!(ready(Language::English).title, "Transcript ready");
+    assert!(ready(Language::French).body.contains("ouvrir le dossier"));
+    // Failed: what the program said, without its name; the recording untouched; the menu's entry.
+    let failed = words::made(
+        &Made::Failed("summit-transcription: the model cannot be loaded".into()),
+        Language::English,
+    );
+    assert!(
+        failed.body.contains("untouched") && failed.body.contains("Transcribe the last recording"),
+        "{}",
+        failed.body
+    );
+    assert!(failed.body.ends_with("(the model cannot be loaded)"), "{}", failed.body);
+    let french = words::made(&Made::Failed(String::new()), Language::French);
+    assert!(french.body.contains("Transcrire le dernier enregistrement") && !french.body.contains('('));
+    // The entry named in the sentences is the menu's own.
+    for language in BOTH {
+        let entry = words::menu(language).transcribe;
+        assert!(words::made(&Made::Failed(String::new()), language).body.contains(entry), "{entry}");
+        assert!(
+            words::trouble(&Trouble::NoModel(String::new()), language).body.contains(entry),
+            "{entry}"
+        );
+        let none = words::trouble(&Trouble::NoSession, language);
+        assert!(!none.title.is_empty() && !none.body.contains('('), "{}", none.body);
+    }
+    assert_ne!(words::follows(Language::English), words::follows(Language::French));
 }

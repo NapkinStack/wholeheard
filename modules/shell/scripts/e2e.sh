@@ -45,8 +45,9 @@ titles() {
 
 start() { # the language, the settings file's text, the recorder
   mkdir -p "$work/config/summit" "$work/sessions"; rm -f "$work/sessions/given" "$work/sessions/told"
-  printf 'sessions = "%s"\n%s\n' "$work/sessions" "$2" > "$work/config/summit/settings.toml"
-  LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" SUMMIT_CAPTURE="$3" "$bin" 2>> "$work/errors" &
+  printf 'sessions = "%s"\n%b\n' "$work/sessions" "$2" > "$work/config/summit/settings.toml"
+  LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" SUMMIT_CAPTURE="$3" \
+    SUMMIT_TRANSCRIPTION="$work/summit-transcription" "$bin" 2>> "$work/errors" &
   app=$!
   # Its own tray item, found by its program's number: a Summit the user runs has one too.
   item=""
@@ -59,6 +60,7 @@ start() { # the language, the settings file's text, the recorder
   done
   bus=${item%@*}; menu=${item#*@}/Menu
 }
+greyed() { busctl --user call "$bus" "$menu" com.canonical.dbusmenu GetLayout iias 0 -- -1 0 | grep -o '"enabled" b false' | wc -l; }
 labels() { # busctl writes what is not ASCII as escapes: printf reads them back
   printf '%b' "$(busctl --user call "$bus" "$menu" com.canonical.dbusmenu GetLayout iias 0 -- -1 0 | grep -o '"label" s "[^"]*"' | cut -d'"' -f4 | paste -sd'|')"
 }
@@ -67,29 +69,43 @@ failed=0
 check() { if "$@"; then say "  ok    $*"; else say "  FAIL  $*"; failed=1; fi; }
 is() { [ "$1" = "$2" ] || { say "        got: $1"; return 1; }; }
 
+# The program that hears, played: it notes what it was given, fails, is slow or stuck when told.
+cat > "$work/summit-transcription" <<'PLAYED'
+#!/bin/sh
+here=$(dirname "$1"); echo "$*" >> "$here/heard"
+if [ -e "$here/fail-once" ]; then rm "$here/fail-once"; echo "summit-transcription: the engine stopped" >&2; exit 1; fi
+if [ -e "$here/slow" ]; then rm "$here/slow"; sleep 3; fi
+if [ -e "$here/stuck" ]; then echo $$ > "$here/hearing"; sleep 30; fi
+mkdir -p "$1" && echo '{}' > "$1/transcript.jsonl"
+PLAYED
+chmod +x "$work/summit-transcription"
+: > "$work/model.bin"
+
 say "A. in French: start from the menu, the reminder, a silent source, stop"
-start fr_FR.UTF-8 "" "$work/summit-capture"
-check is "$(labels)" "Démarrer l’enregistrement|Quitter Summit"
+start fr_FR.UTF-8 "transcript = false" "$work/summit-capture"
+check is "$(labels)" "Démarrer l’enregistrement|Transcrire le dernier enregistrement|Quitter Summit"
 click 2
-check is "$(labels)" "Arrêter l’enregistrement|Quitter Summit"
+check is "$(labels)" "Arrêter l’enregistrement|Transcrire le dernier enregistrement|Quitter Summit"
 check is "$(cat "$work/sessions/given")" "record $work/sessions"
 check is "$(titles 'Enregistrement en cours')" 1
 check is "$(titles 'Aucun son venant de la réunion')" 1
 click 2
 check is "$(cat "$work/sessions/told")" "stop"
-check is "$(labels)" "Démarrer l’enregistrement|Quitter Summit"
+check is "$(labels)" "Démarrer l’enregistrement|Transcrire le dernier enregistrement|Quitter Summit"
 check is "$(titles 'Enregistrement arrêté')" 1
 check grep -q 'Durée.: 32 min' "$work/notified"
+check test ! -e "$work/sessions/heard"
+check is "$(grep -c 'La transcription suit' "$work/notified")" 0
 
 say "B. quit while recording: the recording is stopped first, then Summit leaves"
 click 2; rm -f "$work/sessions/told"
-click 3; sleep 1
+click 4; sleep 1
 check is "$(cat "$work/sessions/told")" "stop"
 check is "$(kill -0 "$app" 2>/dev/null && echo running || echo gone)" "gone"
 
 say "C. in English, the reminder switched off; Summit killed while recording"
-start en_GB.UTF-8 "reminder = false" "$work/summit-capture"
-check is "$(labels)" "Start recording|Quit Summit"
+start en_GB.UTF-8 "reminder = false\ntranscript = false" "$work/summit-capture"
+check is "$(labels)" "Start recording|Transcribe the last recording|Quit Summit"
 click 2
 check is "$(titles 'Recording')" 0
 recorder=$(pgrep -P "$app" -f summit-capture || true)
@@ -98,31 +114,73 @@ check test ! -e "$work/sessions/told"          # the recorder was not told to st
 check kill -0 "$recorder"                       # and it records on
 
 say "D. no recorder, or one that ends before it starts: said, and the menu still offers to start"
-start en_GB.UTF-8 "" "$work/nowhere"
+start en_GB.UTF-8 "transcript = false" "$work/nowhere"
 click 2
 check is "$(titles 'Summit cannot record')" 1
-check is "$(labels)" "Start recording|Quit Summit"
-click 3
+check is "$(labels)" "Start recording|Transcribe the last recording|Quit Summit"
+click 4
 printf '#!/bin/sh\necho "summit-capture: no source could be opened: nothing to record" >&2\nexit 1\n' > "$work/refuses"; chmod +x "$work/refuses"
-start en_GB.UTF-8 "" "$work/refuses"
+start en_GB.UTF-8 "transcript = false" "$work/refuses"
 click 2
 check is "$(titles 'Summit cannot record')" 2
 check is "$(titles 'The recording stopped by itself')" 0
 check grep -q 'Installing Summit again puts it back. (no source could be opened: nothing to record)' "$work/notified"
-click 3
+click 4
 
 say "E. one gesture, pressed twice: one recording; a recorder that never ends: quit asked twice leaves"
 printf '#!/bin/sh\necho x >> "$2/starts"\necho "{\\"event\\":\\"started\\",\\"folder\\":\\"$2/s\\"}"\nwhile read line; do echo "$line" >> "$2/told"; done\nexec sleep 20\n' > "$work/stubborn"; chmod +x "$work/stubborn"
-start en_GB.UTF-8 "reminder = false" "$work/stubborn"
+start en_GB.UTF-8 "reminder = false\ntranscript = false" "$work/stubborn"
 busctl --user call "$bus" "$menu" com.canonical.dbusmenu Event isvu 2 clicked s "" 0 >/dev/null
 click 2
 check is "$(wc -l < "$work/sessions/starts")" 1
-check is "$(labels)" "Stop recording|Quit Summit"
-click 3
+check is "$(labels)" "Stop recording|Transcribe the last recording|Quit Summit"
+click 4
 check is "$(cat "$work/sessions/told")" "stop"
 check is "$(kill -0 "$app" 2>/dev/null && echo waiting || echo gone)" "waiting"
-click 3
+click 4
 check is "$(kill -0 "$app" 2>/dev/null && echo waiting || echo gone)" "gone"
+
+say "F. the transcript follows the stop; a failed one is made again from the menu; no model is said"
+start en_GB.UTF-8 "reminder = false\nmodel = \"$work/model.bin\"" "$work/summit-capture"
+click 2; click 2; sleep 1
+check grep -q '32 min recorded. The transcript follows.' "$work/notified"
+check is "$(cat "$work/sessions/heard")" "$work/sessions/2026-10-13_14-05 --model $work/model.bin"
+check is "$(titles 'Transcript ready')" 1
+check test -s "$work/sessions/2026-10-13_14-05/transcript.jsonl"
+echo '{}' > "$work/sessions/2026-10-13_14-05/session.json"; touch "$work/sessions/fail-once"
+click 3; sleep 1
+check is "$(titles 'The transcript was not made')" 1
+check grep -q 'tries again from where it stopped. (the engine stopped)' "$work/notified"
+click 3; sleep 1
+check is "$(titles 'Transcript ready')" 2
+check is "$(wc -l < "$work/sessions/heard")" 3
+check is "$(greyed)" 0
+# Asked for while recording, it is greyed: the recording's transcript follows its stop.
+click 2
+check is "$(greyed)" 1
+click 3; click 2; sleep 1
+check is "$(wc -l < "$work/sessions/heard")" 4
+check is "$(titles 'Transcript ready')" 3
+touch "$work/sessions/slow"
+click 3
+check is "$(greyed)" 1
+click 2; click 2; sleep 5
+check is "$(wc -l < "$work/sessions/heard")" 6
+check is "$(titles 'Transcript ready')" 5
+check is "$(greyed)" 0
+touch "$work/sessions/stuck"
+click 3; sleep 1; hearing=$(cat "$work/sessions/hearing"); click 4; sleep 1
+check is "$(kill -0 "$hearing" 2>/dev/null && echo hearing || echo ended)" "ended"
+check is "$(kill -0 "$app" 2>/dev/null && echo running || echo gone)" "gone"
+start en_GB.UTF-8 "reminder = false\nmodel = \"$work/model.bin\"" "$work/summit-capture"
+click 2; click 4; sleep 1
+check is "$(cat "$work/sessions/told") $(kill -0 "$app" 2>/dev/null || echo gone)" "stop gone"
+check is "$(wc -l < "$work/sessions/heard")" 7
+start en_GB.UTF-8 "reminder = false\nmodel = \"$work/no-model.bin\"" "$work/summit-capture"
+click 2; click 2; sleep 1
+check is "$(titles 'No transcript: the model is missing')" 1
+check is "$(wc -l < "$work/sessions/heard")" 7
+click 4
 
 check test ! -s "$work/errors"
 [ -s "$work/errors" ] && sed 's/^/    /' "$work/errors" >> .evidence/e2e.txt
