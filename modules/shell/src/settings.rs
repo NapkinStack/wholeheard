@@ -16,14 +16,24 @@ pub struct Settings {
     pub reminder: bool,
     /// The folder the sessions are written in, one folder each.
     pub sessions: PathBuf,
+    /// Make the transcript of a recording once it is stopped, without another gesture.
+    pub transcript: bool,
+    /// The Whisper model the transcript is heard with: a file in whisper.cpp's format.
+    pub model: PathBuf,
 }
+
+/// The model a transcript is heard with when the settings name none (ADR-0003).
+pub const MODEL: &str = "ggml-large-v3-turbo-q8_0.bin";
 
 impl Default for Settings {
     fn default() -> Self {
         let documents = dirs::document_dir().or_else(dirs::home_dir).unwrap_or_default();
+        let data = dirs::data_dir().unwrap_or_default();
         Self {
             reminder: true,
             sessions: documents.join("Summit"),
+            transcript: true,
+            model: data.join("summit").join("models").join(MODEL),
         }
     }
 }
@@ -33,11 +43,13 @@ pub fn file() -> Option<PathBuf> {
     dirs::config_dir().map(|folder| folder.join("summit").join("settings.toml"))
 }
 
-/// The file as it is written: what it names, and where it names the folder.
+/// The file as it is written: what it names, and where it names each path.
 #[derive(Deserialize)]
 struct Written {
     reminder: Option<bool>,
     sessions: Option<toml::Spanned<PathBuf>>,
+    transcript: Option<bool>,
+    model: Option<toml::Spanned<PathBuf>>,
 }
 
 /// Reads the settings. No file is no choice made: the defaults. A file that cannot be read as
@@ -55,22 +67,30 @@ pub fn read(path: &Path) -> Result<Settings, String> {
         Some(span) => format!("{}, line {}: {}", path.display(), line(span.start), error.message()),
         None => format!("{}: {}", path.display(), error.message()),
     })?;
+    // A path written as people write it: from their home, with a tilde — or from the root.
+    let whole = |key: &str, what: &str, written: toml::Spanned<PathBuf>| {
+        let at = line(written.span().start);
+        let named = match (written.get_ref().strip_prefix("~"), dirs::home_dir()) {
+            (Ok(rest), Some(home)) => home.join(rest),
+            _ => written.into_inner(),
+        };
+        if named.is_absolute() {
+            Ok(named)
+        } else {
+            Err(format!(
+                "{}, line {at}: {key} is {what} whole path, from the root or from ~",
+                path.display()
+            ))
+        }
+    };
     let mut settings = Settings::default();
     settings.reminder = written.reminder.unwrap_or(settings.reminder);
+    settings.transcript = written.transcript.unwrap_or(settings.transcript);
     if let Some(sessions) = written.sessions {
-        let at = line(sessions.span().start);
-        // A folder written as people write it: from their home, with a tilde.
-        let folder = match (sessions.get_ref().strip_prefix("~"), dirs::home_dir()) {
-            (Ok(rest), Some(home)) => home.join(rest),
-            _ => sessions.into_inner(),
-        };
-        if !folder.is_absolute() {
-            return Err(format!(
-                "{}, line {at}: sessions is the folder's whole path, from the root or from ~",
-                path.display()
-            ));
-        }
-        settings.sessions = folder;
+        settings.sessions = whole("sessions", "the folder's", sessions)?;
+    }
+    if let Some(model) = written.model {
+        settings.model = whole("model", "the file's", model)?;
     }
     Ok(settings)
 }
