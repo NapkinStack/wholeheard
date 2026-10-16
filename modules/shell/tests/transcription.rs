@@ -57,16 +57,46 @@ fn a_transcript_that_failed_says_the_programs_last_sentence() {
     assert_eq!(end(&said), Made::Failed(String::new()));
 }
 
+/// Whether a process of this number is still there.
+fn alive(pid: &str) -> bool {
+    std::process::Command::new("kill")
+        .args(["-0", pid.trim()])
+        .status()
+        .unwrap()
+        .success()
+}
+
 #[test]
-fn a_transcript_ended_by_summit_is_not_written_and_ends_at_once() {
+fn a_transcript_ended_by_summit_ends_with_what_it_started_and_is_not_written() {
     let folder = tempfile::tempdir().unwrap();
     fs::create_dir(folder.path().join("session")).unwrap();
-    // A program of its own keeps the error stream open: the end is not held up by it.
-    let (transcription, said) = made(folder.path(), "sleep 30\necho '{}' > \"$1/transcript.jsonl\"");
+    let started = folder.path().join("started");
+    let script = format!(
+        "sleep 30 &\necho $! > {}\nwait\necho '{{}}' > \"$1/transcript.jsonl\"",
+        started.display()
+    );
+    let (transcription, said) = made(folder.path(), &script);
     std::thread::sleep(Duration::from_millis(300));
+    let child = fs::read_to_string(&started).unwrap();
+    assert!(alive(&child));
     transcription.end();
     assert_eq!(end(&said), Made::Failed(String::new()));
+    assert!(!alive(&child), "what the program started is left running");
     assert!(!folder.path().join("session/transcript.jsonl").exists());
+}
+
+#[test]
+fn what_the_program_said_last_is_kept_when_what_it_started_holds_its_error_stream() {
+    let folder = tempfile::tempdir().unwrap();
+    fs::create_dir(folder.path().join("session")).unwrap();
+    let started = folder.path().join("started");
+    let script = format!("echo 'the engine stopped' >&2\nsleep 30 &\necho $! > {}\nexit 1", started.display());
+    let (_, said) = made(folder.path(), &script);
+    let begun = std::time::Instant::now();
+    assert_eq!(end(&said), Made::Failed("the engine stopped".into()));
+    assert!(begun.elapsed() < Duration::from_secs(3), "{:?}", begun.elapsed());
+    let child = fs::read_to_string(&started).unwrap();
+    std::process::Command::new("kill").arg(child.trim()).status().unwrap();
 }
 
 #[test]

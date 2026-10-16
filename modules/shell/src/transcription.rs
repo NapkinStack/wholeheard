@@ -34,14 +34,12 @@ impl Transcription {
     /// Starts the program that hears on a session's folder, with a model file. How it ended
     /// comes once on the receiver: `Written` only when it ended well with the transcript there.
     pub fn start(program: &Path, folder: &Path, model: &Path) -> io::Result<(Self, Receiver<Made>)> {
-        let mut child = Command::new(program)
-            .arg(folder)
-            .arg("--model")
-            .arg(model)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+        let mut command = Command::new(program);
+        command.arg(folder).arg("--model").arg(model);
+        // A group of its own: ended, whatever it started ends with it.
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut command, 0);
+        let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
         let (Some(mut output), Some(errors)) = (child.stdout.take(), child.stderr.take()) else {
             return Err(io::Error::other("the program that hears could not be listened to"));
         };
@@ -50,10 +48,14 @@ impl Transcription {
         let program = Arc::new(Mutex::new(child));
         let (tell, made) = mpsc::channel();
         let (waited, folder) = (Arc::clone(&program), folder.to_path_buf());
-        // Its last sentence on the error stream is why it failed, read apart from the wait: a
-        // program of its own may keep that stream open after it ended.
-        let (said, why) = mpsc::channel();
-        thread::spawn(move || said.send(last_line(errors)));
+        // Its last sentence on the error stream is why it failed, kept as it is read, apart from
+        // the wait: a program of its own may keep that stream open after it ended.
+        let (last, read) = (Arc::new(Mutex::new(String::new())), mpsc::channel());
+        let (kept, (done, all_read)) = (Arc::clone(&last), read);
+        thread::spawn(move || {
+            last_line(errors, &kept);
+            let _ = done.send(());
+        });
         thread::spawn(move || {
             // Asked, not waited on with the program held: `end` may need it meanwhile.
             let status = loop {
@@ -64,7 +66,9 @@ impl Transcription {
                 }
             };
             let written = status.is_some_and(|status| status.success()) && folder.join("transcript.jsonl").is_file();
-            let why = why.recv_timeout(Duration::from_secs(1)).unwrap_or_default();
+            // A second for what it wrote last to be read; then what was read is what it said.
+            let _ = all_read.recv_timeout(Duration::from_secs(1));
+            let why = last.lock().map(|said| said.clone()).unwrap_or_default();
             let _ = tell.send(if written { Made::Written(folder) } else { Made::Failed(why) });
         });
         Ok((Self { program }, made))
@@ -73,16 +77,24 @@ impl Transcription {
     /// Stops the program now: Summit is quitting. What it had heard stays written.
     pub fn end(&self) {
         if let Ok(mut child) = self.program.lock() {
+            #[cfg(unix)]
+            if let Ok(group) = i32::try_from(child.id()) {
+                // SAFETY: a signal sent to the group this program leads, which it was started in.
+                unsafe { libc::kill(-group, libc::SIGKILL) };
+            }
             let _ = child.kill();
         }
     }
 }
 
-/// The last line of a stream that is not blank, read to the stream's end.
-fn last_line(stream: impl Read) -> String {
-    let lines = BufReader::new(stream).split(b'\n').map_while(Result::ok);
-    let lines = lines.map(|line| String::from_utf8_lossy(&line).trim().to_string());
-    lines.filter(|line| !line.is_empty()).last().unwrap_or_default()
+/// Reads a stream to its end, keeping its last line that is not blank as it goes.
+fn last_line(stream: impl Read, kept: &Mutex<String>) {
+    for line in BufReader::new(stream).split(b'\n').map_while(Result::ok) {
+        let line = String::from_utf8_lossy(&line).trim().to_string();
+        if let (false, Ok(mut kept)) = (line.is_empty(), kept.lock()) {
+            *kept = line;
+        }
+    }
 }
 
 /// The last session of a folder of sessions: the one whose name comes last — a session is

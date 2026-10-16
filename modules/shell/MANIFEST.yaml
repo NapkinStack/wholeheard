@@ -85,6 +85,10 @@ dependencies:
     purpose: Asks a Linux desktop's portal for the global shortcut (ADR-0002)
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One function, bound, in src/main.rs; elsewhere tauri-plugin-global-shortcut does it.
+  - name: libc
+    purpose: Ends a transcript with what its program started, by signalling its process group, on Linux and macOS
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One call in src/transcription.rs; the `kill` command, or nix, replaces it.
   - name: sys-locale
     purpose: Reads the language the user's system is set to, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md

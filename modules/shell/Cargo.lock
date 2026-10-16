@@ -3363,6 +3363,7 @@ dependencies = [
  "ashpd",
  "dirs 6.0.0",
  "futures-util",
+ "libc",
  "serde",
  "serde_json",
  "sys-locale",
