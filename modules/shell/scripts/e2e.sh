@@ -46,8 +46,8 @@ titles() {
 start() { # the language, the settings file's text, the recorder
   mkdir -p "$work/config/summit" "$work/sessions"; rm -f "$work/sessions/given" "$work/sessions/told"
   printf 'sessions = "%s"\n%b\n' "$work/sessions" "$2" > "$work/config/summit/settings.toml"
-  LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" SUMMIT_CAPTURE="$3" \
-    SUMMIT_TRANSCRIPTION="$work/summit-transcription" "$bin" 2>> "$work/errors" &
+  LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" SUMMIT_CAPTURE="$3" \
+    SUMMIT_TRANSCRIPTION="$work/summit-transcription" SUMMIT_MODEL_PUBLISHED="$published" "$bin" 2>> "$work/errors" &
   app=$!
   # Its own tray item, found by its program's number: a Summit the user runs has one too.
   item=""
@@ -64,7 +64,17 @@ greyed() { busctl --user call "$bus" "$menu" com.canonical.dbusmenu GetLayout ii
 labels() { # busctl writes what is not ASCII as escapes: printf reads them back
   printf '%b' "$(busctl --user call "$bus" "$menu" com.canonical.dbusmenu GetLayout iias 0 -- -1 0 | grep -o '"label" s "[^"]*"' | cut -d'"' -f4 | paste -sd'|')"
 }
+entry() { # the menu's number of an entry, by its label
+  busctl --user --json=short call "$bus" "$menu" com.canonical.dbusmenu GetLayout iias 0 -- -1 0 | python3 -c '
+import json, sys
+def walk(item):
+    number, props, children = item["data"] if "data" in item else item
+    if props.get("label", {}).get("data", "").startswith(sys.argv[1]): print(number)
+    for child in children: walk(child["data"] if "data" in child else child)
+walk(json.load(sys.stdin)["data"][1])' "$1"
+}
 click() { busctl --user call "$bus" "$menu" com.canonical.dbusmenu Event isvu "$1" clicked s "" 0 >/dev/null; sleep 1; }
+published=""
 failed=0
 check() { if "$@"; then say "  ok    $*"; else say "  FAIL  $*"; failed=1; fi; }
 is() { [ "$1" = "$2" ] || { say "        got: $1"; return 1; }; }
@@ -84,6 +94,8 @@ chmod +x "$work/summit-transcription"
 say "A. in French: start from the menu, the reminder, a silent source, stop"
 start fr_FR.UTF-8 "transcript = false" "$work/summit-capture"
 check is "$(labels)" "Démarrer l’enregistrement|Transcrire le dernier enregistrement|Quitter Summit"
+click 3                                           # no session yet: said, nothing heard
+check is "$(titles 'Aucun enregistrement à transcrire')" 1
 click 2
 check is "$(labels)" "Arrêter l’enregistrement|Transcrire le dernier enregistrement|Quitter Summit"
 check is "$(cat "$work/sessions/given")" "record $work/sessions"
@@ -172,6 +184,7 @@ touch "$work/sessions/stuck"
 click 3; sleep 1; hearing=$(cat "$work/sessions/hearing"); click 4; sleep 1
 check is "$(kill -0 "$hearing" 2>/dev/null && echo hearing || echo ended)" "ended"
 check is "$(kill -0 "$app" 2>/dev/null && echo running || echo gone)" "gone"
+rm "$work/sessions/stuck"
 start en_GB.UTF-8 "reminder = false\nmodel = \"$work/model.bin\"" "$work/summit-capture"
 click 2; click 4; sleep 1
 check is "$(cat "$work/sessions/told") $(kill -0 "$app" 2>/dev/null || echo gone)" "stop gone"
@@ -181,6 +194,33 @@ click 2; click 2; sleep 1
 check is "$(titles 'No transcript: the model is missing')" 1
 check is "$(wc -l < "$work/sessions/heard")" 7
 click 4
+
+say "G. the default model missing: offered with its size and host, fetched on the click, then the transcript"
+mkdir -p "$work/served"; head -c 300000 /dev/urandom > "$work/served/model.bin"
+(cd "$work/served" && exec python3 -u -m http.server 0 --bind 127.0.0.1 > "$work/server" 2>&1) &
+for _ in $(seq 50); do port=$(grep -o 'port [0-9]*' "$work/server" | cut -d' ' -f2) && [ -n "$port" ] && break; sleep 0.1; done
+sum=$(sha256sum "$work/served/model.bin" | cut -d' ' -f1)
+published="http://127.0.0.1:$port/model.bin 300000 0000000000000000000000000000000000000000000000000000000000000000"
+start en_GB.UTF-8 "reminder = false" "$work/summit-capture"
+click 2; click 2; sleep 1
+check is "$(titles 'The transcription model is needed')" 1
+check is "$(labels)" "Start recording|Transcribe the last recording|Download the model (0 MB, 127.0.0.1:$port)|Quit Summit"
+click "$(entry Download)"; sleep 2
+check is "$(titles 'The model was not downloaded')" 1
+check test ! -e "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin"
+check test ! -e "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin.part"
+click 4
+published="http://127.0.0.1:$port/model.bin 300000 $sum"
+start en_GB.UTF-8 "reminder = false" "$work/summit-capture"
+before=$(wc -l < "$work/sessions/heard")
+click 2; click 2; sleep 1
+click "$(entry Download)"; sleep 2
+check is "$(titles 'Model ready')" 1
+check cmp -s "$work/served/model.bin" "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin"
+check is "$(wc -l < "$work/sessions/heard")" "$((before + 1))"
+check is "$(labels)" "Start recording|Transcribe the last recording|Quit Summit"
+click 4
+published=""
 
 check test ! -s "$work/errors"
 [ -s "$work/errors" ] && sed 's/^/    /' "$work/errors" >> .evidence/e2e.txt

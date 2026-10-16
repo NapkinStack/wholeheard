@@ -14,6 +14,7 @@ use std::{
 };
 
 use summit_shell::{
+    model::{self, Published},
     recording::{Recording, Said},
     settings::{self, Settings},
     transcription::{self, Made, Transcription},
@@ -48,8 +49,14 @@ struct Shell {
     transcribe: MenuItem<Wry>,
     /// The transcript being made, when there is one: one at a time.
     transcription: Mutex<Option<Transcription>>,
-    /// A session whose transcript waits for the one being made.
+    /// A session whose transcript waits for the one being made, or for the model.
     waiting: Mutex<Option<PathBuf>>,
+    /// The tray's menu, and its entry that fetches the default model — in it only while the
+    /// model is needed and not there.
+    menu: Menu<Wry>,
+    download: MenuItem<Wry>,
+    /// The model is coming.
+    fetching: Mutex<bool>,
 }
 
 /// Where the tray is in the life of a recording.
@@ -71,10 +78,11 @@ fn main() {
             let again = MenuItem::with_id(app, "transcribe", labels.transcribe, true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&toggle, &again, &quit])?;
+            let download = MenuItem::with_id(app, "download", "", true, None::<&str>)?;
             TrayIconBuilder::with_id(TRAY)
                 .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
                 .tooltip("Summit")
-                .menu(&menu)
+                .menu(&menu.clone())
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "toggle" => toggle_recording(app),
                     "transcribe" => {
@@ -88,6 +96,7 @@ fn main() {
                             None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
                         }
                     }
+                    "download" => fetch(app),
                     "quit" => leave(app),
                     _ => {}
                 })
@@ -103,6 +112,9 @@ fn main() {
                 transcribe: again,
                 transcription: Mutex::new(None),
                 waiting: Mutex::new(None),
+                menu,
+                download,
+                fetching: Mutex::new(false),
             });
             if let Err(why) = read {
                 tell(app.handle(), &words::trouble(&Trouble::Settings(why), language));
@@ -252,7 +264,13 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
     }
     let model = &shell.settings.model;
     if !model.is_file() {
-        tell(app, &words::trouble(&Trouble::NoModel(model.display().to_string()), shell.language));
+        // The default model is offered, its size and host shown; one the user named is theirs.
+        if *model == Settings::default().model {
+            *shell.waiting.lock().unwrap() = Some(folder);
+            offer(app);
+        } else {
+            tell(app, &words::trouble(&Trouble::NoModel(model.display().to_string()), shell.language));
+        }
         return;
     }
     let started = Transcription::start(&program("summit-transcription", "SUMMIT_TRANSCRIPTION"), &folder, model);
@@ -279,6 +297,99 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         }
         let waiting = shell.waiting.lock().unwrap().take();
         if let Some(folder) = waiting {
+            transcribe(&app, folder);
+        }
+    });
+}
+
+/// The default model as published — or, for whoever tries Summit, as `SUMMIT_MODEL_PUBLISHED`
+/// says: its address, its size in bytes and its SHA-256, separated by spaces.
+fn published() -> Published {
+    let named = std::env::var("SUMMIT_MODEL_PUBLISHED").ok().and_then(|named| {
+        let [address, bytes, sha256] = named.split(' ').collect::<Vec<_>>()[..] else {
+            return None;
+        };
+        let leaked = |text: &str| -> &'static str { Box::leak(text.to_owned().into_boxed_str()) };
+        let host = address.split('/').nth(2).unwrap_or(address);
+        Some(Published {
+            address: leaked(address),
+            host: leaked(host),
+            bytes: bytes.parse().ok()?,
+            sha256: leaked(sha256),
+        })
+    });
+    named.unwrap_or(model::DEFAULT)
+}
+
+/// Puts the entry that fetches the model in the menu, and says why: nothing is fetched yet.
+fn offer(app: &AppHandle) {
+    let shell = app.state::<Shell>();
+    let wanted = published();
+    let size = model::size(wanted.bytes);
+    tell(app, &words::model_needed(shell.language, &size, wanted.host));
+    let app = app.clone();
+    let _ = app.clone().run_on_main_thread(move || {
+        let shell = app.state::<Shell>();
+        let _ = shell.download.set_text(words::download(shell.language, &size, wanted.host));
+        let _ = shell.download.set_enabled(true);
+        if !shell
+            .menu
+            .items()
+            .unwrap_or_default()
+            .iter()
+            .any(|item| item.id() == shell.download.id())
+        {
+            let _ = shell.menu.insert(&shell.download, 2);
+        }
+    });
+}
+
+/// Fetches the default model, on the user's click — their agreement. Ready, the entry leaves
+/// the menu and the waiting transcript is made; cut or refused, it is said, and the entry
+/// takes it up again.
+fn fetch(app: &AppHandle) {
+    let shell = app.state::<Shell>();
+    if std::mem::replace(&mut *shell.fetching.lock().unwrap(), true) {
+        return;
+    }
+    let (wanted, to, language) = (published(), shell.settings.model.clone(), shell.language);
+    let label = |app: &AppHandle, text: String, enabled: bool| {
+        let app = app.clone();
+        let _ = app.clone().run_on_main_thread(move || {
+            let shell = app.state::<Shell>();
+            let _ = shell.download.set_text(text);
+            let _ = shell.download.set_enabled(enabled);
+        });
+    };
+    label(app, words::downloading(language, 0), false);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let mut shown = 0;
+        let outcome = model::fetch(&wanted, wanted.address, &to, &mut |held| {
+            let percent = held * 100 / wanted.bytes.max(1);
+            if percent != shown {
+                shown = percent;
+                let text = if held == wanted.bytes {
+                    words::checking(language).to_string()
+                } else {
+                    words::downloading(language, percent)
+                };
+                label(&app, text, false);
+            }
+        });
+        let shell = app.state::<Shell>();
+        *shell.fetching.lock().unwrap() = false;
+        tell(&app, &words::fetched(&outcome, language));
+        if outcome.is_err() {
+            return label(&app, words::download(language, &model::size(wanted.bytes), wanted.host), true);
+        }
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let shell = handle.state::<Shell>();
+            let _ = shell.menu.remove(&shell.download);
+        });
+        let waiting = shell.waiting.lock().unwrap().take();
+        if let Some(folder) = waiting.or_else(|| transcription::latest(&shell.settings.sessions)) {
             transcribe(&app, folder);
         }
     });
