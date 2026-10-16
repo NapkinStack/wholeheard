@@ -889,15 +889,16 @@ mod tests {
                 wrote(4.0, 9.0, "on fait le point"),
             ]
         };
-        // An engine that loops each time it hears: heard again twice, and no deeper.
+        // An engine that loops each time it hears: the span's loop heard again twice, and no
+        // deeper; the turn left unwritten after it as well, twice deep, its loops so each time.
         let mut lengths = Vec::new();
         let mut hear = |stretch: &[f32]| {
             lengths.push(stretch.len());
             Ok(looping())
         };
-        let again = unlooped(&sound, looping(), &mut hear, AGAIN).unwrap();
-        assert_eq!(lengths, [40 * RATE, 40 * RATE]);
-        assert_eq!(again.len(), 3);
+        let again = listened(&sound, &mut hear).unwrap();
+        assert_eq!(lengths, [[40 * RATE; 3], [210 * TENTH; 3], [117 * TENTH; 3]].concat());
+        assert_eq!(again.len(), 9);
         let mut hear = |_: &[f32]| -> io::Result<Vec<Segment>> { panic!("nothing is heard again") };
         let kept = vec![said(2.0, 9.5)];
         assert_eq!(times(&unlooped(&sound, kept.clone(), &mut hear, AGAIN).unwrap()), times(&kept));
