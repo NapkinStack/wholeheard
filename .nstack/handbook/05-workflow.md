@@ -83,7 +83,7 @@ This is not a marginal case, and it is not an excuse to skip the step. It is a d
 | Cause | What to do |
 |---|---|
 | The acceptance criterion is subjective | Restate it as an observable behaviour |
-| The task is exploratory | Requalify it as a *spike*: the deliverable is knowledge, not code. Its criteria name what is recorded and the threshold read against it, and **a refuted result is a delivered one** |
+| The task is exploratory | Requalify it as a *spike*: the deliverable is knowledge, not code. Its criteria name what is recorded and the threshold read against it, and **a refuted result is a delivered one**. A spike that measures a step through an imitation of what that step sends — a request, a file, a prompt — first shows the imitation sends the same, byte for byte, as the step does |
 | It waits on someone outside the project | It is a dependency with a date, not a deliverable (`.nstack/playbooks/framing.md`) |
 | The area is untestable | Make it testable first — that is a task in its own right |
 | The need is vague | Back to framing; it was not *Ready* |

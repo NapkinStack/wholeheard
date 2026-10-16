@@ -129,7 +129,9 @@ from then on the plan check refuses an accepted charter over a form left as it c
 ## 4. During the cycle
 
 - **A new idea** goes to *later*. It enters the cycle only if the decider re-frames:
-  swapping a deliverable out, or closing the cycle early.
+  swapping a deliverable out, adding one they judge fits what is left of the appetite —
+  the end date does not move — or closing the cycle early. An added deliverable takes its
+  criteria like the others, and its section says on whose word and on what it entered.
 - **An urgent fix** outside the cycle — an incident, a production defect — goes in a pull
   request with the `out-of-cycle` label and the line `Out of cycle: <reason>`.
 - **A deliverable** moves `proposed` → `ready` (testable acceptance criteria, set by the
