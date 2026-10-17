@@ -17,7 +17,7 @@ deliverables:
   - id: D9
     title: "A recording keeps each source as the system delivered it, under the name of its source, with the session's clock written beside"
     module: capture
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given a recording on Fedora, when it is stopped, then the session holds one track per source — local, the microphone; remote, what the machine plays — each at the sample rate and with the channels its source delivered, in 24 bits, and nothing in a track was resampled, mixed, cleaned or brought to a level"
       - "Given the two tracks, when their clock is read, then it says where each track's samples are on the session's clock, how far the two drift apart over the recording, and which stretches of a track are silence the capture wrote because the source gave nothing"
@@ -38,7 +38,7 @@ deliverables:
   - id: D11
     title: "Spike — the window, drawn before it is built: a session, the sessions and what they weigh, the settings, the two agreements"
     module: null
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given the four things the window holds — the session just finished, with its minutes and its transcript; the list of sessions, each with its date, its length, what it holds and what it weighs; the settings; the two moments where the user agrees before something crosses the network — when each is drawn at the size of a laptop's screen, in a light and in a dark theme, then the decider sees the drawings and says what they change"
       - "Given the drawings of the sessions, when the decider follows on them the two ways of freeing space — the audio alone, the transcript and the minutes kept; the whole session — then each shows what it frees before it is done, and how it is undone"
@@ -174,7 +174,8 @@ What the line says, and what it cost to get one worth reading: [its entry in the
 
 ### D9
 
-Offered for acceptance. The second form of a session (`contracts/session-audio/v2`) is what `record`
+**Result: accepted** by the decider on 2026-10-17 ("c'est ok", offered with the measures
+below). The second form of a session (`contracts/session-audio/v2`) is what `record`
 writes, and so what the tray records (#161); the step that follows reads it.
 
 | Piece | Today |
@@ -212,7 +213,7 @@ Compressing without loss would halve it: a lever for later; space is the user's 
 A session of the first form is still read: `summit-transcription` reads either form by what
 `session.json` names, and refuses a contract it does not know.
 
-**Offered for acceptance**: each of the five criteria has its answer above. Known and set aside
+Each of the five criteria has its answer above. Known and set aside
 by the decider (#131): at a change of the sound server's period the microphone track loses a
 few frames, and the clock marks it — in 5 of 10 end-to-end runs of #161.
 
@@ -321,8 +322,9 @@ Their changes, drawn in the second round:
 
 The boards as the second round left them, in both themes: [`drawings/d11-the-window`](../drawings/d11-the-window/README.md).
 
-Still owed to close D11: the decider's word on the second round — accepted, or changed
-again. What is accepted is the next cycle's criteria.
+**Result: accepted** by the decider on 2026-10-17 ("c'est ok"): the second round as drawn,
+nothing refused. Each change above, and the six boards, are criteria of the cycle that builds
+the window.
 
 ### D12
 
