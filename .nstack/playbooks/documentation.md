@@ -56,7 +56,7 @@ the project's.
 | Something that changes state | The states and what moves it from one to the next | No state is a dead end unless it is meant to be |
 | A choice between paths | A decision tree, the question in the node | Every branch ends on an action |
 | A colour or a shape is used | It means one thing, and the legend under the diagram says which | The legend names every colour used, and nothing else |
-| The diagram is ready | Written as text in the file, in the notation the tooling profile names — never an image | The pull request shows what changed in it |
+| The diagram is ready | Written as text in the file, in the notation the tooling profile names — never an image. A drawing of a screen is no diagram: it is an image, frozen (`framing.md` §2) | The pull request shows what changed in it |
 | Nothing to show: one fact, a list, a comparison | No diagram. A table, or three lines | A diagram that decorates is removed |
 | More than a dozen boxes | Two diagrams, one idea each | Each has its own legend |
 
