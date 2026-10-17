@@ -296,6 +296,11 @@ pub struct Window {
     /// The folder the sessions go to, and the button that opens the system's dialog for it.
     pub sessions_folder: [&'static str; 2],
     pub choose: &'static str,
+    /// The global shortcut: its keys as granted, none granted, where it changes, the button there.
+    pub shortcut: [&'static str; 2],
+    pub shortcut_none: &'static str,
+    pub shortcut_where: &'static str,
+    pub shortcut_open: &'static str,
     /// *Tester*: the button, what it sends and to whom, and what it found.
     pub test: &'static str,
     pub test_sends: &'static str,
@@ -387,6 +392,10 @@ pub fn window(language: Language) -> Window {
                 "New meetings are written here. Those already recorded stay where they were: the window and the audio's keeping follow this folder.",
             ],
             choose: "Choose…",
+            shortcut: ["Shortcut", "Starts and stops a recording, wherever you are."],
+            shortcut_none: "Not granted by the desktop",
+            shortcut_where: "The desktop grants it: it changes in the desktop's keyboard settings.",
+            shortcut_open: "Keyboard settings",
             test: "Test",
             test_sends: "Test sends {} one sentence of Summit's, nothing of a meeting.",
             testing: "Testing…",
@@ -474,6 +483,10 @@ pub fn window(language: Language) -> Window {
                 "Les nouvelles réunions y sont écrites. Celles déjà enregistrées restent où elles étaient : la fenêtre et la garde de l’audio suivent ce dossier.",
             ],
             choose: "Choisir…",
+            shortcut: ["Raccourci", "Démarre et arrête un enregistrement, où que vous soyez."],
+            shortcut_none: "Pas accordé par le bureau",
+            shortcut_where: "Le bureau l’accorde : il se change dans les réglages du clavier du bureau.",
+            shortcut_open: "Réglages du clavier",
             test: "Tester",
             test_sends: "Tester envoie à {} une phrase de Summit, rien d’une réunion.",
             testing: "Test en cours…",

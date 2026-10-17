@@ -102,5 +102,6 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .minutes-step { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
 .fields { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
 .field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 200px; }
+.keys { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--ground); font: inherit; }
 .folder input { flex: 1 1 240px; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; }
 .field input { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; }
