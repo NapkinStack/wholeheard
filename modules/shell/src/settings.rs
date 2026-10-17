@@ -21,7 +21,7 @@ pub enum After {
 }
 
 /// How long a session's audio is kept; its transcript and minutes stay.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum KeepAudio {
     Always,
@@ -62,6 +62,23 @@ impl Default for Settings {
             keep_audio: KeepAudio::Always,
         }
     }
+}
+
+/// The Whisper models on this computer: the `.bin` files in `folder` — Summit's, where the
+/// default model goes — and the one the settings name wherever it is; each once, by name.
+pub fn whisper_models(folder: &Path, settings: &Settings) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = fs::read_dir(folder)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file() && path.extension().is_some_and(|extension| extension == "bin"))
+        .collect();
+    if settings.model.is_file() && !found.contains(&settings.model) {
+        found.push(settings.model.clone());
+    }
+    found.sort_by_key(|path| path.file_name().map(|name| name.to_os_string()));
+    found
 }
 
 /// Where the settings are on this system: `summit/settings.toml` in the user's configuration.

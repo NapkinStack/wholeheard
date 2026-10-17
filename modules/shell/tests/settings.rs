@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path};
 
-use summit_shell::settings::{After, KeepAudio, Settings, file, read, write};
+use summit_shell::settings::{After, KeepAudio, Settings, file, read, whisper_models, write};
 
 fn written(text: &str) -> Result<Settings, String> {
     let folder = tempfile::tempdir().unwrap();
@@ -242,4 +242,37 @@ fn the_old_key_stays_until_after_is_written() {
     // Nothing follows still: the old key says it, as long as `after` is not there.
     assert_eq!(read(&path).unwrap().after, After::Nothing);
     assert!(fs::read_to_string(&path).unwrap().contains("transcript = false"));
+}
+
+#[test]
+fn the_models_on_this_computer_are_the_folder_s_and_the_one_named() {
+    // A folder of the test's own: no model of the user's is read.
+    let data = tempfile::tempdir().unwrap();
+    let models = data.path().join("summit").join("models");
+    fs::create_dir_all(&models).unwrap();
+    for name in ["ggml-small.bin", "ggml-large-v3-turbo-q8_0.bin", "notes.txt", "ggml-base.bin.part"] {
+        fs::write(models.join(name), b"x").unwrap();
+    }
+    fs::create_dir(models.join("old.bin")).unwrap();
+    let elsewhere = data.path().join("mine.bin");
+    fs::write(&elsewhere, b"x").unwrap();
+    let mut settings = Settings {
+        model: models.join("ggml-large-v3-turbo-q8_0.bin"),
+        ..Settings::default()
+    };
+    let names = |found: Vec<std::path::PathBuf>| {
+        found
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        names(whisper_models(&models, &settings)),
+        ["ggml-large-v3-turbo-q8_0.bin", "ggml-small.bin"]
+    );
+    settings.model = elsewhere;
+    assert_eq!(
+        names(whisper_models(&models, &settings)),
+        ["ggml-large-v3-turbo-q8_0.bin", "ggml-small.bin", "mine.bin"]
+    );
 }
