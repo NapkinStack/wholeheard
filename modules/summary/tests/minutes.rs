@@ -374,3 +374,41 @@ fn a_writing_that_fails_at_its_last_step_leaves_no_draft() {
     assert!(write_minutes(folder.path(), &minutes(ANSWER, &made(None)).unwrap()).is_err());
     assert!(!folder.path().join("minutes.md.part").exists());
 }
+
+#[cfg(unix)]
+#[test]
+fn a_link_at_the_drafts_name_is_never_followed() {
+    let folder = tempfile::tempdir().unwrap();
+    let elsewhere = folder.path().join("someone-else.txt");
+    fs::write(&elsewhere, "theirs\n").unwrap();
+    std::os::unix::fs::symlink(&elsewhere, folder.path().join("minutes.md.part")).unwrap();
+    let written = minutes(ANSWER, &made(None)).unwrap();
+    write_minutes(folder.path(), &written).unwrap();
+    assert_eq!(fs::read_to_string(&elsewhere).unwrap(), "theirs\n");
+    assert!(
+        !fs::symlink_metadata(folder.path().join("minutes.md"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(fs::read_to_string(folder.path().join("minutes.md")).unwrap(), written.as_str());
+    assert!(fs::symlink_metadata(folder.path().join("minutes.md.part")).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_writing_that_fails_leaves_the_minutes_that_were_there() {
+    use std::os::unix::fs::PermissionsExt;
+    let folder = tempfile::tempdir().unwrap();
+    fs::write(folder.path().join("minutes.md"), "the minutes that were there\n").unwrap();
+    // A folder that cannot be written to: no draft can be made.
+    fs::set_permissions(folder.path(), fs::Permissions::from_mode(0o555)).unwrap();
+    let failed = write_minutes(folder.path(), &minutes(ANSWER, &made(None)).unwrap());
+    fs::set_permissions(folder.path(), fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(failed.is_err());
+    assert_eq!(
+        fs::read_to_string(folder.path().join("minutes.md")).unwrap(),
+        "the minutes that were there\n"
+    );
+    assert!(fs::symlink_metadata(folder.path().join("minutes.md.part")).is_err());
+}

@@ -77,7 +77,7 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 
 ## Contracts
 
-- Provided: [`minutes/v1`](../../contracts/minutes/v1/README.md), `experimental`
+- Provided: [`minutes/v1`](../../contracts/minutes/v1/README.md), `experimental`; [`summarising/v1`](../../contracts/summarising/v1/README.md) — how it is started and what it says, `experimental`
 - Consumed: [`transcript/v1`](../../contracts/transcript/v1/README.md)
 
 ## Decisions
