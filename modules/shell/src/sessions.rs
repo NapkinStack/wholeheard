@@ -102,8 +102,8 @@ fn weigh(folder: &Path, audio: &mut u64, text: &mut u64) {
     }
 }
 
-/// An instant as the contract writes it — `2026-10-13T14:05:12+02:00`, or with `Z` — in
-/// seconds since 1970; none when it is not one.
+/// An instant as the contract writes it — `2026-10-13T14:05:12+02:00`, with `Z`, or another
+/// offset form of ISO 8601 — in seconds since 1970; none when it is not one.
 pub fn instant(text: &str) -> Option<i64> {
     let number = |range: std::ops::Range<usize>| text.get(range)?.parse::<i64>().ok();
     let (year, month, day) = (number(0..4)?, number(5..7)?, number(8..10)?);
@@ -113,18 +113,26 @@ pub fn instant(text: &str) -> Option<i64> {
     }
     // Fractions of a second are left: a session's length is said in minutes.
     let rest = text.get(19..)?.trim_start_matches(|c: char| c == '.' || c.is_ascii_digit());
-    let offset = match rest {
-        "Z" => 0,
-        _ => {
-            let sign = match rest.get(0..1)? {
-                "+" => 1,
-                "-" => -1,
-                _ => return None,
-            };
-            let hours = rest.get(1..3)?.parse::<i64>().ok()?;
-            let minutes = rest.get(4..6)?.parse::<i64>().ok()?;
-            sign * (hours * 3600 + minutes * 60)
+    // The offset, in each form ISO 8601 allows — `+02:00`, `+0200`, `+02` — and nothing after.
+    let offset = if rest == "Z" {
+        0
+    } else {
+        let sign = match rest.get(0..1)? {
+            "+" => 1,
+            "-" => -1,
+            _ => return None,
+        };
+        let digits = |text: &str| text.len() == 2 && text.bytes().all(|b| b.is_ascii_digit());
+        let (hours, minutes) = match rest.len() {
+            3 => (rest.get(1..3)?, "00"),
+            5 => (rest.get(1..3)?, rest.get(3..5)?),
+            6 if rest.get(3..4)? == ":" => (rest.get(1..3)?, rest.get(4..6)?),
+            _ => return None,
+        };
+        if !digits(hours) || !digits(minutes) {
+            return None;
         }
+        sign * (hours.parse::<i64>().ok()? * 3600 + minutes.parse::<i64>().ok()? * 60)
     };
     // Days from 1970-01-01 to the date (Howard Hinnant's days_from_civil).
     let year = if month <= 2 { year - 1 } else { year };

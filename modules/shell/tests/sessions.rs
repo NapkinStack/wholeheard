@@ -20,7 +20,19 @@ fn an_instant_is_read_with_its_offset_as_the_contract_writes_it() {
     assert_eq!(instant("2026-10-13T14:05:12+02:00"), Some(1_791_893_112));
     assert_eq!(instant("2024-02-29T12:00:00.250+00:00"), Some(1_709_208_000));
     assert_eq!(instant("1969-12-31T23:00:00-05:30"), Some(16_200));
-    for wrong in ["", "2026-10-13", "2026-10-13 14:05:12+02:00", "2026-10-13T14:05:12", "yesterday"] {
+    // The other offset forms of ISO 8601 are the same instant.
+    assert_eq!(instant("2026-10-13T14:05:12+0200"), Some(1_791_893_112));
+    assert_eq!(instant("2026-10-13T14:05:12+02"), Some(1_791_893_112));
+    for wrong in [
+        "",
+        "2026-10-13",
+        "2026-10-13 14:05:12+02:00",
+        "2026-10-13T14:05:12",
+        "2026-10-13T14:05:12+02:00xyz",
+        "2026-10-13T14:05:12+02x00",
+        "2026-10-13T14:05:12+2:00",
+        "yesterday",
+    ] {
         assert_eq!(instant(wrong), None, "{wrong}");
     }
 }
@@ -64,7 +76,15 @@ fn each_session_says_its_day_length_state_what_it_holds_and_weighs_newest_first(
         r#"{"contract":"session-audio/v2","started":"2026-10-16T08:00:00+02:00","tracks":{}}"#,
         &[("local.wav", 20)],
     );
-    // Not sessions: no session.json, a form this version does not read, a file that is not JSON.
+    // Its folder named before the others, its instant after them, an offset west of here: listed by
+    // its instant. Its sound, written in capitals, is sound.
+    session(
+        &root.join("2026-10-01_00-00"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-17T05:00:00-05:00","stopped":"2026-10-17T05:01:00-05:00","tracks":{}}"#,
+        &[("LOCAL.WAV", 40)],
+    );
+    // Not sessions: no session.json, a form this version does not read, a file that is not JSON, a
+    // stop with no start.
     fs::create_dir_all(root.join("notes")).unwrap();
     session(
         &root.join("2026-10-15_10-00"),
@@ -72,6 +92,11 @@ fn each_session_says_its_day_length_state_what_it_holds_and_weighs_newest_first(
         &[],
     );
     session(&root.join("2026-10-14_10-00"), "not json", &[]);
+    session(
+        &root.join("2026-10-13_10-00"),
+        r#"{"contract":"session-audio/v2","stopped":"2026-10-13T11:00:00+02:00"}"#,
+        &[],
+    );
     fs::write(root.join("loose.wav"), [0u8; 4]).unwrap();
 
     let listed = sessions::list(root, Some(&now));
@@ -79,6 +104,7 @@ fn each_session_says_its_day_length_state_what_it_holds_and_weighs_newest_first(
     assert_eq!(
         names,
         [
+            "2026-10-01_00-00",
             "2026-10-17_09-00",
             "2026-10-16_08-00",
             "2026-10-13_12-01",
@@ -87,9 +113,10 @@ fn each_session_says_its_day_length_state_what_it_holds_and_weighs_newest_first(
         ]
     );
 
-    let [recording, interrupted, second, first, freed] = &listed[..] else {
+    let [west, recording, interrupted, second, first, freed] = &listed[..] else {
         unreachable!()
     };
+    assert_eq!((west.seconds, west.audio), (Some(60.0), 40));
     assert_eq!((recording.state, recording.seconds), (State::Recording, None));
     assert_eq!((interrupted.state, interrupted.seconds), (State::Interrupted, None));
     assert_eq!(
@@ -109,7 +136,7 @@ fn each_session_says_its_day_length_state_what_it_holds_and_weighs_newest_first(
 
     // Nobody records: the session never stopped is interrupted too.
     let quiet = sessions::list(root, None);
-    assert_eq!(quiet[0].state, State::Interrupted);
+    assert_eq!(quiet[1].state, State::Interrupted);
 }
 
 #[test]

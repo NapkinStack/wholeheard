@@ -8,7 +8,7 @@ deliverables:
   - id: D17
     title: "A user sees their meetings and what they weigh, and opens one"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given sessions in the user's folder — of both forms, some with a transcript or minutes, one whose audio was deleted — when the user opens the window from the tray's menu, then each meeting is listed by week, newest first, with its date, its length, what it holds and what its audio weighs, and above them what all the audio weighs against the transcripts and minutes"
       - "Given a session still being recorded, or one a recording left without its end, when the list is shown, then it says so, and nothing of it is offered that would touch its files"
