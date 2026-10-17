@@ -12,6 +12,7 @@ import datetime as dt
 import http.server
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -20,7 +21,7 @@ import time
 from pathlib import Path
 
 from selenium import webdriver
-from selenium.common.exceptions import WebDriverException
+from selenium.common.exceptions import StaleElementReferenceException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.options import ArgOptions
@@ -59,8 +60,12 @@ def check(what: str, held: bool, got: object = "") -> None:
 def wait_for(browser, holds, seconds: float = 10) -> bool:
     until = time.monotonic() + seconds
     while time.monotonic() < until:
-        if holds(browser):
-            return True
+        # The page drawn again between finding an element and reading it: not yet, look again.
+        try:
+            if holds(browser):
+                return True
+        except StaleElementReferenceException:
+            pass
         time.sleep(0.1)
     return False
 
@@ -367,6 +372,15 @@ def main() -> int:
         )
         failed = browser.find_element(By.ID, "not-saved").is_displayed()
         check("nothing said failed", not failed)
+        # The shortcut: the keys the desktop granted, or that it granted none; its keyboard
+        # settings offered where they can be opened — never opened here.
+        keys = browser.find_element(By.ID, "shortcut").text
+        offered = bool(browser.find_elements(By.ID, "shortcut-settings"))
+        check(
+            "the shortcut is shown as the desktop granted it, and where it changes",
+            keys != "" and offered == (shutil.which("gnome-control-center") is not None),
+            f"{keys!r}, settings offered: {offered}",
+        )
         # The sessions' folder: typed, made when it is not there, and what the list reads.
         elsewhere = WORK / "elsewhere" / "Summit"
         folder = browser.find_element(By.ID, "sessions")

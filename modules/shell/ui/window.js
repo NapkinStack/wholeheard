@@ -295,6 +295,8 @@ function choice(name, value, [label, says], checked, disabled) {
 
 // Who writes the minutes: picked from what Ollama holds, an online service, or the user's own
 // address; a key goes to the system's keyring, and the page never receives one back.
+let testing = false;
+
 function minutesRow(minutes, words, locked) {
   const box = element("div", "minutes-step");
   const row = element("div", "row");
@@ -392,12 +394,13 @@ function minutesRow(minutes, words, locked) {
   draw();
   box.append(row, fields, where);
   // Tester: the choice saved, asked whether it answers — one sentence of Summit's, said first.
+  // One test at a time, the page drawn again meanwhile or not.
   if (minutes.provider && minutes.model) {
     const test = element("div", "row");
     const button = element("button", "open", words.test);
     button.type = "button";
     button.id = "minutes-test";
-    button.disabled = locked;
+    button.disabled = locked || testing;
     const tested = element("p", "says");
     tested.id = "minutes-tested";
     tested.setAttribute("aria-live", "polite");
@@ -405,17 +408,25 @@ function minutesRow(minutes, words, locked) {
     try {
       host = new URL(minutes.provider).host;
     } catch {}
-    tested.textContent = fill(words.test_sends, host);
+    tested.textContent = testing ? words.testing : fill(words.test_sends, host);
+    button.dataset.locked = String(locked);
     button.addEventListener("click", async () => {
+      testing = true;
       button.disabled = true;
       tested.textContent = words.testing;
+      let said;
       try {
         await window.__TAURI__.core.invoke("minutes_tested");
-        tested.textContent = words.test_answered;
+        said = words.test_answered;
       } catch (why) {
-        tested.textContent = fill(words.test_failed, why);
+        said = fill(words.test_failed, why);
       }
-      button.disabled = locked;
+      testing = false;
+      // Said on the page as it is now: it may have been drawn again meanwhile.
+      const now = document.getElementById("minutes-tested");
+      if (now) now.textContent = said;
+      const again = document.getElementById("minutes-test");
+      if (again) again.disabled = again.dataset.locked === "true";
     });
     test.append(button, tested);
     box.append(test);
@@ -532,7 +543,25 @@ function showSettings(shown, minutes, words) {
     if (chosen !== null) save({ sessions: chosen });
   });
   where.append(whereSaid, path, choose);
-  more.append(remind, keep, where);
+  // The shortcut: the desktop's to grant and to change; the page says which keys, and where.
+  const keys = element("div", "row");
+  const keysSaid = element("span", "said");
+  keysSaid.append(element("span", "name", words.shortcut[0]), element("span", "says", `${words.shortcut[1]} ${words.shortcut_where}`));
+  const granted = element("kbd", "keys", shown.shortcut ?? words.shortcut_none);
+  granted.id = "shortcut";
+  keys.append(keysSaid, granted);
+  if (shown.shortcut_settings) {
+    const open = element("button", "open", words.shortcut_open);
+    open.type = "button";
+    open.id = "shortcut-settings";
+    open.addEventListener("click", () =>
+      window.__TAURI__.core.invoke("shortcut_settings").catch((why) => {
+        keysSaid.lastChild.textContent = why;
+      }),
+    );
+    keys.append(open);
+  }
+  more.append(remind, keep, where, keys);
   parts.push(more);
   page.replaceChildren(...parts);
 }

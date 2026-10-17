@@ -64,6 +64,8 @@ struct Shell {
     transcribe: MenuItem<Wry>,
     /// The transcript being made, when there is one: one at a time.
     transcription: Mutex<Option<Transcription>>,
+    /// The keys the desktop granted the shortcut, as it says them; none while it has not.
+    shortcut: Mutex<Option<String>>,
     /// The sessions whose transcripts wait for the one being made, or for the model — in
     /// the order they were asked, each once.
     waiting: Mutex<VecDeque<PathBuf>>,
@@ -113,7 +115,8 @@ fn main() {
             minutes_shown,
             minutes_saved,
             minutes_tested,
-            choose_folder
+            choose_folder,
+            shortcut_settings
         ])
         .setup(|app| {
             let language = Language::system();
@@ -161,6 +164,7 @@ fn main() {
                 stopping: Mutex::new(false),
                 transcribe: again,
                 transcription: Mutex::new(None),
+                shortcut: Mutex::new(None),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
                 download,
@@ -291,6 +295,10 @@ struct Model {
 /// why the file is not written when it could not be read.
 #[derive(serde::Serialize)]
 struct SettingsShown {
+    /// The shortcut's keys as the desktop granted them, and whether its keyboard settings, where
+    /// they change, can be opened from here.
+    shortcut: Option<String>,
+    shortcut_settings: bool,
     sessions: PathBuf,
     after: After,
     reminder: bool,
@@ -323,6 +331,8 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         })
         .collect();
     SettingsShown {
+        shortcut: shell.shortcut.lock().unwrap().clone(),
+        shortcut_settings: keyboard_settings().is_some(),
         sessions: settings.sessions,
         after: settings.after,
         reminder: settings.reminder,
@@ -416,6 +426,29 @@ fn expire(app: &AppHandle, refused: &mut Option<Refusal>) {
     if !said_already {
         tell(app, &words::audio_trashed(shell.language, &outcome));
     }
+}
+
+/// The desktop's keyboard settings, where a global shortcut is changed: GNOME's, when it is there.
+fn keyboard_settings() -> Option<PathBuf> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .map(|folder| folder.join("gnome-control-center"))
+        .find(|program| program.is_file())
+}
+
+/// Opens the desktop's keyboard settings: the shortcut is the desktop's to change.
+#[tauri::command]
+fn shortcut_settings() -> Result<(), String> {
+    let program = keyboard_settings().ok_or("this desktop's keyboard settings cannot be opened from Summit")?;
+    let mut started = std::process::Command::new(program)
+        .arg("keyboard")
+        .spawn()
+        .map_err(|error| error.to_string())?;
+    std::thread::spawn(move || started.wait());
+    Ok(())
 }
 
 /// A folder chosen in the system's own dialog, opened where the sessions are; none when the user
@@ -528,8 +561,13 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
         Ok(output) if output.status.success() => Ok(()),
         Ok(output) => {
             let said = String::from_utf8_lossy(&output.stderr);
-            let said = said.lines().last().unwrap_or("").trim();
-            Err(said.strip_prefix("summit-summary: ").unwrap_or(said).to_string())
+            let said = said.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
+            let said = said.strip_prefix("summit-summary: ").unwrap_or(said);
+            Err(if said.is_empty() {
+                format!("summit-summary stopped without saying why ({})", output.status)
+            } else {
+                said.to_string()
+            })
         }
         Err(error) => Err(format!("summit-summary could not be started ({error})")),
     }
@@ -927,13 +965,35 @@ async fn bound(app: &AppHandle) -> Result<(), String> {
         .bind_shortcuts(&session, &[wanted], None, Default::default())
         .await
         .map_err(said)?;
-    if bound.response().map_err(said)?.shortcuts().is_empty() {
+    let granted = bound.response().map_err(said)?;
+    let Some(first) = granted.shortcuts().first() else {
         return Err("no key was bound".into());
+    };
+    *app.state::<Shell>().shortcut.lock().unwrap() = Some(first.trigger_description().to_string());
+    // A press records or stops; a change the user makes in the desktop's settings is what the
+    // window shows next.
+    enum Heard {
+        Pressed,
+        Changed(Option<String>),
     }
-    let mut pressed = shortcuts.receive_activated().await.map_err(said)?;
-    while pressed.next().await.is_some() {
-        let handle = app.clone();
-        let _ = app.run_on_main_thread(move || toggle_recording(&handle));
+    let pressed = shortcuts.receive_activated().await.map_err(said)?.map(|_| Heard::Pressed);
+    let changed = shortcuts.receive_shortcuts_changed().await.map_err(said)?.map(|changed| {
+        Heard::Changed(
+            changed
+                .shortcuts()
+                .first()
+                .map(|shortcut| shortcut.trigger_description().to_string()),
+        )
+    });
+    let mut heard = std::pin::pin!(futures_util::stream::select(pressed, changed));
+    while let Some(event) = heard.next().await {
+        match event {
+            Heard::Pressed => {
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || toggle_recording(&handle));
+            }
+            Heard::Changed(keys) => *app.state::<Shell>().shortcut.lock().unwrap() = keys,
+        }
     }
     Ok(())
 }
@@ -957,5 +1017,7 @@ async fn bound(app: &AppHandle) -> Result<(), String> {
     app.plugin(handler).map_err(|error| error.to_string())?;
     app.global_shortcut()
         .register(Shortcut::new(Some(keys), Code::KeyM))
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    *app.state::<Shell>().shortcut.lock().unwrap() = Some(if cfg!(target_os = "macos") { "⌥⌘M" } else { "Ctrl+Alt+M" }.to_string());
+    Ok(())
 }
