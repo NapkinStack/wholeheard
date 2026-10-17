@@ -94,6 +94,11 @@ on.
      **what will be recorded** and **the threshold it is read against** — never that the answer
      comes out a particular way. **A refuted result is a delivered one.** "Five people were
      asked, one acted, below the threshold of two" closes the deliverable; it does not fail it.
+     When its product is a **drawing** — the screens, the journey the user will see — the
+     drawing is committed under `docs/project/drawings/<deliverable>-<name>/` with its date,
+     and frozen: what the decider accepts in it becomes criteria of the deliverable that
+     builds it, and once built, the product and its screenshots are the truth. A new round is
+     a new folder, never an update.
 
    A criterion nobody can meet is not met. It is answered with something that looks like proof,
    and that answer is reviewed and merged like the rest.
