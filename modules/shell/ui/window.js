@@ -346,7 +346,8 @@ function minutesRow(minutes, words, locked) {
   const save = async (provider, model, key) => {
     let failed = null;
     try {
-      await window.__TAURI__.core.invoke("minutes_saved", { provider, model, key });
+      const notKept = await window.__TAURI__.core.invoke("minutes_saved", { provider, model, key });
+      if (notKept !== null) failed = fill(words.key_not_kept, notKept);
     } catch (why) {
       failed = fill(words.not_saved, why);
     }

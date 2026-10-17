@@ -437,7 +437,7 @@ async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, String> 
 /// Who writes the minutes, chosen: a provider's address, a model, and — for one that asks for it —
 /// a key, kept in the system's keyring and nowhere else.
 #[tauri::command]
-fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: Option<String>) -> Result<(), String> {
+async fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: Option<String>) -> Result<Option<String>, String> {
     // The choice goes onto what the file says now; a file that cannot be read is not written over,
     // and no key is kept for a choice that is not saved: the file first, then the key.
     let mut settings = shell.reread()?;
@@ -445,7 +445,7 @@ fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: 
     if model.trim().is_empty() {
         return Err("a model is named".into());
     }
-    let key = key.as_deref().map(str::trim).filter(|key| !key.is_empty());
+    let key = key.map(|key| key.trim().to_string()).filter(|key| !key.is_empty());
     if key.is_some()
         && let Some(why) = shell.keyring.lock().unwrap().clone()
     {
@@ -456,7 +456,11 @@ fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: 
     let file = settings::file().ok_or("this system names no folder for settings")?;
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
     *shell.settings.lock().unwrap() = settings;
-    key.map_or(Ok(()), |key| keys::keep(&host, key))
+    // Saved: the key now, away from the window and the tray — the keyring may ask the user first.
+    // Refused, the choice stays saved and the page says only the key was not kept.
+    let Some(key) = key else { return Ok(None) };
+    let kept = tauri::async_runtime::spawn_blocking(move || keys::keep(&host, &key)).await;
+    Ok(kept.map_err(|error| error.to_string()).and_then(|kept| kept).err())
 }
 
 /// Why the trash refused, as the user is told it: the system's own wording names a file and
