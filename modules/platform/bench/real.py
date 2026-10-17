@@ -12,9 +12,11 @@ is the local side, the others mixed are the remote — and `reference.json`, the
 A passage is cut where nobody speaks, so that no turn is half in it.
 
 `score` reads `transcript.jsonl` in each folder beside a `reference.json` — `v1/`, `v2/`, or a
-copy made to try another engine or model — and prints
-the share of words wrong — all of them, and without the fillers a transcript leaves out — per
-passage, then the median.
+copy made to try another engine or model — and prints, for each side apart and without the
+fillers a transcript leaves out, the share of words said that it missed or misheard, and the
+words it wrote beyond them, per passage, then the median. The two are kept apart because
+SUMM-RE's participants often share a room: each microphone also carries the others faintly, so
+a remote side can rightly hold words the reference gives to the local one.
 """
 
 from __future__ import annotations
@@ -167,32 +169,35 @@ def write_v2(folder: Path, sides: dict[str, np.ndarray]) -> None:
     )
 
 
-def wrong(reference: list[str], transcript: list[str]) -> float:
-    return jiwer.wer(" ".join(reference), " ".join(transcript)) if reference else 0.0
+def errors(reference: list[str], transcript: list[str]) -> tuple[float, float]:
+    """The share of the reference's words missed or misheard, and of words written beyond them."""
+    if not reference:
+        return 0.0, 0.0
+    found = jiwer.process_words(" ".join(reference), " ".join(transcript) or "")
+    return (found.substitutions + found.deletions) / len(reference), found.insertions / len(reference)
 
 
 def score(passages: list[Path]) -> None:
-    rows: dict[str, list[tuple[float, float]]] = {}
+    rows: dict[tuple[str, str], list[tuple[float, float]]] = {}
     for passage in passages:
         reference = json.loads((passage / "reference.json").read_text(encoding="utf-8"))
-        truth = [word for turn in reference["turns"] for word in spoken(turn["text"])]
         for path in sorted(passage.glob("*/transcript.jsonl")):
             form = path.parent.name
             lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
             segments = sorted((s for s in lines if s.get("type") == "segment"), key=lambda s: s["start"])
-            heard = [word for s in segments for word in words(s["text"])]
-            both = (
-                wrong(truth, heard),
-                wrong([w for w in truth if w not in FILLERS], [w for w in heard if w not in FILLERS]),
-            )
-            rows.setdefault(form, []).append(both)
-            print(
-                f"{reference['meeting']} {form}: {both[0]:.1%} of {len(truth)} words wrong, {both[1]:.1%} without fillers"
-            )
-    for form, found in rows.items():
+            for side in ("local", "remote"):
+                truth = [w for t in reference["turns"] if t["side"] == side for w in spoken(t["text"])]
+                heard = [w for s in segments if s.get("track") == side for w in words(s["text"])]
+                found = errors([w for w in truth if w not in FILLERS], [w for w in heard if w not in FILLERS])
+                rows.setdefault((form, side), []).append(found)
+                print(
+                    f"{reference['meeting']} {form} {side}: {found[0]:.1%} missed or misheard, "
+                    f"{found[1]:.1%} written beyond"
+                )
+    for (form, side), found in sorted(rows.items()):
         print(
-            f"median {form}: {statistics.median(a for a, _ in found):.1%}, "
-            f"{statistics.median(b for _, b in found):.1%} without fillers, over {len(found)} passage(s)"
+            f"median {form} {side}: {statistics.median(a for a, _ in found):.1%} missed or misheard, "
+            f"{statistics.median(b for _, b in found):.1%} written beyond, over {len(found)} passage(s)"
         )
 
 

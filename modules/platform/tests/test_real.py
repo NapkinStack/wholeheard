@@ -96,24 +96,27 @@ def test_a_meeting_becomes_a_passage_in_both_forms_with_what_was_said_in_it(tmp_
     assert {line["track"] for line in clock} == {"local", "remote"}
 
 
-def test_a_transcript_that_says_what_was_said_is_scored_none_wrong_and_fillers_apart(tmp_path, capsys):
+def test_a_transcript_that_says_what_was_said_is_scored_none_missed_side_by_side(tmp_path, capsys):
     shard(tmp_path / "shards")
     build(tmp_path / "shards", tmp_path / "out", 2.0)
     passage = tmp_path / "out" / "m1"
     turns = json.loads((passage / "reference.json").read_text(encoding="utf-8"))["turns"]
-    # A transcript writing every turn but its fillers.
+    # A transcript writing every turn on its side but its fillers, and one word more on the remote.
     lines = [
         {
             "type": "segment",
             "start": t["start"],
             "end": t["end"],
-            "speaker": "me",
+            "speaker": "me" if t["side"] == "local" else None,
+            "track": t["side"],
             "text": " ".join(w for w in t["text"].split() if w not in FILLERS),
         }
         for t in turns
     ]
+    lines.append({"type": "segment", "start": 0.0, "end": 0.5, "speaker": None, "track": "remote", "text": "oui"})
     (passage / "v1" / "transcript.jsonl").write_text("".join(json.dumps(line) + "\n" for line in lines))
     score([passage])
     said = capsys.readouterr().out
-    assert "m1 v1:" in said and "0.0% without fillers" in said and "median v1:" in said
-    assert "m1 v1: 0.0%" not in said  # the fillers left out count when they are counted
+    assert "m1 v1 local: 0.0% missed or misheard, 0.0% written beyond" in said
+    assert "m1 v1 remote: 0.0% missed or misheard" in said and "m1 v1 remote: 0.0% missed or misheard, 0.0%" not in said
+    assert "median v1 local:" in said and "median v1 remote:" in said

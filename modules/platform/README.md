@@ -81,9 +81,11 @@ doing compares with another on the same meeting, not how well Summit hears a rea
 [SUMM-RE](https://huggingface.co/datasets/linagora/SUMM-RE) (CC BY-SA 4.0) — French meetings,
 each participant on their own microphone, transcribed by people. In each passage the one who
 speaks most is the local side and the others, mixed, the remote; it is cut where nobody speaks,
-and written in both forms of a session. Its score is the share of words wrong against what was
-said, and again without the fillers (*euh*, *hum*) a transcript leaves out. No audio enters
-the repository: the shards are fetched from the hub.
+and written in both forms of a session. Its score, for each side apart and without the fillers
+(*euh*, *hum*) a transcript leaves out, is the share of words said that were missed or
+misheard, and apart the words written beyond them: SUMM-RE's participants often share a room,
+so a remote side can rightly hold the local one's words, faintly heard. No audio enters the
+repository: the shards are fetched from the hub.
 
 ```bash
 # The shards of the meetings to read, fetched once into <parquet-folder>; then, five minutes of each.
