@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use summit_shell::{
     recording::{Said, Source},
-    words::{self, Language, Notice},
+    words::{self, Language, Notice, Refusal},
 };
 
 const BOTH: [Language; 2] = [Language::English, Language::French];
@@ -342,7 +342,7 @@ fn the_model_is_offered_with_its_size_and_host_and_its_fetch_is_said() {
 
 #[test]
 fn audio_sent_to_the_trash_is_said_with_its_counts_and_a_refusal_never_claims_too_much() {
-    let said = |language, outcome: Result<(usize, u32), String>| {
+    let said = |language, outcome: Result<(usize, u32), Refusal>| {
         let Notice { title, body } = words::audio_trashed(language, &outcome);
         format!("{title} | {body}")
     };
@@ -366,15 +366,24 @@ fn audio_sent_to_the_trash_is_said_with_its_counts_and_a_refusal_never_claims_to
         "Audio mis à la corbeille | L’audio de 3 réunions gardé plus de 30 jours est dans la \
          corbeille ; leurs transcripts et leurs comptes rendus restent."
     );
-    // The trash may have taken some before it refused: what is said holds either way.
+    // The trash may have taken some before it refused: what is said holds either way, in the
+    // user's language, without the system's own wording.
     assert_eq!(
-        said(Language::English, Err("no trash on this drive".into())),
-        "The audio was not all moved to the trash | no trash on this drive. What was not moved \
+        said(Language::English, Err(Refusal::NotAllowed)),
+        "The audio was not all moved to the trash | The trash refused access. What was not moved \
          stays where it was; nothing was deleted."
     );
     assert_eq!(
-        said(Language::French, Err("pas de corbeille sur ce disque".into())),
-        "L’audio n’a pas été entièrement mis à la corbeille | pas de corbeille sur ce disque. Ce \
+        said(Language::French, Err(Refusal::NoSpace)),
+        "L’audio n’a pas été entièrement mis à la corbeille | La corbeille n’a plus de place. Ce \
          qui n’a pas été déplacé reste à sa place ; rien n’a été supprimé."
     );
+    assert_eq!(
+        said(Language::French, Err(Refusal::Other)),
+        "L’audio n’a pas été entièrement mis à la corbeille | La corbeille du système ne l’a pas \
+         pris. Ce qui n’a pas été déplacé reste à sa place ; rien n’a été supprimé."
+    );
+    assert!(said(Language::English, Err(Refusal::NoSpace)).contains("The trash has no room left."));
+    assert!(said(Language::English, Err(Refusal::Other)).contains("The system's trash did not take it."));
+    assert!(said(Language::French, Err(Refusal::NotAllowed)).contains("La corbeille a refusé l’accès."));
 }

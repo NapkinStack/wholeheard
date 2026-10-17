@@ -612,9 +612,17 @@ pub fn fetching(language: Language, held: u64, bytes: u64) -> String {
     downloading(language, held * 100 / bytes.max(1))
 }
 
+/// Why the system's trash did not take the audio, in the user's words rather than the system's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refusal {
+    NotAllowed,
+    NoSpace,
+    Other,
+}
+
 /// Said when the audio of meetings kept longer than the settings say went to the system's trash;
 /// or, `Err`, why it could not.
-pub fn audio_trashed(language: Language, outcome: &Result<(usize, u32), String>) -> Notice {
+pub fn audio_trashed(language: Language, outcome: &Result<(usize, u32), Refusal>) -> Notice {
     let (title, body) = match (language, outcome) {
         (Language::English, Ok((1, days))) => (
             "Audio moved to the trash".to_string(),
@@ -645,13 +653,27 @@ pub fn audio_trashed(language: Language, outcome: &Result<(usize, u32), String>)
             ),
         ),
         // The trash may have taken some before it refused: what is said holds either way.
-        (Language::English, Err(why)) => (
+        (Language::English, Err(refusal)) => (
             "The audio was not all moved to the trash".to_string(),
-            format!("{why}. What was not moved stays where it was; nothing was deleted."),
+            format!(
+                "{} What was not moved stays where it was; nothing was deleted.",
+                match refusal {
+                    Refusal::NotAllowed => "The trash refused access.",
+                    Refusal::NoSpace => "The trash has no room left.",
+                    Refusal::Other => "The system's trash did not take it.",
+                }
+            ),
         ),
-        (Language::French, Err(why)) => (
+        (Language::French, Err(refusal)) => (
             "L’audio n’a pas été entièrement mis à la corbeille".to_string(),
-            format!("{why}. Ce qui n’a pas été déplacé reste à sa place ; rien n’a été supprimé."),
+            format!(
+                "{} Ce qui n’a pas été déplacé reste à sa place ; rien n’a été supprimé.",
+                match refusal {
+                    Refusal::NotAllowed => "La corbeille a refusé l’accès.",
+                    Refusal::NoSpace => "La corbeille n’a plus de place.",
+                    Refusal::Other => "La corbeille du système ne l’a pas pris.",
+                }
+            ),
         ),
     };
     Notice { title, body }

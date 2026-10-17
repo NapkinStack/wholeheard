@@ -25,7 +25,7 @@ use summit_shell::{
     sessions::{self, Listed},
     settings::{self, After, KeepAudio, Settings},
     transcription::{self, Made, Transcription},
-    words::{self, Language, Notice, Trouble},
+    words::{self, Language, Notice, Refusal, Trouble},
 };
 use tauri::{
     AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, Wry,
@@ -365,7 +365,7 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
 /// deleted, restored from the trash —, and says so once. A session's folder that is a link the
 /// user put in the sessions' folder is followed, as the list follows it. A refusal is said once,
 /// and again only when its reason changes: `refused` is the last one said.
-fn expire(app: &AppHandle, refused: &mut Option<String>) {
+fn expire(app: &AppHandle, refused: &mut Option<Refusal>) {
     let shell = app.state::<Shell>();
     let Ok(settings) = shell.reread() else { return };
     let KeepAudio::Days(days) = settings.keep_audio else { return };
@@ -382,9 +382,9 @@ fn expire(app: &AppHandle, refused: &mut Option<String>) {
         .collect();
     let outcome = trash::delete_all(&gone)
         .map(|()| (meetings.len(), days))
-        .map_err(|error| error.to_string());
-    let said_already = matches!((&outcome, &*refused), (Err(why), Some(said)) if why == said);
-    *refused = outcome.as_ref().err().cloned();
+        .map_err(|error| refusal(&error));
+    let said_already = matches!((outcome, *refused), (Err(why), Some(said)) if why == said);
+    *refused = outcome.err();
     if !said_already {
         tell(app, &words::audio_trashed(shell.language, &outcome));
     }
@@ -449,6 +449,21 @@ fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: 
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
     *shell.settings.lock().unwrap() = settings;
     Ok(())
+}
+
+/// Why the trash refused, as the user is told it: the system's own wording names a file and
+/// changes with it.
+fn refusal(error: &trash::Error) -> Refusal {
+    use std::io::ErrorKind;
+    match error {
+        trash::Error::FileSystem { source, .. } => match source.kind() {
+            ErrorKind::PermissionDenied | ErrorKind::ReadOnlyFilesystem => Refusal::NotAllowed,
+            ErrorKind::StorageFull | ErrorKind::QuotaExceeded => Refusal::NoSpace,
+            _ => Refusal::Other,
+        },
+        trash::Error::CouldNotAccess { .. } => Refusal::NotAllowed,
+        _ => Refusal::Other,
+    }
 }
 
 /// Shows a notification. A desktop that shows none is no reason to stop anything.
