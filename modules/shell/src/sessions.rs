@@ -99,15 +99,18 @@ fn read(folder: &Path, recording: Option<&Path>) -> Option<Listed> {
 }
 
 /// The sound of the sessions stopped more than `days` days before `now` (seconds since 1970): every
-/// `.wav` in each such session's folder, what was made from the tracks too. A session being
-/// recorded, left without its end, or that cannot be dated keeps its sound.
+/// `.wav` in each such session's folder, what was made from the tracks too — never through a link.
+/// A session keeps its sound while it is being recorded, was left without its end, cannot be
+/// dated, stopped before it started — a clock gone back —, or holds no transcript: its sound is
+/// then all there is of it.
 pub fn expired_audio(sessions: &Path, days: u32, now: i64) -> Vec<PathBuf> {
     let reach = i64::from(days) * 86_400;
     // A session with a length is one that stopped.
     list(sessions, None)
         .into_iter()
         .filter(|session| {
-            matches!((session.instant, session.seconds), (Some(started), Some(seconds)) if started + seconds as i64 + reach <= now)
+            session.transcript
+                && matches!((session.instant, session.seconds), (Some(started), Some(seconds)) if seconds >= 0.0 && started + seconds as i64 + reach <= now)
         })
         .flat_map(|session| {
             let mut sound = Vec::new();

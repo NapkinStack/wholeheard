@@ -208,7 +208,7 @@ fn the_sound_of_sessions_stopped_more_than_the_days_kept_is_what_goes() {
     session(
         &root.join("new"),
         r#"{"contract":"session-audio/v2","started":"2026-10-15T09:00:00Z","stopped":"2026-10-15T10:00:00Z","tracks":{}}"#,
-        &[("local.wav", 10)],
+        &[("local.wav", 10), ("transcript.jsonl", 3)],
     );
     session(
         &root.join("cut"),
@@ -239,4 +239,36 @@ fn the_sound_of_sessions_stopped_more_than_the_days_kept_is_what_goes() {
     assert!(sessions::expired_audio(root, 16, between).is_empty());
     // Two days kept: the other stopped session goes too; never the one without its end.
     assert_eq!(sessions::expired_audio(root, 2, now).len(), 4);
+
+    // Stopped before it started, a clock gone back: it keeps its sound. So does one never transcribed.
+    session(
+        &root.join("backwards"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-16T09:00:00Z","stopped":"1970-01-01T00:00:00Z","tracks":{}}"#,
+        &[("local.wav", 10), ("transcript.jsonl", 3)],
+    );
+    session(
+        &root.join("untranscribed"),
+        r#"{"contract":"session-audio/v2","started":"2026-09-01T09:00:00Z","stopped":"2026-09-01T10:00:00Z","tracks":{}}"#,
+        &[("local.wav", 10)],
+    );
+    assert_eq!(sessions::expired_audio(root, 2, now).len(), 4);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_link_in_a_session_never_sends_what_it_points_to() {
+    let folder = tempfile::tempdir().unwrap();
+    let root = folder.path().join("sessions");
+    let outside = folder.path().join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(outside.join("keep.wav"), [0u8; 4]).unwrap();
+    session(
+        &root.join("old"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-01T09:00:00Z","stopped":"2026-10-01T10:00:00Z","tracks":{}}"#,
+        &[("local.wav", 10), ("transcript.jsonl", 3)],
+    );
+    std::os::unix::fs::symlink(outside.join("keep.wav"), root.join("old/linked.wav")).unwrap();
+    std::os::unix::fs::symlink(&outside, root.join("old/derived")).unwrap();
+    let now = instant("2026-10-17T10:00:00Z").unwrap();
+    assert_eq!(sessions::expired_audio(&root, 1, now), [root.join("old/local.wav")]);
 }
