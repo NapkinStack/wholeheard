@@ -273,9 +273,20 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
 /// Puts the minutes in the session's folder: under their name only once they are whole. The
 /// minutes that were there are replaced; a failure before the last step leaves them as they were.
 pub fn write_minutes(folder: &Path, minutes: &Minutes) -> io::Result<()> {
+    use std::io::Write;
     let draft = folder.join("minutes.md.part");
+    // What sits at the draft's name — one left by a crash, or a link — goes first: the draft is
+    // made new, never written through a link into another file.
+    match fs::remove_file(&draft) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error),
+        _ => {}
+    }
     // Whatever fails, the draft goes: written in part or not renamed, it is no minutes.
-    fs::write(&draft, minutes.as_str())
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&draft)
+        .and_then(|mut file| file.write_all(minutes.as_str().as_bytes()))
         .and_then(|()| fs::rename(&draft, folder.join("minutes.md")))
         .inspect_err(|_| {
             let _ = fs::remove_file(&draft);
