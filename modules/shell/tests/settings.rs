@@ -230,3 +230,16 @@ fn a_write_that_fails_leaves_the_file_as_it_was() {
     assert!(write(&path, &settings).is_err());
     assert_eq!(fs::read_to_string(&path).unwrap(), "reminder = true\n");
 }
+
+#[test]
+fn the_old_key_stays_until_after_is_written() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "transcript = false\n").unwrap();
+    let mut settings = read(&path).unwrap();
+    settings.reminder = false;
+    write(&path, &settings).unwrap();
+    // Nothing follows still: the old key says it, as long as `after` is not there.
+    assert_eq!(read(&path).unwrap().after, After::Nothing);
+    assert!(fs::read_to_string(&path).unwrap().contains("transcript = false"));
+}

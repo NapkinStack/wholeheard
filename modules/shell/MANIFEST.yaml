@@ -85,6 +85,12 @@ dependencies:
     purpose: Writes the settings file again keeping the user's comments and the keys it does not know
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One function, write, in src/settings.rs; writing the whole file anew replaces it, losing comments.
+  - name: keyring-core
+    purpose: Keeps a provider's key in the system's keyring, never in a file — with its store for each system
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: >
+      Three functions and the store's opening in src/keys.rs; secret-tool, the Keychain and the
+      Credential Manager's own interfaces replace it.
   - name: dirs
     purpose: Names the user's configuration and documents folders, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
