@@ -174,7 +174,7 @@ What the line says, and what it cost to get one worth reading: [its entry in the
 
 ### D9
 
-In progress. The second form of a session (`contracts/session-audio/v2`) is what `record`
+Offered for acceptance. The second form of a session (`contracts/session-audio/v2`) is what `record`
 writes, and so what the tray records (#161); the step that follows reads it.
 
 | Piece | Today |
@@ -198,17 +198,23 @@ form takes up faint speech more readily.
 `record` writes, from the tray too (#161). Their decision of 2026-10-14 — the first form until
 D10 holds — is closed: D10 holds.
 
-Not measured yet — the fourth criterion: what an hour weighs on the decider's laptop.
-Computed, not measured: two tracks at 48,000 samples a second, two channels, 24 bits are
-2.07 GB an hour as delivered. The limit that replaces 250 MB is the decider's to set on the
-real measure.
+**What an hour weighs** ([its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6236482606)),
+recorded by `record` at the format of the decider's laptop (48 kHz, 2 channels, both sources):
+**2.07 GB as written** — the sources' rate × channels × 3 bytes, to the byte — and about
+**1.0 GB compressed without loss**, with the noise floor of the decider's own devices.
+
+**The limit that replaces 250 MB**, set by the agent on the decider's delegation of
+2026-10-17, theirs to change: a session weighs no more than what its sources deliver at 24
+bits, and less than 0.1 % beside for headers and clock — 2.1 GB an hour on the laptop.
+Compressing without loss would halve it: a lever for later; space is the user's to free
+(D11).
 
 A session of the first form is still read: `summit-transcription` reads either form by what
 `session.json` names, and refuses a contract it does not know.
 
-Left before D9 is offered for acceptance: the hour's weight, and the limit the decider sets on
-it. Known and set aside by the decider (#131): at a change of the sound server's period the
-microphone track loses a few frames, and the clock marks it.
+**Offered for acceptance**: each of the five criteria has its answer above. Known and set aside
+by the decider (#131): at a change of the sound server's period the microphone track loses a
+few frames, and the clock marks it — in 5 of 10 end-to-end runs of #161.
 
 ### D10
 
