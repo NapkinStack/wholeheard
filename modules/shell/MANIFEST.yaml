@@ -81,6 +81,10 @@ dependencies:
     purpose: Reads the settings file, a few lines the user can write by hand
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One call in src/settings.rs, behind serde; another format is another reader of the same struct.
+  - name: toml_edit
+    purpose: Writes the settings file again keeping the user's comments and the keys it does not know
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: One function, write, in src/settings.rs; writing the whole file anew replaces it, losing comments.
   - name: dirs
     purpose: Names the user's configuration and documents folders, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md

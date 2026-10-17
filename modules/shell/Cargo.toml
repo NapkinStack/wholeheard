@@ -18,6 +18,7 @@ sys-locale = "0.3.2"
 tauri = { version = "2.12.3", features = ["tray-icon", "image-png"] }
 tauri-plugin-notification = "2"
 toml = "0.9"
+toml_edit = "0.25"
 ureq = "3.4.2"
 
 [build-dependencies]

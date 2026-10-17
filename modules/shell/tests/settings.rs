@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path};
 
-use summit_shell::settings::{Settings, file, read};
+use summit_shell::settings::{After, KeepAudio, Settings, file, read, write};
 
 fn written(text: &str) -> Result<Settings, String> {
     let folder = tempfile::tempdir().unwrap();
@@ -70,10 +70,163 @@ fn a_file_that_is_not_settings_is_said_in_one_sentence_and_not_used() {
 fn the_transcript_follows_a_recording_with_the_model_the_settings_name() {
     // Out of the box the transcript is made, with the default model in Summit's data folder.
     let defaults = Settings::default();
-    assert!(defaults.transcript && defaults.model.is_absolute());
+    assert!(defaults.after == After::Transcript && defaults.model.is_absolute());
     assert!(defaults.model.ends_with(format!("summit/models/{}", summit_shell::settings::MODEL)));
     let chosen = written(&format!("transcript = false\nmodel = \"{}/models/ggml-small.bin\"\n", '~')).unwrap();
-    assert!(!chosen.transcript && chosen.model.is_absolute() && chosen.model.ends_with("models/ggml-small.bin"));
+    // Written before `after`: `transcript = false` is "nothing follows".
+    assert!(chosen.after == After::Nothing && chosen.model.is_absolute() && chosen.model.ends_with("models/ggml-small.bin"));
     let said = written("\nmodel = \"ggml-small.bin\"\n").unwrap_err();
     assert!(said.starts_with("<file>, line 2: model is the file's whole path"), "{said}");
+}
+
+#[test]
+fn what_follows_a_recording_who_writes_the_minutes_and_how_long_audio_is_kept() {
+    let defaults = Settings::default();
+    assert_eq!(
+        (
+            defaults.minutes_provider.clone(),
+            defaults.minutes_model.clone(),
+            defaults.keep_audio
+        ),
+        (None, None, KeepAudio::Always)
+    );
+    let chosen = written(
+        "after = \"minutes\"\nminutes_provider = \"https://openrouter.ai/api/v1\"\nminutes_model = \"anthropic/claude-sonnet\"\nkeep_audio = 90\n",
+    )
+    .unwrap();
+    assert_eq!(chosen.after, After::Minutes);
+    assert_eq!(chosen.minutes_provider.as_deref(), Some("https://openrouter.ai/api/v1"));
+    assert_eq!(chosen.minutes_model.as_deref(), Some("anthropic/claude-sonnet"));
+    assert_eq!(chosen.keep_audio, KeepAudio::Days(90));
+    // `after` says it when both are there.
+    assert_eq!(
+        written("transcript = false\nafter = \"transcript\"\n").unwrap().after,
+        After::Transcript
+    );
+    assert_eq!(written("keep_audio = \"always\"\n").unwrap().keep_audio, KeepAudio::Always);
+    for (text, expected) in [
+        ("after = \"later\"\n", "<file>, line 1: "),
+        ("\nkeep_audio = 0\n", "<file>, line 2: keep_audio is \"always\" or a number of days"),
+        (
+            "keep_audio = \"forever\"\n",
+            "<file>, line 1: keep_audio is \"always\" or a number of days",
+        ),
+    ] {
+        let said = written(text).unwrap_err();
+        assert!(said.starts_with(expected), "{text:?}: {said}");
+    }
+}
+
+#[test]
+fn the_settings_written_read_back_as_they_were_the_user_s_lines_kept() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("summit").join("settings.toml");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        "# my settings\nreminder = false\ntranscript = false\nfuture_key = 3 # kept\n",
+    )
+    .unwrap();
+    let mut settings = read(&path).unwrap();
+    settings.after = After::Minutes;
+    settings.minutes_provider = Some("ollama".into());
+    settings.minutes_model = Some("mistral".into());
+    settings.keep_audio = KeepAudio::Days(30);
+    write(&path, &settings).unwrap();
+    assert_eq!(read(&path), Ok(settings.clone()));
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("# my settings") && text.contains("future_key = 3 # kept"), "{text}");
+    assert!(!text.contains("transcript = false"), "{text}");
+    // A choice taken back is no longer in the file.
+    settings.minutes_model = None;
+    write(&path, &settings).unwrap();
+    assert!(!fs::read_to_string(&path).unwrap().contains("minutes_model"));
+    // No file yet: written whole, read back the same.
+    let fresh = folder.path().join("new").join("settings.toml");
+    write(&fresh, &Settings::default()).unwrap();
+    assert_eq!(read(&fresh), Ok(Settings::default()));
+    assert!(!fresh.with_extension("toml.part").exists());
+}
+
+#[test]
+fn writing_touches_only_what_changed_and_keeps_each_line_s_comment() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    let mine = format!(
+        "sessions = \"{}/Summit\" # where they go\nreminder = true # said at each start\n",
+        '~'
+    );
+    fs::write(&path, &mine).unwrap();
+    let mut settings = read(&path).unwrap();
+    // Nothing changed: the file is as the user wrote it — the tilde, the comments, no key added.
+    write(&path, &settings).unwrap();
+    assert_eq!(fs::read_to_string(&path).unwrap(), mine);
+    // One choice changed: its line keeps its comment, the rest is untouched.
+    settings.reminder = false;
+    write(&path, &settings).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("reminder = false # said at each start"), "{text}");
+    assert!(text.contains(&format!("sessions = \"{}/Summit\" # where they go", '~')), "{text}");
+    assert!(!text.contains("model") && !text.contains("keep_audio"), "{text}");
+}
+
+#[test]
+fn a_file_that_cannot_be_read_as_settings_is_never_written_over() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    for refused in ["keep_audio = 0\n", "reminder = \"yes\"\n", "sessions = \"Summit\"\n"] {
+        fs::write(&path, refused).unwrap();
+        assert!(write(&path, &Settings::default()).is_err(), "{refused}");
+        assert_eq!(fs::read_to_string(&path).unwrap(), refused);
+        assert!(!path.with_extension("toml.part").exists());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn the_file_keeps_its_permissions_and_a_link_to_it_stays_a_link() {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let folder = tempfile::tempdir().unwrap();
+    let real = folder.path().join("real.toml");
+    fs::write(&real, "reminder = true\n").unwrap();
+    fs::set_permissions(&real, fs::Permissions::from_mode(0o600)).unwrap();
+    let link = folder.path().join("settings.toml");
+    symlink(&real, &link).unwrap();
+    let mut settings = read(&link).unwrap();
+    settings.reminder = false;
+    write(&link, &settings).unwrap();
+    assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+    assert!(fs::read_to_string(&real).unwrap().contains("reminder = false"));
+    assert_eq!(fs::metadata(&real).unwrap().permissions().mode() & 0o777, 0o600);
+}
+
+#[test]
+fn values_that_are_not_choices_are_refused_and_blanks_are_none() {
+    for (text, key) in [
+        ("keep_audio = 36501\n", "keep_audio"),
+        ("keep_audio = 30.0\n", "keep_audio"),
+        ("keep_audio = \"Always\"\n", "keep_audio"),
+        ("keep_audio = -1\n", "keep_audio"),
+    ] {
+        let said = written(text).unwrap_err();
+        assert!(said.contains(key), "{text}: {said}");
+    }
+    assert_eq!(written("keep_audio = 36500\n").unwrap().keep_audio, KeepAudio::Days(36_500));
+    let blank = written("minutes_provider = \"  \"\nminutes_model = \"\"\n").unwrap();
+    assert_eq!((blank.minutes_provider, blank.minutes_model), (None, None));
+    // Only `false` was "nothing follows".
+    assert_eq!(written("transcript = true\n").unwrap().after, After::Transcript);
+}
+
+#[test]
+fn a_write_that_fails_leaves_the_file_as_it_was() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "reminder = true\n").unwrap();
+    // The part file cannot be made: the file is never written in place.
+    fs::create_dir(path.with_extension("toml.part")).unwrap();
+    let mut settings = read(&path).unwrap();
+    settings.reminder = false;
+    assert!(write(&path, &settings).is_err());
+    assert_eq!(fs::read_to_string(&path).unwrap(), "reminder = true\n");
 }
