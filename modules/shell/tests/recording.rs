@@ -52,7 +52,7 @@ echo '{"event":"silent","source":"me"}'"#,
     );
     let session = folder.path().join("2026-10-13_14-05");
     let before = [
-        Said::Started(session.clone()),
+        Said::Started(session.clone(), Some("Mic".into())),
         Said::Silent(Source::Others),
         Said::Heard(Source::Others),
     ];
@@ -90,7 +90,13 @@ exit 1"#,
         folder.path(),
         r#"echo '{"event":"started","folder":"'"$sessions"'/s","sources":{"me":"Mic","others":"Speaker"}}'; kill -9 $$"#,
     );
-    assert_eq!(all(&heard), [Said::Started(folder.path().join("s")), Said::Failed(String::new())]);
+    assert_eq!(
+        all(&heard),
+        [
+            Said::Started(folder.path().join("s"), Some("Mic".into())),
+            Said::Failed(String::new())
+        ]
+    );
 
     // A program that is not there is an error at once, not a recording.
     assert!(Recording::start(&folder.path().join("nowhere"), folder.path()).is_err());
@@ -107,7 +113,7 @@ touch "$sessions/still-recording""#,
     );
     assert_eq!(
         heard.recv_timeout(Duration::from_secs(10)).unwrap(),
-        Said::Started(folder.path().join("s"))
+        Said::Started(folder.path().join("s"), Some("Mic".into()))
     );
     drop(recording);
     std::thread::sleep(Duration::from_millis(1800));
@@ -120,6 +126,16 @@ touch "$sessions/still-recording""#,
 #[test]
 fn a_line_is_read_as_the_contract_describes_it_or_passed_over() {
     assert_eq!(read(r#"{"event":"silent","source":"me"}"#), Some(Said::Silent(Source::Me)));
+    // The microphone, as the system names it; a default named for itself, or none, says nothing.
+    for (me, named) in [
+        ("Headset Mic", Some("Headset Mic")),
+        ("default_input", None),
+        ("unavailable", None),
+        ("", None),
+    ] {
+        let line = format!(r#"{{"event":"started","folder":"/s","sources":{{"me":"{me}","others":"Speaker"}}}}"#);
+        assert_eq!(read(&line), Some(Said::Started("/s".into(), named.map(str::to_string))), "{me}");
+    }
     assert_eq!(
         read(r#"{"event":"stopped","folder":"/s","seconds":3}"#),
         Some(Said::Stopped("/s".into(), 3.0))

@@ -24,8 +24,9 @@ pub enum Source {
 pub enum Said {
     /// A source could not be opened: its file will be silence, the other is still recorded.
     Unavailable(Source, String),
-    /// The recording runs, in this session's folder.
-    Started(PathBuf),
+    /// The recording runs, in this session's folder, from this microphone — as the system names
+    /// it, or nothing when it did not say which one.
+    Started(PathBuf, Option<String>),
     /// A source has given no sound for a while.
     Silent(Source),
     /// A source that was silent gives sound again.
@@ -51,7 +52,14 @@ pub fn read(line: &str) -> Option<Said> {
             source()?,
             event["reason"].as_str().unwrap_or_default().to_string(),
         )),
-        "started" => Some(Said::Started(folder()?)),
+        "started" => {
+            // A desktop's default device, named for itself and not for the one it stands for, says
+            // nothing of which microphone it is.
+            let me = event["sources"]["me"]
+                .as_str()
+                .filter(|me| !["", "unavailable", "default_input"].contains(me));
+            Some(Said::Started(folder()?, me.map(str::to_string)))
+        }
         "silent" => Some(Said::Silent(source()?)),
         "heard" => Some(Said::Heard(source()?)),
         "stopped" => Some(Said::Stopped(folder()?, event["seconds"].as_f64().unwrap_or(0.0))),
