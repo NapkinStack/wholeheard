@@ -1,6 +1,10 @@
 //! `summit-summary` — writes the minutes of a session from its transcript, with no window.
 //!
 //!     summit-summary <session-folder> --provider <address> --model <name>
+//!     summit-summary --test --provider <address> --model <name>
+//!
+//! The second asks the provider one sentence of its own, nothing of a meeting, and says
+//! whether the model answered: what the settings' *Tester* runs.
 //!
 //! The address speaks the OpenAI protocol: a model on the machine or an online one. A key,
 //! when the provider wants one, is read from `SUMMIT_PROVIDER_KEY` and written nowhere.
@@ -12,7 +16,7 @@
 use std::{fs, io::Write, path::Path, process::ExitCode, time::Duration};
 
 use serde_json::json;
-use summit_summary::{Made, Refused, minutes, provider::Provider, read_transcript, request, write_minutes};
+use summit_summary::{Made, Refused, TEST, minutes, provider::Provider, read_transcript, request, write_minutes};
 
 fn main() -> ExitCode {
     // Arguments that are not text are refused like any other mistake, not with a crash.
@@ -20,11 +24,14 @@ fn main() -> ExitCode {
     let all_text = args.len() + 1 == std::env::args_os().count();
     let outcome = match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
         _ if !all_text => Err(Refused("an argument is not text".into())),
+        ["--test", "--provider", address, "--model", model] | ["--test", "--model", model, "--provider", address] => test(address, model),
         [folder, "--provider", address, "--model", model] | [folder, "--model", model, "--provider", address] => {
             summarise(Path::new(folder), address, model)
         }
         _ => Err(Refused(
-            "usage: summit-summary <session-folder> --provider <address> --model <name>".into(),
+            "usage: summit-summary <session-folder> --provider <address> --model <name>, \
+             or summit-summary --test --provider <address> --model <name>"
+                .into(),
         )),
     };
     match outcome {
@@ -33,6 +40,33 @@ fn main() -> ExitCode {
             eprintln!("summit-summary: {why}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// Asks the provider the test's sentence, with a minute's patience: answered, the model is there
+/// and the key is taken.
+fn test(address: &str, model: &str) -> Result<(), Refused> {
+    let key = key()?;
+    let provider = Provider::new(address, model, key.as_deref(), Duration::from_secs(60))?;
+    let sending = json!({ "event": "sending", "host": provider.host(), "model": provider.model(), "characters": TEST.chars().count() });
+    if writeln!(std::io::stdout(), "{sending}").is_err() {
+        return Err(Refused("nothing was sent: what is sent could not be said first".into()));
+    }
+    provider.ask(TEST)?;
+    let _ = writeln!(
+        std::io::stdout(),
+        "{}",
+        json!({ "event": "answered", "host": provider.host(), "model": provider.model() })
+    );
+    Ok(())
+}
+
+/// The key, when the provider wants one: from `SUMMIT_PROVIDER_KEY`, written nowhere.
+fn key() -> Result<Option<String>, Refused> {
+    match std::env::var("SUMMIT_PROVIDER_KEY") {
+        Ok(key) => Ok(Some(key)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(_) => Err(Refused("the key in SUMMIT_PROVIDER_KEY is not text".into())),
     }
 }
 
@@ -58,11 +92,7 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     };
     let asked = request(&segments, context.as_deref());
 
-    let key = match std::env::var("SUMMIT_PROVIDER_KEY") {
-        Ok(key) => Some(key),
-        Err(std::env::VarError::NotPresent) => None,
-        Err(_) => return Err(Refused("the key in SUMMIT_PROVIDER_KEY is not text".into())),
-    };
+    let key = key()?;
     let provider = Provider::new(address, model, key.as_deref(), Duration::from_secs(600))?;
     // Said before anything leaves, and after the address was read: where it goes, and how much.
     let sending = json!({ "event": "sending", "host": provider.host(), "model": provider.model(), "characters": asked.chars().count() });
