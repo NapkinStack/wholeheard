@@ -279,3 +279,59 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
     }
     assert!(received.try_recv().is_err(), "a request left the machine");
 }
+
+/// The program's test of a provider, as the settings' *Tester* runs it: no session.
+fn tested(address: &str, key: Option<&str>) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_summit-summary"));
+    command
+        .args(["--test", "--provider", address, "--model", "a-model"])
+        .env_remove("SUMMIT_PROVIDER_KEY");
+    if let Some(key) = key {
+        command.env("SUMMIT_PROVIDER_KEY", key);
+    }
+    command.output().unwrap()
+}
+
+#[test]
+fn a_test_sends_one_fixed_sentence_and_says_the_model_answered() {
+    let (address, received) = provider("200 OK", answering("OK", "stop"));
+    let output = tested(&address, Some("a-key-for-the-test"));
+    let (out, err) = said(&output);
+    assert!(output.status.success(), "{err}");
+    let (head, asked) = received.recv().unwrap();
+    assert!(head.to_lowercase().contains("authorization: bearer a-key-for-the-test"), "{head}");
+    let asked: serde_json::Value = serde_json::from_str(&asked).unwrap();
+    assert_eq!(asked["model"], "a-model");
+    // Nothing of a meeting: one sentence of the program's own.
+    assert_eq!(
+        asked["messages"].to_string(),
+        serde_json::json!([{"role": "user", "content": summit_summary::TEST}]).to_string()
+    );
+    let lines: Vec<serde_json::Value> = out.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    assert_eq!(lines.len(), 2, "{out}");
+    assert_eq!(lines[0]["event"], "sending");
+    assert_eq!(lines[0]["characters"], summit_summary::TEST.chars().count());
+    assert_eq!(lines[1]["event"], "answered");
+    assert_eq!(lines[1]["model"], "a-model");
+}
+
+#[test]
+fn a_test_that_fails_says_why_in_one_sentence() {
+    for (status, body, expected) in [
+        ("401 Unauthorized", r#"{"error": "no"}"#.to_string(), "refused the key"),
+        (
+            "404 Not Found",
+            r#"{"error": "no"}"#.to_string(),
+            "does not know this model or this address",
+        ),
+        ("200 OK", r#"{"choices": []}"#.to_string(), "answered without any text"),
+    ] {
+        let (address, _received) = provider(status, body);
+        let output = tested(&address, None);
+        let (_, err) = said(&output);
+        assert!(!output.status.success(), "{status}: accepted");
+        assert!(err.contains(expected) && err.trim().lines().count() == 1, "{status}: {err}");
+    }
+    let output = tested("http://127.0.0.1:9/v1", None);
+    assert!(!output.status.success() && said(&output).1.trim().lines().count() == 1);
+}

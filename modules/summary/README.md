@@ -30,6 +30,10 @@ summit-summary <session-folder> --provider https://openrouter.ai/api/v1 --model 
 
 # A model on the machine: nothing leaves it, no key — and, on a laptop, fewer of the actions.
 summit-summary <session-folder> --provider http://localhost:11434/v1 --model mistral
+
+# Whether a model answers, before any meeting: one sentence of the program's own is sent,
+# `sending` then `answered` said, or why not in one sentence. What the settings' Tester runs.
+summit-summary --test --provider http://localhost:11434/v1 --model mistral
 ```
 
 | Tried on one meeting, with its context | Of seven actions agreed: missing | Time |

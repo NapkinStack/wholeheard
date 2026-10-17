@@ -89,6 +89,9 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
 }
 
 /// What a provider is asked: the rules, the context the user attached, the meeting.
+/// What a test of a provider sends: one sentence of the program's own, nothing of a meeting.
+pub const TEST: &str = "Answer with the single word OK.";
+
 pub fn request(segments: &[Segment], context: Option<&str>) -> String {
     let mut asked = String::from(
         "You write the minutes of a meeting from its transcript.\n\
