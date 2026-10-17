@@ -34,7 +34,7 @@ deliverables:
       - "Given the bench's meeting with a headset, when it is transcribed, then the local track goes to the engine as it was recorded: nothing was taken out of an audio that held no echo"
       - "Given a session, when it is transcribed, then what was made on the way — the microphone without the echo, the copy the engine heard — is kept apart from the tracks, each saying what made it; deleted, they are made again and the transcript is the same"
       - "Given a transcript, when it is read, then each segment says which track it came from, and has a place for which voice within the track — empty in this cycle"
-      - "Given the meeting of 2026-10-13 recorded again by the decider — on loudspeakers, then with a headset — when each is transcribed, then the decider reads both against what was said: issue to open, their word on the repetitions and on the order"
+      - "Given a real meeting recorded by the decider with a headset, when it is transcribed, then the decider reads it against what was said: their word on the repetitions and on the order. Loudspeakers are read later (decider, 2026-10-17: most users wear a headset)"
   - id: D11
     title: "Spike — the window, drawn before it is built: a session, the sessions and what they weigh, the settings, the two agreements"
     module: null
@@ -250,7 +250,7 @@ makes, kept apart and made again the same.
 | A headset's local track goes to the engine as recorded | Holds |
 | What was made kept apart, saying what made it; made again, the same | Holds |
 | Each segment says its track, and has a place for the voice | Holds |
-| The meeting of 2026-10-13, recorded again by the decider, on loudspeakers then with a headset | **Owed — the decider's gesture** |
+| A real meeting recorded by the decider with a headset, read against what was said | Read on their call of 2026-10-17 (#145): a poor transcript, most of what was wrong text the engine wrote on silence — the engine's (the framing below). **The decider's word on D10 is owed.** Loudspeakers: deferred by the decider on 2026-10-17, most users wearing a headset |
 
 **Framing (decider, 2026-10-17).** A transcript's quality is the engine's and the audio's.
 Summit tolerates an engine's defaults, as it would any other engine's, and tunes nothing
@@ -260,7 +260,7 @@ that can be swapped, and no error added by its own steps. On this line the doubl
 is closed. What is left on the decider's call of 2026-10-17 is the engine's: text written on
 a track's silence, text written during a loud ringtone, sentences cut at each pause.
 
-**Next:** the decider's gesture in the table. *Local words lost under the remote* stays a
+**Next:** the decider's word on D10. *Local words lost under the remote* stays a
 count the bench reads, not a lever.
 
 **How a change is measured.** On the bench (`modules/platform`, its `README.md`: four draws
