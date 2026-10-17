@@ -246,6 +246,8 @@ pub struct Window {
     pub last_week: &'static str,
     /// Earlier in the current month: the month's name.
     pub earlier_in: &'static str,
+    /// Sessions whose start cannot be read as a day.
+    pub undated: &'static str,
     pub minutes: &'static str,
     pub transcript: &'static str,
     pub audio: &'static str,
@@ -271,6 +273,7 @@ pub fn window(language: Language) -> Window {
             this_week: "This week",
             last_week: "Last week",
             earlier_in: "Earlier in {}",
+            undated: "Date unreadable",
             minutes: "Minutes",
             transcript: "Transcript",
             audio: "Audio · {}",
@@ -292,6 +295,7 @@ pub fn window(language: Language) -> Window {
             this_week: "Cette semaine",
             last_week: "La semaine dernière",
             earlier_in: "Plus tôt en {}",
+            undated: "Date illisible",
             minutes: "Compte rendu",
             transcript: "Transcript",
             audio: "Audio · {}",

@@ -6,11 +6,17 @@ const fill = (template, ...values) => values.reduce((text, value) => text.replac
 
 function size(bytes, words) {
   let unit = 0;
-  while (bytes >= 1000 && unit < 3) { bytes /= 1000; unit += 1; }
-  const digits = bytes < 10 && unit > 0 ? 1 : 0;
-  const number = new Intl.NumberFormat(words.locale, { maximumFractionDigits: digits }).format(bytes);
+  let value = bytes;
+  // The unit is chosen on the value as it will be written: 999 999 B is "1 MB", not "1,000 kB".
+  const rounded = (v, u) => { const d = v < 10 && u > 0 ? 10 : 1; return Math.round(v * d) / d; };
+  while (rounded(value, unit) >= 1000 && unit < 3) { value /= 1000; unit += 1; }
+  const digits = value < 10 && unit > 0 ? 1 : 0;
+  const number = new Intl.NumberFormat(words.locale, { maximumFractionDigits: digits }).format(value);
   return `${number} ${words.units[unit]}`;
 }
+
+// The day a session started, on this machine's clock; none when the shell could not read it.
+const dayOf = (session) => (session.instant === null ? null : new Date(session.instant * 1000));
 
 function length(seconds) {
   const minutes = Math.round(seconds / 60);
@@ -26,6 +32,7 @@ function weekOf(day) {
 }
 
 function group(day, now, words) {
+  if (day === null) return words.undated;
   const thisWeek = weekOf(now);
   const lastWeek = new Date(thisWeek);
   lastWeek.setDate(lastWeek.getDate() - 7);
@@ -45,7 +52,7 @@ function chip(text, kind) {
 }
 
 function row(session, words) {
-  const day = new Date(session.started);
+  const day = dayOf(session);
   const item = document.createElement("li");
   item.className = "card session";
   item.dataset.state = session.state;
@@ -53,9 +60,14 @@ function row(session, words) {
   when.className = "when";
   const title = document.createElement("span");
   title.className = "day";
-  const date = new Intl.DateTimeFormat(words.locale, { weekday: "short", day: "numeric", month: "short" }).format(day);
-  const time = new Intl.DateTimeFormat(words.locale, { hour: "2-digit", minute: "2-digit" }).format(day);
-  title.textContent = `${date} · ${time}`;
+  if (day === null) {
+    // What the session's folder is named: the only date it still says.
+    title.textContent = session.folder.split(/[\\/]/).pop();
+  } else {
+    const date = new Intl.DateTimeFormat(words.locale, { weekday: "short", day: "numeric", month: "short" }).format(day);
+    const time = new Intl.DateTimeFormat(words.locale, { hour: "2-digit", minute: "2-digit" }).format(day);
+    title.textContent = `${date} · ${time}`;
+  }
   when.append(title);
   if (session.seconds !== null) {
     const lasted = document.createElement("span");
@@ -102,7 +114,7 @@ function show({ words, folder, sessions }) {
   groups.replaceChildren();
   let current = null;
   for (const session of sessions) {
-    const name = group(new Date(session.started), now, words);
+    const name = group(dayOf(session), now, words);
     if (!current || current.name !== name) {
       const section = document.createElement("section");
       section.className = "group";

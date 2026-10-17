@@ -116,17 +116,61 @@ def rows(browser) -> list[tuple[str, str, str]]:
     )
 
 
+def week_of(day: dt.datetime) -> dt.datetime:
+    """Monday 00:00 of the week a day is in, on this machine's clock — as the page reckons it."""
+    start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start - dt.timedelta(days=start.weekday())
+
+
+def group(day: dt.datetime | None, now: dt.datetime) -> str:
+    """The heading the page puts a session under, in French — the page's own rule, here."""
+    if day is None:
+        return "Date illisible"
+    this_week = week_of(now)
+    if day >= this_week:
+        return "Cette semaine"
+    if day >= this_week - dt.timedelta(days=7):
+        return "La semaine dernière"
+    if (day.year, day.month) == (now.year, now.month):
+        return f"Plus tôt en {MONTHS_FR[day.month - 1]}"
+    return f"{MONTHS_FR[day.month - 1].capitalize()} {day.year}"
+
+
 def main() -> int:
     now = dt.datetime.now().astimezone()
     sessions = WORK / "sessions"
-    # Started an hour ago, a week ago, two months ago: this week, last week, a month by name.
-    hour, week, months = now - dt.timedelta(hours=1), now - dt.timedelta(days=7), now - dt.timedelta(days=61)
+    # Sessions this week, last week, earlier this month when there is room for one, two months
+    # ago; one whose start is written with an offset of hours alone; one whose start is no instant.
+    this, last, months = now - dt.timedelta(seconds=30), now - dt.timedelta(days=7), now - dt.timedelta(days=61)
+    earlier = (week_of(now) - dt.timedelta(days=8)).replace(hour=12)
+    hours_only = (now - dt.timedelta(days=3)).astimezone(dt.timezone(dt.timedelta(hours=2)))
     session(
-        sessions / "a", week, 42, {"me.wav": 100_000_000, "others.wav": 100_000_000, "transcript.jsonl": 7000, "minutes.md": 500}, "v1"
+        sessions / "a", last, 42, {"me.wav": 100_000_000, "others.wav": 100_000_000, "transcript.jsonl": 7000, "minutes.md": 500}, "v1"
     )
-    session(sessions / "b", hour, None, {"local.wav": 2000})
+    session(sessions / "b", this, None, {"local.wav": 2000})
     session(sessions / "c", months, 35, {"transcript.jsonl": 3000})
+    session(sessions / "e", earlier, 20, {"transcript.jsonl": 1000})
+    session(sessions / "f", hours_only, 10, {"local.wav": 999_999})
+    record = json.loads((sessions / "f" / "session.json").read_text())
+    for key in ("started", "stopped"):
+        record[key] = record[key].replace("+02:00", "+02")
+    (sessions / "f" / "session.json").write_text(json.dumps(record))
+    (sessions / "g").mkdir(parents=True)
+    (sessions / "g" / "session.json").write_text(json.dumps({"contract": "session-audio/v2", "started": "yesterday", "tracks": {}}))
     (sessions / "not-a-session").mkdir()
+    expected = sorted(
+        [
+            (this, "Interrompu — jamais arrêté|Audio · 2 ko"),
+            (last, "42 min|Compte rendu|Transcript|Audio · 200 Mo"),
+            (months, "35 min|Transcript|Audio supprimé"),
+            (earlier, "20 min|Transcript|Audio supprimé"),
+            (hours_only, "10 min|Audio · 1 Mo"),
+        ],
+        key=lambda pair: pair[0],
+        reverse=True,
+    )
+    expected = [(group(day.astimezone(), now), holds) for day, holds in expected]
+    expected.append(("Date illisible", "Interrompu — jamais arrêté|Audio supprimé"))
 
     print("H. the window, in French: the meetings by week, what each holds and weighs")
     with Window(sessions, "fr_FR.UTF-8") as browser:
@@ -136,20 +180,15 @@ def main() -> int:
         sections = browser.find_element(By.TAG_NAME, "nav").get_attribute("aria-label")
         check("its sections are named in French for a screen reader", sections == "Rubriques", sections)
         listed = rows(browser)
-        older = f"{MONTHS_FR[months.month - 1].capitalize()} {months.year}"
         check(
-            "three sessions, newest first, each under its week",
-            [(group, holds) for group, _, holds in listed]
-            == [
-                ("Cette semaine", "Interrompu — jamais arrêté|Audio · 2 ko"),
-                ("La semaine dernière", "42 min|Compte rendu|Transcript|Audio · 200 Mo"),
-                (older, "35 min|Transcript|Audio supprimé"),
-            ],
+            "every session, newest first, each under its week; the one with no readable day last",
+            [(heading, holds) for heading, _, holds in listed] == expected,
             listed,
         )
+        check("a session with no readable day is named by its folder", listed[-1][1] == "g", listed[-1])
         total = browser.find_element(By.ID, "weight").text
-        check("what they weigh, audio against the rest", total.startswith("200 Mo occupés par 3 réunions · 42 min d’audio"), total)
-        check("the picture of the weights is described", "L’audio occupe 200 Mo" in (browser.find_element(By.ID, "bar").get_attribute("aria-label") or ""))
+        check("what they weigh, audio against the rest", total.startswith("201 Mo occupés par 6 réunions · 52 min d’audio"), total)
+        check("the picture of the weights is described", "L’audio occupe 201 Mo" in (browser.find_element(By.ID, "bar").get_attribute("aria-label") or ""))
         # The theme is the system's: the page's ground is that of the theme the system shows.
         dark = browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
         ground = browser.execute_script("return getComputedStyle(document.body).backgroundColor")
@@ -161,7 +200,7 @@ def main() -> int:
         # A session recorded meanwhile is shown when the window comes forward again.
         session(sessions / "d", now - dt.timedelta(minutes=5), 3, {"local.wav": 1000, "remote.wav": 1000})
         browser.execute_script("window.dispatchEvent(new Event('focus'))")
-        came = wait_for(browser, lambda b: len(rows(b)) == 4)
+        came = wait_for(browser, lambda b: len(rows(b)) == 7)
         check("a new session is listed when the window comes forward", came, rows(browser))
 
     print("I. the window, in English; and a folder with no session")

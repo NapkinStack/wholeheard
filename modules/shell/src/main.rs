@@ -285,8 +285,8 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
             tell(app, &notice);
         }
     }
-    let ended = shell.recording.lock().unwrap().take();
     shell.recorded.lock().unwrap().take();
+    let ended = shell.recording.lock().unwrap().take();
     *shell.stopping.lock().unwrap() = false;
     show(app, Shown::Idle);
     if *shell.leaving.lock().unwrap() {

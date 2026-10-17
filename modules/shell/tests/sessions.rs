@@ -85,6 +85,12 @@ fn each_session_says_its_day_length_state_what_it_holds_and_weighs_newest_first(
         r#"{"contract":"session-audio/v2","started":"2026-10-17T05:00:00-05:00","stopped":"2026-10-17T05:01:00-05:00","tracks":{}}"#,
         &[("LOCAL.WAV", 40)],
     );
+    // A start that is no instant: listed, last, with no instant.
+    session(
+        &root.join("2026-10-02_00-00"),
+        r#"{"contract":"session-audio/v2","started":"yesterday","tracks":{}}"#,
+        &[],
+    );
     // Not sessions: no session.json, a form this version does not read, a file that is not JSON, a
     // stop with no start.
     fs::create_dir_all(root.join("notes")).unwrap();
@@ -111,14 +117,16 @@ fn each_session_says_its_day_length_state_what_it_holds_and_weighs_newest_first(
             "2026-10-16_08-00",
             "2026-10-13_12-01",
             "2026-10-12_09-30",
-            "2026-10-06_11-00"
+            "2026-10-06_11-00",
+            "2026-10-02_00-00"
         ]
     );
 
-    let [west, recording, interrupted, second, first, freed] = &listed[..] else {
+    let [west, recording, interrupted, second, first, freed, undated] = &listed[..] else {
         unreachable!()
     };
     assert_eq!((west.seconds, west.audio), (Some(60.0), 40));
+    assert_eq!((undated.instant, undated.seconds, undated.state), (None, None, State::Interrupted));
     assert_eq!((recording.state, recording.seconds), (State::Recording, None));
     assert_eq!((interrupted.state, interrupted.seconds), (State::Interrupted, None));
     assert_eq!(
@@ -135,6 +143,7 @@ fn each_session_says_its_day_length_state_what_it_holds_and_weighs_newest_first(
     );
     assert_eq!((freed.audio, freed.transcript), (0, true));
     assert_eq!(first.started, "2026-10-12T09:30:00+02:00");
+    assert_eq!(first.instant, Some(1_791_790_200));
 
     // Nobody records: the session never stopped is interrupted too.
     let quiet = sessions::list(root, None);
