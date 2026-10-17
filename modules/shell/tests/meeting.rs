@@ -134,3 +134,125 @@ fn a_transcript_without_its_header_is_unreadable_and_one_being_made_is_not_compl
     assert!(!transcript.complete);
     assert_eq!(transcript.segments.len(), 1);
 }
+
+#[test]
+fn the_minutes_are_read_as_summit_summary_writes_them_and_as_commonmark_reads_them() {
+    let folder = tempfile::tempdir().unwrap();
+    // The front matter as the producer writes it: quoted, escaped.
+    let written = "---
+contract: minutes/v1
+made: 2026-10-13T15:12:40+02:00
+provider: \"api.example.org\"
+model: \"mod\\\"el\\nname\"
+context: null
+---
+
+Faits marquants
+---------------
+
+La date est fixée,
+en juin.
+
+### Un sous-titre
+
+---
+
+  ## Actions ##
+
+* Réserver — la salle — Alexandre — 26 avril
+* Prévoir
+  le café — Lou — demain
+  - un détail, dans l'item
+
+## Points clés
+
+| Sujet | État |
+| --- | --- |
+| Budget | ouvert |
+";
+    fs::write(folder.path().join("minutes.md"), written).unwrap();
+    let Read::Present(minutes) = meeting::minutes(folder.path()) else {
+        panic!("not read")
+    };
+    assert_eq!(minutes.provider.as_deref(), Some("api.example.org"));
+    assert_eq!(minutes.model.as_deref(), Some("mod\"el\nname"));
+    assert_eq!(minutes.titles, ["Faits marquants", "Actions", "Points clés"].map(String::from));
+    // The sub-title and the rule are not the highlights' sentences.
+    assert_eq!(minutes.highlights, "La date est fixée, en juin.");
+    assert_eq!(
+        minutes.actions,
+        [
+            Action {
+                what: "Réserver — la salle".into(),
+                who: "Alexandre".into(),
+                when: "26 avril".into()
+            },
+            Action {
+                what: "Prévoir le café".into(),
+                who: "Lou".into(),
+                when: "demain".into()
+            },
+        ]
+    );
+    // A key point not written as a list is kept as written.
+    assert_eq!(minutes.key_points.len(), 1);
+    assert!(minutes.key_points[0].contains("Budget"));
+
+    for ordered in ["1. Faire — Lou — lundi\n", "+ Faire — Lou — lundi\n"] {
+        fs::write(folder.path().join("minutes.md"), MINUTES.replace("- Contacter les trois intervenants et le comité scientifique — Alexandre — 26 avril\n- Pré-réserver les salles — non précisé — non précisé\n", ordered)).unwrap();
+        let Read::Present(minutes) = meeting::minutes(folder.path()) else {
+            panic!("not read: {ordered}")
+        };
+        assert_eq!(
+            minutes.actions,
+            [Action {
+                what: "Faire".into(),
+                who: "Lou".into(),
+                when: "lundi".into()
+            }],
+            "{ordered}"
+        );
+    }
+    // A value written `null`, quoted or not, is no value.
+    fs::write(
+        folder.path().join("minutes.md"),
+        MINUTES.replace("model: mistral", "model: \"null\""),
+    )
+    .unwrap();
+    let Read::Present(minutes) = meeting::minutes(folder.path()) else {
+        panic!("not read")
+    };
+    assert_eq!(minutes.model, None);
+}
+
+#[test]
+fn transcript_lines_the_contract_does_not_allow_are_left_out_and_counted() {
+    let folder = tempfile::tempdir().unwrap();
+    let header = r#"{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}"#;
+    let lines = [
+        header,
+        r#"{"type":"segment","speaker":"me","track":"remote","start":1.0,"end":2.0,"text":"a track that is not the speaker's"}"#,
+        r#"{"type":"segment","speaker":"someone","track":"local","start":1.0,"end":2.0,"text":"a speaker of no kind"}"#,
+        r#"{"type":"segment","speaker":"me","track":"local","start":5.0,"end":4.0,"text":"an end before its start"}"#,
+        r#"{"type":"segment","speaker":"me","track":"local","start":5.0,"text":"no end"}"#,
+        header,
+        r#"{"type":"segment","speaker":"others","track":"remote","start":3.0,"end":4.0,"text":"remote"}"#,
+        r#"{"type":"segment","speaker":"me","track":"local","start":3.0,"end":4.0,"text":"local"}"#,
+    ];
+    // The last line is still being written: no line feed, not read, not counted.
+    let text = lines.join("\n") + "\n" + r#"{"type":"segment","speaker":"me","#;
+    fs::write(folder.path().join("transcript.jsonl"), text).unwrap();
+    let Read::Present(transcript) = meeting::transcript(folder.path()) else {
+        panic!("not read")
+    };
+    assert_eq!(transcript.unread, 5);
+    // Two segments at one instant: the local first.
+    let said: Vec<_> = transcript.segments.iter().map(|s| s.text.as_str()).collect();
+    assert_eq!(said, ["local", "remote"]);
+
+    // A header that is not the first line, or of another version: not a transcript of this one.
+    for first in [lines[6].to_string(), header.replace("transcript/v1", "transcript/v2")] {
+        fs::write(folder.path().join("transcript.jsonl"), format!("{first}\n{header}\n")).unwrap();
+        assert_eq!(meeting::transcript(folder.path()), Read::Unreadable, "{first}");
+    }
+}
