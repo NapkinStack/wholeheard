@@ -6,6 +6,7 @@ pub mod keys;
 pub mod meeting;
 pub mod minutes;
 pub mod model;
+pub mod providers;
 pub mod recording;
 pub mod sessions;
 pub mod settings;
