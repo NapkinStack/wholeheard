@@ -15,6 +15,17 @@
   </div>
   <nav id="sections"><a href="index.html" aria-current="page" id="meetings"></a></nav>
 </header>
-<main></main>
+<main>
+  <section id="weight" class="card weight" aria-live="polite" hidden>
+    <div class="total"><strong id="total"></strong> <span id="taken"></span></div>
+    <div id="bar" class="split" role="img"><span id="bar-audio" class="audio"></span><span id="bar-text" class="text"></span></div>
+    <ul class="legend">
+      <li><span class="swatch audio" aria-hidden="true"></span><span id="audio-kept"></span></li>
+      <li><span class="swatch text" aria-hidden="true"></span><span id="text-kept"></span></li>
+    </ul>
+  </section>
+  <p id="none" class="none" hidden></p>
+  <div id="groups"></div>
+</main>
 </body>
 </html>

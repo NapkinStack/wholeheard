@@ -112,7 +112,11 @@ pub fn instant(text: &str) -> Option<i64> {
         return None;
     }
     // Fractions of a second are left: a session's length is said in minutes.
-    let rest = text.get(19..)?.trim_start_matches(|c: char| c == '.' || c.is_ascii_digit());
+    let rest = text.get(19..)?;
+    let rest = match rest.strip_prefix('.') {
+        Some(fraction) => fraction.trim_start_matches(|c: char| c.is_ascii_digit()),
+        None => rest,
+    };
     // The offset, in each form ISO 8601 allows — `+02:00`, `+0200`, `+02` — and nothing after.
     let offset = if rest == "Z" {
         0

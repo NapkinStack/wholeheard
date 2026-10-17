@@ -31,6 +31,8 @@ fn an_instant_is_read_with_its_offset_as_the_contract_writes_it() {
         "2026-10-13T14:05:12+02:00xyz",
         "2026-10-13T14:05:12+02x00",
         "2026-10-13T14:05:12+2:00",
+        "2026-10-13T14:05:12++200",
+        "2026-10-13T14:05:1299+02:00",
         "yesterday",
     ] {
         assert_eq!(instant(wrong), None, "{wrong}");
