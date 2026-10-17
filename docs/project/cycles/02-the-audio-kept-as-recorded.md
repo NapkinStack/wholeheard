@@ -1,6 +1,6 @@
 ---
 goal: "On Fedora, a meeting recorded with Summit is kept as it was heard, and its transcript is right about who spoke and when — on loudspeakers as with a headset"
-status: accepted          # proposed | accepted | closed | stopped — the decider accepts
+status: closed            # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 3         # the time the decider WANTS to spend, not an estimate
 start: 2026-10-14         # YYYY-MM-DD
 end: 2026-11-04           # start + appetite: the first day the cycle is over — the circuit breaker
@@ -8,7 +8,7 @@ deliverables:
   - id: D8
     title: "Spike — a bench: a meeting whose every word, speaker and instant is known, played as a headset, as loudspeakers low and as loudspeakers loud, and four counts of what a transcript got wrong"
     module: platform
-    state: ready
+    state: accepted
     acceptance:
       - "Given a script written for the purpose — about five minutes in French, two sides, at least two voices on one side, turns that overlap, silences — and voices that are nobody's, when the bench renders it for a listening condition, then it yields the tracks a recording of that meeting would hold and the truth beside them: each word, its speaker, its side and its instant"
       - "Given the three conditions — a headset: no sound of one side in the other; loudspeakers low and loudspeakers loud: the remote side heard by the microphone, later and weaker, as a room does it — when each is rendered, then the cycle records how each was made and how far it is from the decider's real room, measured once by playing the bench's remote side on their loudspeakers"
@@ -46,7 +46,7 @@ deliverables:
   - id: D12
     title: "A user gets the transcript of a recording from the tray, without a terminal"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given a recording stopped from the tray, when the setting says the transcript follows — and it does, out of the box — then the transcript is made without another gesture, the user is told when it is there, and the click on that notification opens the session's folder"
       - "Given no model on the machine, when a transcript is first needed, then the user is shown the model's size and the host it comes from; nothing is fetched before they agree; the file is checked whole against its published fingerprint before any use; and a fetch that was cut is started again, never used as it is"
@@ -70,7 +70,7 @@ deliverables:
   - id: D15
     title: "A contract a module relies on can be corrected where it stands, and cannot be broken there: each carries a schema, and a comparator judges its changes"
     module: contracts
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given a consumed contract whose page says something false — `recording/v1` on the second form of a recording, `transcript/v1` on the engine's name, a diagram on who reads — when the page is corrected in a pull request, then the project's comparator lets it through and it is merged without a new version"
       - "Given a pull request that removes, renames or retypes a field of `recording/v1` or `transcript/v1`, when its checks run, then the comparator refuses it, with an example of what a consumer would now receive or the reason none could be made"
@@ -83,6 +83,8 @@ deliverables:
       - "Given the bench's meeting — the engine's transcripts of loudspeakers loud draws 0 and 1, headset draw 0 and the television, as main writes them on 2026-10-16 — with a context that names who was in the room and who was remote, when the example's model is asked three times for the minutes of each, then none states a figure or a date the meeting contradicts, and the support rota is right in more of them than the 5 of 12 of the request as it was on 2026-10-16"
       - "Given a name, a figure, a date or an owner that the transcript leaves uncertain, when the minutes are written, then it is written as heard and said to be uncertain, not guessed"
       - "Given a transcript, when its minutes are written, then the transcript is unchanged: the reading through its errors exists only in the minutes"
+outcome: completed
+ended_on: 2026-10-17
 ---
 
 # Cycle 02 — The audio kept as recorded
@@ -172,7 +174,7 @@ against**:
 
 What the line says, and what it cost to get one worth reading: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196156196).
 
-**Offered for acceptance**: the bench prints its counts for a transcript (`bench.counts`), and
+**Result: accepted** by the decider on 2026-10-17 ("c'est publié, accepté"): the bench prints its counts for a transcript (`bench.counts`), and
 the line of the programs of 2026-10-13 is recorded above; it has been the line every change of
 D9, D10 and D12 was read against.
 
@@ -348,8 +350,8 @@ what they cost is who said what — which no lever of the transcript recovers. B
 | A failure said in one sentence, the recording untouched, asked again from the menu | Holds (#141, the e2e's scenario F) |
 | The decider records one real meeting from the tray and reads its transcript | Holds: their trial of 2026-10-17 from the tray (#145) — the model offered, fetched on their word, the meeting transcribed with no other gesture; their reading of that transcript is D10's, accepted |
 
-**Offered for acceptance**, with one gesture still the decider's: a click on *Transcript ready*
-seen opening the folder — on the trial it was already open (#145, step 4).
+**Result: accepted** by the decider on 2026-10-17 ("c'est publié, accepté"), the click on *Transcript ready* taken as it was seen on the trial — the folder
+already open (#145, step 4); a later trial that shows otherwise reopens it.
 
 ### D13
 
@@ -387,7 +389,7 @@ tried: [ADR-0005](../../adr/0005-a-contract-carries-a-schema-and-a-comparator-ju
 | A field of `recording/v1` or `transcript/v1` removed, renamed or retyped is refused, with an example or a reason | Holds: the comparator (#101) and its tests; checked on 2026-10-17 on the real schemas — `text` of `transcript/v1` and `source` of `recording/v1`, each removed, renamed and retyped: all six refused, each with what a consumer would now receive |
 | What each producer writes is validated against the schema | Holds: `summit-transcription`'s transcript (#106), `summit-capture`'s events (#107); the bench's sessions too (#109) |
 
-**Offered for acceptance.**
+**Result: accepted** by the decider on 2026-10-17 ("c'est publié, accepté").
 
 ### D16
 
@@ -453,8 +455,44 @@ Candidates for the next framing:
 
 ## Closure
 
-<Written at the end: what was delivered, which success criteria moved, what was deferred,
-where the next framing starts.>
+**Closed on 2026-10-17, completed**: every deliverable accepted by the decider, eighteen days
+before the end date.
 
-**Documents brought current:** <the front page, the module map, a module's page — each with
-its pull request; or "none", and why nothing a reader sees has changed>
+```mermaid
+flowchart LR
+    A["Delivered:<br/>each source kept as delivered · the clock (D9)<br/>a transcript right about who spoke (D10)<br/>the transcript from the tray (D12)<br/>contracts that cannot be broken (D15)"]:::done
+    B["Learned:<br/>a bench and real meetings to measure on (D8)<br/>the window, drawn and accepted (D11)<br/>a model on the machine, the minutes' reading (D13, D14, D16)"]:::learned
+    C["Deferred:<br/>the window built · minutes from the tray ·<br/>export · Windows and macOS ·<br/>compressing the tracks · voices within a track"]:::open
+    A --> D["Cycle 03:<br/>the window, built from D11"]:::next
+    B --> D
+    C --> D
+    classDef done fill:#065f46,color:#fff
+    classDef learned fill:#92400e,color:#fff
+    classDef open fill:#374151,color:#fff
+    classDef next fill:#1e3a8a,color:#fff
+```
+
+**Legend** — green: delivered · orange: what was learned, spikes' answers · grey: deferred ·
+blue: where the next framing starts.
+
+**The goal holds on Fedora.** A meeting recorded with Summit keeps each source as the system
+delivered it, with the session's clock (D9 — about 2 GB an hour; the second form is what the
+tray records since #161). Its transcript says who spoke and when, on loudspeakers as with a
+headset (D10, read on the decider's call); what remains is the engine's own — a few words where
+nobody speaks, and about one word in four missed or misheard on a lively meeting (#160).
+
+**Success criteria** — none moved yet: each starts the day Summit installs on a user's machine,
+and Summit has no installer. This cycle laid what the first one needs on Fedora: audio kept as
+heard, and a transcript from the tray with no terminal.
+
+**Deferred**, as *Out of scope* says: the window (drawn, D11), the minutes from the tray,
+`export`, Windows and macOS, compressing the tracks, the voices within a track. Known and set
+aside: #131 — at a change of the sound server's period the microphone track loses a few frames,
+and the clock marks it.
+
+**Where the next framing starts**: *Later* above — the window built from D11's drawings, whose
+accepted changes are its criteria; then the minutes from the tray and `export`.
+
+**Documents brought current:** the front page and the module map (#170); each module's page in
+the pull request that changed it — `capture` (#161, #165), `platform` (#160), the contract
+`recording/v1` (#164); the drawings (#162).
