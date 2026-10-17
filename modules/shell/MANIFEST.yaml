@@ -77,9 +77,11 @@ dependencies:
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: Three calls in src/settings.rs; environment variables replace it on Linux.
   - name: tauri
-    purpose: The tray, its menu and the application's life, with the system's own web view for the window to come
+    purpose: The tray, its menu, the application's life, and the window in the system's own web view
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
-    exit_strategy: src/main.rs alone knows it; the library beside it holds every decision and knows no toolkit.
+    exit_strategy: >
+      src/main.rs and the page in ui/ alone know it; the library beside it holds every
+      decision and knows no toolkit.
   - name: tauri-plugin-notification
     purpose: Shows a notification on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md

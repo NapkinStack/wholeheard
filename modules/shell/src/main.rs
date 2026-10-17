@@ -1,7 +1,8 @@
-//! `summit` — Summit as the user meets it: an icon in the tray, a global shortcut, and
-//! notifications. No window. It starts the program that records and stops it, then the one
-//! that hears; it records and hears nothing itself, and a recording goes on if this process
-//! does not.
+//! `summit` — Summit as the user meets it: an icon in the tray, a global shortcut,
+//! notifications, and a window opened from the tray's menu — or at once with `--window`, the
+//! user's gesture too. It starts the program that records and stops it, then the one that
+//! hears; it records and hears nothing itself, and a recording goes on if this process does
+//! not.
 //!
 //! Everything it decides is in the library beside it — `recording`, `settings`,
 //! `transcription`, `words` —
@@ -22,7 +23,7 @@ use summit_shell::{
     words::{self, Language, Notice, Trouble},
 };
 use tauri::{
-    AppHandle, Manager, RunEvent, Wry,
+    AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, Wry,
     image::Image,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -79,13 +80,15 @@ fn main() {
             let toggle = MenuItem::with_id(app, "toggle", labels.start, true, None::<&str>)?;
             let again = MenuItem::with_id(app, "transcribe", labels.transcribe, true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&toggle, &again, &quit])?;
+            let open = MenuItem::with_id(app, "open", labels.open, true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &toggle, &again, &quit])?;
             let download = MenuItem::with_id(app, "download", "", true, None::<&str>)?;
             TrayIconBuilder::with_id(TRAY)
                 .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
                 .tooltip("Summit")
                 .menu(&menu.clone())
                 .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => open_window(app),
                     "toggle" => toggle_recording(app),
                     "transcribe" => {
                         let shell = app.state::<Shell>();
@@ -122,6 +125,9 @@ fn main() {
                 tell(app.handle(), &words::trouble(&Trouble::Settings(why), language));
             }
             shortcut(app.handle());
+            if std::env::args().skip(1).any(|arg| arg == "--window") {
+                open_window(app.handle());
+            }
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -132,6 +138,21 @@ fn main() {
             api.prevent_exit();
         }
     });
+}
+
+/// Opens the window, or brings it forward when it is open. Only ever on a gesture of the user.
+fn open_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+        .title("Summit")
+        .inner_size(1100.0, 800.0)
+        .min_inner_size(420.0, 400.0)
+        .build();
 }
 
 /// Shows a notification. A desktop that shows none is no reason to stop anything.
@@ -351,7 +372,7 @@ fn offer(app: &AppHandle) {
             .iter()
             .any(|item| item.id() == shell.download.id())
         {
-            let _ = shell.menu.insert(&shell.download, 2);
+            let _ = shell.menu.insert(&shell.download, 3);
         }
     });
 }

@@ -29,8 +29,12 @@ runs from a terminal.
 **Today**: an icon in the tray whose menu starts and stops a recording, the same from a
 global shortcut — Super+Alt+M under a Linux desktop — and a notification for what matters:
 the reminder to announce the recording, with the microphone recorded named in it — one
-other than the call's shows at once — a source that is silent, the stop, a failure. No
-window yet. In French where the system is, in English anywhere else.
+other than the call's shows at once — a source that is silent, the stop, a failure. In
+French where the system is, in English anywhere else.
+
+**The window** (cycle 03, from D11's drawings) is opened by *Open Summit* in the menu — or at
+once by `summit --window` — and never without a gesture. It holds nothing yet: what it lists
+comes next.
 
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification

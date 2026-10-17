@@ -189,6 +189,8 @@ pub struct Menu {
     pub stop: &'static str,
     pub stopping: &'static str,
     pub quit: &'static str,
+    /// Opens the window.
+    pub open: &'static str,
     /// What the tray's icon says of itself while a recording runs.
     pub recording: &'static str,
     /// Makes the transcript of the last recording, again when it failed.
@@ -204,6 +206,7 @@ pub fn menu(language: Language) -> Menu {
             stop: "Stop recording",
             stopping: "Stopping…",
             quit: "Quit Summit",
+            open: "Open Summit",
             recording: "Summit — recording",
             transcribe: "Transcribe the last recording",
             transcribing: "Transcribing…",
@@ -213,6 +216,7 @@ pub fn menu(language: Language) -> Menu {
             stop: "Arrêter l’enregistrement",
             stopping: "Arrêt en cours…",
             quit: "Quitter Summit",
+            open: "Ouvrir Summit",
             recording: "Summit — enregistrement en cours",
             transcribe: "Transcrire le dernier enregistrement",
             transcribing: "Transcription en cours…",

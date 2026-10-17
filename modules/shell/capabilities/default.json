@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Summit has no window yet: nothing is allowed to one.",
-  "windows": [],
+  "description": "The window shows a page of Summit's own; it is allowed nothing yet.",
+  "windows": ["main"],
   "permissions": []
 }
