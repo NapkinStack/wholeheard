@@ -408,22 +408,25 @@ struct MinutesShown {
 }
 
 #[tauri::command]
-fn minutes_shown(shell: State<'_, Shell>) -> MinutesShown {
-    let settings = shell.settings();
+async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, String> {
+    let settings = shell.reread().unwrap_or_else(|_| shell.settings());
     let kept = settings
         .minutes_provider
         .as_deref()
         .and_then(providers::host)
         .and_then(|host| keys::key(&host).ok().flatten())
         .is_some();
-    MinutesShown {
-        ollama: providers::ollama_models(&ollama()),
+    // Ollama is asked away from the window and the tray: one that does not answer holds neither.
+    let base = ollama();
+    let models = tauri::async_runtime::spawn_blocking(move || providers::ollama_models(&base)).await;
+    Ok(MinutesShown {
+        ollama: models.unwrap_or_default(),
         ollama_address: providers::ollama_address(&ollama()),
         online: providers::ONLINE,
         provider: settings.minutes_provider,
         model: settings.minutes_model,
         key_kept: kept,
-    }
+    })
 }
 
 /// Who writes the minutes, chosen: a provider's address, a model, and — for one that asks for it —
@@ -431,24 +434,24 @@ fn minutes_shown(shell: State<'_, Shell>) -> MinutesShown {
 #[tauri::command]
 fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: Option<String>) -> Result<(), String> {
     // The choice goes onto what the file says now; a file that cannot be read is not written over,
-    // and no key is kept for a choice that is not saved.
+    // and no key is kept for a choice that is not saved: the file first, then the key.
     let mut settings = shell.reread()?;
     let host = providers::host(provider.trim()).ok_or_else(|| format!("{provider} is no provider's address"))?;
     if model.trim().is_empty() {
         return Err("a model is named".into());
     }
-    if let Some(key) = key.as_deref().map(str::trim).filter(|key| !key.is_empty()) {
-        if let Some(why) = shell.keyring.lock().unwrap().clone() {
-            return Err(format!("the system's keyring could not be opened ({why})"));
-        }
-        keys::keep(&host, key)?;
+    let key = key.as_deref().map(str::trim).filter(|key| !key.is_empty());
+    if key.is_some()
+        && let Some(why) = shell.keyring.lock().unwrap().clone()
+    {
+        return Err(format!("the system's keyring could not be opened ({why})"));
     }
     settings.minutes_provider = Some(provider.trim().to_string());
     settings.minutes_model = Some(model.trim().to_string());
     let file = settings::file().ok_or("this system names no folder for settings")?;
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
     *shell.settings.lock().unwrap() = settings;
-    Ok(())
+    key.map_or(Ok(()), |key| keys::keep(&host, key))
 }
 
 /// Why the trash refused, as the user is told it: the system's own wording names a file and
