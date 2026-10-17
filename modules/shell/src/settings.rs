@@ -1,6 +1,7 @@
 //! The settings, as one file the user can read and write without Summit: a few lines of TOML
 //! in the system's place for an application's configuration. A file that is not there is
-//! every default; a key this version does not know is left alone, for the version that does.
+//! every default; a key this version does not know is left alone, for the version that does —
+//! also when the window writes the file again, with the user's comments.
 
 use std::{
     fs, io,
@@ -9,6 +10,24 @@ use std::{
 
 use serde::Deserialize;
 
+/// What follows a recording once it is stopped, without another gesture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum After {
+    Nothing,
+    Transcript,
+    /// The transcript, then the minutes.
+    Minutes,
+}
+
+/// How long a session's audio is kept; its transcript and minutes stay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum KeepAudio {
+    Always,
+    Days(u32),
+}
+
 /// What the user chose. Each field has its default: a file may name one and leave the rest.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
@@ -16,10 +35,14 @@ pub struct Settings {
     pub reminder: bool,
     /// The folder the sessions are written in, one folder each.
     pub sessions: PathBuf,
-    /// Make the transcript of a recording once it is stopped, without another gesture.
-    pub transcript: bool,
+    pub after: After,
     /// The Whisper model the transcript is heard with: a file in whisper.cpp's format.
     pub model: PathBuf,
+    /// Who writes the minutes: `ollama`, on this computer, or a provider's address; and the
+    /// model's name as it knows it. None: not chosen yet.
+    pub minutes_provider: Option<String>,
+    pub minutes_model: Option<String>,
+    pub keep_audio: KeepAudio,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -32,8 +55,11 @@ impl Default for Settings {
         Self {
             reminder: true,
             sessions: documents.join("Summit"),
-            transcript: true,
+            after: After::Transcript,
             model: data.join("summit").join("models").join(MODEL),
+            minutes_provider: None,
+            minutes_model: None,
+            keep_audio: KeepAudio::Always,
         }
     }
 }
@@ -48,8 +74,13 @@ pub fn file() -> Option<PathBuf> {
 struct Written {
     reminder: Option<bool>,
     sessions: Option<toml::Spanned<PathBuf>>,
+    /// Before `after`: `false` was "nothing follows".
     transcript: Option<bool>,
+    after: Option<After>,
     model: Option<toml::Spanned<PathBuf>>,
+    minutes_provider: Option<String>,
+    minutes_model: Option<String>,
+    keep_audio: Option<toml::Spanned<toml::Value>>,
 }
 
 /// Reads the settings. No file is no choice made: the defaults. A file that cannot be read as
@@ -85,7 +116,26 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     };
     let mut settings = Settings::default();
     settings.reminder = written.reminder.unwrap_or(settings.reminder);
-    settings.transcript = written.transcript.unwrap_or(settings.transcript);
+    settings.after = match (written.after, written.transcript) {
+        (Some(after), _) => after,
+        (None, Some(false)) => After::Nothing,
+        (None, _) => settings.after,
+    };
+    settings.minutes_provider = written.minutes_provider.filter(|named| !named.trim().is_empty());
+    settings.minutes_model = written.minutes_model.filter(|named| !named.trim().is_empty());
+    if let Some(keep) = written.keep_audio {
+        let at = line(keep.span().start);
+        settings.keep_audio = match keep.get_ref() {
+            toml::Value::String(always) if always == "always" => KeepAudio::Always,
+            toml::Value::Integer(days) if (1..=36_500).contains(days) => KeepAudio::Days(*days as u32),
+            _ => {
+                return Err(format!(
+                    "{}, line {at}: keep_audio is \"always\" or a number of days",
+                    path.display()
+                ));
+            }
+        };
+    }
     if let Some(sessions) = written.sessions {
         settings.sessions = whole("sessions", "the folder's", sessions)?;
     }
@@ -93,4 +143,53 @@ pub fn read(path: &Path) -> Result<Settings, String> {
         settings.model = whole("model", "the file's", model)?;
     }
     Ok(settings)
+}
+
+/// Writes the settings to their file, as `read` reads them: each key this version knows set to
+/// its value, every other key and every comment left as the user wrote them. Written whole or
+/// not at all.
+pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
+    use toml_edit::{DocumentMut, value};
+
+    let mut document = match fs::read_to_string(path) {
+        Ok(text) => text
+            .parse::<DocumentMut>()
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => DocumentMut::new(),
+        Err(error) => return Err(error),
+    };
+    let text = |path: &Path| path.to_string_lossy().into_owned();
+    document["reminder"] = value(settings.reminder);
+    document["sessions"] = value(text(&settings.sessions));
+    document["after"] = value(match settings.after {
+        After::Nothing => "nothing",
+        After::Transcript => "transcript",
+        After::Minutes => "minutes",
+    });
+    // Said by `after` now: the key it replaces would contradict it.
+    document.remove("transcript");
+    document["model"] = value(text(&settings.model));
+    for (key, named) in [
+        ("minutes_provider", &settings.minutes_provider),
+        ("minutes_model", &settings.minutes_model),
+    ] {
+        match named {
+            Some(named) => document[key] = value(named.as_str()),
+            None => {
+                document.remove(key);
+            }
+        }
+    }
+    document["keep_audio"] = match settings.keep_audio {
+        KeepAudio::Always => value("always"),
+        KeepAudio::Days(days) => value(i64::from(days)),
+    };
+    if let Some(folder) = path.parent() {
+        fs::create_dir_all(folder)?;
+    }
+    let draft = path.with_extension("toml.part");
+    fs::write(&draft, document.to_string())?;
+    fs::rename(&draft, path).inspect_err(|_| {
+        let _ = fs::remove_file(&draft);
+    })
 }

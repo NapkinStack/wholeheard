@@ -322,7 +322,7 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
         let notice = match &event {
             // Ended before it had started: nothing was recorded, and that is the trouble.
             Said::Failed(why) if !started => Some(words::trouble(&Trouble::NoRecorder(why.clone()), shell.language)),
-            Said::Stopped(folder, _) if shell.settings.transcript => {
+            Said::Stopped(folder, _) if shell.settings.after != settings::After::Nothing => {
                 stopped = Some(folder.clone());
                 words::of(&event, shell.settings.reminder, shell.language).map(|notice| Notice {
                     body: format!("{} {}", notice.body, words::follows(shell.language)),

@@ -32,7 +32,7 @@ deliverables:
   - id: D20
     title: "A user sets how Summit chains its steps and which model does each one"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given the settings, when the user chooses what follows a recording — nothing, the transcript, or the transcript then the minutes — and whether the reminder to announce the recording is shown, then the next recording behaves so; out of the box the transcript follows alone and the reminder is shown; and the choices are in one configuration file that reads without Summit"
       - "Given the settings, when the user chooses the model of a step — one found on this computer, an online service with its address filled in, or their own address, model and key — then the next making uses it; a key is kept in the system's keyring, never in a file; and *Tester* says in one sentence whether that model answers"
