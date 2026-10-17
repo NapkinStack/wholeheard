@@ -310,3 +310,25 @@ fn a_model_reached_by_a_link_is_offered_once() {
     };
     assert_eq!(whisper_models(&models, &settings), [models.join("big.bin")]);
 }
+
+#[test]
+fn the_host_agreed_to_is_one_line_of_the_file_read_back_and_taken_back() {
+    assert_eq!(Settings::default().minutes_agreed, None);
+    assert_eq!(
+        written("minutes_agreed = \"openrouter.ai\"\n").unwrap().minutes_agreed.as_deref(),
+        Some("openrouter.ai")
+    );
+    assert_eq!(written("minutes_agreed = \"  \"\n").unwrap().minutes_agreed, None);
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    let mut settings = Settings {
+        minutes_agreed: Some("api.mistral.ai".into()),
+        ..Settings::default()
+    };
+    write(&path, &settings).unwrap();
+    assert!(fs::read_to_string(&path).unwrap().contains("minutes_agreed = \"api.mistral.ai\""));
+    assert_eq!(read(&path), Ok(settings.clone()));
+    settings.minutes_agreed = None;
+    write(&path, &settings).unwrap();
+    assert!(!fs::read_to_string(&path).unwrap().contains("minutes_agreed"));
+}

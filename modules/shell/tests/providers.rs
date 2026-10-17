@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use summit_shell::providers::{self, ONLINE, host, ollama_address, ollama_models};
+use summit_shell::providers::{self, ONLINE, host, local, ollama_address, ollama_models};
 
 /// A server that answers each request with `body`, as many times as asked.
 fn answering(body: &'static str, times: usize) -> String {
@@ -81,4 +81,27 @@ fn a_provider_s_host_is_what_its_key_is_filed_under() {
         assert_eq!(host(none), None, "{none}");
     }
     assert!(ONLINE.iter().all(|online| host(online.address).is_some()));
+}
+
+#[test]
+fn an_address_of_this_machine_is_local_and_nothing_else_is() {
+    for here in [
+        "http://localhost:11434/v1",
+        "http://LOCALHOST/v1",
+        "http://127.0.0.1:8080/v1",
+        "http://127.3.2.1/v1",
+        "http://[::1]:11434/v1",
+        "http://0.0.0.0:11434/v1",
+    ] {
+        assert!(local(here), "{here}");
+    }
+    for away in [
+        "https://openrouter.ai/api/v1",
+        "http://localhost.example.org/v1",
+        "http://192.168.1.10:11434/v1",
+        "http://user@evil.org/@localhost",
+        "not an address",
+    ] {
+        assert!(!local(away), "{away}");
+    }
 }
