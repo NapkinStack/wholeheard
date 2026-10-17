@@ -75,7 +75,12 @@ def walk(item):
 walk(json.load(sys.stdin)["data"][1])' "$1"
 }
 windows() { ps -o comm= --ppid "$app" | grep -c '^WebKitWebProces' || true; }
-click() { busctl --user call "$bus" "$menu" com.canonical.dbusmenu Event isvu "$1" clicked s "" 0 >/dev/null; sleep 1; }
+# Quit may leave before its click is answered: then the bus says the peer left, which is no fault.
+click() {
+  busctl --user call "$bus" "$menu" com.canonical.dbusmenu Event isvu "$1" clicked s "" 0 >/dev/null 2> "$work/clicked" ||
+    grep -q 'Remote peer disconnected' "$work/clicked"
+  sleep 1
+}
 published=""
 failed=0
 check() { if "$@"; then say "  ok    $*"; else say "  FAIL  $*"; failed=1; fi; }
@@ -252,6 +257,14 @@ mkdir -p "$old/derived"
 printf '{"contract":"session-audio/v2","started":"2026-01-05T09:00:00+01:00","stopped":"2026-01-05T10:00:00+01:00","tracks":{}}' > "$old/session.json"
 printf '{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}\n{"type":"complete","duration":3600.0}\n' > "$old/transcript.jsonl"
 head -c 1000 /dev/zero > "$old/local.wav"; head -c 1000 /dev/zero > "$old/derived/local.wav"
+# A trash that cannot be made: the audio stays, and the refusal is said.
+mkdir -p "$work/data"; : > "$work/data/Trash"
+start fr_FR.UTF-8 "keep_audio = 1" "$work/summit-capture"
+sleep 3
+check test -e "$old/local.wav" -a -e "$old/derived/local.wav"
+check is "$(titles 'L’audio n’a pas été entièrement mis à la corbeille')" 1
+click 5
+rm "$work/data/Trash"
 start fr_FR.UTF-8 "keep_audio = 1" "$work/summit-capture"
 sleep 3
 check test ! -e "$old/local.wav" -a ! -e "$old/derived/local.wav"

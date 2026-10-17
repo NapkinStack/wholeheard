@@ -159,8 +159,9 @@ fn main() {
             // The audio kept longer than the settings say goes to the trash, now and every hour.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
+                let mut refused = None;
                 loop {
-                    expire(&handle);
+                    expire(&handle, &mut refused);
                     std::thread::sleep(Duration::from_secs(3600));
                 }
             });
@@ -351,8 +352,9 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
 
 /// Sends to the system's trash the audio of the sessions kept longer than the settings say — never
 /// deleted, restored from the trash —, and says so once. A session's folder that is a link the
-/// user put in the sessions' folder is followed, as the list follows it.
-fn expire(app: &AppHandle) {
+/// user put in the sessions' folder is followed, as the list follows it. A refusal is said once,
+/// and again only when its reason changes: `refused` is the last one said.
+fn expire(app: &AppHandle, refused: &mut Option<String>) {
     let shell = app.state::<Shell>();
     let Ok(settings) = shell.reread() else { return };
     let KeepAudio::Days(days) = settings.keep_audio else { return };
@@ -370,7 +372,11 @@ fn expire(app: &AppHandle) {
     let outcome = trash::delete_all(&gone)
         .map(|()| (meetings.len(), days))
         .map_err(|error| error.to_string());
-    tell(app, &words::audio_trashed(shell.language, &outcome));
+    let said_already = matches!((&outcome, &*refused), (Err(why), Some(said)) if why == said);
+    *refused = outcome.as_ref().err().cloned();
+    if !said_already {
+        tell(app, &words::audio_trashed(shell.language, &outcome));
+    }
 }
 
 /// Shows a notification. A desktop that shows none is no reason to stop anything.

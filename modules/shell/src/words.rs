@@ -580,26 +580,57 @@ pub fn fetching(language: Language, held: u64, bytes: u64) -> String {
 /// or, `Err`, why it could not.
 pub fn audio_trashed(language: Language, outcome: &Result<(usize, u32), String>) -> Notice {
     let (title, body) = match (language, outcome) {
+        (Language::English, Ok((1, days))) => (
+            "Audio moved to the trash".to_string(),
+            format!(
+                "The audio of 1 meeting kept more than {} is in the trash; its transcript and minutes stay.",
+                english_days(*days)
+            ),
+        ),
         (Language::English, Ok((meetings, days))) => (
             "Audio moved to the trash".to_string(),
-            format!("The audio of {meetings} meeting(s) kept more than {days} days is in the trash; their transcripts and minutes stay."),
+            format!(
+                "The audio of {meetings} meetings kept more than {} is in the trash; their transcripts and minutes stay.",
+                english_days(*days)
+            ),
+        ),
+        (Language::French, Ok((1, days))) => (
+            "Audio mis à la corbeille".to_string(),
+            format!(
+                "L’audio d’une réunion gardé plus {} est dans la corbeille ; son transcript et son compte rendu restent.",
+                french_days(*days)
+            ),
         ),
         (Language::French, Ok((meetings, days))) => (
             "Audio mis à la corbeille".to_string(),
             format!(
-                "L’audio de {meetings} réunion(s) gardé plus de {days} jours est dans la corbeille ; les transcripts et les comptes rendus restent."
+                "L’audio de {meetings} réunions gardé plus {} est dans la corbeille ; leurs transcripts et leurs comptes rendus restent.",
+                french_days(*days)
             ),
         ),
+        // The trash may have taken some before it refused: what is said holds either way.
         (Language::English, Err(why)) => (
-            "The audio was not moved to the trash".to_string(),
-            format!("{why}. It is kept; nothing was deleted."),
+            "The audio was not all moved to the trash".to_string(),
+            format!("{why}. What was not moved stays where it was; nothing was deleted."),
         ),
         (Language::French, Err(why)) => (
-            "L’audio n’a pas été mis à la corbeille".to_string(),
-            format!("{why}. Il est gardé ; rien n’a été supprimé."),
+            "L’audio n’a pas été entièrement mis à la corbeille".to_string(),
+            format!("{why}. Ce qui n’a pas été déplacé reste à sa place ; rien n’a été supprimé."),
         ),
     };
     Notice { title, body }
+}
+
+fn english_days(days: u32) -> String {
+    if days == 1 { "1 day".to_string() } else { format!("{days} days") }
+}
+
+fn french_days(days: u32) -> String {
+    if days == 1 {
+        "d’un jour".to_string()
+    } else {
+        format!("de {days} jours")
+    }
 }
 
 /// Said when a transcript needs the default model and it is not on the machine: nothing is

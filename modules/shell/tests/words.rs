@@ -339,3 +339,42 @@ fn the_model_is_offered_with_its_size_and_host_and_its_fetch_is_said() {
     }
     assert_eq!(words::fetched(&Ok(()), Language::French).title, "Modèle prêt");
 }
+
+#[test]
+fn audio_sent_to_the_trash_is_said_with_its_counts_and_a_refusal_never_claims_too_much() {
+    let said = |language, outcome: Result<(usize, u32), String>| {
+        let Notice { title, body } = words::audio_trashed(language, &outcome);
+        format!("{title} | {body}")
+    };
+    assert_eq!(
+        said(Language::English, Ok((1, 1))),
+        "Audio moved to the trash | The audio of 1 meeting kept more than 1 day is in the trash; \
+         its transcript and minutes stay."
+    );
+    assert_eq!(
+        said(Language::English, Ok((3, 30))),
+        "Audio moved to the trash | The audio of 3 meetings kept more than 30 days is in the trash; \
+         their transcripts and minutes stay."
+    );
+    assert_eq!(
+        said(Language::French, Ok((1, 1))),
+        "Audio mis à la corbeille | L’audio d’une réunion gardé plus d’un jour est dans la corbeille ; \
+         son transcript et son compte rendu restent."
+    );
+    assert_eq!(
+        said(Language::French, Ok((3, 30))),
+        "Audio mis à la corbeille | L’audio de 3 réunions gardé plus de 30 jours est dans la \
+         corbeille ; leurs transcripts et leurs comptes rendus restent."
+    );
+    // The trash may have taken some before it refused: what is said holds either way.
+    assert_eq!(
+        said(Language::English, Err("no trash on this drive".into())),
+        "The audio was not all moved to the trash | no trash on this drive. What was not moved \
+         stays where it was; nothing was deleted."
+    );
+    assert_eq!(
+        said(Language::French, Err("pas de corbeille sur ce disque".into())),
+        "L’audio n’a pas été entièrement mis à la corbeille | pas de corbeille sur ce disque. Ce \
+         qui n’a pas été déplacé reste à sa place ; rien n’a été supprimé."
+    );
+}
