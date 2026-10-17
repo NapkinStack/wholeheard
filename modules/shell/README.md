@@ -110,7 +110,9 @@ WebDriver — WebKitGTK's own (`WebKitWebDriver`, in Fedora's `webkit2gtk4.1-dev
   `transcript.jsonl` is there once `summit-transcription` ended well (`src/transcription.rs`);
   [`session-audio`](../../contracts/session-audio/v2/README.md), v1 and v2 — a session's `session.json`, for the
   window's list (`src/sessions.rs`); the transcript's segments and [`minutes/v1`](../../contracts/minutes/v1/README.md)
-  — one meeting's, as the window will open it (`src/meeting.rs`, `src/minutes.rs`). The contracts of the files it will read are declared with the slice that reads
+  — one meeting's, as the window will open it (`src/meeting.rs`, `src/minutes.rs`);
+  [`summarising/v1`](../../contracts/summarising/v1/README.md) — what `summit-summary` says while it writes the
+  minutes (`src/summarising.rs`). The contracts of the files it will read are declared with the slice that reads
   them
 
 ## Decisions

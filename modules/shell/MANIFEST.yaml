@@ -61,6 +61,9 @@ consumes:
   - contract: minutes
     version: v1
     module: summary
+  - contract: summarising
+    version: v1
+    module: summary
 #  - contract: identity-api
 #    version: v1
 #    module: identity
