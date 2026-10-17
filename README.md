@@ -30,14 +30,16 @@ On Fedora, built from this repository — no installer yet, and nothing on Windo
 
 | What runs | How | Its page |
 |---|---|---|
-| Summit in the tray: start and stop a recording from its menu or a shortcut, told by notifications | `nstack run shell` | [`modules/shell`](modules/shell/) |
+| Summit in the tray: start and stop a recording from its menu or a shortcut, told by notifications; the transcript follows the stop, the model fetched once on your word | `nstack run shell` | [`modules/shell`](modules/shell/) |
 | A recording, from a terminal | `summit-capture record <folder>` | [`modules/capture`](modules/capture/) |
 | The transcript of a session, on the machine | `summit-transcription <session> --model <file>` | [`modules/transcription`](modules/transcription/) |
 | The minutes of a transcript, from the provider you chose | `summit-summary <session> --provider <address> --model <name>` | [`modules/summary`](modules/summary/) |
 
-**Known, and being worked on**: taken on loudspeakers, a meeting's transcript repeats one
-party under the other's name. The second cycle (from 14 October 2026) rebuilds the audio on
-a firmer base: [`docs/project/cycles/`](docs/project/cycles/), [ADR-0004](docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md).
+Each source is kept as your system delivers it, at its own rate and channels, in 24 bits —
+about 2 GB an hour on a laptop ([ADR-0004](docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md)).
+**Known**: the engine on the machine still writes a few words where nobody speaks, and on a
+lively meeting misses or mishears about one word in four. The window is drawn and comes next:
+[`docs/project/`](docs/project/).
 
 ## Contribute
 
