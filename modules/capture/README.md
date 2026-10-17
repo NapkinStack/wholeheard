@@ -59,6 +59,8 @@ One JSON object per line on its output; errors go to the error stream.
 | `heard` | A source told silent gives sound again | `source` |
 | `stopped` | The files are finished and `session.json` says so | `folder`, `seconds` |
 
+A source is named for the device the system's default stands for when the recording starts — read from PipeWire's metadata — so that a microphone other than the call's shows at once; `summit-capture devices` prints it as `stands_for`. Unread, the default's own name.
+
 These lines are a contract: [`recording/v1`](../../contracts/recording/v1/README.md), which the shell reads. With `--as v2` they are the same lines, and still name the sources `me` and `others` where the files are `local` and `remote`.
 
 ## Contracts

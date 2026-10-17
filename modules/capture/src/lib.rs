@@ -312,3 +312,13 @@ pub fn write_session(folder: &Path, started: &str, stopped: Option<&str>, me: &s
     fs::write(&draft, serde_json::to_vec_pretty(&session)?)?;
     fs::rename(draft, folder.join("session.json"))
 }
+
+/// The node a desktop's default device stands for, as `pw-metadata -n default 0 <key>` prints
+/// it — `key` being `default.audio.source` for the microphone, `default.audio.sink` for what
+/// plays — or nothing when the output does not say.
+pub fn standing_for(metadata: &str, key: &str) -> Option<String> {
+    let line = metadata.lines().find(|line| line.contains(&format!("key:'{key}'")))?;
+    let value = line.split("value:'").nth(1)?.split("' type:").next()?;
+    let value: serde_json::Value = serde_json::from_str(value).ok()?;
+    Some(value["name"].as_str()?.to_string())
+}
