@@ -18,7 +18,9 @@ from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.options import ArgOptions
+from urllib3.exceptions import HTTPError
 
 BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
 FAILED = []
@@ -68,14 +70,16 @@ class Window:
         options = ArgOptions()
         options.set_capability("browserName", "wry")
         options.set_capability("tauri:options", {"application": str(BINARY), "args": ["--window"]})
+        # The driver answers once it is up: until then, connections are refused or cut.
         for _ in range(50):
             try:
                 self.browser = webdriver.Remote(f"http://127.0.0.1:{port}", options=options)
                 break
-            except Exception:
+            except (WebDriverException, HTTPError):
                 time.sleep(0.2)
         else:
             self.driver.terminate()
+            self.driver.wait(timeout=10)
             raise SystemExit("tauri-driver did not answer")
         wait_for(self.browser, lambda b: b.execute_script("return document.getElementById('meetings').textContent !== ''"))
         return self.browser
@@ -95,6 +99,9 @@ def main() -> int:
     print("H. the window: in the system's language, its theme, from the keyboard")
     with Window(sessions, "fr_FR.UTF-8") as browser:
         check("the section is named in French", browser.find_element(By.ID, "meetings").text == "Réunions")
+        check("the page says it is in French", browser.execute_script("return document.documentElement.lang") == "fr")
+        sections = browser.find_element(By.TAG_NAME, "nav").get_attribute("aria-label")
+        check("its sections are named in French for a screen reader", sections == "Rubriques", sections)
         # The theme is the system's: the page's ground is that of the theme the system shows.
         dark = browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
         ground = browser.execute_script("return getComputedStyle(document.body).backgroundColor")
@@ -105,6 +112,7 @@ def main() -> int:
         check("Tab reaches the window's first action", focused == "meetings", focused)
     with Window(sessions, "en_GB.UTF-8") as browser:
         check("the section is named in English", browser.find_element(By.ID, "meetings").text == "Meetings")
+        check("the page says it is in English", browser.execute_script("return document.documentElement.lang") == "en")
     return 1 if FAILED else 0
 
 

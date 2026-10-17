@@ -254,8 +254,9 @@ if ! command -v WebKitWebDriver >/dev/null; then
 else
   command -v tauri-driver >/dev/null || cargo install tauri-driver --locked --version 2.1.0 2>&1 | tail -1 >> .evidence/e2e.txt
   mkdir -p "$work/window"
-  uv run --quiet --with selenium==4.51.0 python scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt
-  [ "${PIPESTATUS[0]}" = 0 ] || failed=1
+  if ! uv run --quiet --with selenium==4.51.0 python scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt; then
+    failed=1
+  fi
 fi
 
 check test ! -s "$work/errors"

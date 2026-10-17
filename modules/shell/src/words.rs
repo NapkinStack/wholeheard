@@ -231,6 +231,8 @@ pub struct Window {
     pub locale: &'static str,
     /// Bytes, kilobytes, megabytes, gigabytes.
     pub units: [&'static str; 4],
+    /// What a screen reader calls the window's sections.
+    pub sections: &'static str,
     pub meetings: &'static str,
     /// The weight of everything: its size, how many meetings, how long their audio lasts.
     pub weight: &'static str,
@@ -257,6 +259,7 @@ pub fn window(language: Language) -> Window {
         Language::English => Window {
             locale: "en",
             units: ["B", "kB", "MB", "GB"],
+            sections: "Sections",
             meetings: "Meetings",
             weight: "taken by {} meetings · {} of audio",
             audio_kept: "Audio, as recorded — {}",
@@ -276,6 +279,7 @@ pub fn window(language: Language) -> Window {
         Language::French => Window {
             locale: "fr",
             units: ["o", "ko", "Mo", "Go"],
+            sections: "Rubriques",
             meetings: "Réunions",
             weight: "occupés par {} réunions · {} d’audio",
             audio_kept: "Audio, tel qu’enregistré — {}",

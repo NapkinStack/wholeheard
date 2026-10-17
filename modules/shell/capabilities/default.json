@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The window reads what it shows through the shell's own command; it is allowed nothing else.",
+  "description": "The window calls the shell's own command, which needs no permission; it is allowed nothing.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": []
 }

@@ -5,6 +5,7 @@
 function show({ words }) {
   document.documentElement.lang = words.locale;
   document.getElementById("meetings").textContent = words.meetings;
+  document.getElementById("sections").setAttribute("aria-label", words.sections);
 }
 
 async function refresh() {
