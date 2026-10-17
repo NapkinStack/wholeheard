@@ -41,6 +41,9 @@ const TRAY: &str = "summit";
 struct Shell {
     /// What the user chose: read at start, changed from the window.
     settings: Mutex<Settings>,
+    /// Held while a change is read onto the file and written: two saves never interleave, the
+    /// later undoing the earlier.
+    saving: Mutex<()>,
     /// Why the system's keyring could not be opened, when it could not.
     keyring: Mutex<Option<String>>,
     language: Language,
@@ -100,6 +103,7 @@ enum Shown {
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             listed,
             opened,
@@ -107,7 +111,8 @@ fn main() {
             settings_shown,
             settings_saved,
             minutes_shown,
-            minutes_saved
+            minutes_saved,
+            choose_folder
         ])
         .setup(|app| {
             let language = Language::system();
@@ -144,6 +149,7 @@ fn main() {
                 .build(app)?;
             app.manage(Shell {
                 settings: Mutex::new(read.clone().unwrap_or_default()),
+                saving: Mutex::new(()),
                 keyring: Mutex::new(None),
                 language,
                 recording: Mutex::new(None),
@@ -284,6 +290,7 @@ struct Model {
 /// why the file is not written when it could not be read.
 #[derive(serde::Serialize)]
 struct SettingsShown {
+    sessions: PathBuf,
     after: After,
     reminder: bool,
     keep_audio: KeepAudio,
@@ -315,6 +322,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         })
         .collect();
     SettingsShown {
+        sessions: settings.sessions,
         after: settings.after,
         reminder: settings.reminder,
         keep_audio: settings.keep_audio,
@@ -327,6 +335,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
 /// One choice the page changed.
 #[derive(serde::Deserialize)]
 struct Change {
+    sessions: Option<PathBuf>,
     after: Option<After>,
     reminder: Option<bool>,
     keep_audio: Option<KeepAudio>,
@@ -338,7 +347,16 @@ struct Change {
 #[tauri::command]
 fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String> {
     // The change goes onto what the file says now: what the user changed by hand stays.
+    let _saving = shell.saving.lock().unwrap();
     let mut settings = shell.reread()?;
+    // A folder for the sessions: a whole path, made when it is not there yet.
+    if let Some(sessions) = change.sessions {
+        if !sessions.is_absolute() {
+            return Err(format!("{} is no whole path", sessions.display()));
+        }
+        std::fs::create_dir_all(&sessions).map_err(|error| format!("{}: {error}", sessions.display()))?;
+        settings.sessions = sessions;
+    }
     if let Some(after) = change.after {
         settings.after = after;
     }
@@ -395,6 +413,17 @@ fn expire(app: &AppHandle, refused: &mut Option<Refusal>) {
     }
 }
 
+/// A folder chosen in the system's own dialog, opened where the sessions are; none when the user
+/// closes it.
+#[tauri::command]
+async fn choose_folder(app: AppHandle) -> Option<PathBuf> {
+    use tauri_plugin_dialog::DialogExt;
+    let shell = app.state::<Shell>();
+    let from = shell.reread().unwrap_or_else(|_| shell.settings()).sessions;
+    let chosen = app.dialog().file().set_directory(from).blocking_pick_folder()?;
+    chosen.into_path().ok()
+}
+
 /// Ollama on this computer — or, for whoever tries Summit, where `SUMMIT_OLLAMA` says.
 fn ollama() -> String {
     std::env::var("SUMMIT_OLLAMA").unwrap_or_else(|_| providers::OLLAMA.to_string())
@@ -438,24 +467,29 @@ async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, String> 
 /// a key, kept in the system's keyring and nowhere else.
 #[tauri::command]
 async fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: Option<String>) -> Result<Option<String>, String> {
-    // The choice goes onto what the file says now; a file that cannot be read is not written over,
-    // and no key is kept for a choice that is not saved: the file first, then the key.
-    let mut settings = shell.reread()?;
-    let host = providers::host(provider.trim()).ok_or_else(|| format!("{provider} is no provider's address"))?;
-    if model.trim().is_empty() {
-        return Err("a model is named".into());
-    }
-    let key = key.map(|key| key.trim().to_string()).filter(|key| !key.is_empty());
-    if key.is_some()
-        && let Some(why) = shell.keyring.lock().unwrap().clone()
-    {
-        return Err(format!("the system's keyring could not be opened ({why})"));
-    }
-    settings.minutes_provider = Some(provider.trim().to_string());
-    settings.minutes_model = Some(model.trim().to_string());
-    let file = settings::file().ok_or("this system names no folder for settings")?;
-    settings::write(&file, &settings).map_err(|error| error.to_string())?;
-    *shell.settings.lock().unwrap() = settings;
+    // Held until the file is written, never across the keyring's wait.
+    let (host, key) = {
+        let _saving = shell.saving.lock().unwrap();
+        // The choice goes onto what the file says now; a file that cannot be read is not written over,
+        // and no key is kept for a choice that is not saved: the file first, then the key.
+        let mut settings = shell.reread()?;
+        let host = providers::host(provider.trim()).ok_or_else(|| format!("{provider} is no provider's address"))?;
+        if model.trim().is_empty() {
+            return Err("a model is named".into());
+        }
+        let key = key.map(|key| key.trim().to_string()).filter(|key| !key.is_empty());
+        if key.is_some()
+            && let Some(why) = shell.keyring.lock().unwrap().clone()
+        {
+            return Err(format!("the system's keyring could not be opened ({why})"));
+        }
+        settings.minutes_provider = Some(provider.trim().to_string());
+        settings.minutes_model = Some(model.trim().to_string());
+        let file = settings::file().ok_or("this system names no folder for settings")?;
+        settings::write(&file, &settings).map_err(|error| error.to_string())?;
+        *shell.settings.lock().unwrap() = settings;
+        (host, key)
+    };
     // Saved: the key now, away from the window and the tray — the keyring may ask the user first.
     // Refused, the choice stays saved and the page says only the key was not kept.
     let Some(key) = key else { return Ok(None) };

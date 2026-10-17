@@ -97,6 +97,12 @@ dependencies:
     exit_strategy: >
       One call, trash::delete_all, in src/main.rs; gio trash and the systems' own trash
       interfaces replace it.
+  - name: tauri-plugin-dialog
+    purpose: Opens the system's own dialog to choose the sessions' folder
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: >
+      One call, blocking_pick_folder, in src/main.rs; rfd, which it wraps, or the folder typed
+      in the page replace it.
   - name: dirs
     purpose: Names the user's configuration and documents folders, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
