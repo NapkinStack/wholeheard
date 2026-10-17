@@ -174,13 +174,13 @@ What the line says, and what it cost to get one worth reading: [its entry in the
 
 ### D9
 
-In progress. The second form of a session (`contracts/session-audio/v2`) is written **on
-asking**, read by the step that follows, and measured on the bench.
+In progress. The second form of a session (`contracts/session-audio/v2`) is what `record`
+writes, and so what the tray records (#161); the step that follows reads it.
 
 | Piece | Today |
 |---|---|
-| `capture` | `summit-capture record <sessions> --as v2` writes each source as delivered — its rate, its channels, 24 bits — and the session's clock beside. Without `--as v2` it writes the first form, as before: that is still what the tray starts. Its end-to-end scenarios cover both forms, on devices made for the run |
-| `platform` | The bench renders its meeting in either form, the second with a clock that has two stops and a silence in it |
+| `capture` | `summit-capture record <sessions>` writes each source as delivered — its rate, its channels, 24 bits — and the session's clock beside; the tray, which asks for no form, records it (#161). `--as v1` writes the first form, to compare with it. Its end-to-end scenarios cover both forms, on devices made for the run |
+| `platform` | The bench renders its meeting in either form, the second with a clock that has two stops and a silence in it; `bench.real` makes passages of real French meetings with a human transcript in both forms, and scores each side (#160) |
 | `transcription` | Reads either form — `session.json` names which — and says which it read. A track is brought to what an engine hears and placed on the session's clock; the first form is heard as it always was |
 | What the programs say while recording (`recording/v1`) | The same lines in both forms; they still name the sources `me` and `others` where the second form's files are `local` and `remote`. A source taken from a desktop's default is named for the device the default stands for (#153), and the tray's *Recording* notification names the microphone recorded (#154): on the decider's trial of 2026-10-17 the laptop's microphone was recorded while the call used the headset's, and nothing said so |
 
@@ -189,17 +189,26 @@ loudspeakers): the engine hears a long recording window after window, so a pause
 places truly moves every window after it. It is the engine's way with long sound, not a sound
 the reader makes wrong. The measures and how the cause was found: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196157116).
 
-**Decided by the decider on 2026-10-14**, once D14 was refuted: the tray keeps starting the
-first form until D10 holds. The second form stays written on asking, and measured.
+**On real speech it is not** (#160; [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6235285020)):
+on eight passages of real meetings, the words missed or misheard are level or a little fewer in
+the second form (median local 23.5 % against 25.1 %, remote 28.5 % against 29.9 %). The second
+form takes up faint speech more readily.
+
+**Decided by the decider on 2026-10-17**, on that measure: the second form becomes what
+`record` writes, from the tray too (#161). Their decision of 2026-10-14 — the first form until
+D10 holds — is closed: D10 holds.
 
 Not measured yet — the fourth criterion: what an hour weighs on the decider's laptop.
 Computed, not measured: two tracks at 48,000 samples a second, two channels, 24 bits are
 2.07 GB an hour as delivered. The limit that replaces 250 MB is the decider's to set on the
 real measure.
 
-Left before D9 is offered for acceptance: the second form becomes what `record` writes, from
-the tray too — weighed again once D10 holds, on the remote side's count; a session of the
-first form is still read, or refused in one sentence; the hour's weight.
+A session of the first form is still read: `summit-transcription` reads either form by what
+`session.json` names, and refuses a contract it does not know.
+
+Left before D9 is offered for acceptance: the hour's weight, and the limit the decider sets on
+it. Known and set aside by the decider (#131): at a change of the sound server's period the
+microphone track loses a few frames, and the clock marks it.
 
 ### D10
 
@@ -262,8 +271,9 @@ that can be swapped, and no error added by its own steps. On this line the doubl
 is closed. What is left on the decider's call of 2026-10-17 is the engine's: text written on
 a track's silence, text written during a loud ringtone, sentences cut at each pause.
 
-**Next:** with D10 holding, D9's second form is weighed again as what `record` writes. *Local
-words lost under the remote* stays a count the bench reads, not a lever.
+**Next:** done — with D10 holding, D9's second form was weighed on real meetings and became
+what `record` writes (D9). *Local words lost under the remote* stays a count the bench reads,
+not a lever.
 
 **How a change is measured.** On the bench (`modules/platform`, its `README.md`: four draws
 at least of each condition, `bench.counts`) and on the trial meeting — cycle 01's D4
