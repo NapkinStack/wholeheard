@@ -84,29 +84,48 @@ fn a_provider_s_host_is_what_its_key_is_filed_under() {
 }
 
 #[test]
-fn an_address_of_this_machine_is_local_and_nothing_else_is() {
+fn an_address_is_local_exactly_when_summit_summary_reads_it_as_this_machine() {
+    // Each address as summit-summary reads it — accepted as this machine, accepted as another, or
+    // refused before anything is sent —; only the first are local.
     for here in [
         "http://localhost:11434/v1",
         "http://LOCALHOST/v1",
+        "HTTP://localhost/v1",
         "http://127.0.0.1:8080/v1",
-        "http://127.3.2.1/v1",
-        "http://[::1]:11434/v1",
+        "http://127.255.255.254/v1",
         "http://0.0.0.0:11434/v1",
+        "http://[::]/v1",
+        "http://[::1]:11434/v1",
+        "http://[0:0:0:0:0:0:0:1]/v1",
         "http://[::ffff:127.0.0.1]:11434/v1",
     ] {
         assert!(local(here), "{here}");
     }
-    for away in [
+    for elsewhere in [
         "https://openrouter.ai/api/v1",
-        "http://localhost.example.org/v1",
+        "http://localhost.localdomain/v1",
         "http://192.168.1.10:11434/v1",
-        "http://user@evil.org/@localhost",
-        // What summit-summary refuses is never this machine's either.
+    ] {
+        assert!(!local(elsewhere), "{elsewhere}");
+    }
+    for refused in [
         "http://evil.invalid\\@localhost/v1",
         "http://localhost#@evil.invalid/v1",
+        "http://evil.invalid@localhost/v1",
         "http://localhost?x/v1",
+        "http://localhost:99999/v1",
+        "http://localhost:x/v1",
+        "http://127.0.0.1:/v1",
+        "http://localhost./v1",
+        "http://127.1/v1",
+        "http://2130706433/v1",
+        "http://localhost:9@evil.invalid/v1",
+        "http://[localhost]/v1",
+        "http://local/v1",
+        "ftp://localhost/v1",
+        "http:// localhost/v1",
         "not an address",
     ] {
-        assert!(!local(away), "{away}");
+        assert!(!local(refused), "{refused}");
     }
 }

@@ -100,6 +100,11 @@ dependencies:
     exit_strategy: >
       One call, trash::delete_all, in src/main.rs; gio trash and the systems' own trash
       interfaces replace it.
+  - name: http
+    purpose: Reads a provider's address as summit-summary does, to tell one of this machine
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: >
+      One parse, in providers::local; any reader of addresses summit-summary also uses replaces it.
   - name: tauri-plugin-dialog
     purpose: Opens the system's own dialog to choose the sessions' folder
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md

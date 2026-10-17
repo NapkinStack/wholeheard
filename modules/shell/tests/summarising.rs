@@ -105,5 +105,30 @@ fn written_is_believed_only_from_a_program_that_ended_well_with_the_file_there()
             panic!("{script}: {events:?}")
         };
         assert!(!why.is_empty(), "{script}");
+        // The sentence said last, just before the end, is the one told.
+        if script.contains("late") {
+            assert_eq!(why, "late");
+        }
     }
+}
+
+#[test]
+fn a_making_ended_by_summit_ends_failed_and_soon() {
+    let folder = session();
+    let _held = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let path = folder.path().join("summit-summary");
+    fs::write(
+        &path,
+        "#!/bin/sh
+exec sleep 30
+",
+    )
+    .unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    let (making, events) = Summarising::start(&path, &folder.path().join("session"), "http://127.0.0.1:9/v1", "m", None).unwrap();
+    making.end();
+    assert!(matches!(
+        events.recv_timeout(Duration::from_secs(5)),
+        Ok(Event::Ended(Made::Failed(_)))
+    ));
 }

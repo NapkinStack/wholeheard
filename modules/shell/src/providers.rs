@@ -81,22 +81,41 @@ pub fn host(address: &str) -> Option<String> {
     (!host.is_empty()).then_some(host)
 }
 
-/// Whether a provider's address is this machine — `localhost`, a loopback address, or the one
-/// that means "any": what is sent there never leaves it.
+/// Whether a provider's address is this machine — what is sent there never leaves it. Read as
+/// `summit-summary` reads it (its provider's reading of an address):
+/// the same parser, the same rules, so that an address it refuses, or sends elsewhere, is never
+/// judged local here — the agreement is never skipped on a reading of the shell's own.
 pub fn local(address: &str) -> bool {
-    // Read as summit-summary reads it: an address it refuses — a query, a fragment, a user part,
-    // a backslash — is no address of this machine either.
-    if address.contains(['?', '#', '@', '\\']) {
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    if address.contains(['?', '#', '@', '\\']) || address.chars().any(char::is_whitespace) {
         return false;
     }
-    let Some(host) = host(address) else { return false };
-    // Without its port: after the brackets of an IPv6 address, or after the one colon of the rest.
-    let name = match host.strip_prefix('[') {
-        Some(rest) => rest.split(']').next().unwrap_or_default().to_string(),
-        None => host.rsplit_once(':').map_or(host.as_str(), |(name, _)| name).to_string(),
+    let joined = format!("{}/chat/completions", address.trim_end_matches('/'));
+    let Ok(typed) = joined.parse::<http::Uri>() else { return false };
+    let (Some("http" | "https"), Some(authority), Some(host)) = (typed.scheme_str(), typed.authority(), typed.host()) else {
+        return false;
     };
-    name == "localhost"
-        || name
-            .parse::<std::net::IpAddr>()
-            .is_ok_and(|ip| ip.to_canonical().is_loopback() || ip.is_unspecified())
+    // What follows the host is a port, or nothing.
+    let port = authority.as_str().strip_prefix(host).unwrap_or_default();
+    if !port.is_empty()
+        && !port
+            .strip_prefix(':')
+            .is_some_and(|digits| digits.bytes().all(|b| b.is_ascii_digit()) && digits.parse::<u16>().is_ok())
+    {
+        return false;
+    }
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    let here = |address: IpAddr| address.to_canonical().is_loopback() || address.to_canonical().is_unspecified();
+    // Brackets hold an IPv6 address and nothing else; four numbers in full, an IPv4 one; a name
+    // otherwise — and a name, `localhost` apart, is never this machine.
+    if let Some(inside) = host.strip_prefix('[') {
+        return inside
+            .strip_suffix(']')
+            .and_then(|inside| inside.parse::<Ipv6Addr>().ok())
+            .is_some_and(|ip| here(IpAddr::V6(ip)));
+    }
+    host.parse::<Ipv4Addr>().is_ok_and(|ip| here(IpAddr::V4(ip)))
 }

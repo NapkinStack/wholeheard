@@ -3750,6 +3750,7 @@ dependencies = [
  "ashpd",
  "dirs 6.0.0",
  "futures-util",
+ "http",
  "keyring-core",
  "libc",
  "notify-rust",
