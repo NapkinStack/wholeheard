@@ -39,14 +39,15 @@ cargo run --release -- record <sessions-folder>   # until Ctrl-C, a TERM signal,
 cargo run --release -- record <sessions-folder> --as v1   # the same, in the first form
 ```
 
-**`nstack e2e capture`** runs D3's scenarios without a call and without a voice: for about a
-minute the system's default output and input are two silent devices of its own, a note is
-played into each, and the program records them — stopped as a user stops it, read while it
-writes, left silent, killed, and with the same sound in both sources to see that the two files
-keep one clock. It runs nothing where there is no sound server, or while an
-application holds a microphone; what it saw is in `.evidence/e2e.txt`. A real call, a real
-microphone and a headset stay a person's to try; so do a source that rests away from zero and
-one that stops delivering, which silent devices cannot play and the module's tests hold.
+**`nstack e2e capture`** runs the scenarios without a call and without a voice: for about
+three minutes the system's default output and input are two silent devices of its own, a note
+is played into each, and the program records them in both forms — stopped as a user stops it,
+read while it writes, left silent, killed, and with the same sound in both sources to see that
+the tracks keep one clock. The second form's notes rest away from zero and carry two unequal
+channels in 24 bits, so that a track centred, mixed or cut shows; and one source stops and
+comes back. It runs nothing where there is no sound server, or while an application holds a
+microphone; what it saw is in `.evidence/e2e.txt`. A real call, a real microphone and a
+headset stay a person's to try.
 
 ## What it says while it runs
 
