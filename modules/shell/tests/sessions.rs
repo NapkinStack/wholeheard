@@ -188,3 +188,55 @@ fn a_session_is_named_by_its_folder_alone_never_by_a_path() {
         assert_eq!(sessions::folder(&root, wrong), None, "{wrong}");
     }
 }
+
+#[test]
+fn the_sound_of_sessions_stopped_more_than_the_days_kept_is_what_goes() {
+    let folder = tempfile::tempdir().unwrap();
+    let root = folder.path();
+    // Stopped on 2026-10-01 at 10:00 and on 2026-10-15 at 10:00 (UTC); one never stopped.
+    session(
+        &root.join("old"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-01T09:00:00Z","stopped":"2026-10-01T10:00:00Z","tracks":{}}"#,
+        &[
+            ("local.wav", 10),
+            ("remote.WAV", 10),
+            ("derived/local.wav", 5),
+            ("transcript.jsonl", 3),
+            ("minutes.md", 3),
+        ],
+    );
+    session(
+        &root.join("new"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-15T09:00:00Z","stopped":"2026-10-15T10:00:00Z","tracks":{}}"#,
+        &[("local.wav", 10)],
+    );
+    session(
+        &root.join("cut"),
+        r#"{"contract":"session-audio/v2","started":"2026-09-01T09:00:00Z","tracks":{}}"#,
+        &[("local.wav", 10)],
+    );
+    session(
+        &root.join("undated"),
+        r#"{"contract":"session-audio/v2","started":"long ago","tracks":{}}"#,
+        &[("local.wav", 10)],
+    );
+    let now = instant("2026-10-17T10:00:00Z").unwrap();
+    let mut gone = sessions::expired_audio(root, 14, now);
+    gone.sort();
+    assert_eq!(
+        gone,
+        [
+            root.join("old/derived/local.wav"),
+            root.join("old/local.wav"),
+            root.join("old/remote.WAV")
+        ]
+    );
+    // Exactly the days kept: it goes; a day less, it stays.
+    assert_eq!(sessions::expired_audio(root, 16, now).len(), 3);
+    assert!(sessions::expired_audio(root, 17, now).is_empty());
+    // Counted from its stop, not its start: between the two, it stays.
+    let between = instant("2026-10-17T09:30:00Z").unwrap();
+    assert!(sessions::expired_audio(root, 16, between).is_empty());
+    // Two days kept: the other stopped session goes too; never the one without its end.
+    assert_eq!(sessions::expired_audio(root, 2, now).len(), 4);
+}
