@@ -16,6 +16,8 @@ use std::{
 };
 
 use summit_shell::{
+    meeting::{self, Read, Transcript},
+    minutes::{self, Minutes},
     model::{self, Published},
     recording::{Recording, Said},
     sessions::{self, Listed},
@@ -76,7 +78,7 @@ enum Shown {
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .invoke_handler(tauri::generate_handler![listed])
+        .invoke_handler(tauri::generate_handler![listed, opened, open_folder])
         .setup(|app| {
             let language = Language::system();
             let labels = words::menu(language);
@@ -176,6 +178,54 @@ fn listed(shell: State<'_, Shell>) -> Listing {
         folder: shell.settings.sessions.clone(),
         sessions: sessions::list(&shell.settings.sessions, recorded.as_deref()),
     }
+}
+
+/// The folder of a session the window names (`sessions::folder`).
+fn session_folder(shell: &Shell, name: &str) -> Result<PathBuf, String> {
+    sessions::folder(&shell.settings.sessions, name).ok_or_else(|| format!("{name} is no session"))
+}
+
+/// One meeting, as its page shows it.
+#[derive(serde::Serialize)]
+struct Opened {
+    session: Listed,
+    transcript: Read<Transcript>,
+    minutes: Read<Minutes>,
+}
+
+#[tauri::command]
+fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
+    let folder = session_folder(&shell, &name)?;
+    let recorded = shell.recorded.lock().unwrap().clone();
+    let session = sessions::list(&shell.settings.sessions, recorded.as_deref())
+        .into_iter()
+        .find(|listed| listed.folder == folder)
+        .ok_or_else(|| format!("{name} is no session"))?;
+    Ok(Opened {
+        session,
+        transcript: meeting::transcript(&folder),
+        minutes: minutes::minutes(&folder),
+    })
+}
+
+/// Opens a session's folder in the system's file manager.
+#[tauri::command]
+fn open_folder(shell: State<'_, Shell>, name: String) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(windows) {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    // Waited for on a thread of its own, so that nothing of it is left in the system's table.
+    let mut started = std::process::Command::new(opener)
+        .arg(&folder)
+        .spawn()
+        .map_err(|error| error.to_string())?;
+    std::thread::spawn(move || started.wait());
+    Ok(())
 }
 
 /// Shows a notification. A desktop that shows none is no reason to stop anything.

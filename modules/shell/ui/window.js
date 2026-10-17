@@ -51,30 +51,19 @@ function chip(text, kind) {
   return element;
 }
 
-function row(session, words) {
+// A session's folder name: what the window calls it, and the only date it says when its start
+// cannot be read.
+const nameOf = (session) => session.folder.split(/[\\/]/).pop();
+
+function heading(session, words) {
   const day = dayOf(session);
-  const item = document.createElement("li");
-  item.className = "card session";
-  item.dataset.state = session.state;
-  const when = document.createElement("div");
-  when.className = "when";
-  const title = document.createElement("span");
-  title.className = "day";
-  if (day === null) {
-    // What the session's folder is named: the only date it still says.
-    title.textContent = session.folder.split(/[\\/]/).pop();
-  } else {
-    const date = new Intl.DateTimeFormat(words.locale, { weekday: "short", day: "numeric", month: "short" }).format(day);
-    const time = new Intl.DateTimeFormat(words.locale, { hour: "2-digit", minute: "2-digit" }).format(day);
-    title.textContent = `${date} · ${time}`;
-  }
-  when.append(title);
-  if (session.seconds !== null) {
-    const lasted = document.createElement("span");
-    lasted.className = "length";
-    lasted.textContent = length(session.seconds);
-    when.append(lasted);
-  }
+  if (day === null) return nameOf(session);
+  const date = new Intl.DateTimeFormat(words.locale, { weekday: "short", day: "numeric", month: "short" }).format(day);
+  const time = new Intl.DateTimeFormat(words.locale, { hour: "2-digit", minute: "2-digit" }).format(day);
+  return `${date} · ${time}`;
+}
+
+function holdings(session, words) {
   const holds = document.createElement("div");
   holds.className = "holds";
   if (session.state === "recording") holds.append(chip(words.recording, "live"));
@@ -82,7 +71,29 @@ function row(session, words) {
   if (session.minutes) holds.append(chip(words.minutes));
   if (session.transcript) holds.append(chip(words.transcript));
   holds.append(session.audio > 0 ? chip(fill(words.audio, size(session.audio, words))) : chip(words.audio_freed, "gone"));
-  item.append(when, holds);
+  return holds;
+}
+
+function row(session, words) {
+  const item = document.createElement("li");
+  const link = document.createElement("a");
+  link.className = "card session";
+  link.href = `#/meeting/${encodeURIComponent(nameOf(session))}`;
+  link.dataset.state = session.state;
+  const when = document.createElement("div");
+  when.className = "when";
+  const title = document.createElement("span");
+  title.className = "day";
+  title.textContent = heading(session, words);
+  when.append(title);
+  if (session.seconds !== null) {
+    const lasted = document.createElement("span");
+    lasted.className = "length";
+    lasted.textContent = length(session.seconds);
+    when.append(lasted);
+  }
+  link.append(when, holdings(session, words));
+  item.append(link);
   return item;
 }
 
@@ -129,9 +140,109 @@ function show({ words, folder, sessions }) {
   }
 }
 
+const element = (tag, className, text) => {
+  const made = document.createElement(tag);
+  if (className) made.className = className;
+  if (text !== undefined) made.textContent = text;
+  return made;
+};
+
+const clock = (seconds) => {
+  const whole = Math.floor(seconds);
+  const parts = [Math.floor(whole / 3600), Math.floor((whole % 3600) / 60), whole % 60];
+  const shown = parts[0] > 0 ? parts : parts.slice(1);
+  return shown.map((part) => String(part).padStart(2, "0")).join(":");
+};
+
+const folded = (text) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+function transcriptCard(read, words) {
+  const card = element("aside", "card transcript");
+  card.setAttribute("aria-label", words.transcript_title);
+  const top = element("div", "top");
+  top.append(element("h2", "label", words.transcript_title));
+  card.append(top);
+  if (read.state !== "present") {
+    card.append(element("p", "none", read.state === "absent" ? words.no_transcript : words.unreadable));
+    return card;
+  }
+  const search = element("input", "search");
+  search.type = "search";
+  search.id = "search";
+  search.placeholder = words.search;
+  search.setAttribute("aria-label", words.search);
+  top.append(search);
+  card.append(element("p", "maker", fill(words.heard_by, read.model || read.engine || "—")));
+  if (!read.complete) card.append(element("p", "note", words.being_made));
+  if (read.unread > 0) card.append(element("p", "note", fill(words.unread, read.unread)));
+  const lines = element("ol", "lines");
+  for (const segment of read.segments) {
+    const line = element("li");
+    line.dataset.track = segment.track;
+    const side = segment.track === "local" ? words.here : words.remote;
+    const who = segment.voice === null ? side : `${side} · ${fill(words.voice, segment.voice)}`;
+    const said = element("div", "said");
+    said.append(element("span", `who ${segment.track}`, who), element("span", "text", segment.text));
+    line.append(element("span", "at", clock(segment.start)), said);
+    lines.append(line);
+  }
+  const nothing = element("p", "none", words.no_match);
+  nothing.hidden = true;
+  search.addEventListener("input", () => {
+    const wanted = folded(search.value.trim());
+    let shown = 0;
+    for (const line of lines.children) {
+      line.hidden = wanted !== "" && !folded(line.textContent).includes(wanted);
+      shown += line.hidden ? 0 : 1;
+    }
+    nothing.hidden = shown > 0;
+  });
+  card.append(lines, nothing);
+  return card;
+}
+
+function showMeeting({ session, transcript }, words) {
+  const page = document.getElementById("meeting");
+  const top = element("div", "meeting-top");
+  const back = element("a", "back", `‹ ${words.back}`);
+  back.href = "#/";
+  const open = element("button", "open", words.open_folder);
+  open.type = "button";
+  open.addEventListener("click", () => window.__TAURI__.core.invoke("open_folder", { name: nameOf(session) }));
+  top.append(back, open);
+  const title = element("section", "meeting-title");
+  const named = element("div", "named");
+  named.append(element("h1", "", heading(session, words)));
+  if (session.seconds !== null) named.append(element("span", "length", length(session.seconds)));
+  title.append(named, holdings(session, words));
+  const columns = element("div", "columns");
+  columns.append(transcriptCard(transcript, words));
+  // Shown again when the window comes forward: a search in progress is kept.
+  const searching = document.getElementById("search")?.value ?? "";
+  page.replaceChildren(top, title, columns);
+  const search = document.getElementById("search");
+  if (search && searching) {
+    search.value = searching;
+    search.dispatchEvent(new Event("input"));
+  }
+}
+
+let words = null;
+
 async function refresh() {
-  show(await window.__TAURI__.core.invoke("listed"));
+  const listing = await window.__TAURI__.core.invoke("listed");
+  words = listing.words;
+  show(listing);
+  const wanted = location.hash.match(/^#\/meeting\/(.+)$/);
+  const meeting = document.getElementById("meeting");
+  document.getElementById("list").hidden = Boolean(wanted);
+  meeting.hidden = !wanted;
+  if (wanted) showMeeting(await window.__TAURI__.core.invoke("opened", { name: decodeURIComponent(wanted[1]) }), words);
 }
 
 refresh();
 window.addEventListener("focus", refresh);
+window.addEventListener("hashchange", () => {
+  refresh();
+  window.scrollTo(0, 0);
+});

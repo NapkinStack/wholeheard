@@ -56,6 +56,17 @@ pub fn list(sessions: &Path, recording: Option<&Path>) -> Vec<Listed> {
     listed
 }
 
+/// The folder of the session a page names, in the sessions' folder: by its name alone — never a
+/// path, never a way out of the folder — and only when it holds a session.
+pub fn folder(sessions: &Path, name: &str) -> Option<PathBuf> {
+    let mut parts = Path::new(name).components();
+    let (Some(std::path::Component::Normal(part)), None) = (parts.next(), parts.next()) else {
+        return None;
+    };
+    let folder = sessions.join(part);
+    folder.join("session.json").is_file().then_some(folder)
+}
+
 fn read(folder: &Path, recording: Option<&Path>) -> Option<Listed> {
     let text = fs::read_to_string(folder.join("session.json")).ok()?;
     let session: serde_json::Value = serde_json::from_str(&text).ok()?;
