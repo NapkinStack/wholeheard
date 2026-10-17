@@ -56,19 +56,27 @@ pub fn ollama_models(base: &str) -> Vec<String> {
         .into_iter()
         .flatten()
         .filter_map(|model| model.get("name").and_then(serde_json::Value::as_str).map(str::to_string))
+        // A name `summit-summary` would refuse is not offered.
+        .filter(|name| !name.trim().is_empty() && !name.chars().any(char::is_control))
         .collect();
     names.sort();
     names.dedup();
     names
 }
 
-/// The host a provider's address names: what its key is filed under. None for an address that is
-/// not one.
+/// The host a provider's address names: what its key is filed under — the same for the same
+/// server, its scheme in any case, its own port written or not. None for an address that is not one.
 pub fn host(address: &str) -> Option<String> {
     if address.chars().any(char::is_whitespace) {
         return None;
     }
-    let rest = address.strip_prefix("https://").or_else(|| address.strip_prefix("http://"))?;
-    let host = rest.split(['/', '?', '#']).next()?.rsplit('@').next()?;
-    (!host.is_empty()).then(|| host.to_ascii_lowercase())
+    let (scheme, rest) = address.split_once("://")?;
+    let own_port = match scheme.to_ascii_lowercase().as_str() {
+        "https" => ":443",
+        "http" => ":80",
+        _ => return None,
+    };
+    let host = rest.split(['/', '?', '#']).next()?.rsplit('@').next()?.to_ascii_lowercase();
+    let host = host.strip_suffix(own_port).map_or(host.clone(), str::to_string);
+    (!host.is_empty()).then_some(host)
 }
