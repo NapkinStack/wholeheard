@@ -155,3 +155,36 @@ fn a_folder_that_is_not_there_lists_nothing() {
     let folder = tempfile::tempdir().unwrap();
     assert!(sessions::list(&folder.path().join("missing"), None).is_empty());
 }
+
+#[test]
+fn a_session_is_named_by_its_folder_alone_never_by_a_path() {
+    let folder = tempfile::tempdir().unwrap();
+    let root = folder.path().join("sessions");
+    session(
+        &root.join("2026-10-12_09-30"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-12T09:30:00+02:00","tracks":{}}"#,
+        &[],
+    );
+    fs::create_dir_all(root.join("notes")).unwrap();
+    // Beside the sessions' folder, a folder that holds a session too: never reached from it.
+    session(
+        &folder.path().join("elsewhere"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-12T09:30:00+02:00","tracks":{}}"#,
+        &[],
+    );
+    assert_eq!(sessions::folder(&root, "2026-10-12_09-30"), Some(root.join("2026-10-12_09-30")));
+    let elsewhere = folder.path().join("elsewhere");
+    for wrong in [
+        "",
+        ".",
+        "..",
+        "../elsewhere",
+        "2026-10-12_09-30/..",
+        "a/b",
+        "notes",
+        "missing",
+        elsewhere.to_str().unwrap(),
+    ] {
+        assert_eq!(sessions::folder(&root, wrong), None, "{wrong}");
+    }
+}

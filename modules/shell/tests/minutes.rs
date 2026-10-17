@@ -123,6 +123,14 @@ fn the_minutes_never_drive_the_page_that_shows_them() {
         "{}",
         minutes.body
     );
+    // A block of HTML, as a hand may write one, is text too.
+    let block = MINUTES.replace("## Actions\n", "## Actions\n\n<div onclick=\"x()\">bloc</div>\n");
+    let Read::Present(minutes) = read(&block) else { panic!("not read") };
+    assert!(
+        !minutes.body.contains("<div") && minutes.body.contains("&lt;div"),
+        "{}",
+        minutes.body
+    );
 }
 
 #[test]
@@ -137,6 +145,11 @@ fn minutes_that_are_not_of_this_version_are_said_unreadable_and_none_are_absent(
     ] {
         assert_eq!(read(&wrong), Read::Unreadable, "{wrong}");
     }
+    // A sub-title is no section: three sections and a title below second level read.
+    assert!(matches!(
+        read(&MINUTES.replace("## Actions\n", "## Actions\n\n### Un détail\n")),
+        Read::Present(_)
+    ));
     // A value written `null`, quoted or not, is no value.
     let Read::Present(minutes) = read(&MINUTES.replace("model: mistral", "model: \"null\"")) else {
         panic!("not read")

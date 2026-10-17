@@ -203,6 +203,64 @@ def main() -> int:
         came = wait_for(browser, lambda b: len(rows(b)) == 7)
         check("a new session is listed when the window comes forward", came, rows(browser))
 
+    print("J. one meeting: its transcript, searched")
+    meetings = WORK / "meetings"
+    session(meetings / "m", now - dt.timedelta(hours=3), 16, {"local.wav": 4000, "remote.wav": 4000})
+    lines = [
+        {"type": "header", "contract": "transcript/v1", "engine": "whisper.cpp", "model": "ggml-large-v3-turbo-q8_0", "language": "fr", "context": None},
+        {"type": "segment", "speaker": "others", "track": "remote", "voice": None, "start": 8.0, "end": 11.5, "text": "Bonjour Claire, on peut commencer."},
+        {"type": "segment", "speaker": "me", "track": "local", "voice": "1", "start": 1.0, "end": 7.2, "text": "Bonjour à tous, merci d’être là."},
+        {"type": "segment", "speaker": "me", "track": "local", "voice": "2", "start": 15.0, "end": 19.0, "text": "La version de test sera prête le 12 novembre."},
+        {"type": "complete", "duration": 960.0},
+    ]
+    (meetings / "m" / "transcript.jsonl").write_text("".join(json.dumps(line, ensure_ascii=False) + "\n" for line in lines))
+    (meetings / "m" / "minutes.md").write_text(
+        "---\ncontract: minutes/v1\nmade: 2026-10-13T12:21:00+02:00\nprovider: openrouter.ai\nmodel: claude-sonnet\ncontext: null\n---\n\n"
+        "## Points saillants\n\nL’ouverture est fixée au lundi 16 novembre.\n\n"
+        "## Actions\n\n- Mettre à jour le planning — Marc — aujourd’hui\n- Couper deux serveurs de test — Julien — avant vendredi\n\n"
+        "## Points clés\n\n- Un serveur est gardé pour la démonstration du 20.\n"
+    )
+    session(meetings / "n", now - dt.timedelta(days=1), 5, {"local.wav": 100})
+    (meetings / "n" / "minutes.md").write_text("Not minutes.\n")
+    with Window(meetings, "fr_FR.UTF-8") as browser:
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB)
+        focused = browser.execute_script("return document.activeElement.className")
+        check("Tab reaches the first meeting after the section", "session" in focused, focused)
+        browser.find_elements(By.CSS_SELECTOR, ".session")[0].click()
+        shown = wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".lines li"))
+        check("a click on a meeting opens it", shown and not browser.find_element(By.ID, "list").is_displayed())
+        said = browser.execute_script(
+            "return [...document.querySelectorAll('.lines li')].map(li => [li.querySelector('.at'), li.querySelector('.who'), li.querySelector('.text')].map(c => c.textContent).join(' | '))"
+        )
+        check(
+            "the transcript in the meeting's order, each line with its side and voice",
+            said
+            == [
+                "00:01 | Ici · voix 1 | Bonjour à tous, merci d’être là.",
+                "00:08 | À distance | Bonjour Claire, on peut commencer.",
+                "00:15 | Ici · voix 2 | La version de test sera prête le 12 novembre.",
+            ],
+            said,
+        )
+        search = browser.find_element(By.ID, "search")
+        search.send_keys("ETRE")
+        visible = browser.execute_script(
+            "return [...document.querySelectorAll('.lines li')].filter(li => !li.hidden).map(li => li.querySelector('.text').textContent)"
+        )
+        check("a search finds what was said, whatever its accents and case", visible == ["Bonjour à tous, merci d’être là."], visible)
+        search.clear()
+        search.send_keys("zzz")
+        none = [p.text for p in browser.find_elements(By.CSS_SELECTOR, ".transcript .none") if p.is_displayed()]
+        check("a search that finds nothing says so", none == ["Rien de ce qui a été dit ne correspond."], none)
+        check("the folder can be opened from the meeting", browser.find_element(By.CSS_SELECTOR, ".open").text == "Ouvrir le dossier")
+        browser.find_element(By.CSS_SELECTOR, ".back").click()
+        back = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed())
+        check("the way back is the list", back and not browser.find_element(By.ID, "meeting").is_displayed())
+        browser.find_elements(By.CSS_SELECTOR, ".session")[1].click()
+        wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".transcript .none"))
+        notes = [p.text for p in browser.find_elements(By.CSS_SELECTOR, "#meeting .none") if p.is_displayed()]
+        check("no transcript is said so", notes == ["Pas encore de transcript."], notes)
+
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"
     empty.mkdir()
