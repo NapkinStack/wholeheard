@@ -80,3 +80,18 @@ pub fn host(address: &str) -> Option<String> {
     let host = host.strip_suffix(own_port).map_or(host.clone(), str::to_string);
     (!host.is_empty()).then_some(host)
 }
+
+/// Whether a provider's address is this machine — `localhost`, a loopback address, or the one
+/// that means "any": what is sent there never leaves it.
+pub fn local(address: &str) -> bool {
+    let Some(host) = host(address) else { return false };
+    // Without its port: after the brackets of an IPv6 address, or after the one colon of the rest.
+    let name = match host.strip_prefix('[') {
+        Some(rest) => rest.split(']').next().unwrap_or_default().to_string(),
+        None => host.rsplit_once(':').map_or(host.as_str(), |(name, _)| name).to_string(),
+    };
+    name == "localhost"
+        || name
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.to_canonical().is_loopback() || ip.is_unspecified())
+}

@@ -43,6 +43,9 @@ pub struct Settings {
     /// chosen yet.
     pub minutes_provider: Option<String>,
     pub minutes_model: Option<String>,
+    /// The host the user agreed to send a meeting to, the first time minutes went to it; another
+    /// host asks again. None: none yet.
+    pub minutes_agreed: Option<String>,
     pub keep_audio: KeepAudio,
 }
 
@@ -60,6 +63,7 @@ impl Default for Settings {
             model: data.join("summit").join("models").join(MODEL),
             minutes_provider: None,
             minutes_model: None,
+            minutes_agreed: None,
             keep_audio: KeepAudio::Always,
         }
     }
@@ -100,6 +104,7 @@ struct Written {
     model: Option<toml::Spanned<PathBuf>>,
     minutes_provider: Option<String>,
     minutes_model: Option<String>,
+    minutes_agreed: Option<String>,
     keep_audio: Option<toml::Spanned<toml::Value>>,
 }
 
@@ -140,6 +145,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     };
     settings.minutes_provider = written.minutes_provider.filter(|named| !named.trim().is_empty());
     settings.minutes_model = written.minutes_model.filter(|named| !named.trim().is_empty());
+    settings.minutes_agreed = written.minutes_agreed.filter(|named| !named.trim().is_empty());
     if let Some(keep) = written.keep_audio {
         let at = line(keep.span().start);
         settings.keep_audio = match keep.get_ref() {
@@ -228,6 +234,7 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     for (key, named, was) in [
         ("minutes_provider", &settings.minutes_provider, &before.minutes_provider),
         ("minutes_model", &settings.minutes_model, &before.minutes_model),
+        ("minutes_agreed", &settings.minutes_agreed, &before.minutes_agreed),
     ] {
         match named {
             Some(named) if named != was.as_deref().unwrap_or_default() => set(&mut document, key, Value::from(named.as_str())),

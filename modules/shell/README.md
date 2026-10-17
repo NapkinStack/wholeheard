@@ -85,7 +85,8 @@ where sessions go; `after = "nothing"`, `"transcript"` or `"minutes"` for what f
 recording (`transcript = false`, from before, still means nothing); `model = "…"` for the
 Whisper model; `minutes_provider` — a provider's address, `"http://localhost:11434/v1"` for Ollama
 on this computer — and `minutes_model`
-for who writes the minutes; `keep_audio = "always"` or a number of days. Out of the box,
+for who writes the minutes; `minutes_agreed = "…"`, the host the user agreed to send a meeting to
+the first time — another host asks again, one on this computer never asks; `keep_audio = "always"` or a number of days. Out of the box,
 sessions go to a folder `Summit` in the user's documents, the transcript follows alone, and the
 model is `summit/models/ggml-large-v3-turbo-q8_0.bin` in the user's data folder — fetched there
 on the user's word, or placed by hand. When Summit writes the file it touches only what changed:
