@@ -46,7 +46,7 @@ order of the events, and what each means, are said here and nowhere else.
 
 | `event` | Other fields | Says |
 |---|---|---|
-| `sending` | `host`: where the request goes, as a host name with its port when one is written; `model`; `characters`: how many the request holds, a whole number | Said **before** anything leaves the machine, once, and first |
+| `sending` | `host`: who receives the request, as the minutes name it — `local` for an address of this machine, else the host's name or address in lower case, without its port; `model`; `characters`: how many the request holds, a whole number | Said **before** anything leaves the machine, once, and first |
 | `written` | `file`: the minutes' path | The minutes are whole in the folder. **Last**, minutes only |
 | `answered` | `host`; `model` | The model answered the test's sentence. **Last**, a test only |
 
@@ -78,8 +78,8 @@ Valid — minutes made by an online provider:
 Valid — a test of a model on this machine:
 
 ```text
-{"event":"sending","host":"localhost:11434","model":"mistral","characters":31}
-{"event":"answered","host":"localhost:11434","model":"mistral"}
+{"event":"sending","host":"local","model":"mistral","characters":31}
+{"event":"answered","host":"local","model":"mistral"}
 ```
 
 To refuse: a line that is not a JSON object with an `event`.

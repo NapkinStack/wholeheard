@@ -40,7 +40,7 @@ deliverables:
   - id: D21
     title: "A user gets the minutes from the tray and the window, and agrees before anything first leaves for an online service"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given an online provider and no agreement given yet, when minutes are about to be sent for the first time — asked for, or chained — then the user is shown exactly what leaves the machine and to which host, and nothing is sent before they agree; given the agreement, a chained making sends without asking again; changing the provider's host asks again; and the minutes can be written on this computer instead"
       - "Given minutes asked for or chained, when they are made, then the user is told when they are ready, and a failure is said in one sentence with the transcript untouched"

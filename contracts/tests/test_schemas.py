@@ -265,9 +265,9 @@ EXAMPLES = {
     "summarising/v1/event.schema.json": (
         [
             {"event": "sending", "host": "openrouter.ai", "model": "anthropic/claude-sonnet-5.5", "characters": 48210},
-            {"event": "sending", "host": "localhost:11434", "model": "mistral", "characters": 31},
+            {"event": "sending", "host": "local", "model": "mistral", "characters": 31},
             {"event": "written", "file": "<session-folder>/minutes.md"},
-            {"event": "answered", "host": "localhost:11434", "model": "mistral"},
+            {"event": "answered", "host": "local", "model": "mistral"},
             {"event": "an event of a later version"},
         ],
         [
@@ -275,6 +275,8 @@ EXAMPLES = {
             {"host": "openrouter.ai"},
             {"event": "sending", "host": "openrouter.ai", "model": "m"},
             {"event": "sending", "host": "", "model": "m", "characters": 1},
+            {"event": "sending", "host": "h", "model": "", "characters": 1},
+            {"event": "answered", "host": "h", "model": ""},
             {"event": "sending", "host": "h", "model": "m", "characters": 1.5},
             {"event": "sending", "host": "h", "model": "m", "characters": -1},
             {"event": "written"},
