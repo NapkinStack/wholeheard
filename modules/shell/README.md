@@ -83,8 +83,9 @@ Whisper model; `minutes_provider` — `"ollama"`, or a provider's address — an
 for who writes the minutes; `keep_audio = "always"` or a number of days. Out of the box,
 sessions go to a folder `Summit` in the user's documents, the transcript follows alone, and the
 model is `summit/models/ggml-large-v3-turbo-q8_0.bin` in the user's data folder — fetched there
-on the user's word, or placed by hand. When Summit writes the file, the user's comments and the
-keys it does not know stay as they were.
+on the user's word, or placed by hand. When Summit writes the file it touches only what changed:
+a line it changes keeps its comment, and every other line, comment and key stays as written; a
+file it cannot read as settings it never writes over.
 
 ## Getting started
 

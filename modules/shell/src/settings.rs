@@ -145,51 +145,86 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     Ok(settings)
 }
 
-/// Writes the settings to their file, as `read` reads them: each key this version knows set to
-/// its value, every other key and every comment left as the user wrote them. Written whole or
-/// not at all.
+/// Writes the settings to their file, as `read` reads them. Only what changed is touched: a key
+/// whose value is already the file's — or, absent, the default's — is left as the user wrote it;
+/// a key that changes keeps the comment on its line; every other key and comment stays. A file
+/// `read` refuses is never written over: the user's choice in it would be lost. Written whole or
+/// not at all, with the file's permissions, through a link to where it points.
 pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
-    use toml_edit::{DocumentMut, value};
+    use toml_edit::{DocumentMut, Item, Value};
 
+    let refused = |why: String| io::Error::new(io::ErrorKind::InvalidData, why);
+    // Through a link, the file it points to.
+    let path = &fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let before = read(path).map_err(refused)?;
     let mut document = match fs::read_to_string(path) {
-        Ok(text) => text
-            .parse::<DocumentMut>()
-            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
+        Ok(text) => text.parse::<DocumentMut>().map_err(|error| refused(error.to_string()))?,
         Err(error) if error.kind() == io::ErrorKind::NotFound => DocumentMut::new(),
         Err(error) => return Err(error),
     };
-    let text = |path: &Path| path.to_string_lossy().into_owned();
-    document["reminder"] = value(settings.reminder);
-    document["sessions"] = value(text(&settings.sessions));
-    document["after"] = value(match settings.after {
-        After::Nothing => "nothing",
-        After::Transcript => "transcript",
-        After::Minutes => "minutes",
-    });
-    // Said by `after` now: the key it replaces would contradict it.
-    document.remove("transcript");
-    document["model"] = value(text(&settings.model));
-    for (key, named) in [
-        ("minutes_provider", &settings.minutes_provider),
-        ("minutes_model", &settings.minutes_model),
+    // Sets a key to a value, keeping the comment its line had.
+    fn set(document: &mut DocumentMut, key: &str, mut new: Value) {
+        if let Some(old) = document.get(key).and_then(Item::as_value) {
+            *new.decor_mut() = old.decor().clone();
+        }
+        document[key] = Item::Value(new);
+    }
+    let text = |path: &Path| Value::from(path.to_string_lossy().into_owned());
+    if settings.reminder != before.reminder {
+        set(&mut document, "reminder", Value::from(settings.reminder));
+    }
+    if settings.sessions != before.sessions {
+        set(&mut document, "sessions", text(&settings.sessions));
+    }
+    if settings.after != before.after {
+        set(
+            &mut document,
+            "after",
+            Value::from(match settings.after {
+                After::Nothing => "nothing",
+                After::Transcript => "transcript",
+                After::Minutes => "minutes",
+            }),
+        );
+    }
+    if settings.model != before.model {
+        set(&mut document, "model", text(&settings.model));
+    }
+    if settings.keep_audio != before.keep_audio {
+        set(
+            &mut document,
+            "keep_audio",
+            match settings.keep_audio {
+                KeepAudio::Always => Value::from("always"),
+                KeepAudio::Days(days) => Value::from(i64::from(days)),
+            },
+        );
+    }
+    for (key, named, was) in [
+        ("minutes_provider", &settings.minutes_provider, &before.minutes_provider),
+        ("minutes_model", &settings.minutes_model, &before.minutes_model),
     ] {
         match named {
-            Some(named) => document[key] = value(named.as_str()),
+            Some(named) if named != was.as_deref().unwrap_or_default() => set(&mut document, key, Value::from(named.as_str())),
+            Some(_) => {}
             None => {
                 document.remove(key);
             }
         }
     }
-    document["keep_audio"] = match settings.keep_audio {
-        KeepAudio::Always => value("always"),
-        KeepAudio::Days(days) => value(i64::from(days)),
-    };
+    // Said by `after` now, once `after` is written: the key it replaced would contradict it.
+    if document.contains_key("after") {
+        document.remove("transcript");
+    }
     if let Some(folder) = path.parent() {
         fs::create_dir_all(folder)?;
     }
     let draft = path.with_extension("toml.part");
-    fs::write(&draft, document.to_string())?;
-    fs::rename(&draft, path).inspect_err(|_| {
+    let written = fs::write(&draft, document.to_string()).and_then(|()| match fs::metadata(path) {
+        Ok(old) => fs::set_permissions(&draft, old.permissions()),
+        Err(_) => Ok(()),
+    });
+    written.and_then(|()| fs::rename(&draft, path)).inspect_err(|_| {
         let _ = fs::remove_file(&draft);
     })
 }

@@ -147,3 +147,86 @@ fn the_settings_written_read_back_as_they_were_the_user_s_lines_kept() {
     assert_eq!(read(&fresh), Ok(Settings::default()));
     assert!(!fresh.with_extension("toml.part").exists());
 }
+
+#[test]
+fn writing_touches_only_what_changed_and_keeps_each_line_s_comment() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    let mine = format!(
+        "sessions = \"{}/Summit\" # where they go\nreminder = true # said at each start\n",
+        '~'
+    );
+    fs::write(&path, &mine).unwrap();
+    let mut settings = read(&path).unwrap();
+    // Nothing changed: the file is as the user wrote it — the tilde, the comments, no key added.
+    write(&path, &settings).unwrap();
+    assert_eq!(fs::read_to_string(&path).unwrap(), mine);
+    // One choice changed: its line keeps its comment, the rest is untouched.
+    settings.reminder = false;
+    write(&path, &settings).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("reminder = false # said at each start"), "{text}");
+    assert!(text.contains(&format!("sessions = \"{}/Summit\" # where they go", '~')), "{text}");
+    assert!(!text.contains("model") && !text.contains("keep_audio"), "{text}");
+}
+
+#[test]
+fn a_file_that_cannot_be_read_as_settings_is_never_written_over() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    for refused in ["keep_audio = 0\n", "reminder = \"yes\"\n", "sessions = \"Summit\"\n"] {
+        fs::write(&path, refused).unwrap();
+        assert!(write(&path, &Settings::default()).is_err(), "{refused}");
+        assert_eq!(fs::read_to_string(&path).unwrap(), refused);
+        assert!(!path.with_extension("toml.part").exists());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn the_file_keeps_its_permissions_and_a_link_to_it_stays_a_link() {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let folder = tempfile::tempdir().unwrap();
+    let real = folder.path().join("real.toml");
+    fs::write(&real, "reminder = true\n").unwrap();
+    fs::set_permissions(&real, fs::Permissions::from_mode(0o600)).unwrap();
+    let link = folder.path().join("settings.toml");
+    symlink(&real, &link).unwrap();
+    let mut settings = read(&link).unwrap();
+    settings.reminder = false;
+    write(&link, &settings).unwrap();
+    assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+    assert!(fs::read_to_string(&real).unwrap().contains("reminder = false"));
+    assert_eq!(fs::metadata(&real).unwrap().permissions().mode() & 0o777, 0o600);
+}
+
+#[test]
+fn values_that_are_not_choices_are_refused_and_blanks_are_none() {
+    for (text, key) in [
+        ("keep_audio = 36501\n", "keep_audio"),
+        ("keep_audio = 30.0\n", "keep_audio"),
+        ("keep_audio = \"Always\"\n", "keep_audio"),
+        ("keep_audio = -1\n", "keep_audio"),
+    ] {
+        let said = written(text).unwrap_err();
+        assert!(said.contains(key), "{text}: {said}");
+    }
+    assert_eq!(written("keep_audio = 36500\n").unwrap().keep_audio, KeepAudio::Days(36_500));
+    let blank = written("minutes_provider = \"  \"\nminutes_model = \"\"\n").unwrap();
+    assert_eq!((blank.minutes_provider, blank.minutes_model), (None, None));
+    // Only `false` was "nothing follows".
+    assert_eq!(written("transcript = true\n").unwrap().after, After::Transcript);
+}
+
+#[test]
+fn a_write_that_fails_leaves_the_file_as_it_was() {
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "reminder = true\n").unwrap();
+    // The part file cannot be made: the file is never written in place.
+    fs::create_dir(path.with_extension("toml.part")).unwrap();
+    let mut settings = read(&path).unwrap();
+    settings.reminder = false;
+    assert!(write(&path, &settings).is_err());
+    assert_eq!(fs::read_to_string(&path).unwrap(), "reminder = true\n");
+}
