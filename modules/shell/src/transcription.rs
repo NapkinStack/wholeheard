@@ -89,7 +89,7 @@ impl Transcription {
 }
 
 /// Reads a stream to its end, keeping its last line that is not blank as it goes.
-fn last_line(stream: impl Read, kept: &Mutex<String>) {
+pub(crate) fn last_line(stream: impl Read, kept: &Mutex<String>) {
     for line in BufReader::new(stream).split(b'\n').map_while(Result::ok) {
         let line = String::from_utf8_lossy(&line).trim().to_string();
         if let (false, Ok(mut kept)) = (line.is_empty(), kept.lock()) {

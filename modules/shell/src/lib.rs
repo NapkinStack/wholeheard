@@ -11,5 +11,6 @@ pub mod providers;
 pub mod recording;
 pub mod sessions;
 pub mod settings;
+pub mod summarising;
 pub mod transcription;
 pub mod words;
