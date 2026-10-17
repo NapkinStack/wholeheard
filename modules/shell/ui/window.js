@@ -478,7 +478,32 @@ function showSettings(shown, minutes, words) {
     save({ keep_audio: keepPick.value === "always" ? "always" : { days: Number(keepPick.value) } }),
   );
   keep.append(keepSaid, keepPick);
-  more.append(remind, keep);
+  // Where the sessions go: typed, or chosen in the system's own dialog.
+  const where = element("div", "row folder");
+  const whereSaid = element("label", "said");
+  whereSaid.htmlFor = "sessions";
+  whereSaid.append(element("span", "name", words.sessions_folder[0]), element("span", "says", words.sessions_folder[1]));
+  const path = element("input");
+  path.id = "sessions";
+  path.type = "text";
+  path.value = shown.sessions;
+  path.disabled = locked;
+  path.spellcheck = false;
+  path.addEventListener("change", () => save({ sessions: path.value.trim() }));
+  // Enter says the folder is typed: the field lets go, which is its change.
+  path.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") path.blur();
+  });
+  const choose = element("button", "open", words.choose);
+  choose.type = "button";
+  choose.id = "choose-sessions";
+  choose.disabled = locked;
+  choose.addEventListener("click", async () => {
+    const chosen = await window.__TAURI__.core.invoke("choose_folder");
+    if (chosen !== null) save({ sessions: chosen });
+  });
+  where.append(whereSaid, path, choose);
+  more.append(remind, keep, where);
   parts.push(more);
   page.replaceChildren(...parts);
 }

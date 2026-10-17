@@ -353,6 +353,23 @@ def main() -> int:
         )
         failed = browser.find_element(By.ID, "not-saved").is_displayed()
         check("nothing said failed", not failed)
+        # The sessions' folder: typed, made when it is not there, and what the list reads.
+        elsewhere = WORK / "elsewhere" / "Summit"
+        folder = browser.find_element(By.ID, "sessions")
+        check("the sessions' folder is shown", folder.get_attribute("value") == str(chosen), folder.get_attribute("value"))
+        typed = lambda field, text: (browser.execute_script("arguments[0].select()", field), field.send_keys(text, Keys.ENTER))  # noqa: E731
+        changed(lambda: typed(folder, str(elsewhere)))
+        text = window.file.read_text()
+        check("a folder typed is made, and in the settings file", elsewhere.is_dir() and f'sessions = "{elsewhere}"' in text, text)
+        folder = browser.find_element(By.ID, "sessions")
+        changed(lambda: typed(folder, "Summit"))
+        said = browser.find_element(By.ID, "not-saved").text
+        check("a folder that is not a whole path is said, and nothing changes", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == text, said)
+        browser.find_element(By.ID, "meetings").click()
+        listed = wait_for(browser, lambda b: str(elsewhere) in b.find_element(By.ID, "none").text, 5)
+        check("the list reads the folder chosen", listed, browser.find_element(By.ID, "none").text)
+        browser.find_element(By.ID, "settings-link").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "reminder"))
         # A file broken by hand is never written over: the change is said not saved.
         window.file.write_text(window.file.read_text() + "keep_audio = 0\n")
         broken = window.file.read_text()
