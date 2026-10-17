@@ -156,6 +156,14 @@ fn main() {
                 tell(app.handle(), &words::trouble(&Trouble::Settings(why), language));
             }
             shortcut(app.handle());
+            // The audio kept longer than the settings say goes to the trash, now and every hour.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    expire(&handle);
+                    std::thread::sleep(Duration::from_secs(3600));
+                }
+            });
             if std::env::args().skip(1).any(|arg| arg == "--window") {
                 open_window(app.handle());
             }
@@ -341,6 +349,30 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
     Ok(())
 }
 
+/// Sends to the system's trash the audio of the sessions kept longer than the settings say — never
+/// deleted, restored from the trash —, and says so once. A session's folder that is a link the
+/// user put in the sessions' folder is followed, as the list follows it.
+fn expire(app: &AppHandle) {
+    let shell = app.state::<Shell>();
+    let Ok(settings) = shell.reread() else { return };
+    let KeepAudio::Days(days) = settings.keep_audio else { return };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs() as i64);
+    let gone = sessions::expired_audio(&settings.sessions, days, now);
+    if gone.is_empty() {
+        return;
+    }
+    let meetings: std::collections::HashSet<_> = gone
+        .iter()
+        .filter_map(|path| path.strip_prefix(&settings.sessions).ok()?.components().next())
+        .collect();
+    let outcome = trash::delete_all(&gone)
+        .map(|()| (meetings.len(), days))
+        .map_err(|error| error.to_string());
+    tell(app, &words::audio_trashed(shell.language, &outcome));
+}
+
 /// Shows a notification. A desktop that shows none is no reason to stop anything.
 fn tell(app: &AppHandle, notice: &Notice) {
     let _ = app.notification().builder().title(&notice.title).body(&notice.body).show();
@@ -409,6 +441,8 @@ fn toggle_recording(app: &AppHandle) {
         }
         return;
     }
+    // The settings as the file says them now: the user may have changed it by hand.
+    let _ = shell.reread();
     let started = std::fs::create_dir_all(&shell.settings().sessions)
         .and_then(|()| Recording::start(&program("summit-capture", "SUMMIT_CAPTURE"), &shell.settings().sessions));
     match started {
@@ -482,6 +516,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
     if running.is_some() {
         return wait(&shell, folder);
     }
+    let _ = shell.reread();
     let model = &shell.settings().model;
     if !model.is_file() {
         // The default model is offered, its size and host shown; one the user named is theirs.

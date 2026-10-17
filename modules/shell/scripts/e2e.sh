@@ -246,6 +246,21 @@ check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|
 click 5
 published=""
 
+say "L. audio kept longer than the settings say goes to the trash, the transcript stays"
+old="$work/sessions/2026-01-05_09-00"
+mkdir -p "$old/derived"
+printf '{"contract":"session-audio/v2","started":"2026-01-05T09:00:00+01:00","stopped":"2026-01-05T10:00:00+01:00","tracks":{}}' > "$old/session.json"
+printf '{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}\n{"type":"complete","duration":3600.0}\n' > "$old/transcript.jsonl"
+head -c 1000 /dev/zero > "$old/local.wav"; head -c 1000 /dev/zero > "$old/derived/local.wav"
+start fr_FR.UTF-8 "keep_audio = 1" "$work/summit-capture"
+sleep 3
+check test ! -e "$old/local.wav" -a ! -e "$old/derived/local.wav"
+check test -s "$old/transcript.jsonl" -a -s "$old/session.json"
+# The system's trash — here the scenario's own, its data folder being the scenario's.
+check test -n "$(find "$work/data/Trash/files" -name 'local*.wav' 2>/dev/null)"
+check is "$(titles 'Audio mis à la corbeille')" 1
+click 5
+
 # The window (cycle 03): Summit started with --window by tauri-driver, its page read over
 # WebDriver (scripts/e2e_window.py). For a few seconds a window appears, twice.
 if ! command -v WebKitWebDriver >/dev/null; then

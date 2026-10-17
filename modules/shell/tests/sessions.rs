@@ -10,9 +10,16 @@ fn session(folder: &Path, json: &str, files: &[(&str, usize)]) {
     for (name, bytes) in files {
         let path = folder.join(name);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, vec![0u8; *bytes]).unwrap();
+        // A transcript of no size asked is a whole one: its header, then its last line.
+        if *name == "transcript.jsonl" && *bytes == 0 {
+            fs::write(path, WHOLE).unwrap();
+        } else {
+            fs::write(path, vec![0u8; *bytes]).unwrap();
+        }
     }
 }
+
+const WHOLE: &str = "{\"type\":\"header\",\"contract\":\"transcript/v1\",\"engine\":\"e\",\"model\":\"m\",\"language\":null,\"context\":null}\n{\"type\":\"complete\",\"duration\":1.0}\n";
 
 #[test]
 fn an_instant_is_read_with_its_offset_as_the_contract_writes_it() {
@@ -201,14 +208,14 @@ fn the_sound_of_sessions_stopped_more_than_the_days_kept_is_what_goes() {
             ("local.wav", 10),
             ("remote.WAV", 10),
             ("derived/local.wav", 5),
-            ("transcript.jsonl", 3),
+            ("transcript.jsonl", 0),
             ("minutes.md", 3),
         ],
     );
     session(
         &root.join("new"),
         r#"{"contract":"session-audio/v2","started":"2026-10-15T09:00:00Z","stopped":"2026-10-15T10:00:00Z","tracks":{}}"#,
-        &[("local.wav", 10), ("transcript.jsonl", 3)],
+        &[("local.wav", 10), ("transcript.jsonl", 0)],
     );
     session(
         &root.join("cut"),
@@ -244,12 +251,27 @@ fn the_sound_of_sessions_stopped_more_than_the_days_kept_is_what_goes() {
     session(
         &root.join("backwards"),
         r#"{"contract":"session-audio/v2","started":"2026-10-16T09:00:00Z","stopped":"1970-01-01T00:00:00Z","tracks":{}}"#,
-        &[("local.wav", 10), ("transcript.jsonl", 3)],
+        &[("local.wav", 10), ("transcript.jsonl", 0)],
     );
     session(
         &root.join("untranscribed"),
         r#"{"contract":"session-audio/v2","started":"2026-09-01T09:00:00Z","stopped":"2026-09-01T10:00:00Z","tracks":{}}"#,
         &[("local.wav", 10)],
+    );
+    assert_eq!(sessions::expired_audio(root, 2, now).len(), 4);
+
+    // A transcript that died after its header keeps the sound; so does a session never stopped,
+    // even transcribed from the menu.
+    session(
+        &root.join("died"),
+        r#"{"contract":"session-audio/v2","started":"2026-09-01T09:00:00Z","stopped":"2026-09-01T10:00:00Z","tracks":{}}"#,
+        &[("local.wav", 10)],
+    );
+    fs::write(root.join("died/transcript.jsonl"), WHOLE.lines().next().unwrap().to_string() + "\n").unwrap();
+    session(
+        &root.join("killed"),
+        r#"{"contract":"session-audio/v2","started":"2026-09-01T09:00:00Z","tracks":{}}"#,
+        &[("local.wav", 10), ("transcript.jsonl", 0)],
     );
     assert_eq!(sessions::expired_audio(root, 2, now).len(), 4);
 }
@@ -265,7 +287,7 @@ fn a_link_in_a_session_never_sends_what_it_points_to() {
     session(
         &root.join("old"),
         r#"{"contract":"session-audio/v2","started":"2026-10-01T09:00:00Z","stopped":"2026-10-01T10:00:00Z","tracks":{}}"#,
-        &[("local.wav", 10), ("transcript.jsonl", 3)],
+        &[("local.wav", 10), ("transcript.jsonl", 0)],
     );
     std::os::unix::fs::symlink(outside.join("keep.wav"), root.join("old/linked.wav")).unwrap();
     std::os::unix::fs::symlink(&outside, root.join("old/derived")).unwrap();

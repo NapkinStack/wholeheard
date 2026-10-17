@@ -576,6 +576,32 @@ pub fn fetching(language: Language, held: u64, bytes: u64) -> String {
     downloading(language, held * 100 / bytes.max(1))
 }
 
+/// Said when the audio of meetings kept longer than the settings say went to the system's trash;
+/// or, `Err`, why it could not.
+pub fn audio_trashed(language: Language, outcome: &Result<(usize, u32), String>) -> Notice {
+    let (title, body) = match (language, outcome) {
+        (Language::English, Ok((meetings, days))) => (
+            "Audio moved to the trash".to_string(),
+            format!("The audio of {meetings} meeting(s) kept more than {days} days is in the trash; their transcripts and minutes stay."),
+        ),
+        (Language::French, Ok((meetings, days))) => (
+            "Audio mis à la corbeille".to_string(),
+            format!(
+                "L’audio de {meetings} réunion(s) gardé plus de {days} jours est dans la corbeille ; les transcripts et les comptes rendus restent."
+            ),
+        ),
+        (Language::English, Err(why)) => (
+            "The audio was not moved to the trash".to_string(),
+            format!("{why}. It is kept; nothing was deleted."),
+        ),
+        (Language::French, Err(why)) => (
+            "L’audio n’a pas été mis à la corbeille".to_string(),
+            format!("{why}. Il est gardé ; rien n’a été supprimé."),
+        ),
+    };
+    Notice { title, body }
+}
+
 /// Said when a transcript needs the default model and it is not on the machine: nothing is
 /// fetched until the user chooses the menu's entry.
 pub fn model_needed(language: Language, size: &str, host: &str) -> Notice {

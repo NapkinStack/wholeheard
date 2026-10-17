@@ -91,6 +91,12 @@ dependencies:
     exit_strategy: >
       Three functions and the store's opening in src/keys.rs; secret-tool, the Keychain and the
       Credential Manager's own interfaces replace it.
+  - name: trash
+    purpose: Moves the audio kept longer than the settings say to the system's trash, never deleting it
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: >
+      One call, trash::delete_all, in src/main.rs; gio trash and the systems' own trash
+      interfaces replace it.
   - name: dirs
     purpose: Names the user's configuration and documents folders, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
