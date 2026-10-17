@@ -120,6 +120,23 @@ every older session.
 Boards 2 and 6 (*Refaire…*). The minutes and the transcript are read from their files as their
 contracts say (`minutes/v1`, `transcript/v1`); the window writes neither.
 
+Built, each verified: the transcript read as its contract allows it (#180); the minutes **shown
+as written** — rendered from their CommonMark by the reader their producer judged them with,
+raw HTML as text, a link as its words (#181); the meeting opened from the list, its transcript
+searched, the way back, its folder (#182); the minutes beside it and who spoke over it (#183).
+
+The minutes were first read into parts — highlights, actions split into what, who and by when,
+key points. Two verifications failed on it: each way the producer may write a list or a section
+lost or glued something. Redesigned at the root: the window shows the minutes as the model wrote
+them, and no longer lays the actions out in columns (the first criterion's "actions with who
+and by when" are there as written, not as parsed).
+
+| Criterion | Where it stands |
+|---|---|
+| The minutes beside the transcript, who wrote them and where, who spoke, search, the folder | Holds — the window's scenario J (#182, #183) |
+| What a session lacks offered, made on the user's word | Not built — after D20, which chooses the model, and D21, the agreement before an online provider |
+| *Refaire…* with the model chosen, the current kept until the new one is whole | Not built — after D20 and D21 |
+
 ### D19
 
 Board 3. The system's trash, never a delete: what the decider asked for undoing.
@@ -129,6 +146,12 @@ Board 3. The system's trash, never a delete: what the decider asked for undoing.
 Board 4. What the shell's configuration already holds (the model, the folder, the shortcut)
 moves into the window; models "on this computer" are those Summit finds installed (Whisper
 models in its folder, Ollama's list).
+
+**Narrowed by the framer, 2026-10-17**: for transcription, the models are those found on this
+computer — `summit-transcription` hears with a local file only; an online transcription service
+is new work in that program, not a setting, and goes to *Later*. For the minutes, the three
+kinds stand: on this computer (Ollama), online with its address, or the user's own address,
+model and key — `summit-summary` already takes an address, a model and a key.
 
 ### D21
 
@@ -161,6 +184,7 @@ The trial that closes the cycle, as cycle 01's D7 had it.
 - An installer: the day the charter's success criteria start.
 - `export`, with `all`.
 - Compressing the tracks without loss (cycle 02, D9: it halves their weight).
+- An online service for the transcription (narrowed out of D20).
 
 ## Open questions
 
