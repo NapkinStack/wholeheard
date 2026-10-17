@@ -16,7 +16,7 @@ use std::{
 };
 
 use summit_shell::{
-    keys,
+    desktop, keys,
     meeting::{self, Read, Transcript},
     minutes::{self, Minutes},
     model::{self, Published},
@@ -430,7 +430,8 @@ fn expire(app: &AppHandle, refused: &mut Option<Refusal>) {
 
 /// The desktop's keyboard settings, where a global shortcut is changed: GNOME's, when it is there.
 fn keyboard_settings() -> Option<PathBuf> {
-    if !cfg!(target_os = "linux") {
+    // Another desktop's settings do not change what its portal granted.
+    if !cfg!(target_os = "linux") || !desktop::gnome(&std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default()) {
         return None;
     }
     let path = std::env::var_os("PATH")?;
@@ -969,7 +970,7 @@ async fn bound(app: &AppHandle) -> Result<(), String> {
     let Some(first) = granted.shortcuts().first() else {
         return Err("no key was bound".into());
     };
-    *app.state::<Shell>().shortcut.lock().unwrap() = Some(first.trigger_description().to_string());
+    *app.state::<Shell>().shortcut.lock().unwrap() = desktop::keys(first.trigger_description());
     // A press records or stops; a change the user makes in the desktop's settings is what the
     // window shows next.
     enum Heard {
@@ -982,7 +983,7 @@ async fn bound(app: &AppHandle) -> Result<(), String> {
             changed
                 .shortcuts()
                 .first()
-                .map(|shortcut| shortcut.trigger_description().to_string()),
+                .and_then(|shortcut| desktop::keys(shortcut.trigger_description())),
         )
     });
     let mut heard = std::pin::pin!(futures_util::stream::select(pressed, changed));

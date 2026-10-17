@@ -376,9 +376,11 @@ def main() -> int:
         # settings offered where they can be opened — never opened here.
         keys = browser.find_element(By.ID, "shortcut").text
         offered = bool(browser.find_elements(By.ID, "shortcut-settings"))
+        gnome = "gnome" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower().split(":")
+        seen = "none granted" if keys == "Pas accordé par le bureau" else "keys granted"
         check(
-            "the shortcut is shown as the desktop granted it, and where it changes",
-            keys != "" and offered == (shutil.which("gnome-control-center") is not None),
+            f"the shortcut is shown as the desktop granted it ({seen} here), and where it changes",
+            keys != "" and offered == (gnome and shutil.which("gnome-control-center") is not None),
             f"{keys!r}, settings offered: {offered}",
         )
         # The sessions' folder: typed, made when it is not there, and what the list reads.
