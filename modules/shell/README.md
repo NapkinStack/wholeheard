@@ -81,8 +81,10 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 - Provided: none
 - Consumed: [`recording/v1`](../../contracts/recording/v1/README.md) — what `summit-capture` says while it records
   (`src/recording.rs`); [`transcript/v1`](../../contracts/transcript/v1/README.md) — only that a session's
-  `transcript.jsonl` is there once `summit-transcription` ended well (`src/transcription.rs`). The contracts of the
-  files it will read are declared with the slice that reads them
+  `transcript.jsonl` is there once `summit-transcription` ended well (`src/transcription.rs`);
+  [`session-audio`](../../contracts/session-audio/v2/README.md), v1 and v2 — a session's `session.json`, for the
+  window's list (`src/sessions.rs`). The contracts of the files it will read are declared with the slice that reads
+  them
 
 ## Decisions
 
