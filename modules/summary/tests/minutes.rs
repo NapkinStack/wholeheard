@@ -374,3 +374,14 @@ fn a_writing_that_fails_at_its_last_step_leaves_no_draft() {
     assert!(write_minutes(folder.path(), &minutes(ANSWER, &made(None)).unwrap()).is_err());
     assert!(!folder.path().join("minutes.md.part").exists());
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_writing_cut_short_leaves_no_draft() {
+    // The draft's name leads to a device always full: the writing starts, then fails.
+    let folder = tempfile::tempdir().unwrap();
+    std::os::unix::fs::symlink("/dev/full", folder.path().join("minutes.md.part")).unwrap();
+    assert!(write_minutes(folder.path(), &minutes(ANSWER, &made(None)).unwrap()).is_err());
+    assert!(fs::symlink_metadata(folder.path().join("minutes.md.part")).is_err());
+    assert!(!folder.path().join("minutes.md").exists());
+}

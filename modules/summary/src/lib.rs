@@ -274,8 +274,10 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
 /// minutes that were there are replaced; a failure before the last step leaves them as they were.
 pub fn write_minutes(folder: &Path, minutes: &Minutes) -> io::Result<()> {
     let draft = folder.join("minutes.md.part");
-    fs::write(&draft, minutes.as_str())?;
-    fs::rename(&draft, folder.join("minutes.md")).inspect_err(|_| {
-        let _ = fs::remove_file(&draft);
-    })
+    // Whatever fails, the draft goes: written in part or not renamed, it is no minutes.
+    fs::write(&draft, minutes.as_str())
+        .and_then(|()| fs::rename(&draft, folder.join("minutes.md")))
+        .inspect_err(|_| {
+            let _ = fs::remove_file(&draft);
+        })
 }
