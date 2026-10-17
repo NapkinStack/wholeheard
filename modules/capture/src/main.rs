@@ -87,10 +87,12 @@ fn devices() -> Result<(), String> {
     let host = host();
     println!("{}", json!({ "host": host.id().name() }));
     for device in host.devices().map_err(|error| error.to_string())? {
-        println!(
-            "{}",
-            json!({ "device": named(&device), "input": device.supports_input(), "output": device.supports_output() })
-        );
+        let mut line = json!({ "device": named(&device), "input": device.supports_input(), "output": device.supports_output() });
+        let used = named_as_used(&host, &device);
+        if used != line["device"] {
+            line["stands_for"] = used.into();
+        }
+        println!("{line}");
     }
     Ok(())
 }
@@ -101,6 +103,47 @@ fn named(device: &Device) -> String {
         .map(|description| description.name().to_string())
         .or_else(|_| device.id().map(|id| id.to_string()))
         .unwrap_or_else(|_| "unnamed".into())
+}
+
+/// The name of the device a source records. A desktop's default device is a name for whichever
+/// one it stands for at that moment: that one is named, read from PipeWire's metadata, so that
+/// the user can see it is not the microphone their call uses. Unread, the default's own name.
+fn named_as_used(host: &Host, device: &Device) -> String {
+    let key = match device.id().as_ref().map(|id| id.id()) {
+        Ok("input_default") => "default.audio.source",
+        Ok("output_default" | "sink_default") => "default.audio.sink",
+        _ => return named(device),
+    };
+    let standing = || {
+        let node = summit_capture::standing_for(&metadata(key)?, key)?;
+        host.devices().ok()?.find(|other| other.id().is_ok_and(|id| id.id() == node))
+    };
+    standing().map_or_else(|| named(device), |stood_for| named(&stood_for))
+}
+
+/// What `pw-metadata` prints of one key of PipeWire's default metadata — or nothing, if it is
+/// not there or has not answered within a second: a recording does not wait on a name.
+fn metadata(key: &str) -> Option<String> {
+    use std::process::{Command, Stdio};
+    let mut asked = Command::new("pw-metadata")
+        .args(["-n", "default", "0", key])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let given = Instant::now();
+    while asked.try_wait().ok()?.is_none() {
+        if given.elapsed() > Duration::from_secs(1) {
+            let _ = asked.kill();
+            let _ = asked.wait();
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let mut printed = String::new();
+    std::io::Read::read_to_string(&mut asked.stdout.take()?, &mut printed).ok()?;
+    Some(printed)
 }
 
 /// A source being recorded: its file, and the stream that feeds it while it lives.
@@ -128,7 +171,8 @@ fn record(sessions: &Path) -> Result<(), String> {
         let opened = device
             .ok_or_else(|| "the system names no default device".to_string())
             .and_then(|device| {
-                open(&device, playback, index, zero, sound.clone()).map(|(stream, rate, channels)| (named(&device), stream, rate, channels))
+                open(&device, playback, index, zero, sound.clone())
+                    .map(|(stream, rate, channels)| (named_as_used(&host, &device), stream, rate, channels))
             });
         let (name, stream, rate, channels) = match opened {
             Ok((name, stream, rate, channels)) => (name, Some(stream), rate, channels),
@@ -280,7 +324,8 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
         let opened = device
             .ok_or_else(|| "the system names no default device".to_string())
             .and_then(|device| {
-                open(&device, playback, index, zero, sound.clone()).map(|(stream, rate, channels)| (named(&device), stream, rate, channels))
+                open(&device, playback, index, zero, sound.clone())
+                    .map(|(stream, rate, channels)| (named_as_used(&host, &device), stream, rate, channels))
             });
         match opened {
             Ok((name, stream, rate, channels)) => {

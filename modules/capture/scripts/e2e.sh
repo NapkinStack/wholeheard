@@ -71,6 +71,9 @@ check test "$stopped_as" = 0 -a ! -s "$work/a.errors"
 check measure events "$work/a.events"
 check measure stopped "$folder" 440 880
 check measure read-while-written "$work/copy.wav" "$folder/session.json" "$copied_at" 5
+# Each default is named for the device it stands for, not as "default_input" or "default_output".
+check grep -q '"me":"summit_e2e_mic' "$work/a.events"
+check grep -q '"others":"summit_e2e_out' "$work/a.events"
 
 say "B. a recording killed"
 kill "$mic_player" 2>/dev/null || true
