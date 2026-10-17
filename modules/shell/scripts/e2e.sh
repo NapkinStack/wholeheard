@@ -263,6 +263,8 @@ start fr_FR.UTF-8 "keep_audio = 1" "$work/summit-capture"
 sleep 3
 check test -e "$old/local.wav" -a -e "$old/derived/local.wav"
 check is "$(titles 'L’audio n’a pas été entièrement mis à la corbeille')" 1
+check grep -q "rien n.a .t. supprim" "$work/notified"
+check test -z "$(grep -E 'trash. operation|FileSystem|Os \{' "$work/notified")"
 click 5
 rm "$work/data/Trash"
 start fr_FR.UTF-8 "keep_audio = 1" "$work/summit-capture"

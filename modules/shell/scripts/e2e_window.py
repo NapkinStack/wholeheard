@@ -421,7 +421,10 @@ def main() -> int:
         Select(browser.find_element(By.ID, "minutes")).select_by_visible_text("Personnalisé…")
         browser.find_element(By.ID, "minutes-address").send_keys("not an address")
         browser.find_element(By.ID, "minutes-model").send_keys("m")
+        before = browser.find_element(By.ID, "minutes")
         browser.find_element(By.ID, "minutes-save").click()
+        # Refused, the page is drawn again too, the refusal said on the new one.
+        WebDriverWait(browser, 5).until(staleness_of(before))
         said = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
         check("an address that is none is said, and nothing changes", said and window.file.read_text() == text, browser.find_element(By.ID, "not-saved").text)
     tags.shutdown()

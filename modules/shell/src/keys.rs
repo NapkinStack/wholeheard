@@ -8,10 +8,11 @@ use keyring_core::{Entry, Error};
 const SERVICE: &str = "dev.summit.Summit";
 
 /// Opens the system's keyring for this process, once, before a key is read or kept. Refused —
-/// no keyring service on this desktop — the sentence says why. With `SUMMIT_KEYRING=memory`, a
-/// keyring that lives as long as the program instead: a scenario never reads nor writes the user's.
+/// no keyring service on this desktop — the sentence says why. With `SUMMIT_KEYRING=memory`, in
+/// a build for trying Summit only, a keyring that lives as long as the program instead: a scenario
+/// never reads nor writes the user's, and a release never keeps a key where it does not last.
 pub fn open_system_keyring() -> Result<(), String> {
-    if std::env::var("SUMMIT_KEYRING").as_deref() == Ok("memory") {
+    if cfg!(debug_assertions) && std::env::var("SUMMIT_KEYRING").as_deref() == Ok("memory") {
         keyring_core::set_default_store(keyring_core::mock::Store::new().map_err(|error| error.to_string())?);
         return Ok(());
     }

@@ -25,7 +25,7 @@ use summit_shell::{
     sessions::{self, Listed},
     settings::{self, After, KeepAudio, Settings},
     transcription::{self, Made, Transcription},
-    words::{self, Language, Notice, Trouble},
+    words::{self, Language, Notice, Refusal, Trouble},
 };
 use tauri::{
     AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, Wry,
@@ -365,7 +365,7 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
 /// deleted, restored from the trash —, and says so once. A session's folder that is a link the
 /// user put in the sessions' folder is followed, as the list follows it. A refusal is said once,
 /// and again only when its reason changes: `refused` is the last one said.
-fn expire(app: &AppHandle, refused: &mut Option<String>) {
+fn expire(app: &AppHandle, refused: &mut Option<Refusal>) {
     let shell = app.state::<Shell>();
     let Ok(settings) = shell.reread() else { return };
     let KeepAudio::Days(days) = settings.keep_audio else { return };
@@ -382,9 +382,9 @@ fn expire(app: &AppHandle, refused: &mut Option<String>) {
         .collect();
     let outcome = trash::delete_all(&gone)
         .map(|()| (meetings.len(), days))
-        .map_err(|error| error.to_string());
-    let said_already = matches!((&outcome, &*refused), (Err(why), Some(said)) if why == said);
-    *refused = outcome.as_ref().err().cloned();
+        .map_err(|error| refusal(&error));
+    let said_already = matches!((outcome, *refused), (Err(why), Some(said)) if why == said);
+    *refused = outcome.err();
     if !said_already {
         tell(app, &words::audio_trashed(shell.language, &outcome));
     }
@@ -408,22 +408,25 @@ struct MinutesShown {
 }
 
 #[tauri::command]
-fn minutes_shown(shell: State<'_, Shell>) -> MinutesShown {
-    let settings = shell.settings();
+async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, String> {
+    let settings = shell.reread().unwrap_or_else(|_| shell.settings());
     let kept = settings
         .minutes_provider
         .as_deref()
         .and_then(providers::host)
         .and_then(|host| keys::key(&host).ok().flatten())
         .is_some();
-    MinutesShown {
-        ollama: providers::ollama_models(&ollama()),
+    // Ollama is asked away from the window and the tray: one that does not answer holds neither.
+    let base = ollama();
+    let models = tauri::async_runtime::spawn_blocking(move || providers::ollama_models(&base)).await;
+    Ok(MinutesShown {
+        ollama: models.unwrap_or_default(),
         ollama_address: providers::ollama_address(&ollama()),
         online: providers::ONLINE,
         provider: settings.minutes_provider,
         model: settings.minutes_model,
         key_kept: kept,
-    }
+    })
 }
 
 /// Who writes the minutes, chosen: a provider's address, a model, and — for one that asks for it —
@@ -431,24 +434,39 @@ fn minutes_shown(shell: State<'_, Shell>) -> MinutesShown {
 #[tauri::command]
 fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: Option<String>) -> Result<(), String> {
     // The choice goes onto what the file says now; a file that cannot be read is not written over,
-    // and no key is kept for a choice that is not saved.
+    // and no key is kept for a choice that is not saved: the file first, then the key.
     let mut settings = shell.reread()?;
     let host = providers::host(provider.trim()).ok_or_else(|| format!("{provider} is no provider's address"))?;
     if model.trim().is_empty() {
         return Err("a model is named".into());
     }
-    if let Some(key) = key.as_deref().map(str::trim).filter(|key| !key.is_empty()) {
-        if let Some(why) = shell.keyring.lock().unwrap().clone() {
-            return Err(format!("the system's keyring could not be opened ({why})"));
-        }
-        keys::keep(&host, key)?;
+    let key = key.as_deref().map(str::trim).filter(|key| !key.is_empty());
+    if key.is_some()
+        && let Some(why) = shell.keyring.lock().unwrap().clone()
+    {
+        return Err(format!("the system's keyring could not be opened ({why})"));
     }
     settings.minutes_provider = Some(provider.trim().to_string());
     settings.minutes_model = Some(model.trim().to_string());
     let file = settings::file().ok_or("this system names no folder for settings")?;
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
     *shell.settings.lock().unwrap() = settings;
-    Ok(())
+    key.map_or(Ok(()), |key| keys::keep(&host, key))
+}
+
+/// Why the trash refused, as the user is told it: the system's own wording names a file and
+/// changes with it.
+fn refusal(error: &trash::Error) -> Refusal {
+    use std::io::ErrorKind;
+    match error {
+        trash::Error::FileSystem { source, .. } => match source.kind() {
+            ErrorKind::PermissionDenied | ErrorKind::ReadOnlyFilesystem => Refusal::NotAllowed,
+            ErrorKind::StorageFull | ErrorKind::QuotaExceeded => Refusal::NoSpace,
+            _ => Refusal::Other,
+        },
+        trash::Error::CouldNotAccess { .. } => Refusal::NotAllowed,
+        _ => Refusal::Other,
+    }
 }
 
 /// Shows a notification. A desktop that shows none is no reason to stop anything.
