@@ -153,6 +153,25 @@ is new work in that program, not a setting, and goes to *Later*. For the minutes
 kinds stand: on this computer (Ollama), online with its address, or the user's own address,
 model and key — `summit-summary` already takes an address, a model and a key.
 
+**Offered for acceptance** — its acceptance issue: [#201](https://github.com/NapkinStack/summit/issues/201), the decider's trial on their desktop. Built in pull
+requests each verified: the settings read and written as the user's file, hand edits and
+comments kept (#183–#186, #188); the keyring (#187); the audio's expiry to the system's trash
+(#189, #190, #192, #194); who writes the minutes and its key (#191, #193, #194); a settings file
+that cannot be read said and the page locked (#195); the sessions' folder (#196); *Tester*
+(#197, #198); the shortcut (#199, #200).
+
+| Criterion | Where it stands |
+|---|---|
+| What follows a recording, the reminder; out of the box the transcript alone and the reminder; one file that reads without Summit | Holds — the window's scenario K and the tray's; the file is the truth, read again before each recording, transcript and save |
+| The model of a step: one on this computer, an online service, one's own address, model and key; the key in the keyring only; *Tester* in one sentence | Holds for the choice, the key and *Tester* — scenario K, on an Ollama, a keyring and a summit-summary of the scenario's. The transcription's model is used from the next transcript; the minutes' choice is used once the shell makes minutes, D21. Transcription models are those found here (narrowed above) |
+| The shortcut, the sessions' folder, how long the audio is kept; audio older than that to the system's trash | Holds — scenarios K and L. The shortcut is the desktop's to grant and change under Linux: the page shows the keys granted and opens GNOME's keyboard settings (this desktop's portal has no dialog for it). On macOS and Windows the keys are shown, not changed — those systems are *Later* |
+
+Seen by the verifiers and corrected before merging: a save that reverted a hand edit, a
+comment lost on a written line, a model listed twice through a link, a session of negative
+length expiring, audio of a session never transcribed sent to the trash, a refusal said in the
+system's English, a key kept for a choice not saved, a silent Ollama holding the window, two
+saves undoing each other, and a folder note that promised more than it held.
+
 ### D21
 
 Board 5, the second agreement. The first — the transcription model fetched on the user's word
