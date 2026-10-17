@@ -38,8 +38,9 @@ pub struct Settings {
     pub after: After,
     /// The Whisper model the transcript is heard with: a file in whisper.cpp's format.
     pub model: PathBuf,
-    /// Who writes the minutes: `ollama`, on this computer, or a provider's address; and the
-    /// model's name as it knows it. None: not chosen yet.
+    /// Who writes the minutes: a provider's address, as `summit-summary` takes it — Ollama on this
+    /// computer is `http://localhost:11434/v1` —, and the model's name as it knows it. None: not
+    /// chosen yet.
     pub minutes_provider: Option<String>,
     pub minutes_model: Option<String>,
     pub keep_audio: KeepAudio,

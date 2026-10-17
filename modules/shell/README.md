@@ -83,7 +83,8 @@ sed "s#^Exec=.*#Exec=$PWD/modules/shell/target/release/summit#" modules/shell/li
 reads and writes without Summit: `reminder = false` to stop the reminder; `sessions = "…"` for
 where sessions go; `after = "nothing"`, `"transcript"` or `"minutes"` for what follows a
 recording (`transcript = false`, from before, still means nothing); `model = "…"` for the
-Whisper model; `minutes_provider` — `"ollama"`, or a provider's address — and `minutes_model`
+Whisper model; `minutes_provider` — a provider's address, `"http://localhost:11434/v1"` for Ollama
+on this computer — and `minutes_model`
 for who writes the minutes; `keep_audio = "always"` or a number of days. Out of the box,
 sessions go to a folder `Summit` in the user's documents, the transcript follows alone, and the
 model is `summit/models/ggml-large-v3-turbo-q8_0.bin` in the user's data folder — fetched there
