@@ -313,6 +313,16 @@ fn a_test_sends_one_fixed_sentence_and_says_the_model_answered() {
     assert_eq!(lines[0]["characters"], summit_summary::TEST.chars().count());
     assert_eq!(lines[1]["event"], "answered");
     assert_eq!(lines[1]["model"], "a-model");
+    // The model named first is the same test.
+    let (address, received) = provider("200 OK", answering("OK", "stop"));
+    let output = Command::new(env!("CARGO_BIN_EXE_summit-summary"))
+        .args(["--test", "--model", "a-model", "--provider", &address])
+        .env_remove("SUMMIT_PROVIDER_KEY")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", said(&output).1);
+    let (_, asked) = received.recv().unwrap();
+    assert!(asked.contains(summit_summary::TEST), "{asked}");
 }
 
 #[test]
