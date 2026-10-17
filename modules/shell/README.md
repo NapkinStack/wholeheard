@@ -33,8 +33,9 @@ other than the call's shows at once — a source that is silent, the stop, a fai
 French where the system is, in English anywhere else.
 
 **The window** (cycle 03, from D11's drawings) is opened by *Open Summit* in the menu — or at
-once by `summit --window` — and never without a gesture. It holds nothing yet: what it lists
-comes next.
+once by `summit --window` — and never without a gesture. It speaks the system's language,
+follows its light or dark theme and font, in the colours of D11's boards; what it lists comes
+next.
 
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification
@@ -79,6 +80,10 @@ folder — fetched there on the user's word, or placed by hand.
 The standard verbs — `bootstrap`, `check`, `test`, `run` — are declared in the `commands`
 section of the [manifest](./MANIFEST.yaml), for this module's stack. What each one must do:
 `.nstack/handbook/09-platform.md` §2.
+
+`e2e` drives Summit on the desktop: the tray's menu over the session bus, then the window over
+WebDriver — WebKitGTK's own (`WebKitWebDriver`, in Fedora's `webkit2gtk4.1-devel`) behind
+`tauri-driver`, which the script installs when it is missing (`scripts/e2e_window.py`).
 
 ## Contracts
 

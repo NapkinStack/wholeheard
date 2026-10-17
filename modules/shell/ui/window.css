@@ -1,0 +1,57 @@
+/* The window: the colours of D11's boards, the system's font, its light or dark theme. */
+:root {
+  color-scheme: light dark;
+  --ground: #F2F4F7; --surface: #FFFFFF; --raised: #EEF1F5; --line: #D9DDE5;
+  --ink: #15171C; --soft: #4C5464; --accent: #2253CF; --ok: #16794A; --red: #C2352D;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #15171C; --surface: #1E2129; --raised: #282C37; --line: #343946;
+    --ink: #EEF0F4; --soft: #AAB1BF; --accent: #8AB0FF; --ok: #63D49C; --red: #FF7A72;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--ground); color: var(--ink);
+  font: 15px/1.45 system-ui, sans-serif;
+}
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 16px;
+  padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+.mark { fill: var(--ink); }
+.peaks { stroke: var(--surface); }
+nav a {
+  display: inline-block; padding: 8px 14px; border-radius: 9px; color: var(--ink);
+  background: var(--raised); font-weight: 600; text-decoration: none;
+}
+a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 56px; display: flex; flex-direction: column; gap: 26px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+.weight { padding: 20px 24px; display: flex; flex-direction: column; gap: 10px; }
+.total strong { font-size: 26px; letter-spacing: -0.02em; }
+.total span, .legend { color: var(--soft); }
+.split { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: var(--raised); }
+.split .audio, .swatch.audio { background: var(--accent); }
+.split .text, .swatch.text { background: var(--ok); }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; }
+.legend li { display: flex; align-items: center; gap: 7px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.none { color: var(--soft); }
+.group { display: flex; flex-direction: column; gap: 10px; }
+.group h2 {
+  margin: 0 0 2px 4px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--soft);
+}
+.group ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.session { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 16px 20px; }
+.session .when { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.session .day { font-size: 16.5px; font-weight: 600; }
+.session .length { font-variant-numeric: tabular-nums; color: var(--soft); font-size: 13.5px; }
+.holds { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.chip { padding: 5px 10px; border-radius: 8px; background: var(--raised); }
+.chip.gone { background: transparent; border: 1px dashed var(--line); color: var(--soft); }
+.chip.live { color: var(--red); font-weight: 600; }
+.chip.cut { color: var(--soft); font-style: italic; }

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The window shows a page of Summit's own; it is allowed nothing yet.",
+  "description": "The window reads what it shows through the shell's own command; it is allowed nothing else.",
   "windows": ["main"],
-  "permissions": []
+  "permissions": ["core:default"]
 }
