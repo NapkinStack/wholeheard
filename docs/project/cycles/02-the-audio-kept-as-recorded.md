@@ -303,6 +303,8 @@ Their changes, drawn in the second round:
 | An automatic mode: record when the system opens the microphone | Drawn as a proposal — "a call seems to start", record or not — with the setting to record without asking, and to stop when the microphone is let go. The framer advised against silence by default: other people are recorded, and a voice message opens a microphone too |
 | A transcript or minutes made again | "Again…" on each, with the model chosen; what was there stays until the new one is whole |
 
+The boards as the second round left them, in both themes: [`drawings/d11-the-window`](../drawings/d11-the-window/README.md).
+
 Still owed to close D11: the decider's word on the second round — accepted, or changed
 again. What is accepted is the next cycle's criteria.
 
