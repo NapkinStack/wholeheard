@@ -10,7 +10,7 @@ Records the audio sources of a conversation into a session.
 flowchart LR
     M["The microphone"]:::src --> P["summit-capture<br/>a program, no window"]:::mod
     O["What the system plays"]:::src --> P
-    P -->|"session-audio/v1"| F["The session's folder<br/>session.json · me.wav · others.wav"]:::file
+    P -->|"session-audio/v2"| F["The session's folder<br/>session.json · local.wav · remote.wav · clock.jsonl"]:::file
     P -.->|"one line per event"| W["Whoever started it:<br/>the shell, a terminal"]:::user
 
     classDef src fill:#374151,color:#fff
@@ -36,6 +36,7 @@ Recording — **the people recorded know it**:
 
 ```bash
 cargo run --release -- record <sessions-folder>   # until Ctrl-C, a TERM signal, or "stop" on its input
+cargo run --release -- record <sessions-folder> --as v1   # the same, in the first form
 ```
 
 **`nstack e2e capture`** runs D3's scenarios without a call and without a voice: for about a
@@ -54,22 +55,22 @@ One JSON object per line on its output; errors go to the error stream.
 | `event` | When | Carries |
 |---|---|---|
 | `started` | The two files exist and grow | `folder`, `sources` |
-| `unavailable` | A source could not be opened, the other is recorded: it is written as silence — with `--as v2` it has no file at all | `source`, `reason` |
+| `unavailable` | A source could not be opened, the other is recorded: it has no file at all — with `--as v1`, it is written as silence | `source`, `reason` |
 | `silent` | A source has given no sound for ten seconds | `source` |
 | `heard` | A source told silent gives sound again | `source` |
 | `stopped` | The files are finished and `session.json` says so | `folder`, `seconds` |
 
 A source is named for the device the system's default stands for when the recording starts — read from PipeWire's metadata — so that a microphone other than the call's shows at once; `summit-capture devices` prints it as `stands_for`. Unread, the default's own name.
 
-These lines are a contract: [`recording/v1`](../../contracts/recording/v1/README.md), which the shell reads. With `--as v2` they are the same lines, and still name the sources `me` and `others` where the files are `local` and `remote`.
+These lines are a contract: [`recording/v1`](../../contracts/recording/v1/README.md), which the shell reads. They are the same lines in both forms, and still name the sources `me` and `others` where the second form's files are `local` and `remote`.
 
 ## Contracts
 
-- Provided: [`session-audio/v1`](../../contracts/session-audio/v1/README.md), `experimental`
-  — what `record` writes
 - Provided: [`session-audio/v2`](../../contracts/session-audio/v2/README.md), `experimental`
-  — each source as delivered, with the session's clock: what `record … --as v2` writes, until
-  the steps that follow read it and it becomes what `record` writes (ADR-0004)
+  — each source as delivered, with the session's clock: what `record` writes, and so what the
+  tray records (ADR-0004)
+- Provided: [`session-audio/v1`](../../contracts/session-audio/v1/README.md), `experimental`
+  — the first form, two files at 16 kHz: what `record … --as v1` writes, to compare with it
 - Provided: [`recording/v1`](../../contracts/recording/v1/README.md), `experimental`
   — what `record` says while it records
 - Consumed: none

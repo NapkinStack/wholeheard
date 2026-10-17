@@ -1,7 +1,8 @@
 //! `summit-capture` — records a conversation into a session's folder, with no window.
 //!
-//!     summit-capture record <sessions-folder>     until Ctrl-C, a TERM signal, or "stop" on its input
-//!     summit-capture record <sessions-folder> --as v2     the same, each source as delivered
+//!     summit-capture record <sessions-folder>     each source as delivered, until Ctrl-C, a TERM
+//!                                                 signal, or "stop" on its input
+//!     summit-capture record <sessions-folder> --as v1     the same, in the first form
 //!     summit-capture devices                      what the system offers
 //!
 //! It says what happens as one JSON object per line on its output: `started`, `unavailable`,
@@ -59,10 +60,10 @@ fn say(event: Event) {
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let outcome = match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
-        ["record", sessions] => record(Path::new(sessions)),
-        ["record", sessions, "--as", "v2"] => record_v2(Path::new(sessions)),
+        ["record", sessions] | ["record", sessions, "--as", "v2"] => record_v2(Path::new(sessions)),
+        ["record", sessions, "--as", "v1"] => record(Path::new(sessions)),
         ["devices"] => devices(),
-        _ => Err("usage: summit-capture record <sessions-folder> [--as v2] | summit-capture devices".into()),
+        _ => Err("usage: summit-capture record <sessions-folder> [--as v1|v2] | summit-capture devices".into()),
     };
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
