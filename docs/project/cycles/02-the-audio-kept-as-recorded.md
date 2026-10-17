@@ -252,10 +252,16 @@ makes, kept apart and made again the same.
 | Each segment says its track, and has a place for the voice | Holds |
 | The meeting of 2026-10-13, recorded again by the decider, on loudspeakers then with a headset | **Owed — the decider's gesture** |
 
-**Next:** the local words said over the remote that are lost — `bench.counts`' *local words
-lost under the remote* (24.5 of 109 on loudspeakers, loud). The canceller's own variants
-trade them for the echo written as words; the trial meeting, with no local track, cannot
-judge a lever here.
+**Framing (decider, 2026-10-17).** A transcript's quality is the engine's and the audio's.
+Summit tolerates an engine's defaults, as it would any other engine's, and tunes nothing
+specific to one model, one recording or one device: such a setting holds on one audio and not
+the next. What is summit's own: a capture that holds, the tracks kept as recorded, an engine
+that can be swapped, and no error added by its own steps. On this line the double-talk lever
+is closed. What is left on the decider's call of 2026-10-17 is the engine's: text written on
+a track's silence, text written during a loud ringtone, sentences cut at each pause.
+
+**Next:** the decider's gesture in the table. *Local words lost under the remote* stays a
+count the bench reads, not a lever.
 
 **How a change is measured.** On the bench (`modules/platform`, its `README.md`: four draws
 at least of each condition, `bench.counts`) and on the trial meeting — cycle 01's D4
@@ -271,9 +277,12 @@ beam search; the engine's no-speech and log-probability thresholds; a speech det
 the engine (D14); the canceller's linear filter alone, and the echo removed from the text;
 against the loop, no text of the window before or a short one, `context.txt` in every window
 (`carry_initial_prompt`), a stricter repetition guard (`entropy_thold`, with five samples or
-without); Parakeet TDT as the default engine (57.1 % on the trial meeting). What was tried,
-its measures, and what was refuted: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196158029),
-and [the double-talk and the loop](https://github.com/NapkinStack/summit/issues/129#issuecomment-6219946187).
+without); Parakeet TDT as the default engine (57.1 % on the trial meeting); a gate dropping
+what the engine wrote far under its track's speech level (#150): four rules for the level,
+each moved by a louder passage, and a margin of about 10 dB measured on one call. What was
+tried, its measures, and what was refuted: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196158029),
+[the double-talk and the loop](https://github.com/NapkinStack/summit/issues/129#issuecomment-6219946187),
+and [the gate on silence](https://github.com/NapkinStack/summit/issues/129#issuecomment-6230315141).
 
 ### D11
 
