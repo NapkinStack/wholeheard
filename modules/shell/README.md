@@ -44,7 +44,9 @@ who wrote them and where; its transcript in the meeting's order, each line with 
 voice, searched over what was said; who spoke over the meeting; its folder, opened in the
 system's file manager. *Réglages* sets what follows a recording, the transcription's model among
 those on this computer, the reminder and how long the audio is kept — each choice saved at once
-in the settings file; one Summit could not read is said, and not written over.
+in the settings file; one Summit could not read is said, and not written over. Audio kept
+longer than the settings say goes to the system's trash — at start, then every hour, said once —
+from sessions whose transcript is whole; their transcript and minutes stay.
 
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification

@@ -101,15 +101,15 @@ fn read(folder: &Path, recording: Option<&Path>) -> Option<Listed> {
 /// The sound of the sessions stopped more than `days` days before `now` (seconds since 1970): every
 /// `.wav` in each such session's folder, what was made from the tracks too — never through a link.
 /// A session keeps its sound while it is being recorded, was left without its end, cannot be
-/// dated, stopped before it started — a clock gone back —, or holds no transcript: its sound is
-/// then all there is of it.
+/// dated, stopped before it started — a clock gone back —, or holds no whole transcript: its
+/// sound is then all there is of what was said.
 pub fn expired_audio(sessions: &Path, days: u32, now: i64) -> Vec<PathBuf> {
     let reach = i64::from(days) * 86_400;
     // A session with a length is one that stopped.
     list(sessions, None)
         .into_iter()
         .filter(|session| {
-            session.transcript
+            complete(&session.folder)
                 && matches!((session.instant, session.seconds), (Some(started), Some(seconds)) if seconds >= 0.0 && started + seconds as i64 + reach <= now)
         })
         .flat_map(|session| {
@@ -118,6 +118,11 @@ pub fn expired_audio(sessions: &Path, days: u32, now: i64) -> Vec<PathBuf> {
             sound
         })
         .collect()
+}
+
+/// The session's transcript is there and whole: what was said is kept once its sound goes.
+fn complete(folder: &Path) -> bool {
+    matches!(crate::meeting::transcript(folder), crate::meeting::Read::Present(transcript) if transcript.complete)
 }
 
 /// Every `.wav` under a folder.
