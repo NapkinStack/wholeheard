@@ -42,7 +42,9 @@ follows its light or dark theme and font, in the colours of D11's boards, and re
 folder again whenever it comes forward. A meeting opens from the list: its minutes as written, with
 who wrote them and where; its transcript in the meeting's order, each line with its side and
 voice, searched over what was said; who spoke over the meeting; its folder, opened in the
-system's file manager.
+system's file manager. *Réglages* sets what follows a recording, the transcription's model among
+those on this computer, the reminder and how long the audio is kept — each choice saved at once
+in the settings file; one Summit could not read is said, and not written over.
 
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification

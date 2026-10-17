@@ -22,6 +22,7 @@ from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.options import ArgOptions
+from selenium.webdriver.support.select import Select
 from urllib3.exceptions import HTTPError
 
 BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
@@ -67,10 +68,11 @@ def session(folder: Path, started: dt.datetime, minutes: float | None, files: di
 class Window:
     """Summit with its window, for as long as the `with` lasts."""
 
-    def __init__(self, sessions: Path, language: str) -> None:
-        config = WORK / f"config-{language}"
+    def __init__(self, sessions: Path, language: str, more: str = "") -> None:
+        config = WORK / f"config-{language}-{sessions.name}"
         (config / "summit").mkdir(parents=True, exist_ok=True)
-        (config / "summit" / "settings.toml").write_text(f'sessions = "{sessions}"\n')
+        self.file = config / "summit" / "settings.toml"
+        self.file.write_text(f'sessions = "{sessions}"\n{more}')
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), LANGUAGE="")
         self.env.update(LANG=language, LC_ALL=language)
 
@@ -226,9 +228,9 @@ def main() -> int:
         json.dumps(lines[0]) + "\n" + json.dumps({"type": "segment", "speaker": "me", "track": "local", "voice": None, "start": 1.0, "end": 2.0, "text": "Une autre réunion."}) + "\n"
     )
     with Window(meetings, "fr_FR.UTF-8") as browser:
-        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB)
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB, Keys.TAB)
         focused = browser.execute_script("return document.activeElement.className")
-        check("Tab reaches the first meeting after the section", "session" in focused, focused)
+        check("Tab reaches the first meeting after the two sections", "session" in focused, focused)
         browser.find_elements(By.CSS_SELECTOR, ".session")[0].click()
         shown = wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".lines li"))
         check("a click on a meeting opens it", shown and not browser.find_element(By.ID, "list").is_displayed())
@@ -302,6 +304,52 @@ def main() -> int:
         browser.execute_script("location.hash = '#/meeting/' + encodeURIComponent('gone')")
         listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed())
         check("a meeting that is not there goes back to the list", listed and not browser.find_element(By.ID, "meeting").is_displayed())
+
+    print("K. the settings: each choice saved at once, the user's file kept")
+    models = WORK / "data" / "summit" / "models"
+    models.mkdir(parents=True, exist_ok=True)
+    for name in ("ggml-large-v3-turbo-q8_0.bin", "ggml-small.bin"):
+        (models / name).write_bytes(b"x" * 1000)
+    chosen = WORK / "chosen"
+    chosen.mkdir()
+    window = Window(chosen, "fr_FR.UTF-8", "# mine\n")
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed() and b.find_elements(By.ID, "model"))
+        check("the settings open from the header", browser.find_element(By.ID, "settings-link").text == "Réglages")
+        checked = browser.execute_script("return document.querySelector('input[name=after]:checked').value")
+        check("out of the box, the transcript follows", checked == "transcript", checked)
+        names = [o.text.split(" — ")[0] for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
+        check("the models on this computer are offered", names == ["ggml-large-v3-turbo-q8_0.bin", "ggml-small.bin"], names)
+        browser.find_element(By.CSS_SELECTOR, "input[name=after][value=nothing]").click()
+        browser.find_element(By.ID, "reminder").click()
+        Select(browser.find_element(By.ID, "keep")).select_by_value("30")
+        Select(browser.find_element(By.ID, "model")).select_by_visible_text(next(o.text for o in browser.find_elements(By.CSS_SELECTOR, "#model option") if o.text.startswith("ggml-small")))
+        saved = wait_for(browser, lambda b: "ggml-small.bin" in window.file.read_text(), 5)
+        text = window.file.read_text()
+        check(
+            "each choice is in the settings file, the user's lines kept",
+            saved
+            and 'after = "nothing"' in text
+            and "reminder = false" in text
+            and "keep_audio = 30" in text
+            and f'model = "{models / "ggml-small.bin"}"' in text
+            and text.startswith(f'sessions = "{chosen}"\n')
+            and "# mine" in text,
+            text,
+        )
+        failed = browser.find_element(By.ID, "not-saved").is_displayed()
+        check("nothing said failed", not failed)
+    broken = WORK / "broken"
+    broken.mkdir()
+    window = Window(broken, "fr_FR.UTF-8", "keep_audio = 0\n")
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#settings .warn"))
+        warned = browser.find_element(By.CSS_SELECTOR, "#settings .warn").text
+        locked = browser.execute_script("return [...document.querySelectorAll('#settings input, #settings select')].every(e => e.disabled)")
+        check("a settings file that cannot be read is said so, and nothing can be changed", warned.startswith("Le fichier des réglages ne peut pas être lu") and locked, warned)
+        check("it is left as it was", window.file.read_text() == f'sessions = "{broken}"\nkeep_audio = 0\n')
 
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"

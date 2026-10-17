@@ -21,7 +21,7 @@ use summit_shell::{
     model::{self, Published},
     recording::{Recording, Said},
     sessions::{self, Listed},
-    settings::{self, Settings},
+    settings::{self, After, KeepAudio, Settings},
     transcription::{self, Made, Transcription},
     words::{self, Language, Notice, Trouble},
 };
@@ -37,7 +37,10 @@ const TRAY: &str = "summit";
 
 /// What the shell holds while it runs.
 struct Shell {
-    settings: Settings,
+    /// What the user chose: read at start, changed from the window.
+    settings: Mutex<Settings>,
+    /// The settings file could not be read at start: the window does not write over it.
+    unreadable: Mutex<Option<String>>,
     language: Language,
     /// The recording in progress, when there is one.
     recording: Mutex<Option<Recording>>,
@@ -67,6 +70,13 @@ struct Shell {
     fetching: Mutex<bool>,
 }
 
+impl Shell {
+    /// What the user chose, as it stands now.
+    fn settings(&self) -> Settings {
+        self.settings.lock().unwrap().clone()
+    }
+}
+
 /// Where the tray is in the life of a recording.
 #[derive(Clone, Copy, PartialEq)]
 enum Shown {
@@ -78,7 +88,13 @@ enum Shown {
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .invoke_handler(tauri::generate_handler![listed, opened, open_folder])
+        .invoke_handler(tauri::generate_handler![
+            listed,
+            opened,
+            open_folder,
+            settings_shown,
+            settings_saved
+        ])
         .setup(|app| {
             let language = Language::system();
             let labels = words::menu(language);
@@ -102,7 +118,7 @@ fn main() {
                         if shell.recording.lock().unwrap().is_some() {
                             return;
                         }
-                        match transcription::latest(&shell.settings.sessions) {
+                        match transcription::latest(&shell.settings().sessions) {
                             Some(last) => transcribe(app, last),
                             None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
                         }
@@ -113,7 +129,8 @@ fn main() {
                 })
                 .build(app)?;
             app.manage(Shell {
-                settings: read.clone().unwrap_or_default(),
+                settings: Mutex::new(read.clone().unwrap_or_default()),
+                unreadable: Mutex::new(read.clone().err()),
                 language,
                 recording: Mutex::new(None),
                 recorded: Mutex::new(None),
@@ -175,14 +192,14 @@ fn listed(shell: State<'_, Shell>) -> Listing {
     let recorded = shell.recorded.lock().unwrap().clone();
     Listing {
         words: words::window(shell.language),
-        folder: shell.settings.sessions.clone(),
-        sessions: sessions::list(&shell.settings.sessions, recorded.as_deref()),
+        folder: shell.settings().sessions.clone(),
+        sessions: sessions::list(&shell.settings().sessions, recorded.as_deref()),
     }
 }
 
 /// The folder of a session the window names (`sessions::folder`).
 fn session_folder(shell: &Shell, name: &str) -> Result<PathBuf, String> {
-    sessions::folder(&shell.settings.sessions, name).ok_or_else(|| format!("{name} is no session"))
+    sessions::folder(&shell.settings().sessions, name).ok_or_else(|| format!("{name} is no session"))
 }
 
 /// One meeting, as its page shows it.
@@ -197,7 +214,7 @@ struct Opened {
 fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
     let folder = session_folder(&shell, &name)?;
     let recorded = shell.recorded.lock().unwrap().clone();
-    let session = sessions::list(&shell.settings.sessions, recorded.as_deref())
+    let session = sessions::list(&shell.settings().sessions, recorded.as_deref())
         .into_iter()
         .find(|listed| listed.folder == folder)
         .ok_or_else(|| format!("{name} is no session"))?;
@@ -225,6 +242,100 @@ fn open_folder(shell: State<'_, Shell>, name: String) -> Result<(), String> {
         .spawn()
         .map_err(|error| error.to_string())?;
     std::thread::spawn(move || started.wait());
+    Ok(())
+}
+
+/// A Whisper model the settings page offers.
+#[derive(serde::Serialize)]
+struct Model {
+    path: PathBuf,
+    name: String,
+    bytes: u64,
+}
+
+/// What the settings page shows: the choices as they stand, the models on this computer, and
+/// why the file is not written when it could not be read.
+#[derive(serde::Serialize)]
+struct SettingsShown {
+    after: After,
+    reminder: bool,
+    keep_audio: KeepAudio,
+    model: PathBuf,
+    models: Vec<Model>,
+    unreadable: Option<String>,
+}
+
+/// The folder Summit keeps its models in: the default model's.
+fn models_folder() -> PathBuf {
+    Settings::default().model.parent().map(PathBuf::from).unwrap_or_default()
+}
+
+#[tauri::command]
+fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
+    let settings = shell.settings();
+    let models = settings::whisper_models(&models_folder(), &settings)
+        .into_iter()
+        .map(|path| Model {
+            // One outside Summit's folder says where it is: two files may share a name.
+            name: match path.parent() {
+                Some(parent) if parent != models_folder() => path.display().to_string(),
+                _ => path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default(),
+            },
+            bytes: std::fs::metadata(&path).map_or(0, |data| data.len()),
+            path,
+        })
+        .collect();
+    SettingsShown {
+        after: settings.after,
+        reminder: settings.reminder,
+        keep_audio: settings.keep_audio,
+        model: settings.model,
+        models,
+        unreadable: shell.unreadable.lock().unwrap().clone(),
+    }
+}
+
+/// One choice the page changed.
+#[derive(serde::Deserialize)]
+struct Change {
+    after: Option<After>,
+    reminder: Option<bool>,
+    keep_audio: Option<KeepAudio>,
+    model: Option<PathBuf>,
+}
+
+/// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
+/// is written over a file that could not be read, and a model is only one found on this computer.
+#[tauri::command]
+fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String> {
+    if let Some(why) = shell.unreadable.lock().unwrap().clone() {
+        return Err(why);
+    }
+    let mut settings = shell.settings();
+    if let Some(after) = change.after {
+        settings.after = after;
+    }
+    if let Some(reminder) = change.reminder {
+        settings.reminder = reminder;
+    }
+    // The same bounds as the file's: a value read refuses is never written.
+    if let Some(KeepAudio::Days(days)) = change.keep_audio
+        && !(1..=36_500).contains(&days)
+    {
+        return Err(format!("{days} is no number of days to keep audio"));
+    }
+    if let Some(keep) = change.keep_audio {
+        settings.keep_audio = keep;
+    }
+    if let Some(model) = change.model {
+        if !settings::whisper_models(&models_folder(), &settings).contains(&model) {
+            return Err(format!("{} is no model on this computer", model.display()));
+        }
+        settings.model = model;
+    }
+    let file = settings::file().ok_or("this system names no folder for settings")?;
+    settings::write(&file, &settings).map_err(|error| error.to_string())?;
+    *shell.settings.lock().unwrap() = settings;
     Ok(())
 }
 
@@ -296,8 +407,8 @@ fn toggle_recording(app: &AppHandle) {
         }
         return;
     }
-    let started = std::fs::create_dir_all(&shell.settings.sessions)
-        .and_then(|()| Recording::start(&program("summit-capture", "SUMMIT_CAPTURE"), &shell.settings.sessions));
+    let started = std::fs::create_dir_all(&shell.settings().sessions)
+        .and_then(|()| Recording::start(&program("summit-capture", "SUMMIT_CAPTURE"), &shell.settings().sessions));
     match started {
         Ok((running, said)) => {
             *recording = Some(running);
@@ -322,14 +433,14 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
         let notice = match &event {
             // Ended before it had started: nothing was recorded, and that is the trouble.
             Said::Failed(why) if !started => Some(words::trouble(&Trouble::NoRecorder(why.clone()), shell.language)),
-            Said::Stopped(folder, _) if shell.settings.after != settings::After::Nothing => {
+            Said::Stopped(folder, _) if shell.settings().after != settings::After::Nothing => {
                 stopped = Some(folder.clone());
-                words::of(&event, shell.settings.reminder, shell.language).map(|notice| Notice {
+                words::of(&event, shell.settings().reminder, shell.language).map(|notice| Notice {
                     body: format!("{} {}", notice.body, words::follows(shell.language)),
                     ..notice
                 })
             }
-            _ => words::of(&event, shell.settings.reminder, shell.language),
+            _ => words::of(&event, shell.settings().reminder, shell.language),
         };
         if let Some(notice) = notice {
             tell(app, &notice);
@@ -369,7 +480,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
     if running.is_some() {
         return wait(&shell, folder);
     }
-    let model = &shell.settings.model;
+    let model = &shell.settings().model;
     if !model.is_file() {
         // The default model is offered, its size and host shown; one the user named is theirs.
         if *model == Settings::default().model {
@@ -462,7 +573,7 @@ fn fetch(app: &AppHandle) {
     if std::mem::replace(&mut *shell.fetching.lock().unwrap(), true) {
         return;
     }
-    let (wanted, to, language) = (published(), shell.settings.model.clone(), shell.language);
+    let (wanted, to, language) = (published(), shell.settings().model.clone(), shell.language);
     let label = |app: &AppHandle, text: String, enabled: bool| {
         let app = app.clone();
         let _ = app.clone().run_on_main_thread(move || {
@@ -494,7 +605,7 @@ fn fetch(app: &AppHandle) {
             let _ = shell.menu.remove(&shell.download);
         });
         let next = shell.waiting.lock().unwrap().pop_front();
-        if let Some(folder) = next.or_else(|| transcription::latest(&shell.settings.sessions)) {
+        if let Some(folder) = next.or_else(|| transcription::latest(&shell.settings().sessions)) {
             transcribe(&app, folder);
         }
     });
