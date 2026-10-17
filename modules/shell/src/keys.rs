@@ -8,8 +8,13 @@ use keyring_core::{Entry, Error};
 const SERVICE: &str = "dev.summit.Summit";
 
 /// Opens the system's keyring for this process, once, before a key is read or kept. Refused —
-/// no keyring service on this desktop — the sentence says why.
+/// no keyring service on this desktop — the sentence says why. With `SUMMIT_KEYRING=memory`, a
+/// keyring that lives as long as the program instead: a scenario never reads nor writes the user's.
 pub fn open_system_keyring() -> Result<(), String> {
+    if std::env::var("SUMMIT_KEYRING").as_deref() == Ok("memory") {
+        keyring_core::set_default_store(keyring_core::mock::Store::new().map_err(|error| error.to_string())?);
+        return Ok(());
+    }
     #[cfg(all(unix, not(target_os = "macos")))]
     let store = zbus_secret_service_keyring_store::Store::new();
     #[cfg(target_os = "macos")]

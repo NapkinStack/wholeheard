@@ -48,7 +48,7 @@ start() { # the language, the settings file's text, the recorder
   mkdir -p "$work/config/summit" "$work/sessions"; rm -f "$work/sessions/given" "$work/sessions/told"
   printf 'sessions = "%s"\n%b\n' "$work/sessions" "$2" > "$work/config/summit/settings.toml"
   LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" SUMMIT_CAPTURE="$3" \
-    SUMMIT_TRANSCRIPTION="$work/summit-transcription" SUMMIT_MODEL_PUBLISHED="$published" "$bin" 2>> "$work/errors" &
+    SUMMIT_TRANSCRIPTION="$work/summit-transcription" SUMMIT_MODEL_PUBLISHED="$published" SUMMIT_KEYRING=memory "$bin" 2>> "$work/errors" &
   app=$!
   # Its own tray item, found by its program's number: a Summit the user runs has one too.
   item=""

@@ -16,9 +16,11 @@ use std::{
 };
 
 use summit_shell::{
+    keys,
     meeting::{self, Read, Transcript},
     minutes::{self, Minutes},
     model::{self, Published},
+    providers::{self, Online},
     recording::{Recording, Said},
     sessions::{self, Listed},
     settings::{self, After, KeepAudio, Settings},
@@ -39,6 +41,8 @@ const TRAY: &str = "summit";
 struct Shell {
     /// What the user chose: read at start, changed from the window.
     settings: Mutex<Settings>,
+    /// Why the system's keyring could not be opened, when it could not.
+    keyring: Mutex<Option<String>>,
     language: Language,
     /// The recording in progress, when there is one.
     recording: Mutex<Option<Recording>>,
@@ -101,7 +105,9 @@ fn main() {
             opened,
             open_folder,
             settings_shown,
-            settings_saved
+            settings_saved,
+            minutes_shown,
+            minutes_saved
         ])
         .setup(|app| {
             let language = Language::system();
@@ -138,6 +144,7 @@ fn main() {
                 .build(app)?;
             app.manage(Shell {
                 settings: Mutex::new(read.clone().unwrap_or_default()),
+                keyring: Mutex::new(None),
                 language,
                 recording: Mutex::new(None),
                 recorded: Mutex::new(None),
@@ -165,6 +172,10 @@ fn main() {
                     std::thread::sleep(Duration::from_secs(3600));
                 }
             });
+            // The keyring a provider's key is kept in: refused, a key cannot be kept, and the
+            // settings page says so when one is given.
+            let keyring = keys::open_system_keyring().err();
+            *app.state::<Shell>().keyring.lock().unwrap() = keyring;
             if std::env::args().skip(1).any(|arg| arg == "--window") {
                 open_window(app.handle());
             }
@@ -377,6 +388,67 @@ fn expire(app: &AppHandle, refused: &mut Option<String>) {
     if !said_already {
         tell(app, &words::audio_trashed(shell.language, &outcome));
     }
+}
+
+/// Ollama on this computer — or, for whoever tries Summit, where `SUMMIT_OLLAMA` says.
+fn ollama() -> String {
+    std::env::var("SUMMIT_OLLAMA").unwrap_or_else(|_| providers::OLLAMA.to_string())
+}
+
+/// Who can write the minutes, and who does: the page never receives a key, only whether one is
+/// kept for the chosen provider.
+#[derive(serde::Serialize)]
+struct MinutesShown {
+    ollama: Vec<String>,
+    ollama_address: String,
+    online: [Online; 3],
+    provider: Option<String>,
+    model: Option<String>,
+    key_kept: bool,
+}
+
+#[tauri::command]
+fn minutes_shown(shell: State<'_, Shell>) -> MinutesShown {
+    let settings = shell.settings();
+    let kept = settings
+        .minutes_provider
+        .as_deref()
+        .and_then(providers::host)
+        .and_then(|host| keys::key(&host).ok().flatten())
+        .is_some();
+    MinutesShown {
+        ollama: providers::ollama_models(&ollama()),
+        ollama_address: providers::ollama_address(&ollama()),
+        online: providers::ONLINE,
+        provider: settings.minutes_provider,
+        model: settings.minutes_model,
+        key_kept: kept,
+    }
+}
+
+/// Who writes the minutes, chosen: a provider's address, a model, and — for one that asks for it —
+/// a key, kept in the system's keyring and nowhere else.
+#[tauri::command]
+fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: Option<String>) -> Result<(), String> {
+    // The choice goes onto what the file says now; a file that cannot be read is not written over,
+    // and no key is kept for a choice that is not saved.
+    let mut settings = shell.reread()?;
+    let host = providers::host(provider.trim()).ok_or_else(|| format!("{provider} is no provider's address"))?;
+    if model.trim().is_empty() {
+        return Err("a model is named".into());
+    }
+    if let Some(key) = key.as_deref().map(str::trim).filter(|key| !key.is_empty()) {
+        if let Some(why) = shell.keyring.lock().unwrap().clone() {
+            return Err(format!("the system's keyring could not be opened ({why})"));
+        }
+        keys::keep(&host, key)?;
+    }
+    settings.minutes_provider = Some(provider.trim().to_string());
+    settings.minutes_model = Some(model.trim().to_string());
+    let file = settings::file().ok_or("this system names no folder for settings")?;
+    settings::write(&file, &settings).map_err(|error| error.to_string())?;
+    *shell.settings.lock().unwrap() = settings;
+    Ok(())
 }
 
 /// Shows a notification. A desktop that shows none is no reason to stop anything.

@@ -292,7 +292,104 @@ function choice(name, value, [label, says], checked) {
   return option;
 }
 
-function showSettings(shown, words) {
+// Who writes the minutes: picked from what Ollama holds, an online service, or the user's own
+// address; a key goes to the system's keyring, and the page never receives one back.
+function minutesRow(minutes, words) {
+  const box = element("div", "minutes-step");
+  const row = element("div", "row");
+  const label = element("label", "name", words.minutes_step);
+  label.htmlFor = "minutes";
+  const pick = element("select");
+  pick.id = "minutes";
+  const add = (parent, value, text) => {
+    const option = element("option", "", text);
+    option.value = value;
+    parent.append(option);
+  };
+  const online = minutes.online.findIndex((service) => service.address === minutes.provider);
+  let current = "none";
+  if (minutes.provider === minutes.ollama_address && minutes.ollama.includes(minutes.model)) current = `ollama:${minutes.model}`;
+  else if (online >= 0) current = `online:${online}`;
+  else if (minutes.provider) current = "custom";
+  if (current === "none") add(pick, "none", words.not_chosen);
+  if (minutes.ollama.length > 0) {
+    const group = element("optgroup");
+    group.label = words.ollama_group;
+    for (const name of minutes.ollama) add(group, `ollama:${name}`, name);
+    pick.append(group);
+  }
+  const groupOnline = element("optgroup");
+  groupOnline.label = words.online_group;
+  minutes.online.forEach((service, index) => add(groupOnline, `online:${index}`, service.name));
+  const groupOther = element("optgroup");
+  groupOther.label = words.other_group;
+  add(groupOther, "custom", words.custom);
+  pick.append(groupOnline, groupOther);
+  pick.value = current;
+  row.append(label, pick);
+  const fields = element("div", "fields");
+  const where = element("p", "says");
+  const field = (id, text, type, value) => {
+    const wrap = element("label", "field");
+    wrap.htmlFor = id;
+    const input = element("input");
+    input.id = id;
+    input.type = type;
+    input.value = value || "";
+    wrap.append(element("span", "name", text), input);
+    return [wrap, input];
+  };
+  // Saved or not, the page is drawn again from what the shell holds; a failure stays said.
+  const save = async (provider, model, key) => {
+    let failed = null;
+    try {
+      await window.__TAURI__.core.invoke("minutes_saved", { provider, model, key });
+    } catch (why) {
+      failed = fill(words.not_saved, why);
+    }
+    await refresh();
+    const said = document.getElementById("not-saved");
+    said.textContent = failed ?? "";
+    said.hidden = failed === null;
+  };
+  const draw = () => {
+    fields.replaceChildren();
+    const value = pick.value;
+    if (value.startsWith("ollama:")) {
+      where.textContent = words.on_this_computer;
+      return;
+    }
+    if (value === "none") {
+      where.textContent = "";
+      return;
+    }
+    where.textContent = words.where_online;
+    const custom = value === "custom";
+    const [addressWrap, address] = field("minutes-address", words.address, "url", custom && current === "custom" ? minutes.provider : "");
+    const [modelWrap, model] = field("minutes-model", words.model_name, "text", current === value ? minutes.model : "");
+    const [keyWrap, key] = field("minutes-key", words.key, "password", "");
+    key.autocomplete = "off";
+    if (minutes.key_kept && current === value) key.placeholder = words.key_kept;
+    const button = element("button", "open", words.save);
+    button.type = "button";
+    button.id = "minutes-save";
+    button.addEventListener("click", () => {
+      const provider = custom ? address.value : minutes.online[Number(value.split(":")[1])].address;
+      save(provider, model.value, key.value || null);
+    });
+    if (custom) fields.append(addressWrap);
+    fields.append(modelWrap, keyWrap, button);
+  };
+  pick.addEventListener("change", () => {
+    if (pick.value.startsWith("ollama:")) save(minutes.ollama_address, pick.value.slice("ollama:".length), null);
+    draw();
+  });
+  draw();
+  box.append(row, fields, where);
+  return box;
+}
+
+function showSettings(shown, minutes, words) {
   const page = document.getElementById("settings");
   // Saved or not, the page is drawn again from what the shell holds; a failure stays said.
   const save = async (change) => {
@@ -338,6 +435,7 @@ function showSettings(shown, words) {
   pick.addEventListener("change", () => save({ model: pick.value }));
   row.append(label, pick);
   models.append(row, element("p", "says", words.on_this_computer));
+  models.append(minutesRow(minutes, words));
   parts.push(models);
 
   const more = element("section", "card group");
@@ -398,7 +496,13 @@ async function refresh() {
   document.getElementById("meetings").setAttribute("aria-current", settings ? "false" : "page");
   document.getElementById("settings-link").setAttribute("aria-current", settings ? "page" : "false");
   if (opened) showMeeting(opened, words);
-  if (settings) showSettings(await window.__TAURI__.core.invoke("settings_shown"), words);
+  if (settings) {
+    const [shown, minutes] = await Promise.all([
+      window.__TAURI__.core.invoke("settings_shown"),
+      window.__TAURI__.core.invoke("minutes_shown"),
+    ]);
+    showSettings(shown, minutes, words);
+  }
 }
 
 refresh();
