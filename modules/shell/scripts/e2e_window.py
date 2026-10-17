@@ -428,6 +428,27 @@ def main() -> int:
         said = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
         check("an address that is none is said, and nothing changes", said and window.file.read_text() == text, browser.find_element(By.ID, "not-saved").text)
     tags.shutdown()
+    broken = WORK / "broken"
+    broken.mkdir()
+    window = Window(broken, "fr_FR.UTF-8", "keep_audio = 0\n")
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#settings .warn"))
+        warned = browser.find_element(By.CSS_SELECTOR, "#settings .warn").text
+        locked = browser.execute_script("return [...document.querySelectorAll('#settings input, #settings select')].every(e => e.disabled)")
+        check("a settings file that cannot be read is said so, and nothing can be changed", warned.startswith("Le fichier des réglages ne peut pas être lu") and locked, warned)
+        check("it is left as it was", window.file.read_text() == f'sessions = "{broken}"\nkeep_audio = 0\n')
+        # The shell itself refuses, not only the page.
+        refused = browser.execute_async_script(
+            "const done = arguments[0]; window.__TAURI__.core.invoke('settings_saved', {change: {reminder: false}})"
+            ".then(() => done('saved'), why => done('refused: ' + why))"
+        )
+        check("the shell refuses a change while the file cannot be read", refused.startswith("refused"), refused)
+        # Corrected by hand, the page opens again when the window comes forward.
+        window.file.write_text(f'sessions = "{broken}"\nkeep_audio = 7\n')
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        open_again = wait_for(browser, lambda b: not b.find_element(By.ID, "reminder").get_attribute("disabled"), 5)
+        check("a file corrected by hand opens the page again", open_again and not browser.find_elements(By.CSS_SELECTOR, "#settings .warn:not([hidden])")[1:])
 
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"

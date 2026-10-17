@@ -79,7 +79,7 @@ impl Shell {
     }
 
     /// Reads the settings file again — the user may have changed it by hand — and holds what it
-    /// says; a file that cannot be read is refused, and what was held stays.
+    /// says; a file that cannot be read is said, and what was held stays.
     fn reread(&self) -> Result<Settings, String> {
         let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
         if let Ok(settings) = &read {
@@ -280,7 +280,8 @@ struct Model {
     bytes: u64,
 }
 
-/// What the settings page shows: the choices as they stand, and the models on this computer.
+/// What the settings page shows: the choices as they stand, the models on this computer, and
+/// why the file is not written when it could not be read.
 #[derive(serde::Serialize)]
 struct SettingsShown {
     after: After,
@@ -288,6 +289,7 @@ struct SettingsShown {
     keep_audio: KeepAudio,
     model: PathBuf,
     models: Vec<Model>,
+    unreadable: Option<String>,
 }
 
 /// The folder Summit keeps its models in: the default model's.
@@ -297,7 +299,9 @@ fn models_folder() -> PathBuf {
 
 #[tauri::command]
 fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
-    let settings = shell.reread().unwrap_or_else(|_| shell.settings());
+    let read = shell.reread();
+    let unreadable = read.as_ref().err().cloned();
+    let settings = read.unwrap_or_else(|_| shell.settings());
     let models = settings::whisper_models(&models_folder(), &settings)
         .into_iter()
         .map(|path| Model {
@@ -316,6 +320,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
+        unreadable,
     }
 }
 
@@ -432,7 +437,7 @@ async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, String> 
 /// Who writes the minutes, chosen: a provider's address, a model, and — for one that asks for it —
 /// a key, kept in the system's keyring and nowhere else.
 #[tauri::command]
-fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: Option<String>) -> Result<(), String> {
+async fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: Option<String>) -> Result<Option<String>, String> {
     // The choice goes onto what the file says now; a file that cannot be read is not written over,
     // and no key is kept for a choice that is not saved: the file first, then the key.
     let mut settings = shell.reread()?;
@@ -440,7 +445,7 @@ fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: 
     if model.trim().is_empty() {
         return Err("a model is named".into());
     }
-    let key = key.as_deref().map(str::trim).filter(|key| !key.is_empty());
+    let key = key.map(|key| key.trim().to_string()).filter(|key| !key.is_empty());
     if key.is_some()
         && let Some(why) = shell.keyring.lock().unwrap().clone()
     {
@@ -451,7 +456,11 @@ fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String, key: 
     let file = settings::file().ok_or("this system names no folder for settings")?;
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
     *shell.settings.lock().unwrap() = settings;
-    key.map_or(Ok(()), |key| keys::keep(&host, key))
+    // Saved: the key now, away from the window and the tray — the keyring may ask the user first.
+    // Refused, the choice stays saved and the page says only the key was not kept.
+    let Some(key) = key else { return Ok(None) };
+    let kept = tauri::async_runtime::spawn_blocking(move || keys::keep(&host, &key)).await;
+    Ok(kept.map_err(|error| error.to_string()).and_then(|kept| kept).err())
 }
 
 /// Why the trash refused, as the user is told it: the system's own wording names a file and

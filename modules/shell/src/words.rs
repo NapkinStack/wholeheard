@@ -296,8 +296,12 @@ pub struct Window {
     pub keep_always: &'static str,
     /// A number of days the audio is kept.
     pub keep_days: &'static str,
+    /// The settings file could not be read: why.
+    pub settings_unreadable: &'static str,
     /// A change could not be saved: why.
     pub not_saved: &'static str,
+    /// Who writes the minutes was saved, but the keyring did not keep the key: why.
+    pub key_not_kept: &'static str,
     pub minutes_step: &'static str,
     pub ollama_group: &'static str,
     pub online_group: &'static str,
@@ -375,7 +379,9 @@ pub fn window(language: Language) -> Window {
             ],
             keep_always: "Always",
             keep_days: "{} days",
+            settings_unreadable: "The settings file cannot be read ({}): Summit does not write over it until it is corrected.",
             not_saved: "The setting was not saved: {}",
+            key_not_kept: "The choice is saved, but the key was not kept in the system's keyring: {}",
             minutes_step: "Minutes",
             ollama_group: "On this computer — found in Ollama",
             online_group: "Online",
@@ -450,7 +456,9 @@ pub fn window(language: Language) -> Window {
             ],
             keep_always: "Toujours",
             keep_days: "{} jours",
+            settings_unreadable: "Le fichier des réglages ne peut pas être lu ({}) : Summit ne l’écrit pas tant qu’il n’est pas corrigé.",
             not_saved: "Le réglage n’a pas été enregistré : {}",
+            key_not_kept: "Le choix est enregistré, mais la clé n’a pas été gardée dans le trousseau du système : {}",
             minutes_step: "Compte rendu",
             ollama_group: "Sur cet ordinateur — trouvés dans Ollama",
             online_group: "En ligne",
