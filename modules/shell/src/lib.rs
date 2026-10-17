@@ -3,6 +3,7 @@
 //! the shortcut and the window are built on this, and hold none of it.
 
 pub mod meeting;
+pub mod minutes;
 pub mod model;
 pub mod recording;
 pub mod sessions;
