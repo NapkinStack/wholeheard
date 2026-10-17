@@ -27,7 +27,7 @@ deliverables:
   - id: D10
     title: "The transcript of a meeting says the same thing about who spoke, and in what order, whether it was taken on loudspeakers or with a headset"
     module: transcription
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given the bench's meeting on loudspeakers, low and loud, when it is transcribed, then no more words are said twice than with a headset, and no more words of the local side are wrong than when the same tracks are transcribed as delivered — the echo gone without the speaker's own words"
       - "Given the bench's meeting in any condition, when it is transcribed, then at most one exchange in twenty is out of order, and at most one word in fifty is given to the wrong side"
@@ -203,7 +203,9 @@ first form is still read, or refused in one sentence; the hour's weight.
 
 ### D10
 
-In progress. Built and merged: the turns timed by their words (#117), a segment's track and
+**Result: accepted** by the decider on 2026-10-17, read on their call: "on the whole not too
+bad" — a few ghost words, and words misheard or made up, which are the engine's (the framing
+below); no repetition or order they named. Built and merged: the turns timed by their words (#117), a segment's track and
 the voice's place (#118, #119), the echo canceller (#120), what the engine heard kept (#121),
 a turn the engine jumped over heard again (#124), a loop heard again (#133).
 
@@ -250,7 +252,7 @@ makes, kept apart and made again the same.
 | A headset's local track goes to the engine as recorded | Holds |
 | What was made kept apart, saying what made it; made again, the same | Holds |
 | Each segment says its track, and has a place for the voice | Holds |
-| A real meeting recorded by the decider with a headset, read against what was said | Read on their call of 2026-10-17 (#145): a poor transcript, most of what was wrong text the engine wrote on silence — the engine's (the framing below). **The decider's word on D10 is owed.** Loudspeakers: deferred by the decider on 2026-10-17, most users wearing a headset |
+| A real meeting recorded by the decider with a headset, read against what was said | Holds: read on their call of 2026-10-17 (#145); what was wrong is the engine's — text written on silence, words misheard (the framing below). Loudspeakers: deferred by the decider on 2026-10-17, most users wearing a headset |
 
 **Framing (decider, 2026-10-17).** A transcript's quality is the engine's and the audio's.
 Summit tolerates an engine's defaults, as it would any other engine's, and tunes nothing
@@ -260,8 +262,8 @@ that can be swapped, and no error added by its own steps. On this line the doubl
 is closed. What is left on the decider's call of 2026-10-17 is the engine's: text written on
 a track's silence, text written during a loud ringtone, sentences cut at each pause.
 
-**Next:** the decider's word on D10. *Local words lost under the remote* stays a
-count the bench reads, not a lever.
+**Next:** with D10 holding, D9's second form is weighed again as what `record` writes. *Local
+words lost under the remote* stays a count the bench reads, not a lever.
 
 **How a change is measured.** On the bench (`modules/platform`, its `README.md`: four draws
 at least of each condition, `bench.counts`) and on the trial meeting — cycle 01's D4
@@ -279,8 +281,11 @@ against the loop, no text of the window before or a short one, `context.txt` in 
 (`carry_initial_prompt`), a stricter repetition guard (`entropy_thold`, with five samples or
 without); Parakeet TDT as the default engine (57.1 % on the trial meeting); a gate dropping
 what the engine wrote far under its track's speech level (#150): four rules for the level,
-each moved by a louder passage, and a margin of about 10 dB measured on one call. What was
-tried, its measures, and what was refuted: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196158029),
+each moved by a louder passage, and a margin of about 10 dB measured on one call; the
+language fixed instead of detected (the same transcript on French audio); Large-v3 in place
+of Turbo (fewer loops on silence, more written that was not said:
+[the measures](https://github.com/NapkinStack/summit/issues/129#issuecomment-6233666136)).
+What was tried, its measures, and what was refuted: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196158029),
 [the double-talk and the loop](https://github.com/NapkinStack/summit/issues/129#issuecomment-6219946187),
 and [the gate on silence](https://github.com/NapkinStack/summit/issues/129#issuecomment-6230315141).
 
