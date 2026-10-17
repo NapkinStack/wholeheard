@@ -33,9 +33,13 @@ other than the call's shows at once — a source that is silent, the stop, a fai
 French where the system is, in English anywhere else.
 
 **The window** (cycle 03, from D11's drawings) is opened by *Open Summit* in the menu — or at
-once by `summit --window` — and never without a gesture. It speaks the system's language,
-follows its light or dark theme and font, in the colours of D11's boards; what it lists comes
-next.
+once by `summit --window` — and never without a gesture: the meetings in the sessions'
+folder by week, newest first, each with its day, its length, what it holds and what its
+audio weighs, and above them what all the audio weighs against the transcripts and minutes.
+A session being recorded, or one left without its end, says so. It reads `session.json` of
+both forms (`contracts/session-audio`) and writes nothing; it speaks the system's language,
+follows its light or dark theme and font, in the colours of D11's boards, and reads the
+folder again whenever it comes forward.
 
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification

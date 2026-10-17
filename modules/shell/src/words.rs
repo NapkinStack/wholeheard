@@ -236,6 +236,8 @@ pub struct Window {
     pub meetings: &'static str,
     /// The weight of everything: its size, how many meetings, how long their audio lasts.
     pub weight: &'static str,
+    /// The same, for one meeting.
+    pub weight_one: &'static str,
     pub audio_kept: &'static str,
     pub text_kept: &'static str,
     /// A picture of the two weights, for whoever does not see it.
@@ -244,6 +246,8 @@ pub struct Window {
     pub last_week: &'static str,
     /// Earlier in the current month: the month's name.
     pub earlier_in: &'static str,
+    /// Sessions whose start cannot be read as a day.
+    pub undated: &'static str,
     pub minutes: &'static str,
     pub transcript: &'static str,
     pub audio: &'static str,
@@ -262,12 +266,14 @@ pub fn window(language: Language) -> Window {
             sections: "Sections",
             meetings: "Meetings",
             weight: "taken by {} meetings · {} of audio",
+            weight_one: "taken by {} meeting · {} of audio",
             audio_kept: "Audio, as recorded — {}",
             text_kept: "Transcripts and minutes — {}",
             weight_described: "The audio takes {}; the transcripts and minutes, {}.",
             this_week: "This week",
             last_week: "Last week",
             earlier_in: "Earlier in {}",
+            undated: "Date unreadable",
             minutes: "Minutes",
             transcript: "Transcript",
             audio: "Audio · {}",
@@ -282,12 +288,14 @@ pub fn window(language: Language) -> Window {
             sections: "Rubriques",
             meetings: "Réunions",
             weight: "occupés par {} réunions · {} d’audio",
+            weight_one: "occupés par {} réunion · {} d’audio",
             audio_kept: "Audio, tel qu’enregistré — {}",
             text_kept: "Transcripts et comptes rendus — {}",
             weight_described: "L’audio occupe {} ; les transcripts et les comptes rendus, {}.",
             this_week: "Cette semaine",
             last_week: "La semaine dernière",
             earlier_in: "Plus tôt en {}",
+            undated: "Date illisible",
             minutes: "Compte rendu",
             transcript: "Transcript",
             audio: "Audio · {}",

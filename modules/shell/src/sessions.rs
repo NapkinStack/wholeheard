@@ -27,6 +27,8 @@ pub struct Listed {
     pub folder: PathBuf,
     /// When it started, as `session.json` says it: an instant with its offset.
     pub started: String,
+    /// The same, in seconds since 1970; none when it cannot be read as an instant.
+    pub instant: Option<i64>,
     /// How long it lasted, from its start to its stop; none while it has no stop.
     pub seconds: Option<f64>,
     pub state: State,
@@ -50,7 +52,7 @@ pub fn list(sessions: &Path, recording: Option<&Path>) -> Vec<Listed> {
         .map(|entry| entry.path())
         .filter_map(|folder| read(&folder, recording))
         .collect();
-    listed.sort_by(|a, b| instant(&b.started).cmp(&instant(&a.started)).then(b.folder.cmp(&a.folder)));
+    listed.sort_by(|a, b| b.instant.cmp(&a.instant).then(b.folder.cmp(&a.folder)));
     listed
 }
 
@@ -73,6 +75,7 @@ fn read(folder: &Path, recording: Option<&Path>) -> Option<Listed> {
     weigh(folder, &mut audio, &mut text);
     Some(Listed {
         folder: folder.to_path_buf(),
+        instant: instant(&started),
         started,
         seconds,
         state,
@@ -112,7 +115,11 @@ pub fn instant(text: &str) -> Option<i64> {
         return None;
     }
     // Fractions of a second are left: a session's length is said in minutes.
-    let rest = text.get(19..)?.trim_start_matches(|c: char| c == '.' || c.is_ascii_digit());
+    let rest = text.get(19..)?;
+    let rest = match rest.strip_prefix('.') {
+        Some(fraction) => fraction.trim_start_matches(|c: char| c.is_ascii_digit()),
+        None => rest,
+    };
     // The offset, in each form ISO 8601 allows — `+02:00`, `+0200`, `+02` — and nothing after.
     let offset = if rest == "Z" {
         0

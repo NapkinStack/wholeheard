@@ -4,7 +4,7 @@
 //! hears; it records and hears nothing itself, and a recording goes on if this process does
 //! not.
 //!
-//! Everything it decides is in the library beside it — `recording`, `settings`,
+//! Everything it decides is in the library beside it — `recording`, `sessions`, `settings`,
 //! `transcription`, `words` —
 //! and tried there. Here is only what needs a desktop.
 
@@ -18,6 +18,7 @@ use std::{
 use summit_shell::{
     model::{self, Published},
     recording::{Recording, Said},
+    sessions::{self, Listed},
     settings::{self, Settings},
     transcription::{self, Made, Transcription},
     words::{self, Language, Notice, Trouble},
@@ -38,6 +39,8 @@ struct Shell {
     language: Language,
     /// The recording in progress, when there is one.
     recording: Mutex<Option<Recording>>,
+    /// The folder it records into, once it has said so.
+    recorded: Mutex<Option<PathBuf>>,
     /// The menu's entry that starts and stops, relabelled as the recording goes.
     toggle: MenuItem<Wry>,
     /// The user asked to quit while a recording ran: it is stopped first, then Summit leaves.
@@ -111,6 +114,7 @@ fn main() {
                 settings: read.clone().unwrap_or_default(),
                 language,
                 recording: Mutex::new(None),
+                recorded: Mutex::new(None),
                 toggle,
                 leaving: Mutex::new(false),
                 pressed: Mutex::new(None),
@@ -156,18 +160,21 @@ fn open_window(app: &AppHandle) {
         .build();
 }
 
-/// What the window shows: its words, and the folder it reads.
+/// What the window shows: its words, the folder it reads, and the sessions in it.
 #[derive(serde::Serialize)]
 struct Listing {
     words: words::Window,
     folder: PathBuf,
+    sessions: Vec<Listed>,
 }
 
 #[tauri::command]
 fn listed(shell: State<'_, Shell>) -> Listing {
+    let recorded = shell.recorded.lock().unwrap().clone();
     Listing {
         words: words::window(shell.language),
         folder: shell.settings.sessions.clone(),
+        sessions: sessions::list(&shell.settings.sessions, recorded.as_deref()),
     }
 }
 
@@ -259,6 +266,9 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     let mut stopped = None;
     for event in said {
         started |= matches!(event, Said::Started(..));
+        if let Said::Started(folder, _) = &event {
+            *shell.recorded.lock().unwrap() = Some(folder.clone());
+        }
         let notice = match &event {
             // Ended before it had started: nothing was recorded, and that is the trouble.
             Said::Failed(why) if !started => Some(words::trouble(&Trouble::NoRecorder(why.clone()), shell.language)),
@@ -275,6 +285,7 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
             tell(app, &notice);
         }
     }
+    shell.recorded.lock().unwrap().take();
     let ended = shell.recording.lock().unwrap().take();
     *shell.stopping.lock().unwrap() = false;
     show(app, Shown::Idle);

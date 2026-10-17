@@ -1,4 +1,4 @@
-"""The window's end-to-end scenarios: Summit started with `--window` by tauri-driver, the page
+"""The window's end-to-end scenario: Summit started with `--window` by tauri-driver, the page
 read as WebKitGTK shows it, over WebDriver. Sessions are made here; nothing is recorded.
 
     python3 scripts/e2e_window.py <summit-binary> <work-folder>
@@ -8,6 +8,8 @@ Prints one line per check, `ok` or `FAIL`, and exits 1 on any failure.
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import os
 import socket
 import subprocess
@@ -16,14 +18,15 @@ import time
 from pathlib import Path
 
 from selenium import webdriver
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.options import ArgOptions
 from urllib3.exceptions import HTTPError
 
 BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
 FAILED = []
+MONTHS_FR = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
 # The page's ground, as `ui/window.css` sets it in each theme.
 GROUND = {"light": "rgb(242, 244, 247)", "dark": "rgb(21, 23, 28)"}
 
@@ -49,8 +52,20 @@ def free_port() -> int:
         return probe.getsockname()[1]
 
 
+def session(folder: Path, started: dt.datetime, minutes: float | None, files: dict[str, int], form: str = "v2") -> None:
+    folder.mkdir(parents=True)
+    record = {"contract": f"session-audio/{form}", "started": started.isoformat(timespec="seconds")}
+    if minutes is not None:
+        record["stopped"] = (started + dt.timedelta(minutes=minutes)).isoformat(timespec="seconds")
+    record["sources" if form == "v1" else "tracks"] = {}
+    (folder / "session.json").write_text(json.dumps(record))
+    for name, size in files.items():
+        with open(folder / name, "wb") as made:
+            made.truncate(size)
+
+
 class Window:
-    """Summit with its window, its settings naming `sessions`, for as long as the `with` lasts."""
+    """Summit with its window, for as long as the `with` lasts."""
 
     def __init__(self, sessions: Path, language: str) -> None:
         config = WORK / f"config-{language}"
@@ -61,7 +76,7 @@ class Window:
 
     def __enter__(self) -> webdriver.Remote:
         port, native = free_port(), free_port()
-        self.driver = subprocess.Popen(
+        self.driver_process = subprocess.Popen(
             ["tauri-driver", "--port", str(port), "--native-port", str(native)],
             env=self.env,
             stdout=subprocess.DEVNULL,
@@ -78,8 +93,8 @@ class Window:
             except (WebDriverException, HTTPError):
                 time.sleep(0.2)
         else:
-            self.driver.terminate()
-            self.driver.wait(timeout=10)
+            self.driver_process.terminate()
+            self.driver_process.wait(timeout=10)
             raise SystemExit("tauri-driver did not answer")
         wait_for(self.browser, lambda b: b.execute_script("return document.getElementById('meetings').textContent !== ''"))
         return self.browser
@@ -88,20 +103,92 @@ class Window:
         try:
             self.browser.quit()
         finally:
-            self.driver.terminate()
-            self.driver.wait(timeout=10)
+            self.driver_process.terminate()
+            self.driver_process.wait(timeout=10)
+
+
+def rows(browser) -> list[tuple[str, str, str]]:
+    """Each listed session: its group's heading, its first line, and what it holds."""
+    return browser.execute_script(
+        """return [...document.querySelectorAll('.group')].flatMap(g => [...g.querySelectorAll('.session')].map(s =>
+             [g.querySelector('h2').textContent, s.querySelector('.day').textContent,
+              [...s.querySelectorAll('.length, .chip')].map(c => c.textContent).join('|')]))"""
+    )
+
+
+def week_of(day: dt.datetime) -> dt.datetime:
+    """Monday 00:00 of the week a day is in, on this machine's clock — as the page reckons it."""
+    start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start - dt.timedelta(days=start.weekday())
+
+
+def group(day: dt.datetime | None, now: dt.datetime) -> str:
+    """The heading the page puts a session under, in French — the page's own rule, here."""
+    if day is None:
+        return "Date illisible"
+    this_week = week_of(now)
+    if day >= this_week:
+        return "Cette semaine"
+    if day >= this_week - dt.timedelta(days=7):
+        return "La semaine dernière"
+    if (day.year, day.month) == (now.year, now.month):
+        return f"Plus tôt en {MONTHS_FR[day.month - 1]}"
+    return f"{MONTHS_FR[day.month - 1].capitalize()} {day.year}"
 
 
 def main() -> int:
+    now = dt.datetime.now().astimezone()
     sessions = WORK / "sessions"
-    sessions.mkdir(parents=True)
+    # Sessions this week, last week, earlier this month when there is room for one, two months
+    # ago; one whose start is written with an offset of hours alone; one whose start is no instant.
+    this, last, months = now - dt.timedelta(seconds=30), now - dt.timedelta(days=7), now - dt.timedelta(days=61)
+    earlier = (week_of(now) - dt.timedelta(days=8)).replace(hour=12)
+    hours_only = (now - dt.timedelta(days=3)).astimezone(dt.timezone(dt.timedelta(hours=2)))
+    session(
+        sessions / "a", last, 42, {"me.wav": 100_000_000, "others.wav": 100_000_000, "transcript.jsonl": 7000, "minutes.md": 500}, "v1"
+    )
+    session(sessions / "b", this, None, {"local.wav": 2000})
+    session(sessions / "c", months, 35, {"transcript.jsonl": 3000})
+    session(sessions / "e", earlier, 20, {"transcript.jsonl": 1000})
+    session(sessions / "f", hours_only, 10, {"local.wav": 999_999})
+    record = json.loads((sessions / "f" / "session.json").read_text())
+    for key in ("started", "stopped"):
+        record[key] = record[key].replace("+02:00", "+02")
+    (sessions / "f" / "session.json").write_text(json.dumps(record))
+    (sessions / "g").mkdir(parents=True)
+    (sessions / "g" / "session.json").write_text(json.dumps({"contract": "session-audio/v2", "started": "yesterday", "tracks": {}}))
+    (sessions / "not-a-session").mkdir()
+    expected = sorted(
+        [
+            (this, "Interrompu — jamais arrêté|Audio · 2 ko"),
+            (last, "42 min|Compte rendu|Transcript|Audio · 200 Mo"),
+            (months, "35 min|Transcript|Audio supprimé"),
+            (earlier, "20 min|Transcript|Audio supprimé"),
+            (hours_only, "10 min|Audio · 1 Mo"),
+        ],
+        key=lambda pair: pair[0],
+        reverse=True,
+    )
+    expected = [(group(day.astimezone(), now), holds) for day, holds in expected]
+    expected.append(("Date illisible", "Interrompu — jamais arrêté|Audio supprimé"))
 
-    print("H. the window: in the system's language, its theme, from the keyboard")
+    print("H. the window, in French: the meetings by week, what each holds and weighs")
     with Window(sessions, "fr_FR.UTF-8") as browser:
         check("the section is named in French", browser.find_element(By.ID, "meetings").text == "Réunions")
-        check("the page says it is in French", browser.execute_script("return document.documentElement.lang") == "fr")
+        lang = browser.execute_script("return document.documentElement.lang")
+        check("the page says it is in French", lang == "fr", lang)
         sections = browser.find_element(By.TAG_NAME, "nav").get_attribute("aria-label")
         check("its sections are named in French for a screen reader", sections == "Rubriques", sections)
+        listed = rows(browser)
+        check(
+            "every session, newest first, each under its week; the one with no readable day last",
+            [(heading, holds) for heading, _, holds in listed] == expected,
+            listed,
+        )
+        check("a session with no readable day is named by its folder", listed[-1][1] == "g", listed[-1])
+        total = browser.find_element(By.ID, "weight").text
+        check("what they weigh, audio against the rest", total.startswith("201 Mo occupés par 6 réunions · 52 min d’audio"), total)
+        check("the picture of the weights is described", "L’audio occupe 201 Mo" in (browser.find_element(By.ID, "bar").get_attribute("aria-label") or ""))
         # The theme is the system's: the page's ground is that of the theme the system shows.
         dark = browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
         ground = browser.execute_script("return getComputedStyle(document.body).backgroundColor")
@@ -110,9 +197,30 @@ def main() -> int:
         browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.id")
         check("Tab reaches the window's first action", focused == "meetings", focused)
-    with Window(sessions, "en_GB.UTF-8") as browser:
+        # A session recorded meanwhile is shown when the window comes forward again.
+        session(sessions / "d", now - dt.timedelta(minutes=5), 3, {"local.wav": 1000, "remote.wav": 1000})
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        came = wait_for(browser, lambda b: len(rows(b)) == 7)
+        check("a new session is listed when the window comes forward", came, rows(browser))
+
+    print("I. the window, in English; and a folder with no session")
+    empty = WORK / "empty"
+    empty.mkdir()
+    with Window(empty, "en_GB.UTF-8") as browser:
+        said = browser.find_element(By.ID, "none").text
+        check("an empty folder is said, with its path", said == f"No meeting in {empty} yet.", said)
         check("the section is named in English", browser.find_element(By.ID, "meetings").text == "Meetings")
-        check("the page says it is in English", browser.execute_script("return document.documentElement.lang") == "en")
+        lang = browser.execute_script("return document.documentElement.lang")
+        check("the page says it is in English", lang == "en", lang)
+        sections = browser.find_element(By.TAG_NAME, "nav").get_attribute("aria-label")
+        check("its sections are named in English for a screen reader", sections == "Sections", sections)
+        check("no weight is shown for nothing", not browser.find_element(By.ID, "weight").is_displayed())
+        # One meeting is one, not "1 meetings".
+        session(empty / "one", now - dt.timedelta(hours=2), 10, {"local.wav": 3000})
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        wait_for(browser, lambda b: b.find_element(By.ID, "weight").is_displayed())
+        one = browser.find_element(By.ID, "taken").text
+        check("one meeting is said in the singular", one == "taken by 1 meeting · 10 min of audio", one)
     return 1 if FAILED else 0
 
 
