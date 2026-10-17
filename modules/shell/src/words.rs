@@ -281,6 +281,23 @@ pub struct Window {
     /// Lines of a transcript that are not the contract's, left out: how many.
     pub unread: &'static str,
     pub no_match: &'static str,
+    /// The settings' page.
+    pub settings: &'static str,
+    pub after_title: &'static str,
+    /// Each choice of what follows a recording: its name, then what it does.
+    pub after_nothing: [&'static str; 2],
+    pub after_transcript: [&'static str; 2],
+    pub after_minutes: [&'static str; 2],
+    pub models_title: &'static str,
+    pub transcription: &'static str,
+    pub on_this_computer: &'static str,
+    pub reminder: [&'static str; 2],
+    pub keep_audio: [&'static str; 2],
+    pub keep_always: &'static str,
+    /// A number of days the audio is kept.
+    pub keep_days: &'static str,
+    /// A change could not be saved: why.
+    pub not_saved: &'static str,
 }
 
 pub fn window(language: Language) -> Window {
@@ -325,6 +342,28 @@ pub fn window(language: Language) -> Window {
             unreadable: "This file cannot be read by this version of Summit.",
             unread: "{} line(s) of the file could not be read and are left out.",
             no_match: "Nothing said matches.",
+            settings: "Settings",
+            after_title: "After a recording",
+            after_nothing: ["Do nothing", "The audio is kept; you start what follows when you want."],
+            after_transcript: ["Write the transcript", "On this computer, with no network."],
+            after_minutes: [
+                "Write the transcript, then the minutes",
+                "Each follows the other; a notification says when the minutes are ready.",
+            ],
+            models_title: "Models",
+            transcription: "Transcription",
+            on_this_computer: "On this computer — nothing leaves it",
+            reminder: [
+                "Remind me to tell the participants",
+                "At the start, a line reminds you to say the meeting is recorded.",
+            ],
+            keep_audio: [
+                "Keep the audio",
+                "After that, the audio goes to the trash; the transcript and minutes stay.",
+            ],
+            keep_always: "Always",
+            keep_days: "{} days",
+            not_saved: "The setting was not saved: {}",
         },
         Language::French => Window {
             locale: "fr",
@@ -366,6 +405,28 @@ pub fn window(language: Language) -> Window {
             unreadable: "Ce fichier ne peut pas être lu par cette version de Summit.",
             unread: "{} ligne(s) du fichier n’ont pas pu être lues et sont laissées de côté.",
             no_match: "Rien de ce qui a été dit ne correspond.",
+            settings: "Réglages",
+            after_title: "Après un enregistrement",
+            after_nothing: ["Ne rien faire", "L’audio est gardé ; vous lancez la suite quand vous voulez."],
+            after_transcript: ["Écrire le transcript", "Sur cet ordinateur, sans réseau."],
+            after_minutes: [
+                "Écrire le transcript, puis le compte rendu",
+                "Tout s’enchaîne ; une notification prévient quand le compte rendu est prêt.",
+            ],
+            models_title: "Modèles",
+            transcription: "Transcription",
+            on_this_computer: "Sur cet ordinateur — rien ne sort",
+            reminder: [
+                "Rappeler de prévenir les participants",
+                "Au démarrage, une ligne rappelle de dire que la réunion est enregistrée.",
+            ],
+            keep_audio: [
+                "Garder l’audio",
+                "Passé ce délai, l’audio part à la corbeille ; le transcript et le compte rendu restent.",
+            ],
+            keep_always: "Toujours",
+            keep_days: "{} jours",
+            not_saved: "Le réglage n’a pas été enregistré : {}",
         },
     }
 }

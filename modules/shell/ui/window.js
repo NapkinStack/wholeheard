@@ -101,6 +101,7 @@ function show({ words, folder, sessions }) {
   document.documentElement.lang = words.locale;
   document.getElementById("meetings").textContent = words.meetings;
   document.getElementById("sections").setAttribute("aria-label", words.sections);
+  document.getElementById("settings-link").textContent = words.settings;
   const none = document.getElementById("none");
   const weight = document.getElementById("weight");
   none.hidden = sessions.length > 0;
@@ -277,6 +278,103 @@ function showMeeting({ session, transcript, minutes }, words) {
   }
 }
 
+// The settings' page: each change saved at once; nothing offered over a file that cannot be read.
+function choice(name, value, [label, says], checked) {
+  const option = element("label", "choice");
+  const input = element("input");
+  input.type = "radio";
+  input.name = name;
+  input.value = value;
+  input.checked = checked;
+  const text = element("span", "said");
+  text.append(element("span", "name", label), element("span", "says", says));
+  option.append(input, text);
+  return option;
+}
+
+function showSettings(shown, words) {
+  const page = document.getElementById("settings");
+  // Saved or not, the page is drawn again from what the shell holds; a failure stays said.
+  const save = async (change) => {
+    let failed = null;
+    try {
+      await window.__TAURI__.core.invoke("settings_saved", { change });
+    } catch (why) {
+      failed = fill(words.not_saved, why);
+    }
+    await refresh();
+    const said = document.getElementById("not-saved");
+    said.textContent = failed ?? "";
+    said.hidden = failed === null;
+  };
+  const parts = [];
+  const failed = element("p", "card note warn");
+  failed.id = "not-saved";
+  failed.hidden = true;
+  parts.push(failed);
+
+  const after = element("fieldset", "card group");
+  after.append(element("legend", "", words.after_title));
+  for (const [value, said] of [["nothing", words.after_nothing], ["transcript", words.after_transcript], ["minutes", words.after_minutes]]) {
+    const one = choice("after", value, said, shown.after === value);
+    one.querySelector("input").addEventListener("change", () => save({ after: value }));
+    after.append(one);
+  }
+  parts.push(after);
+
+  const models = element("section", "card group");
+  models.append(element("h2", "", words.models_title));
+  const row = element("div", "row");
+  const label = element("label", "name", words.transcription);
+  label.htmlFor = "model";
+  const pick = element("select");
+  pick.id = "model";
+  for (const model of shown.models) {
+    const option = element("option", "", `${model.name} — ${size(model.bytes, words)}`);
+    option.value = model.path;
+    option.selected = model.path === shown.model;
+    pick.append(option);
+  }
+  pick.addEventListener("change", () => save({ model: pick.value }));
+  row.append(label, pick);
+  models.append(row, element("p", "says", words.on_this_computer));
+  parts.push(models);
+
+  const more = element("section", "card group");
+  const remind = element("label", "row");
+  const box = element("input");
+  box.type = "checkbox";
+  box.id = "reminder";
+  box.setAttribute("role", "switch");
+  box.checked = shown.reminder;
+  box.addEventListener("change", () => save({ reminder: box.checked }));
+  const remindSaid = element("span", "said");
+  remindSaid.append(element("span", "name", words.reminder[0]), element("span", "says", words.reminder[1]));
+  remind.append(remindSaid, box);
+  const keep = element("div", "row");
+  const keepSaid = element("label", "said");
+  keepSaid.htmlFor = "keep";
+  keepSaid.append(element("span", "name", words.keep_audio[0]), element("span", "says", words.keep_audio[1]));
+  const keepPick = element("select");
+  keepPick.id = "keep";
+  const days = new Set([90, 30]);
+  if (shown.keep_audio !== "always") days.add(shown.keep_audio.days);
+  const options = [["always", words.keep_always], ...[...days].sort((a, b) => b - a).map((n) => [String(n), fill(words.keep_days, n)])];
+  for (const [value, text] of options) {
+    const option = element("option", "", text);
+    option.value = value;
+    option.selected = shown.keep_audio === "always" ? value === "always" : value === String(shown.keep_audio.days);
+    keepPick.append(option);
+  }
+  keepPick.addEventListener("change", () =>
+    save({ keep_audio: keepPick.value === "always" ? "always" : { days: Number(keepPick.value) } }),
+  );
+  keep.append(keepSaid, keepPick);
+  more.append(remind, keep);
+  parts.push(more);
+  page.replaceChildren(...parts);
+}
+
 let words = null;
 
 async function refresh() {
@@ -284,6 +382,7 @@ async function refresh() {
   words = listing.words;
   show(listing);
   const wanted = location.hash.match(/^#\/meeting\/(.+)$/);
+  const settings = location.hash === "#/settings";
   let opened = null;
   if (wanted) {
     // A meeting no longer there, or a name that is none, goes back to the list.
@@ -293,9 +392,13 @@ async function refresh() {
       history.replaceState(null, "", "#/");
     }
   }
-  document.getElementById("list").hidden = opened !== null;
+  document.getElementById("list").hidden = opened !== null || settings;
   document.getElementById("meeting").hidden = opened === null;
+  document.getElementById("settings").hidden = !settings;
+  document.getElementById("meetings").setAttribute("aria-current", settings ? "false" : "page");
+  document.getElementById("settings-link").setAttribute("aria-current", settings ? "page" : "false");
   if (opened) showMeeting(opened, words);
+  if (settings) showSettings(await window.__TAURI__.core.invoke("settings_shown"), words);
 }
 
 refresh();
