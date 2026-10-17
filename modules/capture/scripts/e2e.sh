@@ -58,7 +58,7 @@ check() { if "$@"; then say "  ok    $*"; else say "  FAIL  $*"; failed=1; fi; }
 say "A. a recording stopped as a user stops it"
 pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
 sleep 0.5
-"$bin" record "$work/sessions" > "$work/a.events" 2> "$work/a.errors" &
+"$bin" record "$work/sessions" --as v1 > "$work/a.events" 2> "$work/a.errors" &
 recorder=$!
 sleep 1; pw-play "$work/others-a.wav"                    # 8 s of the others
 sleep 4; folder=$(ls -d "$work"/sessions/*/ | head -1)
@@ -79,7 +79,7 @@ say "B. a recording killed"
 kill "$mic_player" 2>/dev/null || true
 pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
 sleep 0.5
-"$bin" record "$work/killed" > "$work/b.events" 2>/dev/null &
+"$bin" record "$work/killed" --as v1 > "$work/b.events" 2>/dev/null &
 recorder=$!
 sleep 1; pw-play "$work/others-a.wav" & others_player=$!
 sleep 7
@@ -92,7 +92,7 @@ check measure killed "$folder" "$killed_at" 5
 say "C. the two files on one clock"
 # The same sound into both sources: what differs between the two files is the program's doing.
 pactl set-default-source summit_e2e_out.monitor
-"$bin" record "$work/clock" > "$work/c.events" 2>/dev/null &
+"$bin" record "$work/clock" --as v1 > "$work/c.events" 2>/dev/null &
 recorder=$!
 sleep 2; pw-play "$work/others-a.wav"; sleep 1
 kill -INT "$recorder"; wait "$recorder" || true
@@ -101,7 +101,7 @@ check measure same-clock "$(ls -d "$work"/clock/*/ | head -1)" 0.1
 say "D. whoever listened is gone"
 # The reader takes "started" and leaves: every later event is said to a closed pipe.
 mkfifo "$work/d.pipe"
-"$bin" record "$work/alone" > "$work/d.pipe" 2> "$work/d.errors" &
+"$bin" record "$work/alone" --as v1 > "$work/d.pipe" 2> "$work/d.errors" &
 recorder=$!
 head -n 1 "$work/d.pipe" > "$work/d.events"
 sleep 13                                                 # "silent" is owed at ten seconds, to nobody
@@ -110,7 +110,8 @@ sed 's/^/    /' "$work/d.events" "$work/d.errors" >> .evidence/e2e.txt
 check test "$left_as" = 0 -a ! -s "$work/d.errors"
 check grep -q '"stopped"' "$(ls -d "$work"/alone/*/ | head -1)session.json"
 
-# The same three, each source as delivered (session-audio/v2, ADR-0004). Their notes are
+# The same three, each source as delivered (session-audio/v2, ADR-0004): what `record` writes
+# unasked — E asks nothing, the others ask `--as v2`, which is the same. Their notes are
 # made to tell a recorder that changes them: the second channel at half the first's level, so
 # that channels mixed or swapped show, both resting away from zero, so that centring does, and
 # in 24 bits, so that a track cut to 16 does.
@@ -122,7 +123,7 @@ pactl set-default-source summit_e2e_mic.monitor
 say "E. each source as delivered: a recording stopped as a user stops it"
 pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
 sleep 0.5
-"$bin" record "$work/v2" --as v2 > "$work/e.events" 2> "$work/e.errors" &
+"$bin" record "$work/v2" > "$work/e.events" 2> "$work/e.errors" &
 recorder=$!
 sleep 1; pw-play "$work/others-a.wav"
 sleep 14                                                 # nothing plays: "silent" is owed
