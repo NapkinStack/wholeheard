@@ -148,9 +148,10 @@ click 5
 say "E. one gesture, pressed twice: one recording; a recorder that never ends: quit asked twice leaves"
 printf '#!/bin/sh\necho x >> "$2/starts"\necho "{\\"event\\":\\"started\\",\\"folder\\":\\"$2/s\\"}"\nwhile read line; do echo "$line" >> "$2/told"; done\nexec sleep 20\n' > "$work/stubborn"; chmod +x "$work/stubborn"
 start en_GB.UTF-8 "reminder = false\ntranscript = false" "$work/stubborn"
-busctl --user call "$bus" "$menu" com.canonical.dbusmenu Event isvu 2 clicked s "" 0 >/dev/null
+busctl --user call "$bus" "$menu" com.canonical.dbusmenu Event isvu 3 clicked s "" 0 >/dev/null
 click 3
 check is "$(wc -l < "$work/sessions/starts")" 1
+check is "$(windows)" 0                           # both presses on the recording's entry
 check is "$(labels)" "Open Summit|Stop recording|Transcribe the last recording|Quit Summit"
 click 5
 check is "$(cat "$work/sessions/told")" "stop"
