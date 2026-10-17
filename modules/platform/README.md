@@ -77,6 +77,27 @@ nstack run platform <voices-folder> <out-folder> 6 v2
 A synthetic voice is easier to transcribe than a person's: the bench says how one way of
 doing compares with another on the same meeting, not how well Summit hears a real one.
 
+**Real meetings**, for what the bench cannot say: passages of
+[SUMM-RE](https://huggingface.co/datasets/linagora/SUMM-RE) (CC BY-SA 4.0) — French meetings,
+each participant on their own microphone, transcribed by people. In each passage the one who
+speaks most is the local side and the others, mixed, the remote; it is cut where nobody speaks,
+and written in both forms of a session. Its score, for each side apart and without the fillers
+(*euh*, *hum*) a transcript leaves out, is the share of words said that were missed or
+misheard, and apart the words written beyond them: SUMM-RE's participants often share a room,
+so a remote side can rightly hold the local one's words, faintly heard. No audio enters the
+repository: the shards are fetched from the hub.
+
+```bash
+# The shards, fetched once into <parquet-folder>: the test split's 0, 2, 3, 5, 6, 21, 22 and 23
+# hold eight meetings whole (about 560 MB each; check each against the hub's sha256).
+for n in 0 2 3 5 6 21 22 23; do f=$(printf "test-%05d-of-00028.parquet" $n)
+  curl -L -o <parquet-folder>/$f https://huggingface.co/datasets/linagora/SUMM-RE/resolve/main/data/test/$f; done
+# Then, five minutes of each.
+uv run python -m bench.real build <parquet-folder> <out-folder> 5
+summit-transcription <out-folder>/<meeting>/v1 --model <model-file> --language fr   # and v2
+uv run python -m bench.real score <out-folder>/*
+```
+
 ## Getting started
 
 The standard verbs — `bootstrap`, `check`, `test`, `run` — are declared in the `commands`
