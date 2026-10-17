@@ -65,19 +65,21 @@ impl Default for Settings {
 }
 
 /// The Whisper models on this computer: the `.bin` files in `folder` — Summit's, where the
-/// default model goes — and the one the settings name wherever it is; each once, by name.
+/// default model goes — and the one the settings name wherever it is. Each file once, however it
+/// is reached — by a link, by another path —, the folder's entry kept; by name, whatever its case.
 pub fn whisper_models(folder: &Path, settings: &Settings) -> Vec<PathBuf> {
+    let model = |path: &Path| path.is_file() && path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("bin"));
     let mut found: Vec<PathBuf> = fs::read_dir(folder)
         .into_iter()
         .flatten()
         .filter_map(Result::ok)
         .map(|entry| entry.path())
-        .filter(|path| path.is_file() && path.extension().is_some_and(|extension| extension == "bin"))
+        .filter(|path| model(path))
         .collect();
-    if settings.model.is_file() && !found.contains(&settings.model) {
-        found.push(settings.model.clone());
-    }
-    found.sort_by_key(|path| path.file_name().map(|name| name.to_os_string()));
+    found.push(settings.model.clone());
+    let mut seen = std::collections::HashSet::new();
+    found.retain(|path| path.is_file() && fs::canonicalize(path).is_ok_and(|file| seen.insert(file)));
+    found.sort_by_key(|path| path.file_name().map(|name| name.to_string_lossy().to_lowercase()));
     found
 }
 

@@ -245,34 +245,68 @@ fn the_old_key_stays_until_after_is_written() {
 }
 
 #[test]
-fn the_models_on_this_computer_are_the_folder_s_and_the_one_named() {
+fn the_models_on_this_computer_are_the_folder_s_and_the_one_named_each_once_by_name() {
     // A folder of the test's own: no model of the user's is read.
     let data = tempfile::tempdir().unwrap();
     let models = data.path().join("summit").join("models");
     fs::create_dir_all(&models).unwrap();
-    for name in ["ggml-small.bin", "ggml-large-v3-turbo-q8_0.bin", "notes.txt", "ggml-base.bin.part"] {
+    // Made in an order that is not their names'.
+    for name in [
+        "ggml-small.bin",
+        "Ggml-Medium.BIN",
+        "ggml-base.bin",
+        "notes.txt",
+        "ggml-tiny.bin.part",
+    ] {
         fs::write(models.join(name), b"x").unwrap();
     }
     fs::create_dir(models.join("old.bin")).unwrap();
-    let elsewhere = data.path().join("mine.bin");
-    fs::write(&elsewhere, b"x").unwrap();
-    let mut settings = Settings {
-        model: models.join("ggml-large-v3-turbo-q8_0.bin"),
-        ..Settings::default()
-    };
     let names = |found: Vec<std::path::PathBuf>| {
         found
             .iter()
             .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
             .collect::<Vec<_>>()
     };
+    let mut settings = Settings {
+        model: models.join("ggml-base.bin"),
+        ..Settings::default()
+    };
     assert_eq!(
         names(whisper_models(&models, &settings)),
-        ["ggml-large-v3-turbo-q8_0.bin", "ggml-small.bin"]
+        ["ggml-base.bin", "Ggml-Medium.BIN", "ggml-small.bin"]
     );
+    // One the settings name elsewhere, its name before the others: offered, in its place.
+    let elsewhere = data.path().join("aaa.bin");
+    fs::write(&elsewhere, b"x").unwrap();
     settings.model = elsewhere;
     assert_eq!(
         names(whisper_models(&models, &settings)),
-        ["ggml-large-v3-turbo-q8_0.bin", "ggml-small.bin", "mine.bin"]
+        ["aaa.bin", "ggml-base.bin", "Ggml-Medium.BIN", "ggml-small.bin"]
     );
+    // The same file named another way is offered once, as the folder holds it.
+    settings.model = models.join("..").join("models").join("ggml-small.bin");
+    let found = whisper_models(&models, &settings);
+    assert_eq!(names(found.clone()), ["ggml-base.bin", "Ggml-Medium.BIN", "ggml-small.bin"]);
+    assert!(found.contains(&models.join("ggml-small.bin")));
+    // A named model that is gone, or is a folder, is not offered.
+    for gone in [data.path().join("gone.bin"), models.join("old.bin")] {
+        settings.model = gone;
+        assert_eq!(whisper_models(&models, &settings).len(), 3);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_model_reached_by_a_link_is_offered_once() {
+    let data = tempfile::tempdir().unwrap();
+    let models = data.path().join("models");
+    fs::create_dir_all(&models).unwrap();
+    let real = data.path().join("big.bin");
+    fs::write(&real, b"x").unwrap();
+    std::os::unix::fs::symlink(&real, models.join("big.bin")).unwrap();
+    let settings = Settings {
+        model: real,
+        ..Settings::default()
+    };
+    assert_eq!(whisper_models(&models, &settings), [models.join("big.bin")]);
 }
