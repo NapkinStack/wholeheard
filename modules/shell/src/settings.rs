@@ -121,10 +121,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     // A path written as people write it: from their home, with a tilde — or from the root.
     let whole = |key: &str, what: &str, written: toml::Spanned<PathBuf>| {
         let at = line(written.span().start);
-        let named = match (written.get_ref().strip_prefix("~"), dirs::home_dir()) {
-            (Ok(rest), Some(home)) => home.join(rest),
-            _ => written.into_inner(),
-        };
+        let named = from_home(written.into_inner());
         if named.is_absolute() {
             Ok(named)
         } else {
@@ -163,6 +160,14 @@ pub fn read(path: &Path) -> Result<Settings, String> {
         settings.model = whole("model", "the file's", model)?;
     }
     Ok(settings)
+}
+
+/// A path as people write it, from their home with a tilde, made whole; any other as it is.
+pub fn from_home(written: PathBuf) -> PathBuf {
+    match (written.strip_prefix("~"), dirs::home_dir()) {
+        (Ok(rest), Some(home)) => home.join(rest),
+        _ => written,
+    }
 }
 
 /// Writes the settings to their file, as `read` reads them. Only what changed is touched: a key

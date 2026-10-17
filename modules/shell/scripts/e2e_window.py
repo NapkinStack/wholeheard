@@ -30,6 +30,20 @@ from selenium.webdriver.support.wait import WebDriverWait
 from urllib3.exceptions import HTTPError
 
 BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
+# summit-summary played here: it says what it was given — its arguments, the key in its
+# environment —, refuses a key at openrouter.ai and answers elsewhere. Nothing leaves the machine.
+SUMMARY = WORK / "summit-summary"
+SUMMARY.write_text(
+    """#!/bin/sh
+here=$(dirname "$0")
+printf '%s\\n' "$*" > "$here/summary-args"
+printf '%s' "${SUMMIT_PROVIDER_KEY:-none}" > "$here/summary-key"
+case "$*" in *openrouter.ai*) echo "summit-summary: the provider at openrouter.ai refused the key" >&2; exit 1;; esac
+echo '{"event": "sending"}'
+echo '{"event": "answered"}'
+"""
+)
+SUMMARY.chmod(0o755)
 FAILED = []
 MONTHS_FR = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
 # The page's ground, as `ui/window.css` sets it in each theme.
@@ -79,7 +93,7 @@ class Window:
         self.file.write_text(f'sessions = "{sessions}"\n{more}')
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), LANGUAGE="")
         # An Ollama and a keyring of the scenario's, never the user's own.
-        self.env.update(LANG=language, LC_ALL=language, SUMMIT_OLLAMA=ollama, SUMMIT_KEYRING="memory")
+        self.env.update(LANG=language, LC_ALL=language, SUMMIT_OLLAMA=ollama, SUMMIT_KEYRING="memory", SUMMIT_SUMMARY=str(SUMMARY))
 
     def __enter__(self) -> webdriver.Remote:
         port, native = free_port(), free_port()
@@ -413,6 +427,16 @@ def main() -> int:
             local and f'minutes_provider = "{ollama}/v1"' in window.file.read_text(),
             window.file.read_text(),
         )
+        # Tester asks summit-summary about the choice saved: no key for Ollama here.
+        browser.find_element(By.ID, "minutes-test").click()
+        answered = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").text == "Le modèle répond.", 10)
+        check(
+            "Tester says the model answers, asking summit-summary with the choice saved",
+            answered
+            and (WORK / "summary-args").read_text().split() == ["--test", "--provider", f"{ollama}/v1", "--model", "mistral:7b"]
+            and (WORK / "summary-key").read_text() == "none",
+            browser.find_element(By.ID, "minutes-tested").text,
+        )
         Select(browser.find_element(By.ID, "minutes")).select_by_visible_text("OpenRouter")
         key = browser.find_element(By.ID, "minutes-key")
         check("a key is typed where it is not shown, and never filled in", key.get_attribute("type") == "password" and key.get_attribute("value") == "")
@@ -434,6 +458,17 @@ def main() -> int:
             "the key is kept, said so, and never shown back nor written in the settings",
             kept.get_attribute("value") == "" and kept.get_attribute("placeholder").startswith("Une clé est gardée") and "sk-scenario" not in text,
             kept.get_attribute("placeholder"),
+        )
+        browser.find_element(By.ID, "minutes-test").click()
+        refused = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").text.startswith("Le modèle ne répond pas"), 10)
+        said = browser.find_element(By.ID, "minutes-tested").text
+        check(
+            "a model that does not answer is said in one sentence; the key goes by the environment, never the arguments",
+            refused
+            and said.endswith("the provider at openrouter.ai refused the key")
+            and (WORK / "summary-key").read_text() == "sk-scenario"
+            and "sk-scenario" not in (WORK / "summary-args").read_text(),
+            said,
         )
         Select(browser.find_element(By.ID, "minutes")).select_by_visible_text("Personnalisé…")
         browser.find_element(By.ID, "minutes-address").send_keys("not an address")

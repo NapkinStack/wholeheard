@@ -112,6 +112,7 @@ fn main() {
             settings_saved,
             minutes_shown,
             minutes_saved,
+            minutes_tested,
             choose_folder
         ])
         .setup(|app| {
@@ -351,8 +352,12 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
     let mut settings = shell.reread()?;
     // A folder for the sessions: a whole path, made when it is not there yet.
     if let Some(sessions) = change.sessions {
+        if sessions.as_os_str().is_empty() {
+            return Err("a folder is named".into());
+        }
+        let sessions = settings::from_home(sessions);
         if !sessions.is_absolute() {
-            return Err(format!("{} is no whole path", sessions.display()));
+            return Err(format!("{} is no whole path, from the root or from ~", sessions.display()));
         }
         std::fs::create_dir_all(&sessions).map_err(|error| format!("{}: {error}", sessions.display()))?;
         settings.sessions = sessions;
@@ -495,6 +500,39 @@ async fn minutes_saved(shell: State<'_, Shell>, provider: String, model: String,
     let Some(key) = key else { return Ok(None) };
     let kept = tauri::async_runtime::spawn_blocking(move || keys::keep(&host, &key)).await;
     Ok(kept.map_err(|error| error.to_string()).and_then(|kept| kept).err())
+}
+
+/// *Tester*: asks `summit-summary` whether the model saved answers — one sentence of its own,
+/// nothing of a meeting —, the key going from the keyring to its environment, never its
+/// arguments. Refused, the program's own sentence.
+#[tauri::command]
+async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
+    let settings = shell.reread()?;
+    let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
+        return Err("no model is chosen yet".into());
+    };
+    let summary = program("summit-summary", "SUMMIT_SUMMARY");
+    let ran = tauri::async_runtime::spawn_blocking(move || {
+        let key = providers::host(&provider).and_then(|host| keys::key(&host).ok().flatten());
+        let mut command = std::process::Command::new(&summary);
+        command.args(["--test", "--provider", &provider, "--model", &model]);
+        command.env_remove("SUMMIT_PROVIDER_KEY");
+        if let Some(key) = key {
+            command.env("SUMMIT_PROVIDER_KEY", key);
+        }
+        command.output()
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+    match ran {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(output) => {
+            let said = String::from_utf8_lossy(&output.stderr);
+            let said = said.lines().last().unwrap_or("").trim();
+            Err(said.strip_prefix("summit-summary: ").unwrap_or(said).to_string())
+        }
+        Err(error) => Err(format!("summit-summary could not be started ({error})")),
+    }
 }
 
 /// Why the trash refused, as the user is told it: the system's own wording names a file and

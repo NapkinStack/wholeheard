@@ -391,6 +391,35 @@ function minutesRow(minutes, words, locked) {
   });
   draw();
   box.append(row, fields, where);
+  // Tester: the choice saved, asked whether it answers — one sentence of Summit's, said first.
+  if (minutes.provider && minutes.model) {
+    const test = element("div", "row");
+    const button = element("button", "open", words.test);
+    button.type = "button";
+    button.id = "minutes-test";
+    button.disabled = locked;
+    const tested = element("p", "says");
+    tested.id = "minutes-tested";
+    tested.setAttribute("aria-live", "polite");
+    let host = minutes.provider;
+    try {
+      host = new URL(minutes.provider).host;
+    } catch {}
+    tested.textContent = fill(words.test_sends, host);
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      tested.textContent = words.testing;
+      try {
+        await window.__TAURI__.core.invoke("minutes_tested");
+        tested.textContent = words.test_answered;
+      } catch (why) {
+        tested.textContent = fill(words.test_failed, why);
+      }
+      button.disabled = locked;
+    });
+    test.append(button, tested);
+    box.append(test);
+  }
   return box;
 }
 
