@@ -3,6 +3,7 @@ to, and the sound is a note made for the run."""
 import datetime
 import json
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -19,6 +20,21 @@ FULL = 8_388_608
 # with the next on its heels. What a track holds whole, and what its clock holds steady, is
 # judged from there on — on every run, not on the runs that opened quietly.
 SETTLED = 1.0
+
+
+def largest_period():
+    """The longest period the sound server's graph may take, in seconds. It changes the period
+    when a stream joins or leaves, and the instant a piece is handed over moves with it: a
+    point of the clock may then be placed up to one period off, on every track at once."""
+    try:
+        settings = subprocess.run(["pw-metadata", "-n", "settings", "0"], capture_output=True, text=True, timeout=5).stdout
+        read = dict(re.findall(r"key:'(clock\.[a-z-]+)' value:'(\d+)'", settings))
+        return int(read["clock.max-quantum"]) / int(read["clock.rate"])
+    except (OSError, subprocess.SubprocessError, KeyError, ZeroDivisionError):
+        return 2048 / 48000  # PipeWire's own default
+
+
+PERIOD = largest_period()
 
 
 def track(folder, name):
@@ -138,12 +154,14 @@ def placed(folder, one, stops=False):
     off = [(a, b) for a, b in zip(settled, settled[1:]) if abs((b[0] - a[0]) / rate - (b[1] - a[1])) > 0.005]
     if not stops:
         assert not silences, f"{name}: {len(silences)} silence(s) of ours where the source never stopped"
-        assert not off, f"{name}: its clock says {(off[0][1][0] - off[0][0][0]) / (off[0][1][1] - off[0][0][1]):.0f} frames a second"
+        # A point may be one graph period off (see PERIOD); more, and the frames are not the rate.
+        wrong = [(a, b) for a, b in off if abs((b[0] - a[0]) / rate - (b[1] - a[1])) > 0.005 + PERIOD]
+        assert not wrong, f"{name}: its clock says {(wrong[0][1][0] - wrong[0][0][0]) / (wrong[0][1][1] - wrong[0][0][1]):.0f} frames a second"
         # And from its first settled point to its last, the same rate: a hundredth of a second
-        # over the whole run, where two points apart may each be five thousandths off.
+        # over the whole run, and a period, where two points apart may each be one off.
         if len(settled) > 1:
             drift = (settled[-1][0] - settled[0][0]) / rate - (settled[-1][1] - settled[0][1])
-            assert abs(drift) <= 0.01, f"{name}: over the run its clock is {drift * 1000:.0f} ms from its frames"
+            assert abs(drift) <= 0.01 + PERIOD, f"{name}: over the run its clock is {drift * 1000:.0f} ms from its frames"
     return points, silences, off
 
 
