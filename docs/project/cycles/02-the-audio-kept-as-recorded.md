@@ -172,6 +172,10 @@ against**:
 
 What the line says, and what it cost to get one worth reading: [its entry in the log, #129](https://github.com/NapkinStack/summit/issues/129#issuecomment-6196156196).
 
+**Offered for acceptance**: the bench prints its counts for a transcript (`bench.counts`), and
+the line of the programs of 2026-10-13 is recorded above; it has been the line every change of
+D9, D10 and D12 was read against.
+
 ### D9
 
 **Result: accepted** by the decider on 2026-10-17 ("c'est ok", offered with the measures
@@ -342,7 +346,10 @@ what they cost is who said what — which no lever of the transcript recovers. B
 | The transcript follows the stop; the user is told; a click opens the folder | Holds. The real chain was run by #141's verifier: a bench session transcribed with no other gesture, "Transcript ready". The click works under Linux only; a person's click is owed (#145) |
 | No model: its size and host shown, nothing fetched before the user agrees, checked whole, a cut fetch started again | Holds. The real host was cut at 210 MB, resumed and checked (#142); from the tray, with a served model (#144) |
 | A failure said in one sentence, the recording untouched, asked again from the menu | Holds (#141, the e2e's scenario F) |
-| The decider records one real meeting from the tray and reads its transcript | **Owed — the decider's gesture (#145)** |
+| The decider records one real meeting from the tray and reads its transcript | Holds: their trial of 2026-10-17 from the tray (#145) — the model offered, fetched on their word, the meeting transcribed with no other gesture; their reading of that transcript is D10's, accepted |
+
+**Offered for acceptance**, with one gesture still the decider's: a click on *Transcript ready*
+seen opening the folder — on the trial it was already open (#145, step 4).
 
 ### D13
 
@@ -373,6 +380,14 @@ Decided by the decider on 2026-10-13, when a pull request that corrected an exam
 three diagrams of consumed contracts was refused (#96): the contracts were pages of prose,
 and nothing could call a change to one compatible. The decision, what was read and what was
 tried: [ADR-0005](../../adr/0005-a-contract-carries-a-schema-and-a-comparator-judges-its-changes.md).
+
+| Criterion | Where it stands |
+|---|---|
+| A false page of a consumed contract corrected, merged without a new version | Holds: `transcript/v1` (#103), `session-audio` (#108), `recording/v1` on the second form (#164) — each let through by the comparator |
+| A field of `recording/v1` or `transcript/v1` removed, renamed or retyped is refused, with an example or a reason | Holds: the comparator (#101) and its tests; checked on 2026-10-17 on the real schemas — `text` of `transcript/v1` and `source` of `recording/v1`, each removed, renamed and retyped: all six refused, each with what a consumer would now receive |
+| What each producer writes is validated against the schema | Holds: `summit-transcription`'s transcript (#106), `summit-capture`'s events (#107); the bench's sessions too (#109) |
+
+**Offered for acceptance.**
 
 ### D16
 
