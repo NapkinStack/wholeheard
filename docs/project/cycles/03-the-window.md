@@ -16,7 +16,7 @@ deliverables:
   - id: D18
     title: "A user reads one meeting: its minutes beside its transcript"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a session with its minutes and its transcript, when the user opens it, then the minutes — highlights, actions with who and by when, key points, and which model wrote them and where — are beside the transcript, each line with its side, its voice and its time; who spoke is drawn over the length of the meeting; the transcript can be searched; and the session's folder opens from it"
       - "Given a session that holds no transcript, or no minutes, when it is opened, then what it lacks is offered, and made on the user's word as the tray makes it"
@@ -100,7 +100,7 @@ view (ADR-0002, Tauri) shows the window, and the programs stay where they are.
 Board 1. The list reads each session's `session.json` and files: both forms (`session-audio`
 v1 and v2) are listed; what a session weighs is its files' size on disk.
 
-**Offered for acceptance.** Built in four pull requests, each verified: the sessions read by
+**Offered for acceptance** — its acceptance issue: [#179](https://github.com/NapkinStack/summit/issues/179), the decider's trial on their own sessions. Built in four pull requests, each verified: the sessions read by
 the library (#174), *Open Summit* in the tray's menu — or `summit --window` — opening the
 window (#175), its frame in the system's language and theme (#176), the list (#177). The
 window has no permission: the shell's own command needs none.

@@ -58,6 +58,9 @@ consumes:
   - contract: session-audio
     version: v2
     module: capture
+  - contract: minutes
+    version: v1
+    module: summary
 #  - contract: identity-api
 #    version: v1
 #    module: identity
