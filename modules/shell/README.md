@@ -39,7 +39,10 @@ audio weighs, and above them what all the audio weighs against the transcripts a
 A session being recorded, or one left without its end, says so. It reads `session.json` of
 both forms (`contracts/session-audio`) and writes nothing; it speaks the system's language,
 follows its light or dark theme and font, in the colours of D11's boards, and reads the
-folder again whenever it comes forward.
+folder again whenever it comes forward. A meeting opens from the list: its minutes as written, with
+who wrote them and where; its transcript in the meeting's order, each line with its side and
+voice, searched over what was said; who spoke over the meeting; its folder, opened in the
+system's file manager.
 
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification
