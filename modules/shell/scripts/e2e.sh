@@ -195,28 +195,45 @@ check is "$(titles 'No transcript: the model is missing')" 1
 check is "$(wc -l < "$work/sessions/heard")" 7
 click 4
 
-say "G. the default model missing: offered with its size and host, fetched on the click, then the transcript"
+say "G. the default model missing: offered with its size and host, fetched on the click, then the transcripts in line"
 mkdir -p "$work/served"; head -c 300000 /dev/urandom > "$work/served/model.bin"; head -c 300000 /dev/urandom > "$work/right.bin"
-(cd "$work/served" && exec python3 -u -m http.server 0 --bind 127.0.0.1 > "$work/server" 2>&1) &
+# Served slowly — 30 kB every 0.6 s, six seconds a fetch — so that a stop can come during one.
+(cd "$work/served" && exec python3 -u -c '
+import http.server, time
+class Slow(http.server.SimpleHTTPRequestHandler):
+    def copyfile(self, source, sink):
+        while chunk := source.read(30000):
+            sink.write(chunk); sink.flush(); time.sleep(0.6)
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Slow)
+print("port", server.server_address[1]); server.serve_forever()' > "$work/server" 2>&1) &
 for _ in $(seq 50); do port=$(grep -o 'port [0-9]*' "$work/server" | cut -d' ' -f2) && [ -n "$port" ] && break; sleep 0.1; done
 published="http://127.0.0.1:$port/model.bin 300000 $(sha256sum "$work/right.bin" | cut -d' ' -f1)"
-start en_GB.UTF-8 "reminder = false" "$work/summit-capture"
+# A recorder that names each session anew, so that several wait in line.
+{ echo '#!/bin/sh'; echo 'n=$(( $(cat "$2/numbered" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$2/numbered"'
+  sed '1d; s#2026-10-13_14-05#2026-10-17_09-0$n#g' "$work/summit-capture"; } > "$work/numbering"
+chmod +x "$work/numbering"
+start en_GB.UTF-8 "reminder = false" "$work/numbering"
 before=$(wc -l < "$work/sessions/heard")
-click 2; click 2; sleep 1
-check is "$(titles 'The transcription model is needed')" 1
+click 2; click 2; sleep 1; click 2; click 2; sleep 1    # two sessions, both waiting for the model
+check is "$(titles 'The transcription model is needed')" 2
 check is "$(labels)" "Start recording|Transcribe the last recording|Download the model (0 MB, 127.0.0.1:$port)|Quit Summit"
 check is "$(grep -c 'GET' "$work/server")" 0      # nothing fetched before the click
 # Served first is not the published file: refused, nothing in place, and the entry tries again.
-click "$(entry Download)"; sleep 2
+click "$(entry Download)"; sleep 7
 check is "$(titles 'The model was not downloaded')" 1
 check test ! -e "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin"
 check test ! -e "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin.part"
 check is "$(greyed)" 0
 cp "$work/right.bin" "$work/served/model.bin"
-click "$(entry Download)"; sleep 2
+# A third stop during the fetch: it waits in line, nothing is offered again, the entry stays greyed.
+click "$(entry Download)"; click 2; click 2
+check is "$(titles 'The transcription model is needed')" 2
+check is "$(greyed)" 1
+sleep 5
 check is "$(titles 'Model ready')" 1
 check cmp -s "$work/right.bin" "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin"
-check is "$(wc -l < "$work/sessions/heard")" "$((before + 1))"
+check is "$(wc -l < "$work/sessions/heard")" "$((before + 3))"
+check is "$(sort -u "$work/sessions/heard" | grep -c 2026-10-17)" 3
 check is "$(labels)" "Start recording|Transcribe the last recording|Quit Summit"
 click 4
 published=""
