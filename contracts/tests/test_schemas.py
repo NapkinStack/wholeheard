@@ -136,7 +136,11 @@ def test_the_comparator_refuses_a_schemas_breaks_wherever_they_are(path, tmp_pat
 # The fields a page says may be absent: `stopped`, while a session is recording; a segment's
 # `track` and `voice`, in a transcript written before they were.
 OPTIONAL = {"stopped", "track", "voice"}
-SHOWN_AS_LINES = {"transcript/v1/line.schema.json", "recording/v1/event.schema.json"}
+SHOWN_AS_LINES = {
+    "transcript/v1/line.schema.json",
+    "recording/v1/event.schema.json",
+    "summarising/v1/event.schema.json",
+}
 EXAMPLES = {
     "transcript/v1/line.schema.json": (
         [
@@ -256,6 +260,29 @@ EXAMPLES = {
             {"event": "stopped", "folder": "f", "seconds": "1912.4"},
             {"event": "stopped", "folder": "f", "seconds": -1},
             {"source": "me"},
+        ],
+    ),
+    "summarising/v1/event.schema.json": (
+        [
+            {"event": "sending", "host": "openrouter.ai", "model": "anthropic/claude-sonnet-5.5", "characters": 48210},
+            {"event": "sending", "host": "local", "model": "mistral", "characters": 31},
+            {"event": "written", "file": "<session-folder>/minutes.md"},
+            {"event": "answered", "host": "local", "model": "mistral"},
+            {"event": "an event of a later version"},
+        ],
+        [
+            "a line that is no object",
+            {"host": "openrouter.ai"},
+            {"event": "sending", "host": "openrouter.ai", "model": "m"},
+            {"event": "sending", "host": "", "model": "m", "characters": 1},
+            {"event": "sending", "host": "h", "model": "", "characters": 1},
+            {"event": "answered", "host": "h", "model": ""},
+            {"event": "sending", "host": "h", "model": "m", "characters": 1.5},
+            {"event": "sending", "host": "h", "model": "m", "characters": -1},
+            {"event": "written"},
+            {"event": "written", "file": ""},
+            {"event": "answered", "host": "h"},
+            {"event": "answered", "model": "m"},
         ],
     ),
     "session-audio/v1/session.schema.json": (

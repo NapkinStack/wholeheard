@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A line of the summarising program's output",
+  "description": "summarising/v1 — one JSON object a line. What a schema cannot say is on the contract's page: the order of the events, that `sending` comes first and once, `written` or `answered` last.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "sending"
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "characters": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "event",
+        "host",
+        "model",
+        "characters"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "written"
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "event",
+        "file"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "answered"
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "event",
+        "host",
+        "model"
+      ]
+    },
+    {
+      "description": "An event this version does not name: a consumer ignores it.",
+      "type": "object",
+      "properties": {
+        "event": {
+          "type": "string",
+          "not": {
+            "enum": [
+              "sending",
+              "written",
+              "answered"
+            ]
+          }
+        }
+      },
+      "required": [
+        "event"
+      ]
+    }
+  ]
+}
