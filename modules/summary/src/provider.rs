@@ -163,6 +163,11 @@ impl Provider {
         match response.status().as_u16() {
             200 => {}
             status @ (401 | 403) => return refused(format!("the provider at {host} refused the key (HTTP {status})")),
+            402 => {
+                return refused(format!(
+                    "the provider at {host} refused for lack of credit (HTTP 402): add credit, or raise the key's limit, with this provider"
+                ));
+            }
             404 => {
                 return refused(format!(
                     "the provider at {host} does not know this model or this address (HTTP 404)"

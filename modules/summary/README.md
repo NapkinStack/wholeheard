@@ -61,7 +61,7 @@ no request recovers is the owner of a task said as "I": each track holds two peo
 D16).
 
 A key, when the provider wants one, is read from `SUMMIT_PROVIDER_KEY` and written nowhere.
-Whatever fails — no network, a refused key, an unknown model, an answer cut short or that is
+Whatever fails — no network, a refused key, no credit left with the provider, an unknown model, an answer cut short or that is
 not minutes — the reason is one sentence on the error stream, the transcript is untouched and
 the minutes that were there are still there.
 

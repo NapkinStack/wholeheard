@@ -37,6 +37,11 @@ fn each_failure_of_a_provider_has_its_own_sentence() {
     for (status, body, expected) in [
         ("401 Unauthorized", r#"{"error": "no"}"#.to_string(), "refused the key (HTTP 401)"),
         ("404 Not Found", "{}".to_string(), "does not know this model or this address"),
+        (
+            "402 Payment Required",
+            r#"{"error": {"message": "Insufficient credits"}}"#.to_string(),
+            "refused for lack of credit (HTTP 402): add credit, or raise the key's limit, with this provider",
+        ),
         ("500 Internal Server Error", "oops".to_string(), "failed (HTTP 500)"),
         ("200 OK", answering(MINUTES, "length"), "cut its answer short"),
         (
