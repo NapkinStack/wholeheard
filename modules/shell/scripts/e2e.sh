@@ -5,7 +5,7 @@
 #
 # It needs a desktop session that shows tray items; where there is none — a CI runner — it
 # says so and runs nothing. For half a minute a tray icon and a few notifications appear, and
-# a window.
+# the window, three times.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p .evidence
@@ -245,6 +245,19 @@ check is "$(tail -3 "$work/sessions/heard" | grep -o '2026-10-17_09-0[0-9]' | pa
 check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|Quit Summit"
 click 5
 published=""
+
+# The window (cycle 03): Summit started with --window by tauri-driver, its page read over
+# WebDriver (scripts/e2e_window.py). For a few seconds a window appears, twice.
+if ! command -v WebKitWebDriver >/dev/null; then
+  say "H. the window: NOT RUN — WebKitGTK's WebDriver is missing (Fedora: webkit2gtk4.1-devel)"
+  failed=1
+else
+  command -v tauri-driver >/dev/null || cargo install tauri-driver --locked --version 2.1.0 2>&1 | tail -1 >> .evidence/e2e.txt
+  mkdir -p "$work/window"
+  if ! uv run --quiet --with selenium==4.51.0 python scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt; then
+    failed=1
+  fi
+fi
 
 check test ! -s "$work/errors"
 [ -s "$work/errors" ] && sed 's/^/    /' "$work/errors" >> .evidence/e2e.txt

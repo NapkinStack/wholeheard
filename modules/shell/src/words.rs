@@ -224,6 +224,81 @@ pub fn menu(language: Language) -> Menu {
     }
 }
 
+/// The window's words. A `{}` is where the window puts a number, a size or a month: it formats
+/// those itself, in the language named by `locale`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Window {
+    pub locale: &'static str,
+    /// Bytes, kilobytes, megabytes, gigabytes.
+    pub units: [&'static str; 4],
+    /// What a screen reader calls the window's sections.
+    pub sections: &'static str,
+    pub meetings: &'static str,
+    /// The weight of everything: its size, how many meetings, how long their audio lasts.
+    pub weight: &'static str,
+    pub audio_kept: &'static str,
+    pub text_kept: &'static str,
+    /// A picture of the two weights, for whoever does not see it.
+    pub weight_described: &'static str,
+    pub this_week: &'static str,
+    pub last_week: &'static str,
+    /// Earlier in the current month: the month's name.
+    pub earlier_in: &'static str,
+    pub minutes: &'static str,
+    pub transcript: &'static str,
+    pub audio: &'static str,
+    pub audio_freed: &'static str,
+    pub recording: &'static str,
+    pub interrupted: &'static str,
+    /// No session in the folder: the folder.
+    pub none: &'static str,
+}
+
+pub fn window(language: Language) -> Window {
+    match language {
+        Language::English => Window {
+            locale: "en",
+            units: ["B", "kB", "MB", "GB"],
+            sections: "Sections",
+            meetings: "Meetings",
+            weight: "taken by {} meetings · {} of audio",
+            audio_kept: "Audio, as recorded — {}",
+            text_kept: "Transcripts and minutes — {}",
+            weight_described: "The audio takes {}; the transcripts and minutes, {}.",
+            this_week: "This week",
+            last_week: "Last week",
+            earlier_in: "Earlier in {}",
+            minutes: "Minutes",
+            transcript: "Transcript",
+            audio: "Audio · {}",
+            audio_freed: "Audio deleted",
+            recording: "Recording now",
+            interrupted: "Interrupted — never stopped",
+            none: "No meeting in {} yet.",
+        },
+        Language::French => Window {
+            locale: "fr",
+            units: ["o", "ko", "Mo", "Go"],
+            sections: "Rubriques",
+            meetings: "Réunions",
+            weight: "occupés par {} réunions · {} d’audio",
+            audio_kept: "Audio, tel qu’enregistré — {}",
+            text_kept: "Transcripts et comptes rendus — {}",
+            weight_described: "L’audio occupe {} ; les transcripts et les comptes rendus, {}.",
+            this_week: "Cette semaine",
+            last_week: "La semaine dernière",
+            earlier_in: "Plus tôt en {}",
+            minutes: "Compte rendu",
+            transcript: "Transcript",
+            audio: "Audio · {}",
+            audio_freed: "Audio supprimé",
+            recording: "Enregistrement en cours",
+            interrupted: "Interrompu — jamais arrêté",
+            none: "Aucune réunion dans {} pour l’instant.",
+        },
+    }
+}
+
 /// What can stand in the shell's own way, before or beside a recording.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Trouble {

@@ -23,7 +23,7 @@ use summit_shell::{
     words::{self, Language, Notice, Trouble},
 };
 use tauri::{
-    AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, Wry,
+    AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, Wry,
     image::Image,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -73,6 +73,7 @@ enum Shown {
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .invoke_handler(tauri::generate_handler![listed])
         .setup(|app| {
             let language = Language::system();
             let labels = words::menu(language);
@@ -153,6 +154,21 @@ fn open_window(app: &AppHandle) {
         .inner_size(1100.0, 800.0)
         .min_inner_size(420.0, 400.0)
         .build();
+}
+
+/// What the window shows: its words, and the folder it reads.
+#[derive(serde::Serialize)]
+struct Listing {
+    words: words::Window,
+    folder: PathBuf,
+}
+
+#[tauri::command]
+fn listed(shell: State<'_, Shell>) -> Listing {
+    Listing {
+        words: words::window(shell.language),
+        folder: shell.settings.sessions.clone(),
+    }
 }
 
 /// Shows a notification. A desktop that shows none is no reason to stop anything.
