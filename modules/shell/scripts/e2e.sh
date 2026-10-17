@@ -231,9 +231,10 @@ check is "$(titles 'The transcription model is needed')" 2
 check is "$(greyed)" 1
 sleep 5
 check is "$(titles 'Model ready')" 1
+check is "$(titles 'The transcription model is needed')" 2    # nor later in the fetch
 check cmp -s "$work/right.bin" "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin"
 check is "$(wc -l < "$work/sessions/heard")" "$((before + 3))"
-check is "$(sort -u "$work/sessions/heard" | grep -c 2026-10-17)" 3
+check is "$(tail -3 "$work/sessions/heard" | grep -o '2026-10-17_09-0[0-9]' | paste -sd' ')" "2026-10-17_09-01 2026-10-17_09-02 2026-10-17_09-03"   # in the order stopped
 check is "$(labels)" "Start recording|Transcribe the last recording|Quit Summit"
 click 4
 published=""
