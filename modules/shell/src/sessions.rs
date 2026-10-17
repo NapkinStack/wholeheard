@@ -98,6 +98,43 @@ fn read(folder: &Path, recording: Option<&Path>) -> Option<Listed> {
     })
 }
 
+/// The sound of the sessions stopped more than `days` days before `now` (seconds since 1970): every
+/// `.wav` in each such session's folder, what was made from the tracks too — never through a link.
+/// A session keeps its sound while it is being recorded, was left without its end, cannot be
+/// dated, stopped before it started — a clock gone back —, or holds no transcript: its sound is
+/// then all there is of it.
+pub fn expired_audio(sessions: &Path, days: u32, now: i64) -> Vec<PathBuf> {
+    let reach = i64::from(days) * 86_400;
+    // A session with a length is one that stopped.
+    list(sessions, None)
+        .into_iter()
+        .filter(|session| {
+            session.transcript
+                && matches!((session.instant, session.seconds), (Some(started), Some(seconds)) if seconds >= 0.0 && started + seconds as i64 + reach <= now)
+        })
+        .flat_map(|session| {
+            let mut sound = Vec::new();
+            sounds(&session.folder, &mut sound);
+            sound
+        })
+        .collect()
+}
+
+/// Every `.wav` under a folder.
+fn sounds(folder: &Path, found: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(folder) else { return };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        match entry.file_type() {
+            Ok(kind) if kind.is_dir() => sounds(&path, found),
+            Ok(kind) if kind.is_file() && path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("wav")) => {
+                found.push(path)
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Adds up a folder's files: sound — a `.wav`, wherever it is — and the rest.
 fn weigh(folder: &Path, audio: &mut u64, text: &mut u64) {
     let Ok(entries) = fs::read_dir(folder) else { return };
