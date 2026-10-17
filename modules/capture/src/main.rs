@@ -115,14 +115,35 @@ fn named_as_used(host: &Host, device: &Device) -> String {
         _ => return named(device),
     };
     let standing = || {
-        let printed = std::process::Command::new("pw-metadata")
-            .args(["-n", "default", "0", key])
-            .output()
-            .ok()?;
-        let node = summit_capture::standing_for(&String::from_utf8_lossy(&printed.stdout), key)?;
+        let node = summit_capture::standing_for(&metadata(key)?, key)?;
         host.devices().ok()?.find(|other| other.id().is_ok_and(|id| id.id() == node))
     };
     standing().map_or_else(|| named(device), |stood_for| named(&stood_for))
+}
+
+/// What `pw-metadata` prints of one key of PipeWire's default metadata — or nothing, if it is
+/// not there or has not answered within a second: a recording does not wait on a name.
+fn metadata(key: &str) -> Option<String> {
+    use std::process::{Command, Stdio};
+    let mut asked = Command::new("pw-metadata")
+        .args(["-n", "default", "0", key])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let given = Instant::now();
+    while asked.try_wait().ok()?.is_none() {
+        if given.elapsed() > Duration::from_secs(1) {
+            let _ = asked.kill();
+            let _ = asked.wait();
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let mut printed = String::new();
+    std::io::Read::read_to_string(&mut asked.stdout.take()?, &mut printed).ok()?;
+    Some(printed)
 }
 
 /// A source being recorded: its file, and the stream that feeds it while it lives.
