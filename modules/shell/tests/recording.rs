@@ -127,11 +127,18 @@ touch "$sessions/still-recording""#,
 fn a_line_is_read_as_the_contract_describes_it_or_passed_over() {
     assert_eq!(read(r#"{"event":"silent","source":"me"}"#), Some(Said::Silent(Source::Me)));
     // The microphone, as the system names it; a default named for itself, or none, says nothing.
+    let long = "Mic ".repeat(30);
+    let cut = format!("{}…", &long[..80]);
     for (me, named) in [
         ("Headset Mic", Some("Headset Mic")),
+        // A tab and a line break, as JSON escapes them.
+        (r"  Headset\t\nMic ", Some("Headset Mic")),
+        (long.as_str(), Some(cut.as_str())),
         ("default_input", None),
         ("unavailable", None),
+        ("unnamed", None),
         ("", None),
+        ("   ", None),
     ] {
         let line = format!(r#"{{"event":"started","folder":"/s","sources":{{"me":"{me}","others":"Speaker"}}}}"#);
         assert_eq!(read(&line), Some(Said::Started("/s".into(), named.map(str::to_string))), "{me}");

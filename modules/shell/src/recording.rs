@@ -52,19 +52,30 @@ pub fn read(line: &str) -> Option<Said> {
             source()?,
             event["reason"].as_str().unwrap_or_default().to_string(),
         )),
-        "started" => {
-            // A desktop's default device, named for itself and not for the one it stands for, says
-            // nothing of which microphone it is.
-            let me = event["sources"]["me"]
-                .as_str()
-                .filter(|me| !["", "unavailable", "default_input"].contains(me));
-            Some(Said::Started(folder()?, me.map(str::to_string)))
-        }
+        "started" => Some(Said::Started(folder()?, event["sources"]["me"].as_str().and_then(device))),
         "silent" => Some(Said::Silent(source()?)),
         "heard" => Some(Said::Heard(source()?)),
         "stopped" => Some(Said::Stopped(folder()?, event["seconds"].as_f64().unwrap_or(0.0))),
         _ => None,
     }
+}
+
+/// A device's name made fit to show: on one line, its spaces collapsed, and short. A name
+/// that says nothing of which device it is gives none: a desktop's default named for itself,
+/// the capture's own words for a device it could not open or name.
+fn device(name: &str) -> Option<String> {
+    let words: Vec<&str> = name
+        .split(|c: char| c.is_whitespace() || c.is_control())
+        .filter(|word| !word.is_empty())
+        .collect();
+    let name = words.join(" ");
+    if ["", "unavailable", "unnamed", "default_input"].contains(&name.as_str()) {
+        return None;
+    }
+    Some(match name.char_indices().nth(80) {
+        Some((cut, _)) => format!("{}…", &name[..cut]),
+        None => name,
+    })
 }
 
 /// The lines of a stream, whatever bytes they hold: what is not text is read with its
