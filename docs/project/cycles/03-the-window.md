@@ -100,6 +100,21 @@ view (ADR-0002, Tauri) shows the window, and the programs stay where they are.
 Board 1. The list reads each session's `session.json` and files: both forms (`session-audio`
 v1 and v2) are listed; what a session weighs is its files' size on disk.
 
+**Offered for acceptance.** Built in four pull requests, each verified: the sessions read by
+the library (#174), *Open Summit* in the tray's menu — or `summit --window` — opening the
+window (#175), its frame in the system's language and theme (#176), the list (#177). The
+window has no permission: the shell's own command needs none.
+
+| Criterion | Where it stands |
+|---|---|
+| The meetings by week, newest first, each with its day, length, what it holds and its audio's weight; all the audio against the transcripts and minutes | Holds — the window's scenario H, on sessions it makes; a session whose start cannot be read is shown last, under *Date illisible*, never the end of the list |
+| A session being recorded, or left without its end, says so; nothing offered touches it | Holds — the library's tests; the window offers no action yet |
+| The system's theme, every action from the keyboard, no window without a gesture | Holds on a dark desktop — scenarios A and H; the light theme is written in the boards' colours and was not seen: GNOME's setting overrides what a test can set, and the decider's desktop is not changed for a test |
+
+Seen by the verifiers and corrected before merging: a clicked entry left on its old number,
+a capability far wider than the window needs, and a start the page could not date that hid
+every older session.
+
 ### D18
 
 Boards 2 and 6 (*Refaire…*). The minutes and the transcript are read from their files as their
