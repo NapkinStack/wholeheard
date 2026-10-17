@@ -42,13 +42,15 @@ cargo run --release -- record <sessions-folder>   # until Ctrl-C, a TERM signal,
 minute the system's default output and input are two silent devices of its own, a note is
 played into each, and the program records them — stopped as a user stops it, read while it
 writes, left silent, killed, and with the same sound in both sources to see that the two files
-keep one clock. A point of that clock may be one period of the sound server's graph off: the
-server changes its period when a stream joins or leaves, on every track at once. It runs
-nothing where there is no sound server, or while an application holds a microphone; another
+keep one clock. That clock may step by one period of the sound server's graph, which the
+server changes when a stream joins or leaves: a step over 10 ms and no larger than a period,
+the same on both tracks at once, with the rate holding on either side of it. It runs nothing
+where there is no sound server, or while an application holds a microphone; another
 application that plays while it runs follows the default output into what is recorded, so a
-level that fails then is read again with nothing open. What it saw is in `.evidence/e2e.txt`. A real call, a real
-microphone and a headset stay a person's to try; so do a source that rests away from zero and
-one that stops delivering, which silent devices cannot play and the module's tests hold.
+level that fails then is read again with nothing open. What it saw is in `.evidence/e2e.txt`.
+A real call, a real microphone and a headset stay a person's to try; so do a source that rests
+away from zero and one that stops delivering, which silent devices cannot play and the
+module's tests hold.
 
 ## What it says while it runs
 

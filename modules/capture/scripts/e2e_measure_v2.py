@@ -151,18 +151,34 @@ def placed(folder, one, stops=False):
     assert all(0 <= a < b <= one["frames"] + rate for a, b in silences), f"{name}: a silence that is no stretch of the track: {silences}"
     # Between two points, the frames of the track's rate: off by more, the source stopped there.
     settled = [point for point in points if point[0] >= SETTLED * rate]
-    off = [(a, b) for a, b in zip(settled, settled[1:]) if abs((b[0] - a[0]) / rate - (b[1] - a[1])) > 0.005]
+    late = lambda a, b: (b[1] - a[1]) - (b[0] - a[0]) / rate
+    off = [(a, b) for a, b in zip(settled, settled[1:]) if abs(late(a, b)) > 0.005]
+    # A step: the graph's period moved, every piece after placed later or sooner by it — more
+    # than a drift of a few pieces at a wrong rate makes, no more than a period. The tracks
+    # must step together (`main`), and what is left once the steps are taken out must be the rate.
+    steps = [(a, b) for a, b in off if 0.010 < abs(late(a, b)) <= 0.005 + PERIOD]
     if not stops:
         assert not silences, f"{name}: {len(silences)} silence(s) of ours where the source never stopped"
-        # A point may be one graph period off (see PERIOD); more, and the frames are not the rate.
-        wrong = [(a, b) for a, b in off if abs((b[0] - a[0]) / rate - (b[1] - a[1])) > 0.005 + PERIOD]
+        wrong = [pair for pair in off if pair not in steps]
         assert not wrong, f"{name}: its clock says {(wrong[0][1][0] - wrong[0][0][0]) / (wrong[0][1][1] - wrong[0][0][1]):.0f} frames a second"
         # And from its first settled point to its last, the same rate: a hundredth of a second
-        # over the whole run, and a period, where two points apart may each be one off.
+        # over the whole run, where two points apart may each be five thousandths off.
         if len(settled) > 1:
-            drift = (settled[-1][0] - settled[0][0]) / rate - (settled[-1][1] - settled[0][1])
-            assert abs(drift) <= 0.01 + PERIOD, f"{name}: over the run its clock is {drift * 1000:.0f} ms from its frames"
-    return points, silences, off
+            drift = late(settled[0], settled[-1]) - sum(late(a, b) for a, b in steps)
+            assert abs(drift) <= 0.01, f"{name}: over the run its clock is {drift * 1000:.0f} ms from its frames"
+    return points, silences, off, steps
+
+
+def together(steps, rates):
+    """Each track's steps (`placed`), found on every other track: the same step, within five
+    thousandths, placed within a tenth of a second."""
+    size = lambda a, b, rate: (b[1] - a[1]) - (b[0] - a[0]) / rate
+    for one in steps:
+        for a, b in steps[one]:
+            step = size(a, b, rates[one])
+            for other in set(steps) - {one}:
+                assert any(abs(d[1] - b[1]) <= 0.1 and abs(size(c, d, rates[other]) - step) <= 0.005 for c, d in steps[other]), (
+                    f"{one}: its clock steps {step * 1000:.0f} ms at {b[1]:.2f} s, and {other}'s does not")
 
 
 def stream(pid, name):
@@ -190,11 +206,11 @@ def main(what, folder, *args):
     start = datetime.datetime.fromisoformat(read["started"]).timestamp()
     clocks = {}
     for one in tracks.values():
-        points, silences, off = clocks[one["name"]] = placed(folder, one, stops=what == "stopped-source")
+        points, silences, off, steps = clocks[one["name"]] = placed(folder, one, stops=what == "stopped-source")
         loudest = max(one["peaks"]) / FULL
         print(f"    {one['name']}: {one['frames'] / one['rate']:.2f} s, {one['channels']} channel(s) at {one['rate']} Hz, 24 bits, "
               f"{pitch(one):.0f} Hz at {loudest:.4f} of full scale · first heard at {points[0][1]:.3f} s, {len(points)} points, "
-              f"{len(silences)} silence(s) of ours, {len(off)} place(s) the source stopped")
+              f"{len(silences)} silence(s) of ours, {len(off)} place(s) the source stopped, {len(steps)} step(s) of the graph's period")
         # As delivered: every channel as loud as it was played and resting where it was played
         # — not mixed, swapped, halved, centred or brought to a level.
         levels, rests = [peak / FULL for peak in one["peaks"]], [rest / FULL for rest in one["rests"]]
@@ -214,10 +230,16 @@ def main(what, folder, *args):
             # the stop, so its instant is no more than a second past what the two say.
             late = when(points, one["frames"], one["rate"]) - (datetime.datetime.fromisoformat(read["stopped"]).timestamp() - start)
             assert -3.5 <= late <= 1.05, f"{one['name']}: its clock puts its last frame {late:.2f} s after the session stopped"
+    # A step of the graph's period is every track's at once: one track's alone is its own fault.
+    print(f"    the graph's longest period: {PERIOD * 1000:.1f} ms")
+    if what != "stopped-source":
+        together({name: steps for name, (_, _, _, steps) in clocks.items()}, {name: one["rate"] for name, one in tracks.items()})
     # A note played without a break is whole in its track, but where the clock says otherwise.
     for name, hertz in {"stopped": [("local", 440)], "killed": [("local", 440)], "stopped-source": [("local", 440), ("remote", 880)]}.get(what, []):
-        points, silences, off = clocks[name]
-        broken = breaks(tracks[name], hertz, [*silences, *((b[0] - 1, b[0]) for _, b in off)])
+        points, silences, off, _ = clocks[name]
+        # Where no source stops, only the zeros of ours are told: a step moves no frame.
+        told = [*silences, *((b[0] - 1, b[0]) for _, b in off)] if what == "stopped-source" else silences
+        broken = breaks(tracks[name], hertz, told)
         assert not broken, (f"{name}: its note breaks between the frames {broken[0][0]} and {broken[0][1]} — {len(broken)} place(s) — "
                             "and no line of the clock tells of it")
     if what == "stopped":
@@ -231,7 +253,7 @@ def main(what, folder, *args):
         assert not os.path.exists(os.path.join(folder, "me.wav")), "a file of the first version beside the tracks"
     elif what == "stopped-source":
         # The remote source was stopped for several seconds: the capture wrote zeros and said which.
-        points, silences, _ = clocks["remote"]
+        points, silences, _, _ = clocks["remote"]
         remote, rate = tracks["remote"], tracks["remote"]["rate"]
         assert silences, "remote stopped for seconds, and the clock says no silence of ours"
         zeros = sum(to - start for start, to in silences)
