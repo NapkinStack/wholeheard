@@ -92,6 +92,7 @@ fn an_address_of_this_machine_is_local_and_nothing_else_is() {
         "http://127.3.2.1/v1",
         "http://[::1]:11434/v1",
         "http://0.0.0.0:11434/v1",
+        "http://[::ffff:127.0.0.1]:11434/v1",
     ] {
         assert!(local(here), "{here}");
     }
@@ -100,6 +101,10 @@ fn an_address_of_this_machine_is_local_and_nothing_else_is() {
         "http://localhost.example.org/v1",
         "http://192.168.1.10:11434/v1",
         "http://user@evil.org/@localhost",
+        // What summit-summary refuses is never this machine's either.
+        "http://evil.invalid\\@localhost/v1",
+        "http://localhost#@evil.invalid/v1",
+        "http://localhost?x/v1",
         "not an address",
     ] {
         assert!(!local(away), "{away}");

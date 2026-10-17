@@ -84,6 +84,11 @@ pub fn host(address: &str) -> Option<String> {
 /// Whether a provider's address is this machine — `localhost`, a loopback address, or the one
 /// that means "any": what is sent there never leaves it.
 pub fn local(address: &str) -> bool {
+    // Read as summit-summary reads it: an address it refuses — a query, a fragment, a user part,
+    // a backslash — is no address of this machine either.
+    if address.contains(['?', '#', '@', '\\']) {
+        return false;
+    }
     let Some(host) = host(address) else { return false };
     // Without its port: after the brackets of an IPv6 address, or after the one colon of the rest.
     let name = match host.strip_prefix('[') {
