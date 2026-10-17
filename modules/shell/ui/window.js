@@ -296,15 +296,18 @@ function choice(name, value, [label, says], checked, disabled) {
 function showSettings(shown, words) {
   const page = document.getElementById("settings");
   const locked = shown.unreadable !== null;
+  // Saved or not, the page is drawn again from what the shell holds; a failure stays said.
   const save = async (change) => {
+    let failed = null;
     try {
       await window.__TAURI__.core.invoke("settings_saved", { change });
-      document.getElementById("not-saved").hidden = true;
     } catch (why) {
-      const said = document.getElementById("not-saved");
-      said.textContent = fill(words.not_saved, why);
-      said.hidden = false;
+      failed = fill(words.not_saved, why);
     }
+    await refresh();
+    const said = document.getElementById("not-saved");
+    said.textContent = failed ?? "";
+    said.hidden = failed === null;
   };
   const parts = [];
   if (locked) parts.push(element("p", "card note warn", fill(words.settings_unreadable, shown.unreadable)));

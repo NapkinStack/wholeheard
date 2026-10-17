@@ -75,6 +75,17 @@ impl Shell {
     fn settings(&self) -> Settings {
         self.settings.lock().unwrap().clone()
     }
+
+    /// Reads the settings file again — the user may have changed it by hand — and holds what it
+    /// says; a file that cannot be read is said, and what was held stays.
+    fn reread(&self) -> Result<Settings, String> {
+        let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
+        *self.unreadable.lock().unwrap() = read.clone().err();
+        if let Ok(settings) = &read {
+            *self.settings.lock().unwrap() = settings.clone();
+        }
+        read
+    }
 }
 
 /// Where the tray is in the life of a recording.
@@ -272,7 +283,7 @@ fn models_folder() -> PathBuf {
 
 #[tauri::command]
 fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
-    let settings = shell.settings();
+    let settings = shell.reread().unwrap_or_else(|_| shell.settings());
     let models = settings::whisper_models(&models_folder(), &settings)
         .into_iter()
         .map(|path| Model {
@@ -308,10 +319,8 @@ struct Change {
 /// is written over a file that could not be read, and a model is only one found on this computer.
 #[tauri::command]
 fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String> {
-    if let Some(why) = shell.unreadable.lock().unwrap().clone() {
-        return Err(why);
-    }
-    let mut settings = shell.settings();
+    // The change goes onto what the file says now: what the user changed by hand stays.
+    let mut settings = shell.reread()?;
     if let Some(after) = change.after {
         settings.after = after;
     }

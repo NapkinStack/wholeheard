@@ -22,7 +22,9 @@ from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.options import ArgOptions
+from selenium.webdriver.support.expected_conditions import staleness_of
 from selenium.webdriver.support.select import Select
+from selenium.webdriver.support.wait import WebDriverWait
 from urllib3.exceptions import HTTPError
 
 BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
@@ -321,18 +323,26 @@ def main() -> int:
         check("out of the box, the transcript follows", checked == "transcript", checked)
         names = [o.text.split(" — ")[0] for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
         check("the models on this computer are offered", names == ["ggml-large-v3-turbo-q8_0.bin", "ggml-small.bin"], names)
-        browser.find_element(By.CSS_SELECTOR, "input[name=after][value=nothing]").click()
-        browser.find_element(By.ID, "reminder").click()
-        Select(browser.find_element(By.ID, "keep")).select_by_value("30")
-        Select(browser.find_element(By.ID, "model")).select_by_visible_text(next(o.text for o in browser.find_elements(By.CSS_SELECTOR, "#model option") if o.text.startswith("ggml-small")))
-        saved = wait_for(browser, lambda b: "ggml-small.bin" in window.file.read_text(), 5)
+        # Each change is saved, then the page is drawn again: the next acts on the new one.
+        def changed(act):
+            before = browser.find_element(By.ID, "reminder")
+            act()
+            WebDriverWait(browser, 5).until(staleness_of(before))
+
+        changed(lambda: browser.find_element(By.CSS_SELECTOR, "input[name=after][value=nothing]").click())
+        changed(lambda: Select(browser.find_element(By.ID, "keep")).select_by_value("30"))
+        changed(lambda: Select(browser.find_element(By.ID, "model")).select_by_visible_text(
+            next(o.text for o in browser.find_elements(By.CSS_SELECTOR, "#model option") if o.text.startswith("ggml-small"))
+        ))
+        # The user changes the file by hand while Summit runs: the next save keeps it.
+        window.file.write_text(window.file.read_text().replace("keep_audio = 30", "keep_audio = 90 # by hand"))
+        changed(lambda: browser.find_element(By.ID, "reminder").click())
         text = window.file.read_text()
         check(
-            "each choice is in the settings file, the user's lines kept",
-            saved
-            and 'after = "nothing"' in text
+            "each choice is in the settings file, the user's lines kept, a change by hand too",
+            'after = "nothing"' in text
             and "reminder = false" in text
-            and "keep_audio = 30" in text
+            and "keep_audio = 90 # by hand" in text
             and f'model = "{models / "ggml-small.bin"}"' in text
             and text.startswith(f'sessions = "{chosen}"\n')
             and "# mine" in text,
@@ -350,6 +360,17 @@ def main() -> int:
         locked = browser.execute_script("return [...document.querySelectorAll('#settings input, #settings select')].every(e => e.disabled)")
         check("a settings file that cannot be read is said so, and nothing can be changed", warned.startswith("Le fichier des réglages ne peut pas être lu") and locked, warned)
         check("it is left as it was", window.file.read_text() == f'sessions = "{broken}"\nkeep_audio = 0\n')
+        # The shell itself refuses, not only the page.
+        refused = browser.execute_async_script(
+            "const done = arguments[0]; window.__TAURI__.core.invoke('settings_saved', {change: {reminder: false}})"
+            ".then(() => done('saved'), why => done('refused: ' + why))"
+        )
+        check("the shell refuses a change while the file cannot be read", refused.startswith("refused"), refused)
+        # Corrected by hand, the page opens again when the window comes forward.
+        window.file.write_text(f'sessions = "{broken}"\nkeep_audio = 7\n')
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        open_again = wait_for(browser, lambda b: not b.find_element(By.ID, "reminder").get_attribute("disabled"), 5)
+        check("a file corrected by hand opens the page again", open_again and not browser.find_elements(By.CSS_SELECTOR, "#settings .warn:not([hidden])")[1:])
 
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"
