@@ -17,6 +17,8 @@ struct Played {
     calls: usize,
     fails_at: Option<usize>,
     asked: Vec<(usize, Option<String>, Option<String>)>,
+    /// Writes these too, wherever they fall — on silence, as Whisper does.
+    invents: Vec<(f64, f64, &'static str)>,
 }
 
 impl Engine for Played {
@@ -35,6 +37,13 @@ impl Engine for Played {
             return Ok(vec![Segment { start, end, text }]);
         }
         let (mut segments, mut since) = (Vec::new(), None);
+        for (start, end, text) in &self.invents {
+            segments.push(Segment {
+                start: *start,
+                end: *end,
+                text: (*text).into(),
+            });
+        }
         for (at, sample) in sound.iter().chain(&[0.0]).enumerate() {
             match (since, *sample != 0.0) {
                 (None, true) => since = Some(at),
@@ -54,11 +63,25 @@ impl Engine for Played {
 /// An audio file of a session: `seconds` long, with sound in the given stretches. Its
 /// header says "length unknown", as a recording in progress or ended by a crash does.
 fn audio(path: &Path, seconds: f64, speech: &[(f64, f64)]) {
+    audio_at(path, seconds, speech, 8000);
+}
+
+/// The same, its voice at this amplitude.
+fn audio_at(path: &Path, seconds: f64, speech: &[(f64, f64)], loudness: i16) {
+    let stretches: Vec<(f64, f64, i16)> = speech.iter().map(|(from, to)| (*from, *to, loudness)).collect();
+    audio_of(path, seconds, &stretches);
+}
+
+/// The same, each stretch at its own amplitude.
+fn audio_of(path: &Path, seconds: f64, stretches: &[(f64, f64, i16)]) {
     let mut bytes = b"RIFF\xff\xff\xff\xffWAVEfmt \x10\0\0\0\x01\0\x01\0\x80\x3e\0\0\0\x7d\0\0\x02\0\x10\0data\xff\xff\xff\xff".to_vec();
     for n in 0..(seconds * RATE as f64) as usize {
         let at = n as f64 / RATE as f64;
-        let loud = speech.iter().any(|(from, to)| (*from..*to).contains(&at));
-        bytes.extend_from_slice(&(if loud { 8000i16 } else { 0 }).to_le_bytes());
+        let loudness = stretches
+            .iter()
+            .find(|(from, to, _)| (*from..*to).contains(&at))
+            .map_or(0, |(.., loudness)| *loudness);
+        bytes.extend_from_slice(&loudness.to_le_bytes());
     }
     fs::write(path, bytes).unwrap();
 }
@@ -277,4 +300,28 @@ fn the_length_the_last_line_says_is_the_one_the_session_was_covered_to() {
     let text = fs::read_to_string(folder.path().join("transcript.jsonl")).unwrap();
     assert!(text.contains(r#"{"speaker":"me","type":"covered","until":1.01}"#), "{text}");
     assert!(text.trim_end().ends_with(r#"{"duration":1.01,"type":"complete"}"#), "{text}");
+}
+
+#[test]
+fn what_the_engine_writes_on_a_tracks_silence_is_not_kept_and_a_quiet_voice_is() {
+    let folder = tempfile::tempdir().unwrap();
+    fs::write(folder.path().join("session.json"), STOPPED).unwrap();
+    // A room's faint noise, 46 dB under the voice, is no voice either.
+    audio_of(&folder.path().join("me.wav"), 20.0, &[(3.0, 5.0, 8000), (13.0, 17.0, 40)]);
+    // The other side speaks 40 dB lower: its own level, not the loudest track's, is the measure.
+    audio_at(&folder.path().join("others.wav"), 20.0, &[(10.0, 12.0)], 80);
+    let mut engine = Played {
+        // A sentence written on silence, a word with no length on silence, and one within a voice.
+        invents: vec![(14.0, 16.0, "je dois checker"), (8.0, 8.0, "ok"), (4.0, 4.0, "oui")],
+        ..Default::default()
+    };
+    transcribe(folder.path(), &mut engine, Some("fr"), 300).unwrap();
+    assert_eq!(
+        segments(folder.path()),
+        [
+            ("me".to_string(), 3.0, 5.0),
+            ("me".to_string(), 4.0, 4.0),
+            ("others".to_string(), 10.0, 12.0),
+        ]
+    );
 }

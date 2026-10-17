@@ -16,6 +16,14 @@ const SILENCE: f32 = 0.001;
 /// a sentence cut in two.
 const EDGE: usize = 100;
 
+/// Decibels under a track's own speech level where its sound is silence for it: a segment the
+/// engine wrote there was not said. Whisper writes text on silence — a sentence of the meeting
+/// again and again, a word of another language — and a track is silent while the other side
+/// speaks. On the decider's call of 2026-10-17 every such segment lay 38 to 163 dB under its
+/// track's level, every one said within 20; on the bench, only two were taken out, both
+/// invented (cycle 02, D10).
+const UNVOICED_DB: f32 = 30.0;
+
 /// What hears: one question, whatever answers it. Times are seconds from the span's start.
 pub trait Engine {
     /// Its name and its model, as the transcript's header says them.
@@ -189,6 +197,31 @@ pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: boo
     Ok([(Speaker::Me, local), (Speaker::Others, remote)])
 }
 
+/// A track's speech level: the root mean square of its tenths of a second, the one nine in ten
+/// stay under — where its voice is, whatever its silences.
+fn speech_level(track: &[f32]) -> f32 {
+    let mut tenths: Vec<f32> = track.chunks(RATE / 10).map(rms).collect();
+    tenths.sort_by(f32::total_cmp);
+    tenths.get(tenths.len() * 9 / 10).copied().unwrap_or(0.0)
+}
+
+fn rms(samples: &[f32]) -> f32 {
+    (samples.iter().map(|sample| sample * sample).sum::<f32>() / samples.len().max(1) as f32).sqrt()
+}
+
+/// Whether a stretch of a track, in hundredths of a second, sounds within [`UNVOICED_DB`] of
+/// the track's speech level. A word that has no length is judged on the tenth around it.
+fn voiced(track: &[f32], start: usize, end: usize, level: f32) -> bool {
+    let at = |hundredth: usize| (hundredth * (RATE / 100)).min(track.len());
+    let (from, until) = if end > start {
+        (at(start), at(end))
+    } else {
+        (at(start).saturating_sub(RATE / 20), at(start) + RATE / 20)
+    };
+    let stretch = &track[from.min(track.len())..until.min(track.len())];
+    !stretch.is_empty() && rms(stretch) >= level * 10f32.powf(-UNVOICED_DB / 20.0)
+}
+
 /// A sound as a WAV file of 32-bit floating point samples, one channel, [`RATE`] a second:
 /// what was heard, to the bit.
 fn wav(sound: &[f32]) -> Vec<u8> {
@@ -246,6 +279,7 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
     const HUNDREDTH: usize = RATE / 100;
     let span = seconds.clamp(1, 86_400) * 100;
     for (speaker, heard) in &sounds {
+        let level = speech_level(heard);
         let sounding = as_delivered.then(|| sounding(heard));
         // A file still being written is heard up to its last whole hundredth; one that was stopped, to the nearest.
         let end = (heard.len() + if stopped { HUNDREDTH / 2 } else { 0 }) / HUNDREDTH;
@@ -270,6 +304,7 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
                 .into_iter()
                 .flatten()
                 .map(|segment| (within(segment.start), within(segment.end), segment.text))
+                .filter(|(start, end, _)| voiced(heard, *start, *end, level))
                 .collect();
             segments.sort_by_key(|(start, ..)| *start);
             // One that starts in the span's last hundredth is heard with what follows, from the hundredth before.
