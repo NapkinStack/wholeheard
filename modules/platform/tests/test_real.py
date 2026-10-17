@@ -22,6 +22,17 @@ def valid(schema: str, documents: list) -> bool:
     return all(reads.is_valid(document) for document in documents)
 
 
+def heard(path: Path, at: float) -> tuple[float, float]:
+    """The loudest pitch of a file during the second after `at`, and how loud it is there."""
+    rate, sound = wavfile.read(path)
+    sound = sound.astype(np.float64)
+    if sound.ndim > 1:
+        sound = sound.mean(axis=1)
+    piece = sound[round(at * rate) : round((at + 1) * rate)]
+    peak = float(np.argmax(np.abs(np.fft.rfft(piece))))  # one second: one bin per hertz
+    return peak, float(np.sqrt(np.mean(piece**2)) / np.max(np.abs(sound)))
+
+
 def test_a_reference_is_read_without_its_marks():
     assert spoken("par_rapport_à ce * que j' ai vingt+ quatre") == [
         "par",
@@ -85,7 +96,7 @@ def test_a_meeting_becomes_a_passage_in_both_forms_with_what_was_said_in_it(tmp_
     assert 100 <= length <= 140 and all(0 <= t["start"] < t["end"] <= length for t in reference["turns"])
     assert {t["side"] for t in reference["turns"] if t["speaker"] == "001"} == {"local"}
     assert {t["side"] for t in reference["turns"] if t["speaker"] != "001"} == {"remote"}
-    # The first form: one channel at 16 kHz each side, the local only on its own track.
+    # The first form: one channel at 16 kHz each side; where each voice lands is read below.
     with wave.open(str(passage / "v1" / "me.wav")) as me:
         assert (me.getframerate(), me.getnchannels()) == (16_000, 1)
     assert valid("session-audio/v1/session.schema.json", [json.loads((passage / "v1" / "session.json").read_text())])
@@ -94,9 +105,20 @@ def test_a_meeting_becomes_a_passage_in_both_forms_with_what_was_said_in_it(tmp_
     assert valid("session-audio/v2/session.schema.json", [json.loads((passage / "v2" / "session.json").read_text())])
     assert valid("session-audio/v2/clock.schema.json", clock)
     assert {line["track"] for line in clock} == {"local", "remote"}
+    # Each voice lands on its own side, at its own pitch and moment, in both forms: the
+    # third participant, recorded at 32 kHz, included.
+    first = {s: next(t["start"] for t in reference["turns"] if t["speaker"] == s) for s in ("001", "002", "003")}
+    for side, files in (("local", ("v1/me.wav", "v2/local.wav")), ("remote", ("v1/others.wav", "v2/remote.wav"))):
+        for name in files:
+            for speaker, hertz in (("001", 220), ("002", 330), ("003", 440)):
+                pitch, level = heard(passage / name, first[speaker] + 1)
+                if (speaker == "001") == (side == "local"):
+                    assert abs(pitch - hertz) <= 2, f"{name}: {speaker} heard at {pitch} Hz"
+                else:
+                    assert level < 0.01, f"{name}: {speaker} heard on the {side} side"
 
 
-def test_a_transcript_that_says_what_was_said_is_scored_none_missed_side_by_side(tmp_path, capsys):
+def test_a_transcript_is_scored_side_by_side_missed_and_misheard_apart_from_words_beyond(tmp_path, capsys):
     shard(tmp_path / "shards")
     build(tmp_path / "shards", tmp_path / "out", 2.0)
     passage = tmp_path / "out" / "m1"
@@ -113,10 +135,16 @@ def test_a_transcript_that_says_what_was_said_is_scored_none_missed_side_by_side
         }
         for t in turns
     ]
+    # On the local side, one word missed and one misheard; on the remote, one word more.
+    local = [line for line in lines if line["track"] == "local"]
+    local[0]["text"] = local[0]["text"].rsplit(" ", 1)[0]
+    local[1]["text"] = "bonsoir " + local[1]["text"].split(" ", 1)[1]
+    said = sum(1 for t in turns if t["side"] == "local" for w in spoken(t["text"]) if w not in FILLERS)
     lines.append({"type": "segment", "start": 0.0, "end": 0.5, "speaker": None, "track": "remote", "text": "oui"})
     (passage / "v1" / "transcript.jsonl").write_text("".join(json.dumps(line) + "\n" for line in lines))
     score([passage])
-    said = capsys.readouterr().out
-    assert "m1 v1 local: 0.0% missed or misheard, 0.0% written beyond" in said
-    assert "m1 v1 remote: 0.0% missed or misheard" in said and "m1 v1 remote: 0.0% missed or misheard, 0.0%" not in said
-    assert "median v1 local:" in said and "median v1 remote:" in said
+    printed = capsys.readouterr().out
+    assert f"m1 v1 local: {2 / said:.1%} missed or misheard, 0.0% written beyond" in printed
+    assert "m1 v1 remote: 0.0% missed or misheard" in printed
+    assert "m1 v1 remote: 0.0% missed or misheard, 0.0%" not in printed
+    assert "median v1 local:" in printed and "median v1 remote:" in printed

@@ -88,7 +88,11 @@ so a remote side can rightly hold the local one's words, faintly heard. No audio
 repository: the shards are fetched from the hub.
 
 ```bash
-# The shards of the meetings to read, fetched once into <parquet-folder>; then, five minutes of each.
+# The shards, fetched once into <parquet-folder>: the test split's 0, 2, 3, 5, 6, 21, 22 and 23
+# hold eight meetings whole (about 560 MB each; check each against the hub's sha256).
+for n in 0 2 3 5 6 21 22 23; do f=$(printf "test-%05d-of-00028.parquet" $n)
+  curl -L -o <parquet-folder>/$f https://huggingface.co/datasets/linagora/SUMM-RE/resolve/main/data/test/$f; done
+# Then, five minutes of each.
 uv run python -m bench.real build <parquet-folder> <out-folder> 5
 summit-transcription <out-folder>/<meeting>/v1 --model <model-file> --language fr   # and v2
 uv run python -m bench.real score <out-folder>/*
