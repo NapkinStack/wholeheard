@@ -99,3 +99,7 @@ main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 56px; display: flex
 .row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font: inherit; }
 .warn { padding: 12px 16px; color: var(--red); }
+.minutes-step { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.fields { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 200px; }
+.field input { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; }

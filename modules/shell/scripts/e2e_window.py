@@ -9,11 +9,13 @@ Prints one line per check, `ok` or `FAIL`, and exits 1 on any failure.
 from __future__ import annotations
 
 import datetime as dt
+import http.server
 import json
 import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -70,13 +72,14 @@ def session(folder: Path, started: dt.datetime, minutes: float | None, files: di
 class Window:
     """Summit with its window, for as long as the `with` lasts."""
 
-    def __init__(self, sessions: Path, language: str, more: str = "") -> None:
+    def __init__(self, sessions: Path, language: str, more: str = "", ollama: str = "http://127.0.0.1:9") -> None:
         config = WORK / f"config-{language}-{sessions.name}"
         (config / "summit").mkdir(parents=True, exist_ok=True)
         self.file = config / "summit" / "settings.toml"
         self.file.write_text(f'sessions = "{sessions}"\n{more}')
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), LANGUAGE="")
-        self.env.update(LANG=language, LC_ALL=language)
+        # An Ollama and a keyring of the scenario's, never the user's own.
+        self.env.update(LANG=language, LC_ALL=language, SUMMIT_OLLAMA=ollama, SUMMIT_KEYRING="memory")
 
     def __enter__(self) -> webdriver.Remote:
         port, native = free_port(), free_port()
@@ -356,6 +359,73 @@ def main() -> int:
         changed(lambda: browser.find_element(By.ID, "reminder").click())
         said = browser.find_element(By.ID, "not-saved").text
         check("a file that cannot be read is not written over", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == broken, said)
+    # Who writes the minutes: an Ollama made here, an online service, an address of the user's. A
+    # key goes to the scenario's own keyring, which lives as long as the program.
+    class Tags(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"models": [{"name": "qwen3:14b"}, {"name": "mistral:7b"}]}).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    tags = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Tags)
+    threading.Thread(target=tags.serve_forever, daemon=True).start()
+    ollama = f"http://127.0.0.1:{tags.server_address[1]}"
+    writers = WORK / "writers"
+    writers.mkdir()
+    window = Window(writers, "fr_FR.UTF-8", ollama=ollama)
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "minutes"))
+        offered = browser.execute_script("return [...document.querySelectorAll('#minutes option')].map(o => o.textContent)")
+        check(
+            "who can write the minutes: Ollama's models, the online services, one's own",
+            offered == ["Pas encore choisi", "mistral:7b", "qwen3:14b", "OpenRouter", "OpenAI", "Mistral", "Personnalisé…"],
+            offered,
+        )
+        before = browser.find_element(By.ID, "minutes")
+        Select(before).select_by_visible_text("mistral:7b")
+        WebDriverWait(browser, 5).until(staleness_of(before))
+        local = wait_for(browser, lambda b: "mistral:7b" in window.file.read_text(), 5)
+        check(
+            "a model of Ollama is chosen at once",
+            local and f'minutes_provider = "{ollama}/v1"' in window.file.read_text(),
+            window.file.read_text(),
+        )
+        Select(browser.find_element(By.ID, "minutes")).select_by_visible_text("OpenRouter")
+        key = browser.find_element(By.ID, "minutes-key")
+        check("a key is typed where it is not shown, and never filled in", key.get_attribute("type") == "password" and key.get_attribute("value") == "")
+        browser.find_element(By.ID, "minutes-model").send_keys("anthropic/claude-sonnet")
+        key.send_keys("sk-scenario")
+        before = browser.find_element(By.ID, "minutes")
+        browser.find_element(By.ID, "minutes-save").click()
+        # Saved, the page is drawn again: what follows acts on the new one.
+        WebDriverWait(browser, 5).until(staleness_of(before))
+        online = wait_for(browser, lambda b: "openrouter.ai" in window.file.read_text(), 5)
+        text = window.file.read_text()
+        check(
+            "an online service, with its address and the model named",
+            online and 'minutes_provider = "https://openrouter.ai/api/v1"' in text and 'minutes_model = "anthropic/claude-sonnet"' in text,
+            text,
+        )
+        kept = browser.find_element(By.ID, "minutes-key")
+        check(
+            "the key is kept, said so, and never shown back nor written in the settings",
+            kept.get_attribute("value") == "" and kept.get_attribute("placeholder").startswith("Une clé est gardée") and "sk-scenario" not in text,
+            kept.get_attribute("placeholder"),
+        )
+        Select(browser.find_element(By.ID, "minutes")).select_by_visible_text("Personnalisé…")
+        browser.find_element(By.ID, "minutes-address").send_keys("not an address")
+        browser.find_element(By.ID, "minutes-model").send_keys("m")
+        browser.find_element(By.ID, "minutes-save").click()
+        said = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
+        check("an address that is none is said, and nothing changes", said and window.file.read_text() == text, browser.find_element(By.ID, "not-saved").text)
+    tags.shutdown()
+
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"
     empty.mkdir()
