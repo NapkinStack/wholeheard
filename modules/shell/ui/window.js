@@ -154,6 +154,49 @@ const clock = (seconds) => {
   return shown.map((part) => String(part).padStart(2, "0")).join(":");
 };
 
+// Who spoke, over the meeting: for each track, the share of each sixtieth of it covered by speech.
+function relief(segments, total, words) {
+  const bins = 60;
+  const share = { local: new Array(bins).fill(0), remote: new Array(bins).fill(0) };
+  const width = total / bins;
+  for (const segment of segments) {
+    for (let bin = Math.floor(segment.start / width); bin < bins && bin * width < segment.end; bin += 1) {
+      const covered = Math.min(segment.end, (bin + 1) * width) - Math.max(segment.start, bin * width);
+      share[segment.track][bin] = Math.min(1, share[segment.track][bin] + covered / width);
+    }
+  }
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 1100 88");
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", words.who_spoke);
+  svg.classList.add("relief");
+  for (const [track, sign, base] of [["local", -1, 42], ["remote", 1, 46]]) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    line.setAttribute("points", share[track].map((v, i) => `${(i * 1100) / (bins - 1)},${base + sign * v * 36}`).join(" "));
+    line.classList.add(track);
+    svg.append(line);
+  }
+  return svg;
+}
+
+function minutesCard(read, words) {
+  const card = element("article", "card minutes");
+  card.append(element("h2", "label", words.minutes_title));
+  if (read.state !== "present") {
+    card.append(element("p", "none", read.state === "absent" ? words.no_minutes : words.unreadable));
+    return card;
+  }
+  const made = read.made && dayOf({ instant: Date.parse(read.made) / 1000 || null });
+  const when = made ? new Intl.DateTimeFormat(words.locale, { dateStyle: "medium", timeStyle: "short" }).format(made) : "—";
+  card.append(element("p", "maker", fill(words.written_by, read.model || "—", read.provider || "—", when)));
+  // The minutes as written, rendered by the shell: raw HTML in them is text there, a link its words.
+  const body = element("div", "body");
+  body.innerHTML = read.body;
+  card.append(body);
+  return card;
+}
+
 const folded = (text) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 function transcriptCard(read, words) {
@@ -192,7 +235,7 @@ function transcriptCard(read, words) {
     const wanted = folded(search.value.trim());
     let shown = 0;
     for (const line of lines.children) {
-      line.hidden = wanted !== "" && !folded(line.textContent).includes(wanted);
+      line.hidden = wanted !== "" && !folded(line.querySelector(".text").textContent).includes(wanted);
       shown += line.hidden ? 0 : 1;
     }
     nothing.hidden = shown > 0;
@@ -201,7 +244,7 @@ function transcriptCard(read, words) {
   return card;
 }
 
-function showMeeting({ session, transcript }, words) {
+function showMeeting({ session, transcript, minutes }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
   const back = element("a", "back", `‹ ${words.back}`);
@@ -215,11 +258,18 @@ function showMeeting({ session, transcript }, words) {
   named.append(element("h1", "", heading(session, words)));
   if (session.seconds !== null) named.append(element("span", "length", length(session.seconds)));
   title.append(named, holdings(session, words));
+  const said = transcript.state === "present" ? transcript.segments : [];
+  const total = session.seconds || said.reduce((end, s) => Math.max(end, s.end), 0) || 1;
+  const drawn = element("section", "card drawn");
+  const legend = element("div", "legend");
+  legend.append(element("span", "here", words.here_described), element("span", "remote", words.remote_described));
+  drawn.append(relief(said, total, words), legend);
   const columns = element("div", "columns");
-  columns.append(transcriptCard(transcript, words));
-  // Shown again when the window comes forward: a search in progress is kept.
-  const searching = document.getElementById("search")?.value ?? "";
-  page.replaceChildren(top, title, columns);
+  columns.append(minutesCard(minutes, words), transcriptCard(transcript, words));
+  // Shown again when the window comes forward: a search in progress in this meeting is kept.
+  const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
+  page.dataset.name = nameOf(session);
+  page.replaceChildren(top, title, drawn, columns);
   const search = document.getElementById("search");
   if (search && searching) {
     search.value = searching;
@@ -234,10 +284,18 @@ async function refresh() {
   words = listing.words;
   show(listing);
   const wanted = location.hash.match(/^#\/meeting\/(.+)$/);
-  const meeting = document.getElementById("meeting");
-  document.getElementById("list").hidden = Boolean(wanted);
-  meeting.hidden = !wanted;
-  if (wanted) showMeeting(await window.__TAURI__.core.invoke("opened", { name: decodeURIComponent(wanted[1]) }), words);
+  let opened = null;
+  if (wanted) {
+    // A meeting no longer there, or a name that is none, goes back to the list.
+    try {
+      opened = await window.__TAURI__.core.invoke("opened", { name: decodeURIComponent(wanted[1]) });
+    } catch {
+      history.replaceState(null, "", "#/");
+    }
+  }
+  document.getElementById("list").hidden = opened !== null;
+  document.getElementById("meeting").hidden = opened === null;
+  if (opened) showMeeting(opened, words);
 }
 
 refresh();

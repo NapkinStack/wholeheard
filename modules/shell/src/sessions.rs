@@ -57,7 +57,8 @@ pub fn list(sessions: &Path, recording: Option<&Path>) -> Vec<Listed> {
 }
 
 /// The folder of the session a page names, in the sessions' folder: by its name alone — never a
-/// path, never a way out of the folder — and only when it holds a session.
+/// path, never a way out of the folder by its name — and only when it holds a session. A link the
+/// user put in the folder is followed, as the list follows it.
 pub fn folder(sessions: &Path, name: &str) -> Option<PathBuf> {
     let mut parts = Path::new(name).components();
     let (Some(std::path::Component::Normal(part)), None) = (parts.next(), parts.next()) else {

@@ -203,7 +203,7 @@ def main() -> int:
         came = wait_for(browser, lambda b: len(rows(b)) == 7)
         check("a new session is listed when the window comes forward", came, rows(browser))
 
-    print("J. one meeting: its transcript, searched")
+    print("J. one meeting: its minutes beside its transcript, searched")
     meetings = WORK / "meetings"
     session(meetings / "m", now - dt.timedelta(hours=3), 16, {"local.wav": 4000, "remote.wav": 4000})
     lines = [
@@ -222,6 +222,9 @@ def main() -> int:
     )
     session(meetings / "n", now - dt.timedelta(days=1), 5, {"local.wav": 100})
     (meetings / "n" / "minutes.md").write_text("Not minutes.\n")
+    (meetings / "n" / "transcript.jsonl").write_text(
+        json.dumps(lines[0]) + "\n" + json.dumps({"type": "segment", "speaker": "me", "track": "local", "voice": None, "start": 1.0, "end": 2.0, "text": "Une autre réunion."}) + "\n"
+    )
     with Window(meetings, "fr_FR.UTF-8") as browser:
         browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB)
         focused = browser.execute_script("return document.activeElement.className")
@@ -229,6 +232,33 @@ def main() -> int:
         browser.find_elements(By.CSS_SELECTOR, ".session")[0].click()
         shown = wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".lines li"))
         check("a click on a meeting opens it", shown and not browser.find_element(By.ID, "list").is_displayed())
+        minutes = browser.find_element(By.CSS_SELECTOR, ".minutes")
+        titles = [h.text for h in minutes.find_elements(By.CSS_SELECTOR, ".body h2")]
+        check("the minutes' three sections, by their own titles", titles == ["Points saillants", "Actions", "Points clés"], titles)
+        items = [li.text for li in minutes.find_elements(By.CSS_SELECTOR, ".body li")]
+        check(
+            "the minutes as written: each action, each key point",
+            items
+            == [
+                "Mettre à jour le planning — Marc — aujourd’hui",
+                "Couper deux serveurs de test — Julien — avant vendredi",
+                "Un serveur est gardé pour la démonstration du 20.",
+            ],
+            items,
+        )
+        drawn = browser.execute_script(
+            "const s = document.querySelector('.relief'); return [s.getAttribute('aria-label'),"
+            " ...['local', 'remote'].map(t => s.querySelector('.' + t).getAttribute('points').split(' ').map(p => +p.split(',')[1]))]"
+        )
+        label, here, remote = drawn
+        # Speech in the first sixtieth of the meeting, on each side: here rises above the middle, remote falls below.
+        check(
+            "who spoke is drawn over the meeting, here above and remote below",
+            label.startswith("Qui a parlé") and len(here) == len(remote) == 60 and here[0] < 42 and remote[0] > 46 and here[-1] == 42,
+            drawn,
+        )
+        maker = minutes.find_element(By.CSS_SELECTOR, ".maker").text
+        check("who wrote the minutes, and where", maker.startswith("Écrit par claude-sonnet, via openrouter.ai · "), maker)
         said = browser.execute_script(
             "return [...document.querySelectorAll('.lines li')].map(li => [li.querySelector('.at'), li.querySelector('.who'), li.querySelector('.text')].map(c => c.textContent).join(' | '))"
         )
@@ -252,14 +282,26 @@ def main() -> int:
         search.send_keys("zzz")
         none = [p.text for p in browser.find_elements(By.CSS_SELECTOR, ".transcript .none") if p.is_displayed()]
         check("a search that finds nothing says so", none == ["Rien de ce qui a été dit ne correspond."], none)
+        search.clear()
+        search.send_keys("voix")
+        none = [p.text for p in browser.find_elements(By.CSS_SELECTOR, ".transcript .none") if p.is_displayed()]
+        check("a search looks at what was said, not at who or when", none == ["Rien de ce qui a été dit ne correspond."], none)
         check("the folder can be opened from the meeting", browser.find_element(By.CSS_SELECTOR, ".open").text == "Ouvrir le dossier")
         browser.find_element(By.CSS_SELECTOR, ".back").click()
         back = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed())
         check("the way back is the list", back and not browser.find_element(By.ID, "meeting").is_displayed())
         browser.find_elements(By.CSS_SELECTOR, ".session")[1].click()
-        wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".transcript .none"))
+        wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".minutes .none"))
+        kept = browser.execute_script("return document.getElementById('search') && document.getElementById('search').value")
+        check("another meeting opens without the last one's search", not kept, kept)
         notes = [p.text for p in browser.find_elements(By.CSS_SELECTOR, "#meeting .none") if p.is_displayed()]
-        check("no transcript is said so", notes == ["Pas encore de transcript."], notes)
+        check("minutes that cannot be read are said so", notes == ["Ce fichier ne peut pas être lu par cette version de Summit."], notes)
+        being = [p.text for p in browser.find_elements(By.CSS_SELECTOR, ".transcript .note")]
+        check("a transcript without its end says it is being written", being == ["En cours d’écriture — ce qui est là est vrai quand même."], being)
+
+        browser.execute_script("location.hash = '#/meeting/' + encodeURIComponent('gone')")
+        listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed())
+        check("a meeting that is not there goes back to the list", listed and not browser.find_element(By.ID, "meeting").is_displayed())
 
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"
