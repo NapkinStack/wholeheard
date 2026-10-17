@@ -221,7 +221,7 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     let mut started = false;
     let mut stopped = None;
     for event in said {
-        started |= matches!(event, Said::Started(_));
+        started |= matches!(event, Said::Started(..));
         let notice = match &event {
             // Ended before it had started: nothing was recorded, and that is the trouble.
             Said::Failed(why) if !started => Some(words::trouble(&Trouble::NoRecorder(why.clone()), shell.language)),

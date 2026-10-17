@@ -81,14 +81,31 @@ fn detail(said: &str) -> String {
 pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
     use Language::{English, French};
     let (title, body, why) = match (said, language) {
-        (Said::Started(_), _) if !reminder => return None,
+        (Said::Started(..), _) if !reminder => return None,
         (Said::Heard(_), _) => return None,
-        (Said::Started(_), English) => ("Recording", "Tell the participants that this meeting is being recorded.", ""),
-        (Said::Started(_), French) => (
-            "Enregistrement en cours",
-            "Prévenez les participants que cette réunion est enregistrée.",
-            "",
-        ),
+        // The microphone is named, so that one other than the call's shows at once.
+        (Said::Started(_, microphone), English) => {
+            let named = microphone
+                .as_ref()
+                .map(|name| format!("Microphone recorded: {name}. "))
+                .unwrap_or_default();
+            return notice(
+                "Recording",
+                format!("{named}Tell the participants that this meeting is being recorded."),
+                "",
+            );
+        }
+        (Said::Started(_, microphone), French) => {
+            let named = microphone
+                .as_ref()
+                .map(|name| format!("Micro enregistré\u{a0}: {name}. "))
+                .unwrap_or_default();
+            return notice(
+                "Enregistrement en cours",
+                format!("{named}Prévenez les participants que cette réunion est enregistrée."),
+                "",
+            );
+        }
         (Said::Unavailable(Source::Me, why), English) => (
             "Your microphone is not recorded",
             "The meeting’s sound is still recorded.",
