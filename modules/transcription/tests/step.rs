@@ -325,3 +325,33 @@ fn what_the_engine_writes_on_a_tracks_silence_is_not_kept_and_a_quiet_voice_is()
         ]
     );
 }
+
+#[test]
+fn a_voice_heard_a_little_sets_its_tracks_level_and_the_gate_holds_span_by_span() {
+    let folder = tempfile::tempdir().unwrap();
+    fs::write(folder.path().join("session.json"), STOPPED).unwrap();
+    // A voice for 1.5 s of 40 — under a tenth of the track — a short loud click, faint noise,
+    // and a second voice 28.5 dB under the first: the level is the voice's, not the silence's
+    // nor the click's.
+    audio_of(
+        &folder.path().join("me.wav"),
+        40.0,
+        &[(3.0, 4.0, 8000), (6.0, 6.1, 32000), (13.0, 17.0, 40), (30.0, 30.5, 300)],
+    );
+    audio(&folder.path().join("others.wav"), 40.0, &[]);
+    // Spans of 10 s, so the engine writes these in each — times from the span's start: on the
+    // noise from 14 s, and a word with no length 0.3 s after the first voice.
+    let mut engine = Played {
+        invents: vec![(4.0, 6.0, "je dois checker"), (4.3, 4.3, "ok")],
+        ..Default::default()
+    };
+    transcribe(folder.path(), &mut engine, Some("fr"), 10).unwrap();
+    let me: Vec<(f64, f64)> = segments(folder.path())
+        .into_iter()
+        .filter(|(speaker, ..)| speaker == "me")
+        .map(|(_, start, end)| (start, end))
+        .collect();
+    // The level is the track's, not each span's: what was said stays, all that was written on
+    // silence or noise leaves.
+    assert_eq!(me, [(3.0, 4.0), (6.0, 6.1), (30.0, 30.5)]);
+}

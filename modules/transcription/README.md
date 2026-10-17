@@ -85,10 +85,12 @@ every other draw, the television and the trial meeting are unchanged (cycle 02, 
 **What the engine writes on silence is not kept.** Whisper writes text where nobody speaks: a
 sentence of the meeting again and again, a word of another language, a credit line. Each side
 is heard on its own track, and a track is silent while the other side speaks. A segment
-written where its own track sounds more than 30 dB under that track's speech level is
-dropped; the engine hears exactly what it heard before, so no word said is lost.
-- **A real call** (a headset, a TV in the room): every invented segment lay 38 to 163 dB
-  under its track's level, every one said within 20. All of them left.
+written where its own track sounds more than 34 dB under that track's speech level is
+dropped. The level is read from the tenths of a second that sound, so a side that speaks
+little is measured on its voice. The engine hears exactly what it heard before.
+- **A real call** (a headset, a TV in the room): every invented segment lay 38.5 dB or more
+  under its track's level, and the quietest said one 28.2 dB under it. All the invented ones
+  left.
 - **The bench:** 11 transcripts of 13 unchanged, the two others losing one invented line
   each.
 - **The trial meeting:** unchanged (cycle 02, D10).

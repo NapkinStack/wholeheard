@@ -19,10 +19,16 @@ const EDGE: usize = 100;
 /// Decibels under a track's own speech level where its sound is silence for it: a segment the
 /// engine wrote there was not said. Whisper writes text on silence — a sentence of the meeting
 /// again and again, a word of another language — and a track is silent while the other side
-/// speaks. On the decider's call of 2026-10-17 every such segment lay 38 to 163 dB under its
-/// track's level, every one said within 20; on the bench, only two were taken out, both
+/// speaks. On the decider's call of 2026-10-17 every such segment lay 38.5 dB or more under its
+/// track's level, and the quietest said one 28.2 dB under it, its words timed partly on a
+/// pause; the threshold is between. On the bench only two segments were taken out, both
 /// invented (cycle 02, D10).
-const UNVOICED_DB: f32 = 30.0;
+const UNVOICED_DB: f32 = 34.0;
+
+/// Decibels under a track's loudest tenth of a second where a tenth no longer counts as sound:
+/// the speech level is read from the tenths that sound, so that a voice heard in a small share
+/// of a long track sets it, not the track's silence or faint noise.
+const SOUNDING_DB: f32 = 40.0;
 
 /// What hears: one question, whatever answers it. Times are seconds from the span's start.
 pub trait Engine {
@@ -197,12 +203,16 @@ pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: boo
     Ok([(Speaker::Me, local), (Speaker::Others, remote)])
 }
 
-/// A track's speech level: the root mean square of its tenths of a second, the one nine in ten
-/// stay under — where its voice is, whatever its silences.
+/// A track's speech level: of its tenths of a second that sound — within [`SOUNDING_DB`] of the
+/// loudest — the root mean square nine in ten stay under: where its voice is, however little it
+/// speaks.
 fn speech_level(track: &[f32]) -> f32 {
-    let mut tenths: Vec<f32> = track.chunks(RATE / 10).map(rms).collect();
-    tenths.sort_by(f32::total_cmp);
-    tenths.get(tenths.len() * 9 / 10).copied().unwrap_or(0.0)
+    let tenths: Vec<f32> = track.chunks(RATE / 10).map(rms).collect();
+    let loudest = tenths.iter().copied().fold(0.0, f32::max);
+    let floor = loudest * 10f32.powf(-SOUNDING_DB / 20.0);
+    let mut sounding: Vec<f32> = tenths.into_iter().filter(|tenth| *tenth > 0.0 && *tenth >= floor).collect();
+    sounding.sort_by(f32::total_cmp);
+    sounding.get(sounding.len() * 9 / 10).copied().unwrap_or(0.0)
 }
 
 fn rms(samples: &[f32]) -> f32 {
