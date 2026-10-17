@@ -2,6 +2,7 @@
 //! say as their contracts describe it, and turns that into what the user is told. The tray,
 //! the shortcut and the window are built on this, and hold none of it.
 
+pub mod meeting;
 pub mod model;
 pub mod recording;
 pub mod sessions;
