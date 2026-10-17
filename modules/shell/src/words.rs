@@ -296,6 +296,12 @@ pub struct Window {
     /// The folder the sessions go to, and the button that opens the system's dialog for it.
     pub sessions_folder: [&'static str; 2],
     pub choose: &'static str,
+    /// *Tester*: the button, what it sends and to whom, and what it found.
+    pub test: &'static str,
+    pub test_sends: &'static str,
+    pub testing: &'static str,
+    pub test_answered: &'static str,
+    pub test_failed: &'static str,
     pub keep_always: &'static str,
     /// A number of days the audio is kept.
     pub keep_days: &'static str,
@@ -378,9 +384,14 @@ pub fn window(language: Language) -> Window {
             ],
             sessions_folder: [
                 "Sessions folder",
-                "Each meeting is written in a folder of its own here, from the next recording.",
+                "New meetings are written here. Those already recorded stay where they were: the window and the audio's keeping follow this folder.",
             ],
             choose: "Choose…",
+            test: "Test",
+            test_sends: "Test sends {} one sentence of Summit's, nothing of a meeting.",
+            testing: "Testing…",
+            test_answered: "The model answers.",
+            test_failed: "The model does not answer: {}",
             keep_audio: [
                 "Keep the audio",
                 "After that, the audio goes to the trash; the transcript and minutes stay.",
@@ -460,9 +471,14 @@ pub fn window(language: Language) -> Window {
             ],
             sessions_folder: [
                 "Dossier des sessions",
-                "Chaque réunion y est écrite dans un dossier à elle, dès le prochain enregistrement.",
+                "Les nouvelles réunions y sont écrites. Celles déjà enregistrées restent où elles étaient : la fenêtre et la garde de l’audio suivent ce dossier.",
             ],
             choose: "Choisir…",
+            test: "Tester",
+            test_sends: "Tester envoie à {} une phrase de Summit, rien d’une réunion.",
+            testing: "Test en cours…",
+            test_answered: "Le modèle répond.",
+            test_failed: "Le modèle ne répond pas : {}",
             keep_audio: [
                 "Garder l’audio",
                 "Passé ce délai, l’audio part à la corbeille ; le transcript et le compte rendu restent.",
