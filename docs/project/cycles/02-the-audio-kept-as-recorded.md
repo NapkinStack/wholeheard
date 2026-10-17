@@ -182,7 +182,7 @@ asking**, read by the step that follows, and measured on the bench.
 | `capture` | `summit-capture record <sessions> --as v2` writes each source as delivered — its rate, its channels, 24 bits — and the session's clock beside. Without `--as v2` it writes the first form, as before: that is still what the tray starts. Its end-to-end scenarios cover both forms, on devices made for the run |
 | `platform` | The bench renders its meeting in either form, the second with a clock that has two stops and a silence in it |
 | `transcription` | Reads either form — `session.json` names which — and says which it read. A track is brought to what an engine hears and placed on the session's clock; the first form is heard as it always was |
-| What the programs say while recording (`recording/v1`) | The same lines in both forms; they still name the sources `me` and `others` where the second form's files are `local` and `remote` |
+| What the programs say while recording (`recording/v1`) | The same lines in both forms; they still name the sources `me` and `others` where the second form's files are `local` and `remote`. A source taken from a desktop's default is named for the device the default stands for (#153), and the tray's *Recording* notification names the microphone recorded (#154): on the decider's trial of 2026-10-17 the laptop's microphone was recorded while the call used the headset's, and nothing said so |
 
 **The remote side is worse in the second form** (median 6 → 21.5 words wrong of 331 on loud
 loudspeakers): the engine hears a long recording window after window, so a pause the clock
@@ -309,7 +309,8 @@ what they cost is who said what — which no lever of the transcript recovers. B
 - the transcript made and judged by the library, with the model the settings name (#140);
 - the transcript following the stop, from the tray (#141);
 - the default model fetched whole, resumed and checked (#142), offered in the menu and fetched
-  on the user's word (#144).
+  on the user's word (#144); the sessions stopped before and during a fetch wait in line and
+  are transcribed in order, held by the e2e (#155).
 
 | Criterion | Where it stands |
 |---|---|
