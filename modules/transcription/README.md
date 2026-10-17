@@ -86,12 +86,12 @@ every other draw, the television and the trial meeting are unchanged (cycle 02, 
 sentence of the meeting again and again, a word of another language, a credit line. Each side
 is heard on its own track, and a track is silent while the other side speaks. A segment
 written where its own track sounds more than 34 dB under that track's speech level is
-dropped. The level is read from the tenths of a second that sound, anchored on the track's
-loudest second, so a side that speaks little is measured on its voice and a knock does not
-set it. The engine hears exactly what it heard before.
-- **A real call** (a headset, a TV in the room): every invented segment lay 40.6 dB or more
-  under its track's level, and the quietest said one 30.3 dB under it. All the invented ones
-  left.
+dropped. The level is the track's tenth loudest second: a knock, a door or a ringtone does
+not fill ten seconds, so none sets it. The engine hears exactly what it heard before; only
+text is removed. A recording heard while it is still going on is judged on its level so far.
+- **A real call** (a headset, a TV in the room): every segment written on silence lay 39.3 dB
+  or more under its track's level, and the quietest said one 28.9 dB under it. All of them
+  left; a credit line written during the ringtone, which is loud, stays.
 - **The bench:** 11 transcripts of 13 unchanged, the two others losing one invented line
   each.
 - **The trial meeting:** unchanged (cycle 02, D10).

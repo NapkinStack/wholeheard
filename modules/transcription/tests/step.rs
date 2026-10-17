@@ -307,53 +307,23 @@ fn what_the_engine_writes_on_a_tracks_silence_is_not_kept_and_a_quiet_voice_is()
     let folder = tempfile::tempdir().unwrap();
     fs::write(folder.path().join("session.json"), STOPPED).unwrap();
     // A room's faint noise, 46 dB under the voice, is no voice either.
-    audio_of(&folder.path().join("me.wav"), 20.0, &[(3.0, 5.0, 8000), (13.0, 17.0, 40)]);
+    audio_of(&folder.path().join("me.wav"), 30.0, &[(1.0, 11.0, 8000), (14.0, 18.0, 40)]);
     // The other side speaks 40 dB lower: its own level, not the loudest track's, is the measure.
-    audio_at(&folder.path().join("others.wav"), 20.0, &[(10.0, 12.0)], 80);
+    audio_at(&folder.path().join("others.wav"), 30.0, &[(19.0, 29.0)], 80);
     let mut engine = Played {
-        // A sentence written on silence, a word with no length on silence, and one within a voice.
-        invents: vec![(14.0, 16.0, "je dois checker"), (8.0, 8.0, "ok"), (4.0, 4.0, "oui")],
+        // A sentence written on noise, a word with no length on silence, and one within a voice.
+        invents: vec![(15.0, 17.0, "je dois checker"), (12.0, 12.0, "ok"), (4.0, 4.0, "oui")],
         ..Default::default()
     };
     transcribe(folder.path(), &mut engine, Some("fr"), 300).unwrap();
     assert_eq!(
         segments(folder.path()),
         [
-            ("me".to_string(), 3.0, 5.0),
+            ("me".to_string(), 1.0, 11.0),
             ("me".to_string(), 4.0, 4.0),
-            ("others".to_string(), 10.0, 12.0),
+            ("others".to_string(), 19.0, 29.0),
         ]
     );
-}
-
-#[test]
-fn a_voice_heard_a_little_sets_its_tracks_level_and_the_gate_holds_span_by_span() {
-    let folder = tempfile::tempdir().unwrap();
-    fs::write(folder.path().join("session.json"), STOPPED).unwrap();
-    // A voice for 0.9 s of 40, a short loud click, faint noise for 16 s, and a second voice
-    // 28.5 dB under the first: the level is the voice's, not the silence's nor the click's.
-    audio_of(
-        &folder.path().join("me.wav"),
-        40.0,
-        &[
-            (3.0, 3.9, 8000),
-            (6.0, 6.1, 32000),
-            (11.0, 19.0, 40),
-            (21.0, 29.0, 40),
-            (30.0, 30.5, 300),
-        ],
-    );
-    audio(&folder.path().join("others.wav"), 40.0, &[]);
-    // Spans of 10 s, so the engine writes these in each — times from the span's start: on the
-    // noise from 14 s and 24 s, and a word with no length 0.4 s after the first voice.
-    let mut engine = Played {
-        invents: vec![(4.0, 6.0, "je dois checker"), (4.3, 4.3, "ok")],
-        ..Default::default()
-    };
-    transcribe(folder.path(), &mut engine, Some("fr"), 10).unwrap();
-    // The level is the track's, not each span's: what was said stays, all that was written on
-    // silence or noise leaves.
-    assert_eq!(kept(folder.path()), [(3.0, 3.9), (6.0, 6.1), (30.0, 30.5)]);
 }
 
 /// The segments kept on the local track.
@@ -365,36 +335,65 @@ fn kept(folder: &Path) -> Vec<(f64, f64)> {
         .collect()
 }
 
-#[test]
-fn a_knock_louder_than_a_quiet_voice_does_not_set_its_level() {
+/// The local track's kept segments when it holds these stretches, the engine also writing
+/// `invents` in each span of `span` seconds.
+fn heard_with(seconds: f64, stretches: &[(f64, f64, i16)], invents: Vec<(f64, f64, &'static str)>, span: usize) -> Vec<(f64, f64)> {
     let folder = tempfile::tempdir().unwrap();
     fs::write(folder.path().join("session.json"), STOPPED).unwrap();
-    // Ten seconds of a quiet voice, then a door, 40 dB louder, for nine tenths of a second.
-    audio_of(&folder.path().join("me.wav"), 14.0, &[(1.0, 11.0, 300), (12.0, 12.9, 32000)]);
-    audio(&folder.path().join("others.wav"), 14.0, &[]);
-    transcribe(folder.path(), &mut Played::default(), Some("fr"), 300).unwrap();
-    assert_eq!(kept(folder.path()), [(1.0, 11.0), (12.0, 12.9)]);
+    audio_of(&folder.path().join("me.wav"), seconds, stretches);
+    audio(&folder.path().join("others.wav"), seconds, &[]);
+    let mut engine = Played {
+        invents,
+        ..Default::default()
+    };
+    transcribe(folder.path(), &mut engine, Some("fr"), span).unwrap();
+    kept(folder.path())
 }
 
 #[test]
-fn the_level_is_where_nine_in_ten_sounding_tenths_stay_and_the_gate_34_db_under_it() {
-    let folder = tempfile::tempdir().unwrap();
-    fs::write(folder.path().join("session.json"), STOPPED).unwrap();
-    // A click; a voice at three loudnesses, the faintest 38 dB under its loudest second; a word
-    // 32 dB under the level the voice sets; and faint noise, 36.5 dB under it.
-    audio_of(
-        &folder.path().join("me.wav"),
-        32.0,
-        &[
-            (1.0, 1.1, 32000),
-            (2.0, 3.0, 8000),
-            (4.0, 5.9, 2000),
-            (7.0, 24.0, 100),
-            (25.0, 25.5, 50),
-            (26.5, 30.5, 30),
-        ],
+fn the_level_is_the_tracks_not_each_spans() {
+    // Spans of 20 s. The first holds half a second of a voice 28.5 dB under the second span's
+    // ten seconds, and faint noise: judged on its own, its level would be the noise's.
+    let kept = heard_with(
+        40.0,
+        &[(2.0, 2.5, 300), (11.0, 17.0, 40), (21.0, 31.0, 8000), (33.0, 38.0, 40)],
+        // Written on the noise of each span — times from the span's start — and a word with no
+        // length 0.3 s after the second span's voice.
+        vec![(14.0, 16.0, "je dois checker"), (14.3, 14.3, "ok"), (11.3, 11.3, "oui")],
+        20,
     );
-    audio(&folder.path().join("others.wav"), 32.0, &[]);
-    transcribe(folder.path(), &mut Played::default(), Some("fr"), 300).unwrap();
-    assert_eq!(kept(folder.path()), [(1.0, 1.1), (2.0, 3.0), (4.0, 5.9), (7.0, 24.0), (25.0, 25.5)]);
+    assert_eq!(kept, [(2.0, 2.5), (21.0, 31.0)]);
+}
+
+#[test]
+fn no_sound_shorter_than_ten_seconds_sets_the_level_however_loud() {
+    let quiet = (10.0, 60.0, 300);
+    // A ringtone at full scale for nine seconds, 40 dB over a quiet voice.
+    assert_eq!(
+        heard_with(62.0, &[(0.0, 9.0, 32000), quiet], vec![], 300),
+        [(0.0, 9.0), (10.0, 60.0)]
+    );
+    // Ten knocks, a tenth of a second each, spread over the voice.
+    let mut knocks: Vec<(f64, f64, i16)> = (0..10).map(|k| (1.0 + k as f64 * 5.0, 1.1 + k as f64 * 5.0, 32000)).collect();
+    knocks.push((61.0, 111.0, 300));
+    let kept = heard_with(112.0, &knocks, vec![], 300);
+    assert!(kept.contains(&(61.0, 111.0)), "{kept:?}");
+}
+
+#[test]
+fn the_level_is_the_tenth_loudest_second_and_the_gate_34_db_under_it() {
+    // A click; ten seconds of voice; a word 32 dB under the voice; and noise 36.5 dB under it.
+    let kept = heard_with(
+        20.0,
+        &[(1.0, 1.1, 32000), (2.0, 12.0, 8000), (13.0, 13.5, 200), (14.5, 18.5, 120)],
+        vec![],
+        300,
+    );
+    assert_eq!(kept, [(1.0, 1.1), (2.0, 12.0), (13.0, 13.5)]);
+}
+
+#[test]
+fn a_side_that_speaks_less_than_ten_seconds_still_loses_what_is_written_on_its_silence() {
+    let kept = heard_with(30.0, &[(2.0, 5.0, 8000)], vec![(20.0, 22.0, "je dois checker")], 300);
+    assert_eq!(kept, [(2.0, 5.0)]);
 }

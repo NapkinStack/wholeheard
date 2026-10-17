@@ -19,20 +19,17 @@ const EDGE: usize = 100;
 /// Decibels under a track's own speech level where its sound is silence for it: a segment the
 /// engine wrote there was not said. Whisper writes text on silence — a sentence of the meeting
 /// again and again, a word of another language — and a track is silent while the other side
-/// speaks. On the decider's call of 2026-10-17 every such segment lay 40.6 dB or more under its
-/// track's level, and the quietest said one 30.3 dB under it, its words timed partly on a
+/// speaks. On the decider's call of 2026-10-17 every such segment lay 39.3 dB or more under its
+/// track's level, and the quietest said one 28.9 dB under it, its words timed partly on a
 /// pause; the threshold is between. On the bench only two segments were taken out, both
 /// invented (cycle 02, D10).
 const UNVOICED_DB: f32 = 34.0;
 
-/// Tenths of a second of a track's loudest sound its speech level is anchored on: a second of
-/// voice, which a knock, a click or a door never lasts, so that no such sound sets the level.
+/// Seconds of a track's loudest sound its speech level is read on: the tenth loudest second is
+/// its level. A knock, a door or a ringtone does not fill ten seconds, so none sets it; a side
+/// that speaks less than that gets a level from its quieter seconds, and a gate that lets more
+/// through.
 const ANCHOR: usize = 10;
-
-/// Decibels under that anchor where a tenth of a second no longer counts as sound: the speech
-/// level is read from the tenths that sound, so that a voice heard in a small share of a long
-/// track sets it, not the track's silence or faint noise.
-const SOUNDING_DB: f32 = 40.0;
 
 /// What hears: one question, whatever answers it. Times are seconds from the span's start.
 pub trait Engine {
@@ -207,18 +204,11 @@ pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: boo
     Ok([(Speaker::Me, local), (Speaker::Others, remote)])
 }
 
-/// A track's speech level: of its tenths of a second that sound — within [`SOUNDING_DB`] of
-/// the [`ANCHOR`]th loudest — the root mean square nine in ten stay under: where its voice is,
-/// however little it speaks, whatever knock it holds.
+/// A track's speech level: the root mean square of its [`ANCHOR`]th loudest second that sounds.
 fn speech_level(track: &[f32]) -> f32 {
-    let mut tenths: Vec<f32> = track.chunks(RATE / 10).map(rms).filter(|tenth| *tenth > 0.0).collect();
-    tenths.sort_by(f32::total_cmp);
-    let Some(anchor) = tenths.get(tenths.len().saturating_sub(ANCHOR)) else {
-        return 0.0;
-    };
-    let floor = anchor * 10f32.powf(-SOUNDING_DB / 20.0);
-    let sounding = &tenths[tenths.partition_point(|tenth| *tenth < floor)..];
-    sounding[sounding.len() * 9 / 10]
+    let mut seconds: Vec<f32> = track.chunks(RATE).map(rms).filter(|second| *second > 0.0).collect();
+    seconds.sort_by(f32::total_cmp);
+    seconds.get(seconds.len().saturating_sub(ANCHOR)).copied().unwrap_or(0.0)
 }
 
 fn rms(samples: &[f32]) -> f32 {
