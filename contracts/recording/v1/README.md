@@ -5,7 +5,7 @@ text per event, for whoever started it.
 
 ```mermaid
 flowchart LR
-    S["shell — or a script,<br/>a terminal"]:::consumer -->|"starts: summit-capture record <sessions-folder>, or the same with --as v2"| C["capture"]:::producer
+    S["shell — or a script,<br/>a terminal"]:::consumer -->|"starts: summit-capture record <sessions-folder>, or the same with --as v1"| C["capture"]:::producer
     C -->|"its output: one JSON object per line"| S
     S -->|"its input: the line stop"| C
     C -.->|"its error stream: one sentence, when it fails"| S
@@ -19,9 +19,9 @@ flowchart LR
 **Legend** — green: the producer · blue: whoever started it, the consumer · grey: what the
 recording leaves, described by `session-audio`.
 
-The lines are the same whichever version of `session-audio` the recording leaves: started
-with `--as v2`, the program still names its sources `me` and `others`, where the folder's
-tracks are `local` and `remote`.
+The lines are the same whichever version of `session-audio` the recording leaves: in the
+second, what `record` writes unasked, the program still names its sources `me` and `others`,
+where the folder's tracks are `local` and `remote`; `--as v1` leaves the first.
 
 **For a machine**: [`event.schema.json`](./event.schema.json) says what a line of the output
 is — and is what the project's comparator judges a change to this version by (ADR-0005). The
@@ -33,7 +33,7 @@ order of the events, and what each means, are said here and nowhere else.
 
 | `event` | Other fields | Says |
 |---|---|---|
-| `unavailable` | `source`: `me` or `others`; `reason`: a sentence | This source could not be opened: its file will be silence — in a session of `session-audio/v2`, it has no track. Said before `started`; the other source is still recorded |
+| `unavailable` | `source`: `me` or `others`; `reason`: a sentence | This source could not be opened: in a session of `session-audio/v2` it has no track — in one of `session-audio/v1`, its file is silence. Said before `started`; the other source is still recorded |
 | `started` | `folder`: the session's folder, a path; `sources`: for `me` and `others`, the name the system gave it, or `unavailable` | The recording runs, and `session.json` is in the folder. **Once**, and first unless `unavailable` came before |
 | `silent` | `source` | This source has given no sound for ten seconds. Said once per silence |
 | `heard` | `source` | A source that was said `silent` gives sound again |
