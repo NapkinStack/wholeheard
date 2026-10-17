@@ -58,6 +58,9 @@ consumes:
   - contract: session-audio
     version: v2
     module: capture
+  - contract: minutes
+    version: v1
+    module: summary
 #  - contract: identity-api
 #    version: v1
 #    module: identity
@@ -112,6 +115,12 @@ dependencies:
     purpose: Checks a fetched model against its published SHA-256 before it is used
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One function, fingerprint, in src/model.rs; any SHA-256.
+  - name: pulldown-cmark
+    purpose: Reads a session's minutes as CommonMark, as summit-summary judged them before writing
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: >
+      One function, parse_minutes, in src/minutes.rs; any CommonMark reader that gives headings,
+      lists and paragraphs.
   - name: sys-locale
     purpose: Reads the language the user's system is set to, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md

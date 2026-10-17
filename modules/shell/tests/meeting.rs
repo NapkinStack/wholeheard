@@ -90,3 +90,26 @@ fn transcript_lines_the_contract_does_not_allow_are_left_out_and_counted() {
         assert_eq!(meeting::transcript(folder.path()), Read::Unreadable, "{first}");
     }
 }
+
+#[test]
+fn an_instant_said_at_once_is_kept_and_a_line_missing_what_the_contract_asks_is_not() {
+    let folder = tempfile::tempdir().unwrap();
+    let header = r#"{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}"#;
+    let lines = [
+        header,
+        // A start equal to its end: a word said at once, as real transcripts hold hundreds.
+        r#"{"type":"segment","speaker":"me","track":"local","start":2.0,"end":2.0,"text":"Oui."}"#,
+        r#"{"type":"segment","speaker":"someone","start":3.0,"end":4.0,"text":"a speaker of no kind, no track"}"#,
+        r#"{"type":"segment","speaker":"me","track":"local","start":5.0,"end":6.0}"#,
+    ];
+    fs::write(folder.path().join("transcript.jsonl"), lines.join("\n") + "\n").unwrap();
+    let Read::Present(transcript) = meeting::transcript(folder.path()) else {
+        panic!("not read")
+    };
+    assert_eq!(transcript.unread, 2);
+    assert_eq!(transcript.segments.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(), ["Oui."]);
+    // A first line of the right contract that is not a header is no header.
+    let not_a_header = header.replace(r#""type":"header""#, r#""type":"segment""#);
+    fs::write(folder.path().join("transcript.jsonl"), format!("{not_a_header}\n")).unwrap();
+    assert_eq!(meeting::transcript(folder.path()), Read::Unreadable);
+}
