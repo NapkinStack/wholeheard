@@ -1,6 +1,7 @@
-//! One meeting's minutes (`contracts/minutes/v1`), as the window opens them, read from the
-//! session's folder as their producer judged them. Nothing here writes. Minutes without their
-//! front matter or their three sections are said unreadable, never shown as something they are not.
+//! One meeting's minutes (`contracts/minutes/v1`), as the window opens them: who wrote them, where
+//! and when, from the front matter; and the body as written — rendered from its CommonMark by the
+//! reader their producer judged them with, not read into parts the window would guess at. Nothing
+//! here writes. Minutes without their front matter or their three sections are said unreadable.
 
 use std::{fs, path::Path};
 
@@ -8,26 +9,16 @@ use serde::Serialize;
 
 use crate::meeting::Read;
 
-/// The minutes, as their contract lays them out.
+/// The minutes: who made them, and their body as a page shows it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Minutes {
     pub made: Option<String>,
     pub provider: Option<String>,
     pub model: Option<String>,
-    /// The three sections' titles, in the meeting's language, in their order.
-    pub titles: [String; 3],
-    pub highlights: String,
-    pub actions: Vec<Action>,
-    pub key_points: Vec<String>,
-}
-
-/// One action: what, who, by when — as the minutes wrote them; a part the item did not give is
-/// empty.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Action {
-    pub what: String,
-    pub who: String,
-    pub when: String,
+    /// The three sections as HTML: their titles, paragraphs and lists as written. What the
+    /// body holds as HTML is shown as text, and a link as its words: a page shows the minutes, it
+    /// is never driven by them.
+    pub body: String,
 }
 
 /// The minutes of a session's folder.
@@ -50,15 +41,6 @@ fn value(written: &str) -> Option<String> {
     (read != "null" && !read.is_empty()).then_some(read)
 }
 
-/// One section: its title, and what it holds — its paragraphs, and the items of its lists of first
-/// level, each item's own text without the lists inside it.
-#[derive(Default)]
-struct Section {
-    title: String,
-    paragraphs: Vec<String>,
-    items: Vec<String>,
-}
-
 fn parse_minutes(text: &str) -> Option<Minutes> {
     use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
@@ -69,101 +51,37 @@ fn parse_minutes(text: &str) -> Option<Minutes> {
         let (key, written) = line.split_once(':')?;
         fields.insert(key.trim(), written);
     }
-    if fields.get("contract").and_then(|written| value(written)).as_deref() != Some("minutes/v1") {
+    let field = |key: &str| fields.get(key).and_then(|written| value(written));
+    if field("contract").as_deref() != Some("minutes/v1") {
         return None;
     }
-    // The body read as `summit-summary` judged it: by a CommonMark reader, a section opening on
-    // each title of second level, however it is written.
-    let mut sections: Vec<Section> = Vec::new();
-    let (mut in_title, mut lists, mut item, mut paragraph) = (false, 0usize, None::<String>, None::<String>);
-    for event in Parser::new(body) {
-        match event {
-            Event::Start(Tag::Heading {
-                level: HeadingLevel::H2, ..
-            }) => {
-                sections.push(Section::default());
-                in_title = true;
-            }
-            Event::End(TagEnd::Heading(HeadingLevel::H2)) => in_title = false,
-            Event::Start(Tag::List(_)) => lists += 1,
-            Event::End(TagEnd::List(_)) => lists -= 1,
-            Event::Start(Tag::Item) if lists == 1 => item = Some(String::new()),
-            Event::End(TagEnd::Item) if lists == 1 => {
-                let done = item.take().unwrap_or_default();
-                if let Some(section) = sections.last_mut() {
-                    section.items.push(done.trim().to_string());
-                }
-            }
-            Event::Start(Tag::Paragraph) if lists == 0 => paragraph = Some(String::new()),
-            Event::End(TagEnd::Paragraph) if lists == 0 => {
-                let done = paragraph.take().unwrap_or_default();
-                if let Some(section) = sections.last_mut() {
-                    section.paragraphs.push(done.trim().to_string());
-                }
-            }
-            Event::Text(said) | Event::Code(said) => {
-                let into = if in_title {
-                    sections.last_mut().map(|section| &mut section.title)
-                } else if lists == 1 {
-                    item.as_mut()
-                } else if lists == 0 {
-                    paragraph.as_mut()
-                } else {
-                    None
-                };
-                if let Some(into) = into {
-                    into.push_str(&said);
-                }
-            }
-            Event::SoftBreak | Event::HardBreak => {
-                for open in [item.as_mut().filter(|_| lists == 1), paragraph.as_mut().filter(|_| lists == 0)]
-                    .into_iter()
-                    .flatten()
-                {
-                    open.push(' ');
-                }
-            }
-            _ => {}
-        }
+    // Three sections, each on a title of second level however it is written: what the producer
+    // judged before writing, read by the same reader.
+    let titles = Parser::new(body)
+        .filter(|event| {
+            matches!(
+                event,
+                Event::Start(Tag::Heading {
+                    level: HeadingLevel::H2,
+                    ..
+                })
+            )
+        })
+        .count();
+    if titles != 3 {
+        return None;
     }
-    let [highlights, actions, points] = <[Section; 3]>::try_from(sections).ok()?;
-    let key_points = if points.items.is_empty() { points.paragraphs } else { points.items };
+    let shown = Parser::new(body).filter_map(|event| match event {
+        Event::Html(raw) | Event::InlineHtml(raw) => Some(Event::Text(raw)),
+        Event::Start(Tag::Link { .. } | Tag::Image { .. }) | Event::End(TagEnd::Link | TagEnd::Image) => None,
+        other => Some(other),
+    });
+    let mut html = String::new();
+    pulldown_cmark::html::push_html(&mut html, shown);
     Some(Minutes {
-        made: fields.get("made").and_then(|written| value(written)),
-        provider: fields.get("provider").and_then(|written| value(written)),
-        model: fields.get("model").and_then(|written| value(written)),
-        highlights: highlights.paragraphs.join(" "),
-        actions: actions
-            .items
-            .iter()
-            .map(|item| {
-                // What, who, by when: the last two parts are who and when, whatever the first holds.
-                let mut parts: Vec<&str> = item.rsplitn(3, " — ").map(str::trim).collect();
-                parts.reverse();
-                match parts[..] {
-                    [what, who, when] => Action {
-                        what: what.into(),
-                        who: who.into(),
-                        when: when.into(),
-                    },
-                    [what, who] => Action {
-                        what: what.into(),
-                        who: who.into(),
-                        when: String::new(),
-                    },
-                    _ => Action {
-                        what: item.clone(),
-                        who: String::new(),
-                        when: String::new(),
-                    },
-                }
-            })
-            .collect(),
-        key_points,
-        titles: [
-            highlights.title.trim().to_string(),
-            actions.title.trim().to_string(),
-            points.title.trim().to_string(),
-        ],
+        made: field("made"),
+        provider: field("provider"),
+        model: field("model"),
+        body: html,
     })
 }

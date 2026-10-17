@@ -116,11 +116,11 @@ dependencies:
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One function, fingerprint, in src/model.rs; any SHA-256.
   - name: pulldown-cmark
-    purpose: Reads a session's minutes as CommonMark, as summit-summary judged them before writing
+    purpose: Renders a session's minutes from CommonMark, the reader summit-summary judged them with
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: >
-      One function, parse_minutes, in src/minutes.rs; any CommonMark reader that gives headings,
-      lists and paragraphs.
+      One function, parse_minutes, in src/minutes.rs; any CommonMark renderer whose events let
+      raw HTML and links be turned to text.
   - name: sys-locale
     purpose: Reads the language the user's system is set to, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
