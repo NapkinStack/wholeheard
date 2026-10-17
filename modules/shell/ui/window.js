@@ -279,14 +279,13 @@ function showMeeting({ session, transcript, minutes }, words) {
 }
 
 // The settings' page: each change saved at once; nothing offered over a file that cannot be read.
-function choice(name, value, [label, says], checked, disabled) {
+function choice(name, value, [label, says], checked) {
   const option = element("label", "choice");
   const input = element("input");
   input.type = "radio";
   input.name = name;
   input.value = value;
   input.checked = checked;
-  input.disabled = disabled;
   const text = element("span", "said");
   text.append(element("span", "name", label), element("span", "says", says));
   option.append(input, text);
@@ -295,7 +294,6 @@ function choice(name, value, [label, says], checked, disabled) {
 
 function showSettings(shown, words) {
   const page = document.getElementById("settings");
-  const locked = shown.unreadable !== null;
   // Saved or not, the page is drawn again from what the shell holds; a failure stays said.
   const save = async (change) => {
     let failed = null;
@@ -310,7 +308,6 @@ function showSettings(shown, words) {
     said.hidden = failed === null;
   };
   const parts = [];
-  if (locked) parts.push(element("p", "card note warn", fill(words.settings_unreadable, shown.unreadable)));
   const failed = element("p", "card note warn");
   failed.id = "not-saved";
   failed.hidden = true;
@@ -319,7 +316,7 @@ function showSettings(shown, words) {
   const after = element("fieldset", "card group");
   after.append(element("legend", "", words.after_title));
   for (const [value, said] of [["nothing", words.after_nothing], ["transcript", words.after_transcript], ["minutes", words.after_minutes]]) {
-    const one = choice("after", value, said, shown.after === value, locked);
+    const one = choice("after", value, said, shown.after === value);
     one.querySelector("input").addEventListener("change", () => save({ after: value }));
     after.append(one);
   }
@@ -332,7 +329,6 @@ function showSettings(shown, words) {
   label.htmlFor = "model";
   const pick = element("select");
   pick.id = "model";
-  pick.disabled = locked;
   for (const model of shown.models) {
     const option = element("option", "", `${model.name} — ${size(model.bytes, words)}`);
     option.value = model.path;
@@ -351,7 +347,6 @@ function showSettings(shown, words) {
   box.id = "reminder";
   box.setAttribute("role", "switch");
   box.checked = shown.reminder;
-  box.disabled = locked;
   box.addEventListener("change", () => save({ reminder: box.checked }));
   const remindSaid = element("span", "said");
   remindSaid.append(element("span", "name", words.reminder[0]), element("span", "says", words.reminder[1]));
@@ -362,7 +357,6 @@ function showSettings(shown, words) {
   keepSaid.append(element("span", "name", words.keep_audio[0]), element("span", "says", words.keep_audio[1]));
   const keepPick = element("select");
   keepPick.id = "keep";
-  keepPick.disabled = locked;
   const days = new Set([90, 30]);
   if (shown.keep_audio !== "always") days.add(shown.keep_audio.days);
   const options = [["always", words.keep_always], ...[...days].sort((a, b) => b - a).map((n) => [String(n), fill(words.keep_days, n)])];

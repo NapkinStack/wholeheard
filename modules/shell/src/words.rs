@@ -296,8 +296,6 @@ pub struct Window {
     pub keep_always: &'static str,
     /// A number of days the audio is kept.
     pub keep_days: &'static str,
-    /// The settings file could not be read: why.
-    pub settings_unreadable: &'static str,
     /// A change could not be saved: why.
     pub not_saved: &'static str,
 }
@@ -365,7 +363,6 @@ pub fn window(language: Language) -> Window {
             ],
             keep_always: "Always",
             keep_days: "{} days",
-            settings_unreadable: "The settings file cannot be read ({}): Summit does not write over it until it is corrected.",
             not_saved: "The setting was not saved: {}",
         },
         Language::French => Window {
@@ -429,7 +426,6 @@ pub fn window(language: Language) -> Window {
             ],
             keep_always: "Toujours",
             keep_days: "{} jours",
-            settings_unreadable: "Le fichier des réglages ne peut pas être lu ({}) : Summit ne l’écrit pas tant qu’il n’est pas corrigé.",
             not_saved: "Le réglage n’a pas été enregistré : {}",
         },
     }

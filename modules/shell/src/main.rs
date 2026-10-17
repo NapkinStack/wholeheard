@@ -39,8 +39,6 @@ const TRAY: &str = "summit";
 struct Shell {
     /// What the user chose: read at start, changed from the window.
     settings: Mutex<Settings>,
-    /// The settings file could not be read at start: the window does not write over it.
-    unreadable: Mutex<Option<String>>,
     language: Language,
     /// The recording in progress, when there is one.
     recording: Mutex<Option<Recording>>,
@@ -77,10 +75,9 @@ impl Shell {
     }
 
     /// Reads the settings file again — the user may have changed it by hand — and holds what it
-    /// says; a file that cannot be read is said, and what was held stays.
+    /// says; a file that cannot be read is refused, and what was held stays.
     fn reread(&self) -> Result<Settings, String> {
         let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
-        *self.unreadable.lock().unwrap() = read.clone().err();
         if let Ok(settings) = &read {
             *self.settings.lock().unwrap() = settings.clone();
         }
@@ -141,7 +138,6 @@ fn main() {
                 .build(app)?;
             app.manage(Shell {
                 settings: Mutex::new(read.clone().unwrap_or_default()),
-                unreadable: Mutex::new(read.clone().err()),
                 language,
                 recording: Mutex::new(None),
                 recorded: Mutex::new(None),
@@ -264,8 +260,7 @@ struct Model {
     bytes: u64,
 }
 
-/// What the settings page shows: the choices as they stand, the models on this computer, and
-/// why the file is not written when it could not be read.
+/// What the settings page shows: the choices as they stand, and the models on this computer.
 #[derive(serde::Serialize)]
 struct SettingsShown {
     after: After,
@@ -273,7 +268,6 @@ struct SettingsShown {
     keep_audio: KeepAudio,
     model: PathBuf,
     models: Vec<Model>,
-    unreadable: Option<String>,
 }
 
 /// The folder Summit keeps its models in: the default model's.
@@ -302,7 +296,6 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
-        unreadable: shell.unreadable.lock().unwrap().clone(),
     }
 }
 
