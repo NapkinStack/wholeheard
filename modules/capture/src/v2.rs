@@ -31,6 +31,8 @@ pub struct Track {
     rest: Vec<Option<(f32, f32)>>,
     keep: f32,
     loudest: f32,
+    /// The same, for the meter: read ten times a second, apart from the silence's watch.
+    meter: f32,
 }
 
 impl Track {
@@ -51,6 +53,7 @@ impl Track {
             // One pole at 20 Hz: what a source rests at is not sound, a voice is.
             keep: (1.0 - std::f64::consts::TAU * 20.0 / f64::from(rate)).max(0.0) as f32,
             loudest: 0.0,
+            meter: 0.0,
         })
     }
 
@@ -100,6 +103,7 @@ impl Track {
         if out.is_finite() {
             self.rest[channel] = Some((sample, out));
             self.loudest = self.loudest.max(out.abs());
+            self.meter = self.meter.max(out.abs());
         }
     }
 
@@ -138,6 +142,12 @@ impl Track {
     /// from where the source rests.
     pub fn loudest(&mut self) -> f32 {
         std::mem::take(&mut self.loudest)
+    }
+
+    /// How loud it was since the last call, for a meter: the loudest sound on a scale of
+    /// decibels, from 0 at -60 dB of full scale or below to 1 at full scale.
+    pub fn level(&mut self) -> f32 {
+        crate::level(std::mem::take(&mut self.meter))
     }
 
     /// Writes the true lengths in the header — the only bytes of a track ever written twice.
