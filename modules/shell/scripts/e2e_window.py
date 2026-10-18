@@ -764,9 +764,17 @@ def main() -> int:
         held = wait_for(browser, lambda b: [r.text for r in b.find_elements(By.CSS_SELECTOR, "#free .freeable.busy")], 3)
         busy = [r.text for r in browser.find_elements(By.CSS_SELECTOR, "#free .freeable.busy")]
         check("while its minutes are written, the meeting is busy on the page that frees space", held and "compte rendu" in " ".join(busy), busy)
-        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        # Elsewhere when they are written — the settings, being changed —: that page is left alone.
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "minutes"), 5)
+        browser.execute_script("window.__kept = document.getElementById('settings').firstElementChild")
         made = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         check("what a meeting lacks is offered, and made on the word", made)
+        time.sleep(2)
+        check("written while another page is shown, that page is not drawn again under the user",
+              browser.execute_script("return document.getElementById('settings').firstElementChild === window.__kept && location.hash === '#/settings'"))
+        # The one waiting, now being written, shown: written, its page shows them by itself.
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_14-00'")
         turn = wait_for(browser, lambda b: (other / "minutes.md").exists(), 10)
         (WORK / "slow-minutes").unlink()
         check("then the one waiting is made in its turn, never dropped", turn)

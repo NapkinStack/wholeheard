@@ -87,11 +87,13 @@ let makings = null;
 let wasMaking = null;
 let wasOpened = null;
 
-function stateOf(name) {
+function stateOf(name, minutesOnly = false) {
   if (makings === null) return null;
   if (makings.minutes?.name === name) return { kind: "making", ...makings.minutes };
   const waiting = makings.minutes_waiting.indexOf(name);
   if (waiting >= 0) return { kind: "waiting", before: waiting + 1 };
+  if (makings.failed[name] !== undefined) return { kind: "failed", why: makings.failed[name] };
+  if (minutesOnly) return null;
   if (makings.transcript === name) return { kind: "transcribing" };
   if (makings.transcripts_waiting.includes(name)) return { kind: "waiting", before: makings.transcripts_waiting.indexOf(name) + 1 };
   if (makings.failed[name] !== undefined) return { kind: "failed", why: makings.failed[name] };
@@ -108,14 +110,13 @@ function paintMakings() {
   }
   const said = document.getElementById("minutes-state");
   if (!said) return;
-  const state = stateOf(said.dataset.name);
-  const shown = state && state.kind !== "transcribing" ? state : null;
+  const shown = stateOf(said.dataset.name, true);
   said.hidden = shown === null;
   said.className = `making-state ${shown?.kind ?? ""}`;
   if (shown === null) return said.replaceChildren();
   if (shown.kind === "making") {
     const minutes = `${Math.floor(shown.seconds / 60)}:${String(shown.seconds % 60).padStart(2, "0")}`;
-    said.replaceChildren(element("span", "what", words.minutes_making), element("span", "by", `${modelSaid(shown.model)} · ${shown.host} · ${minutes}`), element("span", "bar"));
+    said.replaceChildren(element("span", "what", words.minutes_making), element("span", "by", `${modelSaid(shown.model)} · ${shown.host} · ${minutes}`), element("span", "making-bar"));
   } else if (shown.kind === "waiting") {
     said.replaceChildren(element("span", "what", fill(words.minutes_waiting, shown.before)));
   } else {
@@ -133,8 +134,9 @@ function paintMakings() {
 
 async function readMakings() {
   makings = await window.__TAURI__.core.invoke("makings").catch(() => null);
-  const opened = document.getElementById("minutes-state")?.dataset.name;
-  const now = opened ? stateOf(opened)?.kind : null;
+  // Only the meeting shown: its page hidden, the last one opened is no longer in front.
+  const opened = document.getElementById("meeting").hidden ? null : document.getElementById("minutes-state")?.dataset.name;
+  const now = opened ? stateOf(opened, true)?.kind : null;
   // The minutes of the meeting shown just made: drawn again, to show them — unless the user has
   // a panel open there, which a redraw would take from under them.
   const busy = document.querySelector("#meeting .redo, #meeting input:focus");
