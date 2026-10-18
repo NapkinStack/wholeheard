@@ -63,6 +63,19 @@ deliverables:
     acceptance:
       - "Given the decider's Fedora, when they install Summit from one package file (`sudo dnf install ./summit-<version>.x86_64.rpm`), then Summit is in the applications menu and starts in the tray with nothing built and no variable set: it records, transcribes — the Whisper model offered and fetched on first use — and writes the minutes"
       - "Given Summit installed, when the package is removed (`sudo dnf remove summit`), then the user's meetings and settings stay where they were"
+  - id: D25
+    title: "What Summit makes in the background is seen on the page — working, waiting, or failed and why"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given minutes or a transcript asked for — from a meeting's page, Refaire… or the tray — when it is being made, then the meeting's page and the list say so: what, by which model, for how long; one asked while another is made waits its turn and says so, never dropped; a failure is said on the meeting's page in one sentence with its reason, not only in a notification"
+      - "Given the settings, when the user picks who writes the minutes, then nothing is saved before their gesture, and the page says what is in use"
+  - id: D26
+    title: "A user listens to a meeting, its words following"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given a meeting with its audio and its transcript, when the user plays it, then both sides are heard together, the line being said is marked and kept in view, and who spoke shows where the playback is; a click on a line or on who spoke moves the playback there; the space bar plays and pauses; a meeting whose audio went to the trash offers no player and says why"
 ---
 
 # Cycle 03 — the window
@@ -278,6 +291,24 @@ never required — a Fedora without the GNOME extension would have had no tray, 
 decider's own desktop would have hidden. Left for a follow-up: the e2e installing without weak
 dependencies, file triggers refused like scriptlets, a pipe that could go falsely red. Before
 the package leaves this laptop: build paths remapped out of the binaries.
+
+### D25
+
+**Added on the decider's word, 2026-10-18**, after using the window: "I click *Write the
+minutes* and nothing seems to happen — can it run in the background, explicit for the user? Can
+several be asked at once?" Measured: a making asked while another runs was dropped without a
+word (`write_minutes` returns), the page said only *Asked*, and a local model failing the
+minutes' form said so in a notification alone. In Settings, picking a local model saved it at
+once — the decider's file held `codellama:latest`, a model for code. It fits what is left of the
+appetite; the end date does not move.
+
+### D26
+
+**Added on the decider's word, 2026-10-18**: "read the audio and follow the transcript, like a
+song with its lyrics; navigate with the graph and in the text". The window draws who spoke over
+the meeting's length (D17, D18); the transcript has each line's time. Played in the window, the
+two tracks of a session together; the drawing and the lines are the controls. Built to the
+boards' style (board 2, the meeting), no new board: the decider judges it in its trial.
 
 ## Out of scope
 
