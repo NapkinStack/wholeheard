@@ -70,6 +70,9 @@ struct Shell {
     shortcut: Mutex<Option<String>>,
     /// The menu's entry that has the minutes of the last recording written.
     minutes: MenuItem<Wry>,
+    /// A transcript made again: where it goes back, and where it was set aside — taken by the
+    /// run's end, or by Summit quitting, whichever comes first.
+    redoing: Mutex<Option<(PathBuf, PathBuf)>>,
     /// The list's small reliefs, by transcript, kept until it changes.
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
@@ -198,6 +201,7 @@ fn main() {
                 minutes: minutes.clone(),
                 minuting: Mutex::new(None),
                 shapes: Mutex::new(HashMap::new()),
+                redoing: Mutex::new(None),
                 writing_minutes: Mutex::new(false),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
@@ -1145,6 +1149,9 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         }
     };
     *running = Some(transcription);
+    // Who puts the earlier transcript back, or trashes it: this run's end, or Summit quitting —
+    // whichever comes first takes it, the other finds nothing.
+    *shell.redoing.lock().unwrap() = previous.clone().map(|previous| (current.clone(), previous));
     drop(running);
     transcribing(app, true);
     let app = app.clone();
@@ -1154,17 +1161,15 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         shell.transcription.lock().unwrap().take();
         transcribing(&app, false);
         // Replaced, the earlier transcript goes to the trash — refused, it stays beside, and it is
-        // said; not replaced, it is put back.
+        // said; not replaced, it is put back — failing that, it is said where it is.
         let mut kept_beside = None;
-        if let Some(previous) = previous {
+        if let Some((current, previous)) = shell.redoing.lock().unwrap().take() {
+            let name = previous.file_name().map(|name| name.to_string_lossy().into_owned());
             match made {
-                Made::Written(_) if trash::delete(&previous).is_err() => {
-                    kept_beside = previous.file_name().map(|name| name.to_string_lossy().into_owned());
-                }
+                Made::Written(_) if trash::delete(&previous).is_err() => kept_beside = name,
                 Made::Written(_) => {}
-                Made::Failed(_) => {
-                    let _ = std::fs::rename(&previous, &current);
-                }
+                Made::Failed(_) if std::fs::rename(&previous, &current).is_err() => kept_beside = name,
+                Made::Failed(_) => {}
             }
         }
         if *shell.leaving.lock().unwrap() {
@@ -1173,6 +1178,11 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         tell(&app, &words::made(&made, shell.language));
         if let Some(name) = kept_beside {
             tell(&app, &words::transcript_kept_beside(shell.language, &name));
+        }
+        // The transcripts waiting in line go on, as after any other.
+        let next = shell.waiting.lock().unwrap().pop_front();
+        if let Some(folder) = next {
+            transcribe(&app, folder);
         }
     });
     Ok(())
@@ -1376,6 +1386,10 @@ fn leave(app: &AppHandle) {
     // A transcript being made is ended: run again, it goes on from where it was.
     if let Some(transcription) = shell.transcription.lock().unwrap().as_ref() {
         transcription.end();
+    }
+    // A transcript being made again is ended: the earlier one is put back now, before Summit goes.
+    if let Some((current, previous)) = shell.redoing.lock().unwrap().take() {
+        let _ = std::fs::rename(&previous, &current);
     }
     // Minutes being written are ended: nothing half-written is left, and they can be asked again.
     if let Some(making) = shell.minuting.lock().unwrap().as_ref() {
