@@ -680,6 +680,34 @@ def main() -> int:
         made = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         said = browser.find_element(By.CSS_SELECTOR, "#meeting .minutes").text
         check("what a meeting lacks is offered, and made on the word", made and "Demandé" in said, said)
+        # Refaire…: another model, this time only; the minutes there go to the trash once replaced.
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
+        browser.find_element(By.ID, "redo-minutes").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
+        browser.execute_script("document.getElementById('redo-panel').scrollIntoView({block: 'center'})")
+        shot(browser, "6-redo")
+        offered = browser.execute_script("return [...document.querySelectorAll('#redo-panel .choice')].map(c => c.textContent)")
+        check(
+            "Refaire offers the model chosen first, then the others on this computer",
+            offered == ["Qwen3 14bsur cet ordinateur", "Mistral 7bsur cet ordinateur"],
+            offered,
+        )
+        before = (asked / "minutes.md").read_text()
+        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        browser.find_element(By.ID, "redo-do").click()
+        trashed = WORK / "data" / "Trash" / "files" / "minutes-previous.md"
+        redone = wait_for(browser, lambda b: trashed.exists(), 10)
+        check(
+            "made again with the model chosen, this time only; the minutes there in the trash",
+            redone
+            and (WORK / "summary-args").read_text().split()[-1] == "mistral:7b"
+            and trashed.read_text() == before
+            and 'minutes_model = "qwen3:14b"' in window.file.read_text()
+            and not (asked / "minutes-previous.md").exists(),
+            (WORK / "summary-args").read_text(),
+        )
     tags.shutdown()
 
     print("I. the window, in English; and a folder with no session")

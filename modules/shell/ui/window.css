@@ -175,3 +175,11 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .drawn .legend .range { margin-left: auto; font: 12.5px ui-monospace, monospace; color: var(--soft); }
 .maker { font: 12.5px ui-monospace, monospace; color: var(--soft); }
 .minutes > .primary, .transcript > .primary { align-self: flex-start; }
+
+/* Refaire… (D11's sixth board): the model, a choice each, the note, the gesture. */
+.minutes > #redo-minutes { position: absolute; top: 18px; right: 18px; }
+.minutes { position: relative; }
+.redo { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 12px; background: var(--raised); }
+.redo h3 { margin: 0; font-size: 15px; }
+.redo .choice { align-items: center; background: var(--surface); }
+.redo .choice .said { flex: 1 1 auto; }

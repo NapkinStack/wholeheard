@@ -120,6 +120,7 @@ fn main() {
             header,
             record,
             minutes_asked,
+            minutes_redo,
             transcript_asked,
             opened,
             open_folder,
@@ -339,6 +340,22 @@ fn minutes_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Resul
     Ok(())
 }
 
+/// *Refaire…*: the minutes made again, with the model chosen on the page, this time only — the
+/// settings' choice when none is named. Through the same gate; the minutes there stay until the
+/// new ones are whole, then go to the trash.
+#[tauri::command]
+fn minutes_redo(
+    app: AppHandle,
+    shell: State<'_, Shell>,
+    name: String,
+    provider: Option<String>,
+    model: Option<String>,
+) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    write_minutes(&app, folder, None, provider.zip(model));
+    Ok(())
+}
+
 #[tauri::command]
 fn transcript_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
     let folder = session_folder(&shell, &name)?;
@@ -453,7 +470,7 @@ fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, r
         settings::write(&file, &settings).map_err(|error| error.to_string())?;
         *shell.settings.lock().unwrap() = settings;
     }
-    write_minutes(&app, folder, Some(&host));
+    write_minutes(&app, folder, Some(&host), None);
     Ok(())
 }
 
@@ -814,12 +831,12 @@ fn refusal(error: &trash::Error) -> Refusal {
 /// Has a session's minutes written by whoever the settings name. Nothing leaves this machine for
 /// a host the user has not agreed to: the window is opened to ask, and nothing is sent until then.
 fn make_minutes(app: &AppHandle, folder: PathBuf) {
-    write_minutes(app, folder, None);
+    write_minutes(app, folder, None, None);
 }
 
 /// The same, `agreed_now` naming the host the user just agreed to send this meeting to, once:
 /// the gate is passed only if that is still the host the settings name as it is read here.
-fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>) {
+fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, chosen: Option<(String, String)>) {
     let shell = app.state::<Shell>();
     let mut writing = shell.writing_minutes.lock().unwrap();
     if *writing {
@@ -829,9 +846,13 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>) {
         Ok(settings) => settings,
         Err(why) => return tell(app, &words::trouble(&Trouble::Settings(why), shell.language)),
     };
-    let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
-        tell(app, &words::minutes(&words::Minutes::Unchosen, shell.language));
-        return open_window_at(app, "#/settings");
+    // Made again with another model, this time only; or by whoever the settings name.
+    let (provider, model) = match chosen.or(settings.minutes_provider.zip(settings.minutes_model)) {
+        Some(choice) => choice,
+        None => {
+            tell(app, &words::minutes(&words::Minutes::Unchosen, shell.language));
+            return open_window_at(app, "#/settings");
+        }
     };
     if !matches!(meeting::transcript(&folder), meeting::Read::Present(transcript) if transcript.complete) {
         return tell(app, &words::minutes(&words::Minutes::NoTranscript, shell.language));
@@ -856,6 +877,10 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>) {
     std::thread::spawn(move || {
         let shell = app.state::<Shell>();
         let key = keys::key(&host).ok().flatten();
+        // The minutes there stay until the new ones are whole: kept aside, they go to the trash
+        // once replaced, and are simply dropped — still in place — when the making fails.
+        let previous = folder.join("minutes-previous.md");
+        let kept = std::fs::copy(folder.join("minutes.md"), &previous).is_ok();
         let started = Summarising::start(
             &program("summit-summary", "SUMMIT_SUMMARY"),
             &folder,
@@ -869,6 +894,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>) {
                 events
             }
             Err(error) => {
+                let _ = std::fs::remove_file(&previous);
                 *shell.writing_minutes.lock().unwrap() = false;
                 minuting(&app, false);
                 return tell(&app, &words::minutes(&words::Minutes::Failed(error.to_string()), shell.language));
@@ -882,6 +908,18 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>) {
             })
             .unwrap_or(summarising::Made::Failed(String::new()));
         shell.minuting.lock().unwrap().take();
+        if kept {
+            match made {
+                summarising::Made::Written(_) => {
+                    if trash::delete(&previous).is_err() {
+                        let _ = std::fs::remove_file(&previous);
+                    }
+                }
+                summarising::Made::Failed(_) => {
+                    let _ = std::fs::remove_file(&previous);
+                }
+            }
+        }
         *shell.writing_minutes.lock().unwrap() = false;
         minuting(&app, false);
         if *shell.leaving.lock().unwrap() {
