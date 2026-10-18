@@ -68,6 +68,14 @@ def main(what, *args):
         assert longest_silence(others) >= 10, f"others' longest silence is {longest_silence(others):.1f} s where fourteen were played"
     elif what == "events":
         said = [json.loads(line) for line in open(args[0])]
+        # The meter's levels, ten times a second each: read apart from the events they would drown.
+        levels = [event for event in said if event["event"] == "level"]
+        said = [event for event in said if event["event"] != "level"]
+        loudest = {source: max((e["level"] for e in levels if e["source"] == source), default=None) for source in ("me", "others")}
+        print(f"    {len(levels)} levels; the loudest: me {loudest['me']}, others {loudest['others']}")
+        assert all(0 <= e["level"] <= 1 for e in levels), "a level out of 0 to 1"
+        assert None not in loudest.values(), "a source said no level"
+        assert loudest["others"] >= 0.3, "the others' level never rose while they played"
         names = [(event["event"], event.get("source")) for event in said]
         print(f"    {' · '.join(name if source is None else f'{name} {source}' for name, source in names)}")
         assert names[0][0] == "started" and names[-1][0] == "stopped", "the program did not say started first and stopped last"

@@ -44,6 +44,11 @@ pub enum Event<'a> {
     Heard {
         source: usize,
     },
+    /// How loud a source is now, from 0 to 1, for a meter.
+    Level {
+        source: usize,
+        level: f32,
+    },
     /// The recording is whole: its folder, and its length in seconds.
     Stopped {
         folder: &'a Path,
@@ -64,9 +69,21 @@ impl Event<'_> {
             }
             Event::Silent { source } => json!({ "event": "silent", "source": SOURCES[source] }),
             Event::Heard { source } => json!({ "event": "heard", "source": SOURCES[source] }),
+            // Rounded to a hundredth: a meter shows no more, and a line stays short.
+            Event::Level { source, level } => {
+                json!({ "event": "level", "source": SOURCES[source], "level": (f64::from(level.clamp(0.0, 1.0)) * 100.0).round() / 100.0 })
+            }
             Event::Stopped { folder, seconds } => json!({ "event": "stopped", "folder": folder, "seconds": seconds }),
         }
     }
+}
+
+/// A peak, as a share of full scale, on a meter's scale: decibels from -60 (0) to 0 (1).
+pub fn level(peak: f32) -> f32 {
+    if peak <= 0.001 {
+        return 0.0;
+    }
+    ((20.0 * peak.log10() + 60.0) / 60.0).clamp(0.0, 1.0)
 }
 
 const HEADER: u64 = 44;
@@ -92,6 +109,8 @@ pub struct Track {
     keep: f32,
     fade: u64,
     loudest: f32,
+    /// The same, for the meter: read ten times a second, apart from the silence's watch.
+    meter: f32,
 }
 
 impl Track {
@@ -116,6 +135,7 @@ impl Track {
             keep: (1.0 - std::f64::consts::TAU * 20.0 / rate) as f32,
             fade: (FADE_SECONDS * f64::from(RATE)) as u64,
             loudest: 0.0,
+            meter: 0.0,
         })
     }
 
@@ -135,6 +155,7 @@ impl Track {
                     value *= at as f32 / self.fade as f32;
                 }
                 self.loudest = self.loudest.max(value.abs());
+                self.meter = self.meter.max(value.abs());
                 bytes.extend_from_slice(&((value.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16).to_le_bytes());
                 self.next += self.step;
             }
@@ -164,6 +185,12 @@ impl Track {
     /// The loudest sample written since the last call, as a share of full scale.
     pub fn loudest(&mut self) -> f32 {
         std::mem::take(&mut self.loudest)
+    }
+
+    /// How loud it was since the last call, for a meter: the loudest sound on a scale of
+    /// decibels, from 0 at -60 dB of full scale or below to 1 at full scale.
+    pub fn level(&mut self) -> f32 {
+        crate::level(std::mem::take(&mut self.meter))
     }
 
     /// Writes the true lengths in the header. A file never finished still reads: see `UNKNOWN`.

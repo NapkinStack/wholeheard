@@ -207,11 +207,22 @@ fn record(sessions: &Path) -> Result<(), String> {
 
     let clock = Instant::now();
     let mut checked = clock;
+    let mut metered = clock;
     while !stop.load(Ordering::SeqCst) {
-        match heard.recv_timeout(Duration::from_millis(200)) {
+        match heard.recv_timeout(Duration::from_millis(50)) {
             Ok((index, _, samples)) => sources[index].track.push(&samples).map_err(|e| e.to_string())?,
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => std::thread::sleep(Duration::from_millis(200)),
+        }
+        // A meter's levels, ten times a second.
+        if metered.elapsed() >= Duration::from_millis(100) {
+            metered = Instant::now();
+            for (index, source) in sources.iter_mut().enumerate() {
+                say(Event::Level {
+                    source: index,
+                    level: source.track.level(),
+                });
+            }
         }
         if checked.elapsed() >= Duration::from_secs(1) {
             let since = checked.elapsed().as_secs_f64();
@@ -368,8 +379,9 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
 
     let stop = stop_asked()?;
     let mut checked = Instant::now();
+    let mut metered = checked;
     while !stop.load(Ordering::SeqCst) {
-        match heard.recv_timeout(Duration::from_millis(200)) {
+        match heard.recv_timeout(Duration::from_millis(50)) {
             Ok((index, at, samples)) => {
                 if let Some(source) = &mut sources[index] {
                     source.take(TRACKS[index], at, &samples, &mut clock).map_err(|e| e.to_string())?;
@@ -377,6 +389,18 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => std::thread::sleep(Duration::from_millis(200)),
+        }
+        // A meter's levels, ten times a second.
+        if metered.elapsed() >= Duration::from_millis(100) {
+            metered = Instant::now();
+            for (index, source) in sources.iter_mut().enumerate() {
+                // A source that could not be opened has no level to say.
+                let Some(source) = source else { continue };
+                say(Event::Level {
+                    source: index,
+                    level: source.track.level(),
+                });
+            }
         }
         if checked.elapsed() >= Duration::from_secs(1) {
             let since = checked.elapsed().as_secs_f64();
