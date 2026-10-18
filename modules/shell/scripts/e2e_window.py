@@ -42,6 +42,7 @@ printf '%s\\n' "$*" > "$here/summary-args"
 printf '%s' "${SUMMIT_PROVIDER_KEY:-none}" > "$here/summary-key"
 if [ "$1" != --test ]; then
   [ -e "$here/slow-minutes" ] && sleep 3
+  [ -e "$here/fail-minutes" ] && { echo "summit-summary: the provider's answer is not minutes" >&2; exit 1; }
   echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
   printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" > "$1/minutes.md"
   echo '{"event": "written", "file": "x"}'
@@ -379,11 +380,11 @@ def main() -> int:
         )
         named = browser.execute_script(
             "return ['anthropic/claude-sonnet-4-5', 'mistral:7b-instruct-q4_K_M', 'llama3.1:8b-fp16', 'org/model/', 'gpt-4o-mini',"
-            " 'claude-sonnet-4-5-20250929', 'openai/gpt-4o-2024-08-06', 'llama3.1:latest', 'model-q4_K_M.gguf', 'q4_K_M'].map(modelSaid)"
+            " 'claude-sonnet-4-5-20250929', 'openai/gpt-4o-2024-08-06', 'llama3.1:latest', 'model-q4_K_M.gguf', 'q4_K_M', 'qwen3:14b-q8_0'].map(modelSaid)"
         )
         check(
             "a model as people say it: a version with its point, no date, tag, file or quantisation, a name even after a last slash",
-            named == ["Claude Sonnet 4.5", "Mistral 7b Instruct", "Llama3.1 8b", "Model", "GPT 4o Mini", "Claude Sonnet 4.5", "GPT 4o", "Llama3.1", "Model", "q4_K_M"],
+            named == ["Claude Sonnet 4.5", "Mistral 7b Instruct", "Llama3.1 8b", "Model", "GPT 4o Mini", "Claude Sonnet 4.5", "GPT 4o", "Llama3.1", "Model", "q4_K_M", "Qwen3 14b"],
             named,
         )
         said = browser.execute_script(
@@ -780,6 +781,51 @@ def main() -> int:
             and not aside(asked),
             (WORK / "summary-args").read_text(),
         )
+        # Made again and failing — on this computer, then online through the agreement: the minutes
+        # there stay, and the notice says a redo, not a first making.
+        (WORK / "fail-minutes").touch()
+        heard = WORK / "notified-redo"
+        monitor = subprocess.Popen(
+            ["dbus-monitor", "--session", "interface='org.freedesktop.Notifications',member='Notify'"],
+            stdout=open(heard, "w"), stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.5)
+        before = (asked / "minutes.md").read_text()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
+        browser.find_element(By.ID, "redo-minutes").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
+        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        browser.find_element(By.ID, "redo-do").click()
+        told = wait_for(browser, lambda b: "pas été refait" in heard.read_text(), 10)
+        check("minutes made again that fail: the ones there stay, and the notice says a redo", told and (asked / "minutes.md").read_text() == before, heard.read_text()[-400:])
+        settled = window.file.read_text()
+        window.file.write_text(
+            "\n".join(line for line in settled.splitlines() if not line.startswith(("minutes_provider", "minutes_model", "minutes_agreed")))
+            + '\nminutes_provider = "https://openrouter.ai/api/v1"\nminutes_model = "a-model"\n'
+        )
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
+        browser.find_element(By.ID, "redo-minutes").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
+        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[0].click()
+        time.sleep(1)
+        since = len(heard.read_text())
+        browser.find_element(By.ID, "redo-do").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
+        press(browser, "agree-send")
+        # Only what is said after this gesture: a notice may show its title more than once.
+        told = wait_for(browser, lambda b: "pas été refait" in heard.read_text()[since:], 10)
+        said = heard.read_text()[since:]
+        monitor.terminate()
+        (WORK / "fail-minutes").unlink()
+        check("asked through the agreement, still a redo: its failure said as one", told and "pas été fait" not in said and (asked / "minutes.md").read_text() == before, said[-400:])
+        time.sleep(3)
+        left = sorted(p.name for p in asked.glob("minutes*"))
+        check("nothing else is made after, no copy left beside", (asked / "minutes.md").read_text() == before and left == ["minutes.md"], (left, (asked / "minutes.md").read_text()[:80], (WORK / "summary-args").read_text()))
+        window.file.write_text(settled)
         # A trash that refuses: the minutes replaced stay beside the new ones, never deleted.
         trash = WORK / "data" / "Trash"
         trash.rename(WORK / "data" / "Trash-aside")

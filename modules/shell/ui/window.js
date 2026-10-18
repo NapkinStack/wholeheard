@@ -622,7 +622,8 @@ function modelSaid(model) {
   // file's extension, a tag "latest", a date of release, a quantisation (q4_K_M, fp16, qat…).
   let name = model.split("/").filter(Boolean).pop() ?? model;
   name = name.replace(/\.(gguf|bin)$/i, "").replace(/:latest$/i, "");
-  name = name.replace(/[-_:](?:\d{8}|\d{4}-\d{2}-\d{2})$/, "");
+  name = name.replace(/[-_:.](?:i?q\d(?:_[a-z0-9]+)*|b?fp?16|fp?32|int[48])$/i, "");
+  name = name.replace(/[-_:](?:\d{8}|\d{4}-\d{2}-\d{2}|\d{2}-\d{4})$/, "");
   const machine = /^(?:i?q\d(?:_[a-z0-9]+)*|b?fp?16|fp?32|int[48]|qat|k|m|s|l)$/i;
   const words = name.split(/[-_:\s]+/).filter(Boolean);
   while (words.length > 1 && machine.test(words.at(-1))) words.pop();
