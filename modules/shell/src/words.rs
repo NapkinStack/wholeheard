@@ -356,7 +356,6 @@ pub struct Window {
     /// What a meeting lacks, offered on its page; what is said once asked; where a step ran.
     pub make_minutes: &'static str,
     pub make_transcript: &'static str,
-    pub asked: &'static str,
     /// What is made in the background, said on the pages (D25): the minutes being written (by,
     /// for how long), waiting their turn ({} before), waiting for the user's agreement to send them
     /// ({} the host) with the way to give it, not written ({} the reason); on a list's row.
@@ -371,6 +370,12 @@ pub struct Window {
     pub chip_awaiting: &'static str,
     pub chip_transcribing: &'static str,
     pub chip_failed: &'static str,
+    /// The same for the transcript: being made (by, for how long), not made ({} the reason).
+    pub transcript_making: &'static str,
+    pub transcript_not_made: &'static str,
+    pub chip_transcript_failed: &'static str,
+    /// Who writes the minutes chosen on the settings' page, not yet saved: who still does ({}).
+    pub minutes_unsaved: &'static str,
     pub ran_online: &'static str,
     pub ran_here: &'static str,
     /// The header's button, at rest and while a recording runs.
@@ -535,7 +540,6 @@ pub fn window(language: Language) -> Window {
             redo_transcript_note: "The current transcript is kept until the new one is whole, then goes to the trash; if the new one fails, the current comes back.",
             make_minutes: "Write the minutes",
             make_transcript: "Write the transcript",
-            asked: "Asked — a notification says when it is ready.",
             minutes_making: "Writing the minutes",
             minutes_waiting: "Waiting its turn — {} before it",
             minutes_awaiting: "Waiting for your agreement to send it to {}",
@@ -547,6 +551,10 @@ pub fn window(language: Language) -> Window {
             chip_awaiting: "Your agreement",
             chip_transcribing: "Transcript…",
             chip_failed: "Minutes not written",
+            transcript_making: "Writing the transcript",
+            transcript_not_made: "The transcript was not written: {}",
+            chip_transcript_failed: "Transcript not written",
+            minutes_unsaved: "Not saved yet — the minutes are still written by {}.",
             ran_online: "online",
             ran_here: "on this machine",
             record_start: "Start a recording",
@@ -706,7 +714,6 @@ pub fn window(language: Language) -> Window {
             redo_transcript_note: "Le transcript actuel est gardé tant que le nouveau n’est pas entier, puis part à la corbeille ; si le nouveau échoue, l’actuel revient.",
             make_minutes: "Faire le compte rendu",
             make_transcript: "Faire le transcript",
-            asked: "Demandé — une notification dira quand c’est prêt.",
             minutes_making: "Rédaction du compte rendu",
             minutes_waiting: "En attente de son tour — {} avant",
             minutes_awaiting: "En attente de votre accord pour l’envoyer à {}",
@@ -718,6 +725,10 @@ pub fn window(language: Language) -> Window {
             chip_awaiting: "Votre accord",
             chip_transcribing: "Transcript…",
             chip_failed: "Compte rendu non fait",
+            transcript_making: "Transcription en cours",
+            transcript_not_made: "Le transcript n’a pas été fait : {}",
+            chip_transcript_failed: "Transcript non fait",
+            minutes_unsaved: "Pas encore enregistré — le compte rendu reste fait par {}.",
             ran_online: "en ligne",
             ran_here: "sur cette machine",
             record_start: "Démarrer un enregistrement",
