@@ -320,7 +320,11 @@ def main() -> int:
             drawn,
         )
         maker = minutes.find_element(By.CSS_SELECTOR, ".maker").text
-        check("who wrote the minutes, and where", maker.startswith("Écrit par claude-sonnet, via openrouter.ai · "), maker)
+        check(
+            "who wrote the minutes, and where, as the board says it — the model as people say it, the day without its year",
+            maker.startswith("Écrit par Claude Sonnet, via openrouter.ai · ") and "2026" not in maker,
+            maker,
+        )
         said = browser.execute_script(
             "return [...document.querySelectorAll('.lines li')].map(li => [li.querySelector('.at'), li.querySelector('.who'), li.querySelector('.text')].map(c => c.textContent).join(' | '))"
         )
@@ -358,6 +362,8 @@ def main() -> int:
         check("another meeting opens without the last one's search", not kept, kept)
         notes = [p.text for p in browser.find_elements(By.CSS_SELECTOR, "#meeting .none") if p.is_displayed()]
         check("minutes that cannot be read are said so", notes == ["Ce fichier ne peut pas être lu par cette version de Summit."], notes)
+        chips = browser.find_element(By.CSS_SELECTOR, "#meeting .holds").text
+        check("minutes that cannot be read claim no place", "Compte rendu" in chips and "Compte rendu ·" not in chips, chips)
         being = [p.text for p in browser.find_elements(By.CSS_SELECTOR, ".transcript .note")]
         check("a transcript without its end says it is being written", being == ["En cours d’écriture — ce qui est là est vrai quand même."], being)
 
