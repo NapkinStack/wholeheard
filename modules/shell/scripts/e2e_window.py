@@ -52,6 +52,16 @@ echo '{"event": "answered"}'
 """
 )
 SUMMARY.chmod(0o755)
+# summit-transcription played here: a whole transcript, naming the model it was given.
+HEARING = WORK / "summit-transcription"
+HEARING.write_text(
+    """#!/bin/sh
+[ -e "$(dirname "$0")/fail-hearing" ] && { echo "summit-transcription: the engine stopped" >&2; exit 1; }
+model=$(basename "$3" .bin)
+printf '{"type":"header","contract":"transcript/v1","engine":"e","model":"%s","language":null,"context":null}\\n{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Refait avec %s."}\\n{"type":"complete","duration":1.0}\\n' "$model" "$model" > "$1/transcript.jsonl"
+"""
+)
+HEARING.chmod(0o755)
 FAILED = []
 MONTHS_FR = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
 # The page's ground, as `ui/window.css` sets it in each theme.
@@ -113,7 +123,7 @@ class Window:
         self.file.write_text(f'sessions = "{sessions}"\n{more}')
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), LANGUAGE="")
         # An Ollama and a keyring of the scenario's, never the user's own.
-        self.env.update(LANG=language, LC_ALL=language, SUMMIT_OLLAMA=ollama, SUMMIT_KEYRING="memory", SUMMIT_SUMMARY=str(SUMMARY))
+        self.env.update(LANG=language, LC_ALL=language, SUMMIT_OLLAMA=ollama, SUMMIT_KEYRING="memory", SUMMIT_SUMMARY=str(SUMMARY), SUMMIT_TRANSCRIPTION=str(HEARING))
 
     def __enter__(self) -> webdriver.Remote:
         port, native = free_port(), free_port()
@@ -758,6 +768,43 @@ def main() -> int:
         )
         trash.unlink()
         (WORK / "data" / "Trash-aside").rename(trash)
+        # Refaire… on the transcript: another model of this computer; the transcript there in the trash.
+        heard = (asked / "transcript.jsonl").read_text()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript"))
+        browser.find_element(By.ID, "redo-transcript").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-do"))
+        offered = browser.execute_script("return [...document.querySelectorAll('#redo-transcript-panel .choice .name')].map(c => c.textContent)")
+        check("Refaire offers the Whisper models of this computer, the one chosen first", offered == ["Whisper large v3 turbo", "Whisper small"], offered)
+        browser.find_elements(By.CSS_SELECTOR, "#redo-transcript-panel input")[1].click()
+        browser.find_element(By.ID, "redo-transcript-do").click()
+        redone = wait_for(browser, lambda b: sorted(trash_files.glob("transcript-before-*.jsonl")), 10)
+        trashed = sorted(trash_files.glob("transcript-before-*.jsonl"))
+        check(
+            "the transcript made again with the model picked; the one there in the trash",
+            redone
+            and "Refait avec ggml-small." in (asked / "transcript.jsonl").read_text()
+            and [path.read_text() for path in trashed] == [heard]
+            and not sorted(asked.glob("transcript-before-*")),
+            (asked / "transcript.jsonl").read_text(),
+        )
+        # A new transcript that fails: the one there comes back, nothing left aside.
+        heard = (asked / "transcript.jsonl").read_text()
+        (WORK / "fail-hearing").write_text("")
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript"))
+        browser.find_element(By.ID, "redo-transcript").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-do"))
+        browser.find_element(By.ID, "redo-transcript-do").click()
+        time.sleep(3)
+        (WORK / "fail-hearing").unlink()
+        check(
+            "a new transcript that fails gives the one there back, nothing left aside",
+            (asked / "transcript.jsonl").read_text() == heard and not sorted(asked.glob("transcript-before-*")),
+            (asked / "transcript.jsonl").read_text(),
+        )
     tags.shutdown()
 
     print("I. the window, in English; and a folder with no session")

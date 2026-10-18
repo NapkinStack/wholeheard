@@ -121,6 +121,7 @@ fn main() {
             record,
             minutes_asked,
             minutes_redo,
+            transcript_redo,
             transcript_asked,
             opened,
             open_folder,
@@ -354,6 +355,12 @@ fn minutes_redo(
     let folder = session_folder(&shell, &name)?;
     write_minutes(&app, folder, None, provider.zip(model));
     Ok(())
+}
+
+#[tauri::command]
+fn transcript_redo(app: AppHandle, shell: State<'_, Shell>, name: String, model: PathBuf) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    retranscribe(&app, folder, model)
 }
 
 #[tauri::command]
@@ -1104,6 +1111,71 @@ fn wait(shell: &Shell, folder: PathBuf) {
     if !waiting.contains(&folder) {
         waiting.push_back(folder);
     }
+}
+
+/// *Refaire…* on a transcript: made again with the model picked, this time only. The transcript
+/// there stays in place until the new one is whole — set aside for the run, since the program
+/// goes on from a transcript it finds —, then goes to the system's trash; a run that fails, or
+/// that Summit ends as it quits, puts it back.
+fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), String> {
+    let shell = app.state::<Shell>();
+    let mut running = shell.transcription.lock().unwrap();
+    if running.is_some() {
+        return Err("a transcript is being made: try again once it is done".into());
+    }
+    let settings = shell.reread()?;
+    if !settings::whisper_models(&models_folder(), &settings).contains(&model) {
+        return Err(format!("{} is no model on this computer", model.display()));
+    }
+    // Set aside under a name of its own, never written over; put back if the new one is not made.
+    let current = folder.join("transcript.jsonl");
+    let previous = match sessions::set_aside(&current, true) {
+        Ok(previous) => Some(previous),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(format!("the transcript there could not be set aside ({error}): nothing was made")),
+    };
+    let started = Transcription::start(&program("summit-transcription", "SUMMIT_TRANSCRIPTION"), &folder, &model);
+    let (transcription, made) = match started {
+        Ok(started) => started,
+        Err(error) => {
+            if let Some(previous) = &previous {
+                let _ = std::fs::rename(previous, &current);
+            }
+            return Err(error.to_string());
+        }
+    };
+    *running = Some(transcription);
+    drop(running);
+    transcribing(app, true);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let made = made.recv().unwrap_or(Made::Failed(String::new()));
+        let shell = app.state::<Shell>();
+        shell.transcription.lock().unwrap().take();
+        transcribing(&app, false);
+        // Replaced, the earlier transcript goes to the trash — refused, it stays beside, and it is
+        // said; not replaced, it is put back.
+        let mut kept_beside = None;
+        if let Some(previous) = previous {
+            match made {
+                Made::Written(_) if trash::delete(&previous).is_err() => {
+                    kept_beside = previous.file_name().map(|name| name.to_string_lossy().into_owned());
+                }
+                Made::Written(_) => {}
+                Made::Failed(_) => {
+                    let _ = std::fs::rename(&previous, &current);
+                }
+            }
+        }
+        if *shell.leaving.lock().unwrap() {
+            return;
+        }
+        tell(&app, &words::made(&made, shell.language));
+        if let Some(name) = kept_beside {
+            tell(&app, &words::transcript_kept_beside(shell.language, &name));
+        }
+    });
+    Ok(())
 }
 
 /// Makes the transcript of a session — after the one being made, if there is one. What is

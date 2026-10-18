@@ -273,6 +273,43 @@ function redoPanel(choices, session, words) {
   return panel;
 }
 
+function redoTranscriptPanel(shown, session, words) {
+  const panel = element("section", "redo");
+  panel.id = "redo-transcript-panel";
+  panel.append(element("h3", "", words.redo_transcript_title), element("p", "says", words.redo_with));
+  const models = [...shown.models].sort((a, b) => (b.path === shown.model) - (a.path === shown.model));
+  const list = element("div", "group");
+  list.setAttribute("role", "radiogroup");
+  models.forEach((model, index) => {
+    const one = element("label", "choice");
+    const input = element("input");
+    input.type = "radio";
+    input.name = "redo-transcript-with";
+    input.value = model.path;
+    input.checked = index === 0;
+    const said = element("span", "said");
+    said.append(element("span", "name", spoken(model.name)));
+    one.append(input, said, element("span", "says", words.on_computer));
+    list.append(one);
+  });
+  const go = element("button", "primary", words.redo_do);
+  go.type = "button";
+  go.id = "redo-transcript-do";
+  go.disabled = models.length === 0;
+  go.addEventListener("click", async () => {
+    const picked = panel.querySelector("input[name=redo-transcript-with]:checked");
+    go.disabled = true;
+    try {
+      await window.__TAURI__.core.invoke("transcript_redo", { name: nameOf(session), model: picked.value });
+      go.replaceWith(element("p", "note", words.asked));
+    } catch (why) {
+      go.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
+    }
+  });
+  panel.append(list, element("p", "says", words.redo_transcript_note), go);
+  return panel;
+}
+
 function minutesCard(read, words, session, transcript) {
   const card = element("article", "card minutes");
   card.append(element("h2", "label", words.minutes_title));
@@ -326,6 +363,15 @@ function transcriptCard(read, words, session) {
   search.placeholder = words.search;
   search.setAttribute("aria-label", words.search);
   top.append(search);
+  // Refaire…: another Whisper model of this computer, this time only.
+  const redo = element("button", "open", words.redo);
+  redo.type = "button";
+  redo.id = "redo-transcript";
+  redo.addEventListener("click", async () => {
+    const shown = await window.__TAURI__.core.invoke("settings_shown");
+    redo.replaceWith(redoTranscriptPanel(shown, session, words));
+  });
+  top.after(redo);
   card.append(element("p", "maker", fill(words.heard_by, read.model ? spoken(read.model) : read.engine || "—")));
   if (!read.complete) card.append(element("p", "note", words.being_made));
   if (read.unread > 0) card.append(element("p", "note", fill(words.unread, read.unread)));

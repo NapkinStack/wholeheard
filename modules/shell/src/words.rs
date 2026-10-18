@@ -327,6 +327,8 @@ pub struct Window {
     pub redo_note: &'static str,
     pub redo_do: &'static str,
     pub on_computer: &'static str,
+    pub redo_transcript_title: &'static str,
+    pub redo_transcript_note: &'static str,
     /// What a meeting lacks, offered on its page; what is said once asked; where a step ran.
     pub make_minutes: &'static str,
     pub make_transcript: &'static str,
@@ -464,6 +466,8 @@ pub fn window(language: Language) -> Window {
             redo_note: "The current minutes stay in place until the new ones are ready, then go to the trash.",
             redo_do: "Redo",
             on_computer: "on this computer",
+            redo_transcript_title: "Write the transcript again",
+            redo_transcript_note: "The current transcript is kept until the new one is whole, then goes to the trash; if the new one fails, the current comes back.",
             make_minutes: "Write the minutes",
             make_transcript: "Write the transcript",
             asked: "Asked — a notification says when it is ready.",
@@ -595,6 +599,8 @@ pub fn window(language: Language) -> Window {
             redo_note: "Le compte rendu actuel reste en place tant que le nouveau n’est pas prêt, et se retrouve ensuite dans la corbeille.",
             redo_do: "Refaire",
             on_computer: "sur cet ordinateur",
+            redo_transcript_title: "Refaire le transcript",
+            redo_transcript_note: "Le transcript actuel est gardé tant que le nouveau n’est pas entier, puis part à la corbeille ; si le nouveau échoue, l’actuel revient.",
             make_minutes: "Faire le compte rendu",
             make_transcript: "Faire le transcript",
             asked: "Demandé — une notification dira quand c’est prêt.",
@@ -844,6 +850,21 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         ),
     };
     notice(title, body, why).expect("the minutes' end is always said")
+}
+
+/// Said when a transcript made again replaced one the trash refused: kept beside it.
+pub fn transcript_kept_beside(language: Language, name: &str) -> Notice {
+    let (title, body) = match language {
+        Language::English => (
+            "The previous transcript is kept",
+            format!("It could not go to the trash: it is beside the new one, as {name}."),
+        ),
+        Language::French => (
+            "L’ancien transcript est gardé",
+            format!("Il n’a pas pu aller à la corbeille : il est à côté du nouveau, sous {name}."),
+        ),
+    };
+    Notice { title: title.into(), body }
 }
 
 /// Said after a recording's stop when its transcript is made next, without another gesture.

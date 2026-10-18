@@ -423,6 +423,11 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
                 .body
                 .contains("minutes-before-1760751234.md")
         );
+        assert!(
+            words::transcript_kept_beside(language, "transcript-before-1760751234.jsonl")
+                .body
+                .contains("transcript-before-1760751234.jsonl")
+        );
     }
     assert_eq!(
         words::minutes(&Minutes::Waiting("openrouter.ai".into()), Language::French).body,
