@@ -197,6 +197,10 @@ pub struct Menu {
     pub transcribe: &'static str,
     /// The same entry while a transcript is being made.
     pub transcribing: &'static str,
+    /// Has the minutes of the last recording written, again when it failed.
+    pub minutes: &'static str,
+    /// The same entry while they are being written.
+    pub minuting: &'static str,
 }
 
 pub fn menu(language: Language) -> Menu {
@@ -210,6 +214,8 @@ pub fn menu(language: Language) -> Menu {
             recording: "Summit — recording",
             transcribe: "Transcribe the last recording",
             transcribing: "Transcribing…",
+            minutes: "Write the minutes of the last recording",
+            minuting: "Writing the minutes…",
         },
         Language::French => Menu {
             start: "Démarrer l’enregistrement",
@@ -220,6 +226,8 @@ pub fn menu(language: Language) -> Menu {
             recording: "Summit — enregistrement en cours",
             transcribe: "Transcrire le dernier enregistrement",
             transcribing: "Transcription en cours…",
+            minutes: "Faire le compte rendu du dernier enregistrement",
+            minuting: "Compte rendu en cours…",
         },
     }
 }
@@ -622,6 +630,81 @@ pub fn made(made: &Made, language: Language) -> Notice {
         ),
     };
     notice(title, body.to_string(), why).expect("a transcript's end is always said")
+}
+
+/// What becomes of the minutes asked for, or chained after a transcript.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Minutes {
+    Ready,
+    /// Not made: summit-summary's sentence.
+    Failed(String),
+    /// Online, and the user has not agreed to send this meeting to this host yet.
+    Waiting(String),
+    /// No one is chosen to write them.
+    Unchosen,
+    /// The last recording has no whole transcript.
+    NoTranscript,
+}
+
+pub fn minutes(said: &Minutes, language: Language) -> Notice {
+    use Language::{English, French};
+    let entry = menu(language).minutes;
+    let (title, body, why) = match (said, language) {
+        (Minutes::Ready, English) => (
+            "Minutes ready",
+            "They are in Summit’s window, beside the transcript.".to_string(),
+            "",
+        ),
+        (Minutes::Ready, French) => (
+            "Compte rendu prêt",
+            "Il est dans la fenêtre de Summit, à côté du transcript.".to_string(),
+            "",
+        ),
+        (Minutes::Failed(why), English) => (
+            "The minutes were not written",
+            format!("The transcript is untouched. “{entry}”, in Summit’s menu, tries again."),
+            why.as_str(),
+        ),
+        (Minutes::Failed(why), French) => (
+            "Le compte rendu n’a pas été fait",
+            format!("Le transcript est intact. «\u{a0}{entry}\u{a0}», dans le menu de Summit, le refait."),
+            why.as_str(),
+        ),
+        (Minutes::Waiting(host), English) => (
+            "The minutes wait for your agreement",
+            format!("Nothing is sent to {host} before you agree, in Summit’s window."),
+            "",
+        ),
+        (Minutes::Waiting(host), French) => (
+            "Le compte rendu attend votre accord",
+            format!("Rien n’est envoyé à {host} avant votre accord, dans la fenêtre de Summit."),
+            "",
+        ),
+        (Minutes::Unchosen, English) => (
+            "No one is chosen to write the minutes",
+            "Choose in Summit’s settings.".to_string(),
+            "",
+        ),
+        (Minutes::Unchosen, French) => (
+            "Personne n’est choisi pour écrire le compte rendu",
+            "Choisissez-le dans les réglages de Summit.".to_string(),
+            "",
+        ),
+        (Minutes::NoTranscript, English) => (
+            "No minutes without a transcript",
+            format!("The last recording has no whole transcript: “{}” first.", menu(language).transcribe),
+            "",
+        ),
+        (Minutes::NoTranscript, French) => (
+            "Pas de compte rendu sans transcript",
+            format!(
+                "Le dernier enregistrement n’a pas de transcript entier : «\u{a0}{}\u{a0}» d’abord.",
+                menu(language).transcribe
+            ),
+            "",
+        ),
+    };
+    notice(title, body, why).expect("the minutes' end is always said")
 }
 
 /// Said after a recording's stop when its transcript is made next, without another gesture.

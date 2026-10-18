@@ -48,7 +48,7 @@ start() { # the language, the settings file's text, the recorder
   mkdir -p "$work/config/summit" "$work/sessions"; rm -f "$work/sessions/given" "$work/sessions/told"
   printf 'sessions = "%s"\n%b\n' "$work/sessions" "$2" > "$work/config/summit/settings.toml"
   LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" SUMMIT_CAPTURE="$3" \
-    SUMMIT_TRANSCRIPTION="$work/summit-transcription" SUMMIT_MODEL_PUBLISHED="$published" SUMMIT_KEYRING=memory "$bin" 2>> "$work/errors" &
+    SUMMIT_TRANSCRIPTION="$work/summit-transcription" SUMMIT_MODEL_PUBLISHED="$published" SUMMIT_SUMMARY="$work/summit-summary" SUMMIT_KEYRING=memory "$bin" 2>> "$work/errors" &
   app=$!
   # Its own tray item, found by its program's number: a Summit the user runs has one too.
   item=""
@@ -93,14 +93,14 @@ here=$(dirname "$1"); echo "$*" >> "$here/heard"
 if [ -e "$here/fail-once" ]; then rm "$here/fail-once"; echo "summit-transcription: the engine stopped" >&2; exit 1; fi
 if [ -e "$here/slow" ]; then rm "$here/slow"; sleep 3; fi
 if [ -e "$here/stuck" ]; then echo $$ > "$here/hearing"; sleep 30; fi
-mkdir -p "$1" && echo '{}' > "$1/transcript.jsonl"
+mkdir -p "$1" && printf '{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}\n{"type":"complete","duration":1.0}\n' > "$1/transcript.jsonl"
 PLAYED
 chmod +x "$work/summit-transcription"
 : > "$work/model.bin"
 
 say "A. in French: start from the menu, the reminder, a silent source, stop"
 start fr_FR.UTF-8 "transcript = false" "$work/summit-capture"
-check is "$(labels)" "Ouvrir Summit|Démarrer l’enregistrement|Transcrire le dernier enregistrement|Quitter Summit"
+check is "$(labels)" "Ouvrir Summit|Démarrer l’enregistrement|Transcrire le dernier enregistrement|Faire le compte rendu du dernier enregistrement|Quitter Summit"
 # A window is a web view, a process of WebKit's under Summit: none before the user asks.
 check is "$(windows)" 0
 click 2; sleep 2
@@ -108,13 +108,13 @@ check test "$(windows)" -ge 1
 click 4                                           # no session yet: said, nothing heard
 check is "$(titles 'Aucun enregistrement à transcrire')" 1
 click 3
-check is "$(labels)" "Ouvrir Summit|Arrêter l’enregistrement|Transcrire le dernier enregistrement|Quitter Summit"
+check is "$(labels)" "Ouvrir Summit|Arrêter l’enregistrement|Transcrire le dernier enregistrement|Faire le compte rendu du dernier enregistrement|Quitter Summit"
 check is "$(cat "$work/sessions/given")" "record $work/sessions"
 check is "$(titles 'Enregistrement en cours')" 1
 check is "$(titles 'Aucun son venant de la réunion')" 1
 click 3
 check is "$(cat "$work/sessions/told")" "stop"
-check is "$(labels)" "Ouvrir Summit|Démarrer l’enregistrement|Transcrire le dernier enregistrement|Quitter Summit"
+check is "$(labels)" "Ouvrir Summit|Démarrer l’enregistrement|Transcrire le dernier enregistrement|Faire le compte rendu du dernier enregistrement|Quitter Summit"
 check is "$(titles 'Enregistrement arrêté')" 1
 check grep -q 'Durée.: 32 min' "$work/notified"
 check test ! -e "$work/sessions/heard"
@@ -122,13 +122,13 @@ check is "$(grep -c 'La transcription suit' "$work/notified")" 0
 
 say "B. quit while recording: the recording is stopped first, then Summit leaves"
 click 3; rm -f "$work/sessions/told"
-click 5; sleep 1
+click 6; sleep 1
 check is "$(cat "$work/sessions/told")" "stop"
 check is "$(kill -0 "$app" 2>/dev/null && echo running || echo gone)" "gone"
 
 say "C. in English, the reminder switched off; Summit killed while recording"
 start en_GB.UTF-8 "reminder = false\ntranscript = false" "$work/summit-capture"
-check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|Quit Summit"
+check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|Write the minutes of the last recording|Quit Summit"
 click 3
 check is "$(titles 'Recording')" 0
 recorder=$(pgrep -P "$app" -f summit-capture || true)
@@ -140,15 +140,15 @@ say "D. no recorder, or one that ends before it starts: said, and the menu still
 start en_GB.UTF-8 "transcript = false" "$work/nowhere"
 click 3
 check is "$(titles 'Summit cannot record')" 1
-check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|Quit Summit"
-click 5
+check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|Write the minutes of the last recording|Quit Summit"
+click 6
 printf '#!/bin/sh\necho "summit-capture: no source could be opened: nothing to record" >&2\nexit 1\n' > "$work/refuses"; chmod +x "$work/refuses"
 start en_GB.UTF-8 "transcript = false" "$work/refuses"
 click 3
 check is "$(titles 'Summit cannot record')" 2
 check is "$(titles 'The recording stopped by itself')" 0
 check grep -q 'Installing Summit again puts it back. (no source could be opened: nothing to record)' "$work/notified"
-click 5
+click 6
 
 say "E. one gesture, pressed twice: one recording; a recorder that never ends: quit asked twice leaves"
 printf '#!/bin/sh\necho x >> "$2/starts"\necho "{\\"event\\":\\"started\\",\\"folder\\":\\"$2/s\\"}"\nwhile read line; do echo "$line" >> "$2/told"; done\nexec sleep 20\n' > "$work/stubborn"; chmod +x "$work/stubborn"
@@ -157,11 +157,11 @@ busctl --user call "$bus" "$menu" com.canonical.dbusmenu Event isvu 3 clicked s 
 click 3
 check is "$(wc -l < "$work/sessions/starts")" 1
 check is "$(windows)" 0                           # both presses on the recording's entry
-check is "$(labels)" "Open Summit|Stop recording|Transcribe the last recording|Quit Summit"
-click 5
+check is "$(labels)" "Open Summit|Stop recording|Transcribe the last recording|Write the minutes of the last recording|Quit Summit"
+click 6
 check is "$(cat "$work/sessions/told")" "stop"
 check is "$(kill -0 "$app" 2>/dev/null && echo waiting || echo gone)" "waiting"
-click 5
+click 6
 check is "$(kill -0 "$app" 2>/dev/null && echo waiting || echo gone)" "gone"
 
 say "F. the transcript follows the stop; a failed one is made again from the menu; no model is said"
@@ -193,19 +193,19 @@ check is "$(wc -l < "$work/sessions/heard")" 6
 check is "$(titles 'Transcript ready')" 5
 check is "$(greyed)" 0
 touch "$work/sessions/stuck"
-click 4; sleep 1; hearing=$(cat "$work/sessions/hearing"); click 5; sleep 1
+click 4; sleep 1; hearing=$(cat "$work/sessions/hearing"); click 6; sleep 1
 check is "$(kill -0 "$hearing" 2>/dev/null && echo hearing || echo ended)" "ended"
 check is "$(kill -0 "$app" 2>/dev/null && echo running || echo gone)" "gone"
 rm "$work/sessions/stuck"
 start en_GB.UTF-8 "reminder = false\nmodel = \"$work/model.bin\"" "$work/summit-capture"
-click 3; click 5; sleep 1
+click 3; click 6; sleep 1
 check is "$(cat "$work/sessions/told") $(kill -0 "$app" 2>/dev/null || echo gone)" "stop gone"
 check is "$(wc -l < "$work/sessions/heard")" 7
 start en_GB.UTF-8 "reminder = false\nmodel = \"$work/no-model.bin\"" "$work/summit-capture"
 click 3; click 3; sleep 1
 check is "$(titles 'No transcript: the model is missing')" 1
 check is "$(wc -l < "$work/sessions/heard")" 7
-click 5
+click 6
 
 say "G. the default model missing: offered with its size and host, fetched on the click, then the transcripts in line"
 mkdir -p "$work/served"; head -c 300000 /dev/urandom > "$work/served/model.bin"; head -c 300000 /dev/urandom > "$work/right.bin"
@@ -228,7 +228,7 @@ start en_GB.UTF-8 "reminder = false" "$work/numbering"
 before=$(wc -l < "$work/sessions/heard")
 click 3; click 3; sleep 1; click 3; click 3; sleep 1    # two sessions, both waiting for the model
 check is "$(titles 'The transcription model is needed')" 2
-check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|Download the model (0 MB, 127.0.0.1:$port)|Quit Summit"
+check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|Download the model (0 MB, 127.0.0.1:$port)|Write the minutes of the last recording|Quit Summit"
 check is "$(grep -c 'GET' "$work/server")" 0      # nothing fetched before the click
 # Served first is not the published file: refused, nothing in place, and the entry tries again.
 click "$(entry Download)"; sleep 7
@@ -247,8 +247,8 @@ check is "$(titles 'The transcription model is needed')" 2    # nor later in the
 check cmp -s "$work/right.bin" "$work/data/summit/models/ggml-large-v3-turbo-q8_0.bin"
 check is "$(wc -l < "$work/sessions/heard")" "$((before + 3))"
 check is "$(tail -3 "$work/sessions/heard" | grep -o '2026-10-17_09-0[0-9]' | paste -sd' ')" "2026-10-17_09-01 2026-10-17_09-02 2026-10-17_09-03"   # in the order stopped
-check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|Quit Summit"
-click 5
+check is "$(labels)" "Open Summit|Start recording|Transcribe the last recording|Write the minutes of the last recording|Quit Summit"
+click 6
 published=""
 
 say "L. audio kept longer than the settings say goes to the trash, the transcript stays"
@@ -265,7 +265,7 @@ check test -e "$old/local.wav" -a -e "$old/derived/local.wav"
 check is "$(titles 'L’audio n’a pas été entièrement mis à la corbeille')" 1
 check grep -q "rien n.a .t. supprim" "$work/notified"
 check test -z "$(grep -E 'trash. operation|FileSystem|Os \{' "$work/notified")"
-click 5
+click 6
 rm "$work/data/Trash"
 start fr_FR.UTF-8 "keep_audio = 1" "$work/summit-capture"
 sleep 3
@@ -274,7 +274,52 @@ check test -s "$old/transcript.jsonl" -a -s "$old/session.json"
 # The system's trash — here the scenario's own, its data folder being the scenario's.
 check test -n "$(find "$work/data/Trash/files" -name 'local*.wav' 2>/dev/null)"
 check is "$(titles 'Audio mis à la corbeille')" 1
-click 5
+click 6
+
+say "M. the minutes from the tray: on this computer at once; online only once agreed, nothing sent before"
+# summit-summary played here: it says what it was given and writes the minutes.
+cat > "$work/summit-summary" <<'PLAYED'
+#!/bin/sh
+here=$(dirname "$0")
+echo "$*" >> "$here/summarised"
+printf '%s\n' "${SUMMIT_PROVIDER_KEY:-none}" >> "$here/summary-keys"
+echo '{"event":"sending","host":"h","model":"m","characters":1}'
+printf -- '---\ncontract: minutes/v1\n---\n\n## A\n\n## B\n\n## C\n' > "$1/minutes.md"
+echo "{\"event\":\"written\",\"file\":\"$1/minutes.md\"}"
+PLAYED
+chmod +x "$work/summit-summary"
+rm -rf "$work/sessions"; meeting="$work/sessions/2026-10-18_10-00"; mkdir -p "$meeting"
+printf '{"contract":"session-audio/v2","started":"2026-10-18T10:00:00+02:00","stopped":"2026-10-18T10:30:00+02:00","tracks":{}}' > "$meeting/session.json"
+printf '{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}\n{"type":"segment","speaker":"others","track":"remote","start":0.0,"end":2.0,"text":"On confirme le 3 juin."}\n{"type":"complete","duration":1800.0}\n' > "$meeting/transcript.jsonl"
+start fr_FR.UTF-8 "minutes_provider = \"http://127.0.0.1:9/v1\"\nminutes_model = \"mistral\"" "$work/summit-capture"
+click 5; sleep 2
+check test -s "$meeting/minutes.md"
+check is "$(cat "$work/summarised")" "$meeting --provider http://127.0.0.1:9/v1 --model mistral"
+check is "$(titles 'Compte rendu prêt')" 1
+click 6
+# Online, not agreed: nothing is sent, the window opens to ask.
+rm "$meeting/minutes.md"
+start fr_FR.UTF-8 "minutes_provider = \"https://openrouter.ai/api/v1\"\nminutes_model = \"a-model\"" "$work/summit-capture"
+click 5; sleep 3
+check is "$(titles 'Le compte rendu attend votre accord')" 1
+check is "$(wc -l < "$work/summarised")" 1
+check test ! -e "$meeting/minutes.md"
+check is "$(windows)" 1
+click 6
+# Agreed to that host: sent, with no key kept.
+start fr_FR.UTF-8 "minutes_provider = \"https://openrouter.ai/api/v1\"\nminutes_model = \"a-model\"\nminutes_agreed = \"openrouter.ai\"" "$work/summit-capture"
+click 5; sleep 2
+check is "$(tail -1 "$work/summarised")" "$meeting --provider https://openrouter.ai/api/v1 --model a-model"
+check is "$(tail -1 "$work/summary-keys")" none
+check is "$(titles 'Compte rendu prêt')" 2
+click 6
+# Chained: a recording stopped, its transcript, then its minutes — no other gesture.
+start fr_FR.UTF-8 "reminder = false\nafter = \"minutes\"\nmodel = \"$work/model.bin\"\nminutes_provider = \"http://127.0.0.1:9/v1\"\nminutes_model = \"mistral\"" "$work/summit-capture"
+click 3; click 3; sleep 4
+check test -s "$work/sessions/2026-10-13_14-05/minutes.md"
+check is "$(tail -1 "$work/summarised")" "$work/sessions/2026-10-13_14-05 --provider http://127.0.0.1:9/v1 --model mistral"
+check is "$(titles 'Compte rendu prêt')" 3
+click 6
 
 # The window (cycle 03): Summit started with --window by tauri-driver, its page read over
 # WebDriver (scripts/e2e_window.py). For a few seconds a window appears, twice.

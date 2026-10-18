@@ -24,6 +24,7 @@ use summit_shell::{
     recording::{Recording, Said},
     sessions::{self, Listed},
     settings::{self, After, KeepAudio, Settings},
+    summarising::{self, Summarising},
     transcription::{self, Made, Transcription},
     words::{self, Language, Notice, Refusal, Trouble},
 };
@@ -66,6 +67,11 @@ struct Shell {
     transcription: Mutex<Option<Transcription>>,
     /// The keys the desktop granted the shortcut, as it says them; none while it has not.
     shortcut: Mutex<Option<String>>,
+    /// The menu's entry that has the minutes of the last recording written.
+    minutes: MenuItem<Wry>,
+    /// The minutes being written, when they are: one at a time, taken from the gesture on.
+    minuting: Mutex<Option<Summarising>>,
+    writing_minutes: Mutex<bool>,
     /// The sessions whose transcripts wait for the one being made, or for the model — in
     /// the order they were asked, each once.
     waiting: Mutex<VecDeque<PathBuf>>,
@@ -124,9 +130,10 @@ fn main() {
             let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
             let toggle = MenuItem::with_id(app, "toggle", labels.start, true, None::<&str>)?;
             let again = MenuItem::with_id(app, "transcribe", labels.transcribe, true, None::<&str>)?;
+            let minutes = MenuItem::with_id(app, "minutes", labels.minutes, true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", labels.quit, true, None::<&str>)?;
             let open = MenuItem::with_id(app, "open", labels.open, true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &toggle, &again, &quit])?;
+            let menu = Menu::with_items(app, &[&open, &toggle, &again, &minutes, &quit])?;
             let download = MenuItem::with_id(app, "download", "", true, None::<&str>)?;
             TrayIconBuilder::with_id(TRAY)
                 .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
@@ -143,6 +150,17 @@ fn main() {
                         }
                         match transcription::latest(&shell.settings().sessions) {
                             Some(last) => transcribe(app, last),
+                            None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
+                        }
+                    }
+                    "minutes" => {
+                        let shell = app.state::<Shell>();
+                        // The latest session is the one being recorded: it has no transcript yet.
+                        if shell.recording.lock().unwrap().is_some() {
+                            return;
+                        }
+                        match transcription::latest(&shell.settings().sessions) {
+                            Some(last) => make_minutes(app, last),
                             None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
                         }
                     }
@@ -165,6 +183,9 @@ fn main() {
                 transcribe: again,
                 transcription: Mutex::new(None),
                 shortcut: Mutex::new(None),
+                minutes: minutes.clone(),
+                minuting: Mutex::new(None),
+                writing_minutes: Mutex::new(false),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
                 download,
@@ -589,6 +610,105 @@ fn refusal(error: &trash::Error) -> Refusal {
     }
 }
 
+/// Has a session's minutes written by whoever the settings name. Nothing leaves this machine for
+/// a host the user has not agreed to: the window is opened to ask, and nothing is sent until then.
+fn make_minutes(app: &AppHandle, folder: PathBuf) {
+    let shell = app.state::<Shell>();
+    let mut writing = shell.writing_minutes.lock().unwrap();
+    if *writing {
+        return;
+    }
+    let settings = match shell.reread() {
+        Ok(settings) => settings,
+        Err(why) => return tell(app, &words::trouble(&Trouble::Settings(why), shell.language)),
+    };
+    let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
+        tell(app, &words::minutes(&words::Minutes::Unchosen, shell.language));
+        return open_window_at(app, "#/settings");
+    };
+    if !matches!(meeting::transcript(&folder), meeting::Read::Present(transcript) if transcript.complete) {
+        return tell(app, &words::minutes(&words::Minutes::NoTranscript, shell.language));
+    }
+    let host = providers::host(&provider).unwrap_or_default();
+    if !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
+        tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language));
+        let name = folder
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        return open_window_at(app, &format!("#/agree/{name}"));
+    }
+    *writing = true;
+    drop(writing);
+    minuting(app, true);
+    let app = app.clone();
+    // The keyring may ask the user first: never on the window's and the tray's thread.
+    std::thread::spawn(move || {
+        let shell = app.state::<Shell>();
+        let key = keys::key(&host).ok().flatten();
+        let started = Summarising::start(
+            &program("summit-summary", "SUMMIT_SUMMARY"),
+            &folder,
+            &provider,
+            &model,
+            key.as_deref(),
+        );
+        let events = match started {
+            Ok((making, events)) => {
+                *shell.minuting.lock().unwrap() = Some(making);
+                events
+            }
+            Err(error) => {
+                *shell.writing_minutes.lock().unwrap() = false;
+                minuting(&app, false);
+                return tell(&app, &words::minutes(&words::Minutes::Failed(error.to_string()), shell.language));
+            }
+        };
+        let made = events
+            .iter()
+            .find_map(|event| match event {
+                summarising::Event::Ended(made) => Some(made),
+                summarising::Event::Sending { .. } => None,
+            })
+            .unwrap_or(summarising::Made::Failed(String::new()));
+        shell.minuting.lock().unwrap().take();
+        *shell.writing_minutes.lock().unwrap() = false;
+        minuting(&app, false);
+        if *shell.leaving.lock().unwrap() {
+            return;
+        }
+        let said = match made {
+            summarising::Made::Written(_) => words::Minutes::Ready,
+            summarising::Made::Failed(why) => words::Minutes::Failed(why),
+        };
+        tell(&app, &words::minutes(&said, shell.language));
+    });
+}
+
+/// The minutes' entry while they are written, and after.
+fn minuting(app: &AppHandle, now: bool) {
+    let app = app.clone();
+    let _ = app.clone().run_on_main_thread(move || {
+        let shell = app.state::<Shell>();
+        let labels = words::menu(shell.language);
+        let _ = shell.minutes.set_text(if now { labels.minuting } else { labels.minutes });
+        let _ = shell.minutes.set_enabled(!now);
+    });
+}
+
+/// Opens the window on one of its pages.
+fn open_window_at(app: &AppHandle, page: &str) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.eval(format!("location.hash = {}", serde_json::to_string(page).unwrap_or_default()));
+        return open_window(app);
+    }
+    let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(format!("index.html{page}").into()))
+        .title("Summit")
+        .inner_size(1100.0, 800.0)
+        .min_inner_size(420.0, 400.0)
+        .build();
+}
+
 /// Shows a notification. A desktop that shows none is no reason to stop anything.
 fn tell(app: &AppHandle, notice: &Notice) {
     let _ = app.notification().builder().title(&notice.title).body(&notice.body).show();
@@ -766,7 +886,13 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         }
         let notice = words::made(&made, shell.language);
         match made {
-            Made::Written(folder) => tell_opening(&app, &notice, folder),
+            Made::Written(folder) => {
+                tell_opening(&app, &notice, folder.clone());
+                // The minutes follow, when the settings say so — as they are now.
+                if shell.reread().is_ok_and(|settings| settings.after == settings::After::Minutes) {
+                    make_minutes(&app, folder);
+                }
+            }
             Made::Failed(_) => tell(&app, &notice),
         }
         let next = shell.waiting.lock().unwrap().pop_front();
@@ -916,6 +1042,10 @@ fn leave(app: &AppHandle) {
     // A transcript being made is ended: run again, it goes on from where it was.
     if let Some(transcription) = shell.transcription.lock().unwrap().as_ref() {
         transcription.end();
+    }
+    // Minutes being written are ended: nothing half-written is left, and they can be asked again.
+    if let Some(making) = shell.minuting.lock().unwrap().as_ref() {
+        making.end();
     }
     match recording.as_mut() {
         Some(running) if !asked_before => {
