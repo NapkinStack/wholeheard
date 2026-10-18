@@ -877,10 +877,10 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
     std::thread::spawn(move || {
         let shell = app.state::<Shell>();
         let key = keys::key(&host).ok().flatten();
-        // The minutes there stay until the new ones are whole: kept aside, they go to the trash
-        // once replaced, and are simply dropped — still in place — when the making fails.
-        let previous = folder.join("minutes-previous.md");
-        let kept = std::fs::copy(folder.join("minutes.md"), &previous).is_ok();
+        // The minutes there stay until the new ones are whole: copied aside under a name of their
+        // own, they go to the trash once replaced, and the copy is dropped — the minutes still in
+        // place — when the making fails.
+        let previous = sessions::set_aside(&folder.join("minutes.md"), false).ok();
         let started = Summarising::start(
             &program("summit-summary", "SUMMIT_SUMMARY"),
             &folder,
@@ -894,7 +894,9 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
                 events
             }
             Err(error) => {
-                let _ = std::fs::remove_file(&previous);
+                if let Some(previous) = &previous {
+                    let _ = std::fs::remove_file(previous);
+                }
                 *shell.writing_minutes.lock().unwrap() = false;
                 minuting(&app, false);
                 return tell(&app, &words::minutes(&words::Minutes::Failed(error.to_string()), shell.language));
@@ -909,10 +911,13 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
             .unwrap_or(summarising::Made::Failed(String::new()));
         shell.minuting.lock().unwrap().take();
         // Replaced, the earlier minutes go to the trash — refused, they stay beside, and it is said.
-        let mut kept_beside = false;
-        if kept {
+        let mut kept_beside = None;
+        if let Some(previous) = previous {
             match made {
-                summarising::Made::Written(_) => kept_beside = trash::delete(&previous).is_err(),
+                summarising::Made::Written(_) if trash::delete(&previous).is_err() => {
+                    kept_beside = previous.file_name().map(|name| name.to_string_lossy().into_owned());
+                }
+                summarising::Made::Written(_) => {}
                 summarising::Made::Failed(_) => {
                     let _ = std::fs::remove_file(&previous);
                 }
@@ -924,7 +929,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
             return;
         }
         let said = match made {
-            summarising::Made::Written(_) if kept_beside => words::Minutes::ReadyKeptBeside,
+            summarising::Made::Written(_) if kept_beside.is_some() => words::Minutes::ReadyKeptBeside(kept_beside.unwrap_or_default()),
             summarising::Made::Written(_) => words::Minutes::Ready,
             summarising::Made::Failed(why) => words::Minutes::Failed(why),
         };

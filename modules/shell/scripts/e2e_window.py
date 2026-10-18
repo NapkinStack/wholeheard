@@ -697,15 +697,18 @@ def main() -> int:
         before = (asked / "minutes.md").read_text()
         browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
         browser.find_element(By.ID, "redo-do").click()
-        trashed = WORK / "data" / "Trash" / "files" / "minutes-previous.md"
-        redone = wait_for(browser, lambda b: trashed.exists(), 10)
+        def aside(folder):
+            return sorted(folder.glob("minutes-before-*.md")) if folder.exists() else []
+
+        trash_files = WORK / "data" / "Trash" / "files"
+        redone = wait_for(browser, lambda b: aside(trash_files), 10)
         check(
             "made again with the model chosen, this time only; the minutes there in the trash",
             redone
             and (WORK / "summary-args").read_text().split()[-1] == "mistral:7b"
-            and trashed.read_text() == before
+            and aside(trash_files)[0].read_text() == before
             and 'minutes_model = "qwen3:14b"' in window.file.read_text()
-            and not (asked / "minutes-previous.md").exists(),
+            and not aside(asked),
             (WORK / "summary-args").read_text(),
         )
         # A trash that refuses: the minutes replaced stay beside the new ones, never deleted.
@@ -719,12 +722,26 @@ def main() -> int:
         browser.find_element(By.ID, "redo-minutes").click()
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
         browser.find_element(By.ID, "redo-do").click()
-        beside = asked / "minutes-previous.md"
         # The new minutes written — they name their model —, then a moment for what follows them.
         written = wait_for(browser, lambda b: "model: qwen3:14b" in (asked / "minutes.md").read_text(), 10)
         time.sleep(2)
-        kept = beside.exists() and beside.read_text() == before
-        check("a trash that refuses keeps the minutes replaced beside the new ones", written and kept, (written, beside.exists()))
+        kept = [path.read_text() for path in aside(asked)]
+        check("a trash that refuses keeps the minutes replaced beside the new ones", written and kept == [before], kept)
+        # Made again while the trash still refuses: the copy kept is never written over.
+        second = (asked / "minutes.md").read_text()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
+        browser.find_element(By.ID, "redo-minutes").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
+        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        browser.find_element(By.ID, "redo-do").click()
+        written = wait_for(browser, lambda b: "model: mistral:7b" in (asked / "minutes.md").read_text(), 10)
+        time.sleep(2)
+        kept = sorted(path.read_text() for path in aside(asked))
+        check("made again, the copies kept are all there, none written over", written and kept == sorted([before, second]), kept)
+        for path in aside(asked):
+            path.unlink()
         trash.unlink()
         (WORK / "data" / "Trash-aside").rename(trash)
     tags.shutdown()

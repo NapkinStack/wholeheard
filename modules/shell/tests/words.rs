@@ -419,9 +419,9 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
     // The minutes replaced, kept beside when the trash refused them: said, with where.
     for language in BOTH {
         assert!(
-            words::minutes(&Minutes::ReadyKeptBeside, language)
+            words::minutes(&Minutes::ReadyKeptBeside("minutes-before-1760751234.md".into()), language)
                 .body
-                .contains("minutes-previous.md")
+                .contains("minutes-before-1760751234.md")
         );
     }
     assert_eq!(
