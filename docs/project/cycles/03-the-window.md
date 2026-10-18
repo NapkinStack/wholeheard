@@ -56,6 +56,13 @@ deliverables:
     state: ready
     acceptance:
       - "Given the window and the tray's menu on the decider's laptop, when the decider goes through one real meeting with them — record, transcript, minutes, read, free space — then the decider writes what stood in the way; the deliverable is accepted when the decider reads nothing blocking in that list"
+  - id: D24
+    title: "Summit installs on Fedora from one package, and runs with nothing built or set"
+    module: install
+    state: ready
+    acceptance:
+      - "Given the decider's Fedora, when they install Summit from one package file (`sudo dnf install ./summit-<version>.x86_64.rpm`), then Summit is in the applications menu and starts in the tray with nothing built and no variable set: it records, transcribes — the Whisper model offered and fetched on first use — and writes the minutes"
+      - "Given Summit installed, when the package is removed (`sudo dnf remove summit`), then the user's meetings and settings stay where they were"
 ---
 
 # Cycle 03 — the window
@@ -241,6 +248,20 @@ setting, and in English the two meters' tracks not starting at the same place.
 
 The trial that closes the cycle, as cycle 01's D7 had it.
 
+### D24
+
+**Added on the decider's word, 2026-10-18** ("fais ce qu'il reste en autonomie… mes
+interventions ne sont pas bloquantes, continue"), on what the charter's success criteria
+wait for: they start "from the day Summit installs on the decider's Fedora", and no installer
+exists — Summit is built from the repository. It fits what is left of the appetite; the end
+date does not move.
+
+Fedora only, as the decider builds and tests there; Windows and macOS stay *Later*, with the
+colleagues and the question of signing (charter). The package is made by the bundler Tauri
+ships for its applications (`rpm`), the shell's own build: the other programs ride beside it
+in the same folder, where the shell already looks for them. A new module, `install`, holds
+what makes the package and its checks; the programs stay their modules'.
+
 ## Out of scope
 
 - The offer to record when an application takes the microphone, and recording by itself:
@@ -255,7 +276,6 @@ The trial that closes the cycle, as cycle 01's D7 had it.
 
 - The offer when an application takes the microphone, and recording by itself.
 - Windows and macOS, with the two colleagues.
-- An installer: the day the charter's success criteria start.
 - `export`, with `all`.
 - Compressing the tracks without loss (cycle 02, D9: it halves their weight).
 - An online service for the transcription (narrowed out of D20).
