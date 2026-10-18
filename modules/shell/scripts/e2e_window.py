@@ -221,6 +221,7 @@ def main() -> int:
         sections = browser.find_element(By.TAG_NAME, "nav").get_attribute("aria-label")
         check("its sections are named in French for a screen reader", sections == "Rubriques", sections)
         listed = rows(browser)
+        shot(browser, "1-sessions")
         check(
             "every session, newest first, each under its week; the one with no readable day last",
             [(heading, holds) for heading, _, holds in listed] == expected,
@@ -273,6 +274,7 @@ def main() -> int:
         browser.find_elements(By.CSS_SELECTOR, ".session")[0].click()
         shown = wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".lines li"))
         check("a click on a meeting opens it", shown and not browser.find_element(By.ID, "list").is_displayed())
+        shot(browser, "2-session")
         minutes = browser.find_element(By.CSS_SELECTOR, ".minutes")
         titles = [h.text for h in minutes.find_elements(By.CSS_SELECTOR, ".body h2")]
         check("the minutes' three sections, by their own titles", titles == ["Points saillants", "Actions", "Points clés"], titles)
@@ -356,10 +358,16 @@ def main() -> int:
         browser.find_element(By.ID, "settings-link").click()
         wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed() and b.find_elements(By.ID, "model"))
         check("the settings open from the header", browser.find_element(By.ID, "settings-link").text == "Réglages")
+        shot(browser, "4-settings")
+        browser.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+        shot(browser, "4-settings-end")
+        browser.execute_script("window.scrollTo(0, 0)")
         checked = browser.execute_script("return document.querySelector('input[name=after]:checked').value")
         check("out of the box, the transcript follows", checked == "transcript", checked)
         names = [o.text.split(" — ")[0] for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
-        check("the models on this computer are offered", names == ["ggml-large-v3-turbo-q8_0.bin", "ggml-small.bin"], names)
+        check("the models on this computer are offered, by the names people say", names == ["Whisper large v3 turbo", "Whisper small"], names)
+        ready = browser.find_element(By.ID, "model-state").text
+        check("the transcription model's state is said at the page's end", "Prêt" in ready and "sans réseau" in ready, ready)
         # Each change is saved, then the page is drawn again: the next acts on the new one.
         def changed(act):
             before = browser.find_element(By.ID, "reminder")
@@ -369,7 +377,7 @@ def main() -> int:
         changed(lambda: browser.find_element(By.CSS_SELECTOR, "input[name=after][value=nothing]").click())
         changed(lambda: Select(browser.find_element(By.ID, "keep")).select_by_value("30"))
         changed(lambda: Select(browser.find_element(By.ID, "model")).select_by_visible_text(
-            next(o.text for o in browser.find_elements(By.CSS_SELECTOR, "#model option") if o.text.startswith("ggml-small"))
+            next(o.text for o in browser.find_elements(By.CSS_SELECTOR, "#model option") if o.text.startswith("Whisper small"))
         ))
         # The user changes the file by hand while Summit runs: the next save keeps it.
         window.file.write_text(window.file.read_text().replace("keep_audio = 30", "keep_audio = 90 # by hand"))
@@ -387,6 +395,22 @@ def main() -> int:
         )
         failed = browser.find_element(By.ID, "not-saved").is_displayed()
         check("nothing said failed", not failed)
+        # Any number of days, when the list has not the one wanted.
+        Select(browser.find_element(By.ID, "keep")).select_by_value("other")
+        typed = browser.find_element(By.ID, "keep-other")
+        changed(lambda: (typed.send_keys("45"), typed.send_keys(Keys.ENTER)))
+        kept = window.file.read_text()
+        offered = [o.text for o in browser.find_elements(By.CSS_SELECTOR, "#keep option")]
+        check("any number of days can be typed, and is offered after", "keep_audio = 45" in kept and "45 jours" in offered, (kept, offered))
+        Select(browser.find_element(By.ID, "keep")).select_by_value("other")
+        typed_days = browser.find_element(By.ID, "keep-other")
+        typed_days.send_keys("0", Keys.ENTER)
+        refused = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
+        check(
+            "a number that is no number of days is said, nothing saved",
+            refused and "0 n’est pas un nombre de jours" in browser.find_element(By.ID, "not-saved").text and "keep_audio = 45" in window.file.read_text(),
+            browser.find_element(By.ID, "not-saved").text,
+        )
         # The shortcut: the keys the desktop granted, or that it granted none; its keyboard
         # settings offered where they can be opened — never opened here.
         keys = browser.find_element(By.ID, "shortcut").text
@@ -400,13 +424,22 @@ def main() -> int:
         )
         # The sessions' folder: typed, made when it is not there, and what the list reads.
         elsewhere = WORK / "elsewhere" / "Summit"
-        folder = browser.find_element(By.ID, "sessions")
-        check("the sessions' folder is shown", folder.get_attribute("value") == str(chosen), folder.get_attribute("value"))
+        spoken = browser.find_element(By.ID, "sessions-shown").get_attribute("textContent")
+        # Outside the home folder, from the root: / tmp / … / chosen.
+        check("the sessions' folder is shown as people say it", spoken == "/ " + " / ".join(chosen.parts[1:]), spoken)
+
+        def folder_field():
+            # A click on the folder as said makes it a path to type.
+            browser.find_element(By.ID, "sessions-shown").click()
+            return browser.find_element(By.ID, "sessions")
+
         typed = lambda field, text: (browser.execute_script("arguments[0].select()", field), field.send_keys(text, Keys.ENTER))  # noqa: E731
+        folder = folder_field()
+        check("a click makes it the path, to type", folder.get_attribute("value") == str(chosen), folder.get_attribute("value"))
         changed(lambda: typed(folder, str(elsewhere)))
         text = window.file.read_text()
         check("a folder typed is made, and in the settings file", elsewhere.is_dir() and f'sessions = "{elsewhere}"' in text, text)
-        folder = browser.find_element(By.ID, "sessions")
+        folder = folder_field()
         changed(lambda: typed(folder, "Summit"))
         said = browser.find_element(By.ID, "not-saved").text
         check("a folder that is not a whole path is said, and nothing changes", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == text, said)
@@ -485,6 +518,8 @@ def main() -> int:
             text,
         )
         kept = browser.find_element(By.ID, "minutes-key")
+        browser.execute_script("arguments[0].scrollIntoView({block: 'center'})", kept)
+        shot(browser, "4-settings-online")
         check(
             "the key is kept, said so, and never shown back nor written in the settings",
             kept.get_attribute("value") == "" and kept.get_attribute("placeholder").startswith("Une clé est gardée") and "sk-scenario" not in text,

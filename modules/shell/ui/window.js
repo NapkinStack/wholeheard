@@ -298,7 +298,7 @@ function choice(name, value, [label, says], checked, disabled) {
 let testing = false;
 
 function minutesRow(minutes, words, locked) {
-  const box = element("div", "minutes-step");
+  const box = element("div", "step");
   const row = element("div", "row");
   const label = element("label", "name", words.minutes_step);
   label.htmlFor = "minutes";
@@ -332,7 +332,7 @@ function minutesRow(minutes, words, locked) {
   pick.value = current;
   row.append(label, pick);
   const fields = element("div", "fields");
-  const where = element("p", "says");
+  const where = element("p", "status");
   const field = (id, text, type, value) => {
     const wrap = element("label", "field");
     wrap.htmlFor = id;
@@ -362,6 +362,7 @@ function minutesRow(minutes, words, locked) {
     fields.replaceChildren();
     const value = pick.value;
     if (value.startsWith("ollama:")) {
+      where.className = "status here";
       where.textContent = words.on_this_computer;
       return;
     }
@@ -369,7 +370,13 @@ function minutesRow(minutes, words, locked) {
       where.textContent = "";
       return;
     }
-    where.textContent = words.where_online;
+    where.className = "status online";
+    let shown = minutes.provider ?? "";
+    try {
+      const address = new URL(value === "custom" ? minutes.provider : minutes.online[Number(value.split(":")[1])].address);
+      shown = `${address.host}${address.pathname}`;
+    } catch {}
+    where.replaceChildren(words.where_online, element("code", "tag", shown));
     const custom = value === "custom";
     const [addressWrap, address] = field("minutes-address", words.address, "url", custom && current === "custom" ? minutes.provider : "");
     const [modelWrap, model] = field("minutes-model", words.model_name, "text", current === value ? minutes.model : "");
@@ -387,12 +394,15 @@ function minutesRow(minutes, words, locked) {
     if (custom) fields.append(addressWrap);
     fields.append(modelWrap, keyWrap, button);
   };
+  // Tester sits on the key's row, as the board has it, or on its own row when there is none.
+  let place = () => {};
   pick.addEventListener("change", () => {
     if (pick.value.startsWith("ollama:")) save(minutes.ollama_address, pick.value.slice("ollama:".length), null);
     draw();
+    place();
   });
   draw();
-  box.append(row, fields, where);
+  box.append(row, where, fields);
   // Tester: the choice saved, asked whether it answers — one sentence of Summit's, said first.
   // One test at a time, the page drawn again meanwhile or not.
   if (minutes.provider && minutes.model) {
@@ -428,10 +438,19 @@ function minutesRow(minutes, words, locked) {
       const again = document.getElementById("minutes-test");
       if (again) again.disabled = again.dataset.locked === "true";
     });
-    test.append(button, tested);
+    test.append(tested);
     box.append(test);
+    place = () => (fields.childElementCount > 0 ? fields.append(button) : test.prepend(button));
+    place();
   }
   return box;
+}
+
+// A Whisper model's file named as people say it: `ggml-large-v3-turbo-q8_0.bin` is Whisper large
+// v3 turbo. A file of another kind, or outside Summit's folder, keeps its own name.
+function spoken(name) {
+  const file = name.match(/^ggml-(.+?)(?:[-.](?:q\d+_\d+|f16|f32))?\.bin$/i);
+  return file ? `Whisper ${file[1].replace(/[-_]/g, " ")}` : name;
 }
 
 function showSettings(shown, minutes, words) {
@@ -457,8 +476,12 @@ function showSettings(shown, minutes, words) {
   failed.hidden = true;
   parts.push(failed);
 
-  const after = element("fieldset", "card group");
-  after.append(element("legend", "", words.after_title));
+  const after = element("section", "card group");
+  after.setAttribute("role", "radiogroup");
+  const afterTitle = element("h2", "", words.after_title);
+  afterTitle.id = "after-title";
+  after.setAttribute("aria-labelledby", "after-title");
+  after.append(afterTitle);
   for (const [value, said] of [["nothing", words.after_nothing], ["transcript", words.after_transcript], ["minutes", words.after_minutes]]) {
     const one = choice("after", value, said, shown.after === value, locked);
     one.querySelector("input").addEventListener("change", () => save({ after: value }));
@@ -467,7 +490,8 @@ function showSettings(shown, minutes, words) {
   parts.push(after);
 
   const models = element("section", "card group");
-  models.append(element("h2", "", words.models_title));
+  models.append(element("h2", "", words.models_title), element("p", "says", words.models_intro));
+  const step = element("div", "step");
   const row = element("div", "row");
   const label = element("label", "name", words.transcription);
   label.htmlFor = "model";
@@ -475,15 +499,17 @@ function showSettings(shown, minutes, words) {
   pick.id = "model";
   pick.disabled = locked;
   for (const model of shown.models) {
-    const option = element("option", "", `${model.name} — ${size(model.bytes, words)}`);
+    const option = element("option", "", `${spoken(model.name)} — ${fill(words.installed, size(model.bytes, words))}`);
     option.value = model.path;
     option.selected = model.path === shown.model;
     pick.append(option);
   }
   pick.addEventListener("change", () => save({ model: pick.value }));
   row.append(label, pick);
-  models.append(row, element("p", "says", words.on_this_computer));
-  models.append(minutesRow(minutes, words, locked));
+  const here = element("p", "status here", words.on_this_computer);
+  here.append(element("code", "tag", words.builtin));
+  step.append(row, here);
+  models.append(step, minutesRow(minutes, words, locked), element("p", "says", words.models_note));
   parts.push(models);
 
   const more = element("section", "card group");
@@ -505,19 +531,49 @@ function showSettings(shown, minutes, words) {
   const keepPick = element("select");
   keepPick.id = "keep";
   keepPick.disabled = locked;
-  const days = new Set([90, 30]);
+  const days = new Set([7, 30, 90, 365]);
   if (shown.keep_audio !== "always") days.add(shown.keep_audio.days);
-  const options = [["always", words.keep_always], ...[...days].sort((a, b) => b - a).map((n) => [String(n), fill(words.keep_days, n)])];
+  const options = [
+    ["always", words.keep_always],
+    ...[...days].sort((a, b) => a - b).map((n) => [String(n), fill(words.keep_days, n)]),
+    ["other", words.keep_other],
+  ];
   for (const [value, text] of options) {
     const option = element("option", "", text);
     option.value = value;
     option.selected = shown.keep_audio === "always" ? value === "always" : value === String(shown.keep_audio.days);
     keepPick.append(option);
   }
-  keepPick.addEventListener("change", () =>
-    save({ keep_audio: keepPick.value === "always" ? "always" : { days: Number(keepPick.value) } }),
-  );
-  keep.append(keepSaid, keepPick);
+  // Any number of days the file allows, typed when the list has not the one wanted.
+  const other = element("input");
+  other.id = "keep-other";
+  other.type = "number";
+  other.min = "1";
+  other.max = "36500";
+  other.hidden = true;
+  other.disabled = locked;
+  other.setAttribute("aria-label", words.keep_other);
+  other.addEventListener("change", () => {
+    const days = Number(other.value);
+    if (other.value !== "" && Number.isInteger(days) && days >= 1 && days <= 36500) return save({ keep_audio: { days } });
+    const said = document.getElementById("not-saved");
+    said.textContent = fill(words.not_saved, fill(words.keep_not_days, other.value || "—"));
+    said.hidden = false;
+  });
+  other.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") other.blur();
+  });
+  keepPick.addEventListener("change", () => {
+    if (keepPick.value === "other") {
+      other.hidden = false;
+      other.focus();
+      return;
+    }
+    save({ keep_audio: keepPick.value === "always" ? "always" : { days: Number(keepPick.value) } });
+  });
+  const keepPicks = element("div", "picks");
+  keepPicks.append(keepPick, other);
+  keep.append(keepSaid, keepPicks);
   // Where the sessions go: typed, or chosen in the system's own dialog.
   const where = element("div", "row folder");
   const whereSaid = element("label", "said");
@@ -526,9 +582,22 @@ function showSettings(shown, minutes, words) {
   const path = element("input");
   path.id = "sessions";
   path.type = "text";
-  path.value = shown.sessions;
+  path.value = shown.sessions_said;
   path.disabled = locked;
   path.spellcheck = false;
+  path.hidden = true;
+  // Shown as the board says it — Dossier personnel / Summit —; a click makes it a path to type.
+  const said = shown.sessions_said.replace(/^~(?=\/|$)/, words.home).split("/").filter(Boolean).join(" / ");
+  const folderShown = element("button", "path", shown.sessions_said.startsWith("/") ? `/ ${said}` : said);
+  folderShown.type = "button";
+  folderShown.id = "sessions-shown";
+  folderShown.disabled = locked;
+  folderShown.addEventListener("click", () => {
+    folderShown.hidden = true;
+    path.hidden = false;
+    path.focus();
+    path.select();
+  });
   path.addEventListener("change", () => save({ sessions: path.value.trim() }));
   // Enter says the folder is typed: the field lets go, which is its change.
   path.addEventListener("keydown", (event) => {
@@ -542,7 +611,7 @@ function showSettings(shown, minutes, words) {
     const chosen = await window.__TAURI__.core.invoke("choose_folder");
     if (chosen !== null) save({ sessions: chosen });
   });
-  where.append(whereSaid, path, choose);
+  where.append(whereSaid, folderShown, path, choose);
   // The shortcut: the desktop's to grant and to change; the page says which keys, and where.
   const keys = element("div", "row");
   const keysSaid = element("span", "said");
@@ -561,8 +630,21 @@ function showSettings(shown, minutes, words) {
     );
     keys.append(open);
   }
-  more.append(remind, keep, where, keys);
+  more.append(remind, keys, where, keep);
   parts.push(more);
+
+  // The transcription model's state: there and ready, or offered at the first transcript.
+  const chosen = shown.models.find((model) => model.path === shown.model);
+  const state = element("section", "card group state");
+  const stateSaid = element("div", "said");
+  stateSaid.append(
+    element("span", "name", words.model_state),
+    element("span", "says", chosen ? fill(words.model_here, size(chosen.bytes, words)) : words.model_missing),
+  );
+  state.append(stateSaid);
+  if (chosen) state.append(element("span", "ready", `✓ ${words.model_ready}`));
+  state.id = "model-state";
+  parts.push(state);
   page.replaceChildren(...parts);
 }
 
