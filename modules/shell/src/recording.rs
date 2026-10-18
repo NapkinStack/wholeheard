@@ -31,6 +31,8 @@ pub enum Said {
     Silent(Source),
     /// A source that was silent gives sound again.
     Heard(Source),
+    /// How loud a source is now, from 0 to 1, for a meter.
+    Level(Source, f32),
     /// The recording was stopped: its folder, and its length in seconds.
     Stopped(PathBuf, f64),
     /// The program ended without having said it stopped: its own sentence, when it gave one.
@@ -55,6 +57,7 @@ pub fn read(line: &str) -> Option<Said> {
         "started" => Some(Said::Started(folder()?, event["sources"]["me"].as_str().and_then(device))),
         "silent" => Some(Said::Silent(source()?)),
         "heard" => Some(Said::Heard(source()?)),
+        "level" => Some(Said::Level(source()?, event["level"].as_f64()?.clamp(0.0, 1.0) as f32)),
         "stopped" => Some(Said::Stopped(folder()?, event["seconds"].as_f64().unwrap_or(0.0))),
         _ => None,
     }
