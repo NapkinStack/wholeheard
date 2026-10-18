@@ -32,6 +32,7 @@ a family, a number a rule; a retired rule's number is never reused.
 | `M8` | A module of criticality high or critical without a runbook | `05-workflow.md` §7 |
 | `M9` | A module missing a file of its envelope | `02-modules.md` §4 |
 | `M10` | A module that does not say whether a user sees it | `05-workflow.md` §7 |
+| `M11` | `assembles` naming no module of the project, the module itself, or releases that wait for each other | `09-platform.md` §2 |
 
 ## B — the boundaries between modules
 
@@ -45,6 +46,7 @@ a family, a number a rule; a retired rule's number is never reused.
 | `B6` | A consumed contract nobody provides in that version | `03-contracts.md` §6 |
 | `B7` | A provided contract whose document does not exist | `03-contracts.md` §2 |
 | `B8` | *(warning)* A contract consumed from a deprecated module | `02-modules.md` §6 |
+| `B9` | Another module's release artefacts read without assembling it | `09-platform.md` §2 |
 
 ## S — the playbooks and their skills
 
