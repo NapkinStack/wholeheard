@@ -46,6 +46,9 @@ printf 'nor does one end the listening on the other stream: caf\351\n' >&2
 echo '{"event":"of-a-later-version","source":"me"}'
 echo '{"event":"silent","source":"others"}'
 echo '{"event":"heard","source":"others"}'
+echo '{"event":"level","source":"me","level":0.42}'
+echo '{"event":"level","source":"others"}'
+echo '{"event":"level","source":"others","level":1.5}'
 read line
 [ "$line" = stop ] && echo '{"event":"stopped","folder":"'"$sessions"'/2026-10-13_14-05","seconds":1912.4,"new":"field"}'
 echo '{"event":"silent","source":"me"}'"#,
@@ -55,6 +58,10 @@ echo '{"event":"silent","source":"me"}'"#,
         Said::Started(session.clone(), Some("Mic".into())),
         Said::Silent(Source::Others),
         Said::Heard(Source::Others),
+        // A level read; one without its level is no event.
+        Said::Level(Source::Me, 0.42),
+        // The meeting's own, and never louder than the loudest.
+        Said::Level(Source::Others, 1.0),
     ];
     for expected in before {
         assert_eq!(heard.recv_timeout(Duration::from_secs(10)).unwrap(), expected);

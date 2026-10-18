@@ -22,7 +22,7 @@ use summit_shell::{
     minutes::{self, Minutes},
     model::{self, Published},
     providers::{self, Online},
-    recording::{Recording, Said},
+    recording::{Recording, Said, Source},
     sessions::{self, Listed},
     settings::{self, After, KeepAudio, Settings},
     summarising::{self, Summarising},
@@ -75,6 +75,8 @@ struct Shell {
     redoing: Mutex<Option<(PathBuf, PathBuf)>>,
     /// The meeting whose transcript is being made, when one is: it cannot be freed meanwhile.
     hearing: Mutex<Option<PathBuf>>,
+    /// The recording's meter, for the small window: when it started, and each source's level now.
+    meter: Mutex<(Option<Instant>, [f32; 2])>,
     /// The list's small reliefs, by transcript, kept until it changes.
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
@@ -124,6 +126,9 @@ fn main() {
             listed,
             header,
             record,
+            recording_now,
+            small_window,
+            full_window,
             minutes_asked,
             busy_meetings,
             freed,
@@ -205,6 +210,7 @@ fn main() {
                 minutes: minutes.clone(),
                 minuting: Mutex::new(None),
                 shapes: Mutex::new(HashMap::new()),
+                meter: Mutex::new((None, [0.0, 0.0])),
                 redoing: Mutex::new(None),
                 hearing: Mutex::new(None),
                 writing_minutes: Mutex::new(false),
@@ -426,6 +432,52 @@ fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(),
 /// A trash's refusal, in the user's words (as the audio's expiry says it).
 fn refusal_said(error: &trash::Error, language: Language) -> String {
     words::audio_trashed(language, &Err(refusal(error))).body
+}
+
+/// What the small window shows (D22), asked ten times a second: whether a recording runs, for
+/// how long, and each source's level now.
+#[derive(serde::Serialize)]
+struct Now {
+    recording: bool,
+    seconds: f64,
+    levels: [f32; 2],
+}
+
+#[tauri::command]
+fn recording_now(shell: State<'_, Shell>) -> Now {
+    let (started, levels) = *shell.meter.lock().unwrap();
+    Now {
+        recording: shell.recording.lock().unwrap().is_some() && started.is_some(),
+        seconds: started.map_or(0.0, |started| started.elapsed().as_secs_f64()),
+        levels,
+    }
+}
+
+/// Opens the small window, on the user's gesture only: while a recording runs, its time, its
+/// two levels and the way to stop it, kept above the other windows.
+#[tauri::command]
+fn small_window(app: AppHandle, shell: State<'_, Shell>) {
+    // The header's offer can outlive the recording by a poll: after it, there is nothing to show.
+    if shell.recording.lock().unwrap().is_none() {
+        return;
+    }
+    if let Some(window) = app.get_webview_window("small") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(&app, "small", WebviewUrl::App("index.html#/small".into()))
+        .title("Summit")
+        .inner_size(380.0, 260.0)
+        .resizable(false)
+        .always_on_top(true)
+        .build();
+}
+
+/// From the small window to the full one.
+#[tauri::command]
+fn full_window(app: AppHandle) {
+    open_window(&app);
 }
 
 /// The header's button: starts a recording, or stops the one running — as the tray and the
@@ -1124,6 +1176,10 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
         started |= matches!(event, Said::Started(..));
         if let Said::Started(folder, _) = &event {
             *shell.recorded.lock().unwrap() = Some(folder.clone());
+            *shell.meter.lock().unwrap() = (Some(Instant::now()), [0.0, 0.0]);
+        }
+        if let Said::Level(source, level) = &event {
+            shell.meter.lock().unwrap().1[usize::from(*source == Source::Others)] = *level;
         }
         let notice = match &event {
             // Ended before it had started: nothing was recorded, and that is the trouble.
@@ -1142,6 +1198,11 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
         }
     }
     shell.recorded.lock().unwrap().take();
+    *shell.meter.lock().unwrap() = (None, [0.0, 0.0]);
+    // The small window has nothing left to show: it closes, as the board has it.
+    if let Some(small) = app.get_webview_window("small") {
+        let _ = small.close();
+    }
     let ended = shell.recording.lock().unwrap().take();
     *shell.stopping.lock().unwrap() = false;
     show(app, Shown::Idle);

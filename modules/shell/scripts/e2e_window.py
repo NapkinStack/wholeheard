@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 
 from selenium import webdriver
-from selenium.common.exceptions import StaleElementReferenceException, WebDriverException
+from selenium.common.exceptions import NoSuchWindowException, StaleElementReferenceException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.options import ArgOptions
@@ -62,6 +62,23 @@ printf '{"type":"header","contract":"transcript/v1","engine":"e","model":"%s","l
 """
 )
 HEARING.chmod(0o755)
+# summit-capture played here: it says it started, then each source's level ten times a second,
+# until it is told to stop. No device, nobody recorded.
+RECORDER = WORK / "summit-capture"
+RECORDER.write_text(
+    """#!/bin/bash
+folder="$2/2026-10-18_12-00"; mkdir -p "$folder"
+printf '{"contract":"session-audio/v2","started":"2026-10-18T12:00:00+02:00","tracks":{}}' > "$folder/session.json"
+echo '{"event":"started","folder":"'"$folder"'","sources":{"me":"Mic","others":"Speaker"}}'
+n=0
+while ! read -t 0.1 line; do
+  n=$((n + 1)); echo '{"event":"level","source":"me","level":0.'$((n % 9 + 1))'}'; echo '{"event":"level","source":"others","level":0.5}'
+done
+printf '{"contract":"session-audio/v2","started":"2026-10-18T12:00:00+02:00","stopped":"2026-10-18T12:00:05+02:00","tracks":{}}' > "$folder/session.json"
+echo '{"event":"stopped","folder":"'"$folder"'","seconds":5.0}'
+"""
+)
+RECORDER.chmod(0o755)
 FAILED = []
 MONTHS_FR = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
 # The page's ground, as `ui/window.css` sets it in each theme.
@@ -80,6 +97,15 @@ def shot(browser, name: str) -> None:
     if folder:
         Path(folder).mkdir(parents=True, exist_ok=True)
         browser.save_screenshot(str(Path(folder) / f"{name}.png"))
+
+
+def stop_from_small(browser) -> None:
+    """Arrêter in the small window: the window goes with the recording, sometimes before the
+    driver has answered the click."""
+    try:
+        browser.find_element(By.ID, "small-stop").click()
+    except NoSuchWindowException:
+        pass
 
 
 def wait_for(browser, holds, seconds: float = 10) -> bool:
@@ -124,7 +150,7 @@ class Window:
         self.file.write_text(f'sessions = "{sessions}"\n{more}')
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), LANGUAGE="")
         # An Ollama and a keyring of the scenario's, never the user's own.
-        self.env.update(LANG=language, LC_ALL=language, SUMMIT_OLLAMA=ollama, SUMMIT_KEYRING="memory", SUMMIT_SUMMARY=str(SUMMARY), SUMMIT_TRANSCRIPTION=str(HEARING))
+        self.env.update(LANG=language, LC_ALL=language, SUMMIT_OLLAMA=ollama, SUMMIT_KEYRING="memory", SUMMIT_SUMMARY=str(SUMMARY), SUMMIT_TRANSCRIPTION=str(HEARING), SUMMIT_CAPTURE=str(RECORDER))
 
     def __enter__(self) -> webdriver.Remote:
         port, native = free_port(), free_port()
@@ -854,6 +880,54 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         listed = wait_for(browser, lambda b: len(b.find_elements(By.CSS_SELECTOR, "#groups .session")) == 2, 5)
         check("a meeting whose audio was freed is still listed; the whole one is not", listed)
+
+    print("Q. while recording, the small window: the time, the two levels, stop — opened on a gesture only")
+    taping = WORK / "taping"
+    taping.mkdir()
+    with Window(taping, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        main = browser.current_window_handle
+        browser.find_element(By.ID, "record").click()
+        offered = wait_for(browser, lambda b: b.find_element(By.ID, "small-link").is_displayed(), 5)
+        check("while recording, the header offers the small window — none opened by itself", offered and browser.window_handles == [main], browser.window_handles)
+        browser.find_element(By.ID, "small-link").click()
+        opened = wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
+        check("the small window opens on the gesture", opened, browser.window_handles)
+        browser.switch_to.window([h for h in browser.window_handles if h != main][0])
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop"))
+        time.sleep(1.5)
+        shot(browser, "6-small")
+        fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
+        check("it holds in its window, nothing to scroll", fits[0] <= fits[1], fits)
+        moving = {browser.find_element(By.ID, "level-me").get_attribute("style") for _ in range(6) if time.sleep(0.15) is None}
+        clock = browser.find_element(By.CSS_SELECTOR, "#small .time").text
+        check("it shows the time recorded and the levels, moving as sound comes", clock.startswith("00:00:0") and clock != "00:00:00" and len(moving) > 1, (clock, moving))
+        check("the meeting's level too", "50%" in browser.find_element(By.ID, "level-others").get_attribute("style"))
+        stop_from_small(browser)
+        browser.switch_to.window(main)
+        closed = wait_for(browser, lambda b: len(b.window_handles) == 1, 5)
+        stopped = '"stopped"' in (taping / "2026-10-18_12-00" / "session.json").read_text()
+        check("Arrêter stops the recording, and the small window goes", closed and stopped, browser.window_handles)
+        # The header's offer is hidden by a poll: a click after the stop opens nothing.
+        browser.execute_script('window.__TAURI__.core.invoke("small_window")')
+        time.sleep(1)
+        check("once stopped, nothing opens it again", len(browser.window_handles) == 1, browser.window_handles)
+    taping_en = WORK / "taping-en"
+    taping_en.mkdir()
+    with Window(taping_en, "en_GB.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        main = browser.current_window_handle
+        browser.find_element(By.ID, "record").click()
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-link").is_displayed(), 5)
+        browser.find_element(By.ID, "small-link").click()
+        wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
+        browser.switch_to.window([h for h in browser.window_handles if h != main][0])
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop"))
+        time.sleep(1)
+        fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
+        said = browser.find_element(By.CSS_SELECTOR, "#small .said").text
+        check("in English too, it holds in its window", said == "Your microphone" and fits[0] <= fits[1], (said, fits))
+        stop_from_small(browser)
+        browser.switch_to.window(main)
+        wait_for(browser, lambda b: len(b.window_handles) == 1, 5)
 
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"

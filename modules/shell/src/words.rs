@@ -82,7 +82,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
     use Language::{English, French};
     let (title, body, why) = match (said, language) {
         (Said::Started(..), _) if !reminder => return None,
-        (Said::Heard(_), _) => return None,
+        (Said::Heard(_) | Said::Level(..), _) => return None,
         // The microphone is named, so that one other than the call's shows at once.
         (Said::Started(_, microphone), English) => {
             let named = microphone
@@ -320,6 +320,13 @@ pub struct Window {
     /// The folder the sessions go to, and the button that opens the system's dialog for it.
     pub sessions_folder: [&'static str; 2],
     pub choose: &'static str,
+    /// The small window while recording (D11's sixth board).
+    pub small: &'static str,
+    pub small_mic: &'static str,
+    pub small_meeting: &'static str,
+    pub small_stop: &'static str,
+    pub small_note: &'static str,
+    pub small_full: &'static str,
     /// Freeing space (D11's third board).
     pub free: &'static str,
     pub free_what: &'static str,
@@ -475,6 +482,12 @@ pub fn window(language: Language) -> Window {
                 "New meetings are written here. Those already recorded stay where they were: the window and the audio's keeping follow this folder.",
             ],
             choose: "Choose…",
+            small: "Small window",
+            small_mic: "Your microphone",
+            small_meeting: "The meeting",
+            small_stop: "Stop",
+            small_note: "Once stopped, the transcript writes itself. You will be told.",
+            small_full: "The whole window",
             free: "Free space",
             free_what: "What do you want to remove?",
             free_audio: [
@@ -628,6 +641,12 @@ pub fn window(language: Language) -> Window {
                 "Les nouvelles réunions y sont écrites. Celles déjà enregistrées restent où elles étaient : la fenêtre et la garde de l’audio suivent ce dossier.",
             ],
             choose: "Choisir…",
+            small: "Petite fenêtre",
+            small_mic: "Votre micro",
+            small_meeting: "La réunion",
+            small_stop: "Arrêter",
+            small_note: "À l’arrêt, le transcript s’écrit tout seul. Vous serez prévenu.",
+            small_full: "Toute la fenêtre",
             free: "Faire de la place",
             free_what: "Que voulez-vous retirer ?",
             free_audio: [

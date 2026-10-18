@@ -128,6 +128,9 @@ function show({ words, folder, sessions, shapes, recording, shortcut }) {
   document.documentElement.lang = words.locale;
   // The header's gesture, as the board has it: start or stop, with the shortcut beside.
   document.getElementById("free-link").textContent = words.free;
+  const small = document.getElementById("small-link");
+  small.textContent = words.small;
+  small.hidden = !recording;
   document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
   document.getElementById("record").classList.toggle("live", recording);
   const keys = document.getElementById("header-keys");
@@ -899,6 +902,55 @@ function showAgreement(name, agreement, words) {
   send.focus();
 }
 
+// The small window while recording (D11's sixth board): the time, the two levels, the way to
+// stop and the way to the whole window — asked ten times a second.
+function showSmall(words) {
+  const page = document.getElementById("small");
+  document.body.classList.add("small-window");
+  const time = element("span", "time", "00:00:00");
+  const top = element("div", "small-top");
+  const full = element("button", "open icon", "⤢");
+  full.type = "button";
+  full.id = "small-full";
+  full.title = words.small_full;
+  full.setAttribute("aria-label", words.small_full);
+  full.addEventListener("click", () => window.__TAURI__.core.invoke("full_window"));
+  top.append(element("span", "live-dot"), time, full);
+  const meter = (label, id) => {
+    const row = element("div", "meter");
+    const bar = element("span", "track");
+    bar.setAttribute("role", "meter");
+    bar.setAttribute("aria-label", label);
+    bar.setAttribute("aria-valuemin", "0");
+    bar.setAttribute("aria-valuemax", "100");
+    const fill_ = element("span", "fill");
+    fill_.id = id;
+    bar.append(fill_);
+    row.append(element("span", "said", label), bar);
+    return row;
+  };
+  const stop = element("button", "danger", words.small_stop);
+  stop.type = "button";
+  stop.id = "small-stop";
+  stop.addEventListener("click", () => window.__TAURI__.core.invoke("record"));
+  page.replaceChildren(top, meter(words.small_mic, "level-me"), meter(words.small_meeting, "level-others"), stop, element("p", "says", words.small_note));
+  const tick = async () => {
+    const now = await window.__TAURI__.core.invoke("recording_now").catch(() => null);
+    if (now === null) return;
+    const whole = Math.floor(now.seconds);
+    time.textContent = [Math.floor(whole / 3600), Math.floor((whole % 3600) / 60), whole % 60].map((n) => String(n).padStart(2, "0")).join(":");
+    for (const [index, id] of ["level-me", "level-others"].entries()) {
+      const percent = Math.round(now.levels[index] * 100);
+      const fill_ = document.getElementById(id);
+      fill_.style.width = `${percent}%`;
+      fill_.parentElement.setAttribute("aria-valuenow", String(percent));
+    }
+    stop.disabled = !now.recording;
+  };
+  setInterval(tick, 100);
+  tick();
+}
+
 // Freeing space (D11's third board): the audio alone or the whole meeting, the heaviest first,
 // what is freed said before; everything to the system's trash, on the user's word.
 function showFree(listing, busy, words) {
@@ -1009,6 +1061,18 @@ function showFree(listing, busy, words) {
 let words = null;
 
 async function refresh() {
+  // The small window is its own: it draws its view once, and asks for nothing else.
+  if (location.hash === "#/small") {
+    if (!document.body.classList.contains("small-window")) {
+      const listing = await window.__TAURI__.core.invoke("listed");
+      words = listing.words;
+      document.documentElement.lang = words.locale;
+      document.getElementById("small").hidden = false;
+      for (const other of ["list", "meeting", "settings", "agree", "free"]) document.getElementById(other).hidden = true;
+      showSmall(words);
+    }
+    return;
+  }
   const listing = await window.__TAURI__.core.invoke("listed");
   words = listing.words;
   show(listing);
@@ -1055,6 +1119,7 @@ async function refresh() {
   }
 }
 
+document.getElementById("small-link").addEventListener("click", () => window.__TAURI__.core.invoke("small_window"));
 document.getElementById("record").addEventListener("click", async () => {
   await window.__TAURI__.core.invoke("record");
   // The recording says it started, or stopped, a moment later: then the header follows.
@@ -1067,6 +1132,7 @@ setInterval(async () => {
   const asked = await window.__TAURI__.core.invoke("header").catch(() => null);
   if (asked === null) return;
   const { recording, shortcut } = asked;
+  document.getElementById("small-link").hidden = !recording;
   document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
   document.getElementById("record").classList.toggle("live", recording);
   const keys = document.getElementById("header-keys");
