@@ -297,6 +297,18 @@ pub struct Window {
     pub after_transcript: [&'static str; 2],
     pub after_minutes: [&'static str; 2],
     pub models_title: &'static str,
+    /// What the models' card says under its title, and under its steps.
+    pub models_intro: &'static str,
+    pub models_note: &'static str,
+    /// The transcription model's state, at the page's end.
+    pub model_state: &'static str,
+    pub model_ready: &'static str,
+    pub model_here: &'static str,
+    pub model_missing: &'static str,
+    /// The model's name as people say it, and its size once installed.
+    pub installed: &'static str,
+    /// Another number of days, typed.
+    pub keep_other: &'static str,
     pub transcription: &'static str,
     pub on_this_computer: &'static str,
     pub reminder: [&'static str; 2],
@@ -404,6 +416,14 @@ pub fn window(language: Language) -> Window {
                 "Each follows the other; a notification says when the minutes are ready.",
             ],
             models_title: "Models",
+            models_intro: "For each step, you choose who works: a model on this computer, an online service, or your own address.",
+            models_note: "The models “on this computer” are those Summit finds installed. A key is kept in your system’s keyring, never in a file. The audio never leaves this computer: only the transcript’s text goes to an online service, after your agreement.",
+            model_state: "Transcription model",
+            model_ready: "Ready",
+            model_here: "Installed · {} · runs on this computer, with no network",
+            model_missing: "Not on this computer yet: it is offered at the first transcript.",
+            installed: "installed, {}",
+            keep_other: "Another number of days…",
             transcription: "Transcription",
             on_this_computer: "On this computer — nothing leaves it",
             reminder: [
@@ -411,7 +431,7 @@ pub fn window(language: Language) -> Window {
                 "At the start, a line reminds you to say the meeting is recorded.",
             ],
             sessions_folder: [
-                "Sessions folder",
+                "Meetings folder",
                 "New meetings are written here. Those already recorded stay where they were: the window and the audio's keeping follow this folder.",
             ],
             choose: "Choose…",
@@ -511,6 +531,14 @@ pub fn window(language: Language) -> Window {
                 "Tout s’enchaîne ; une notification prévient quand le compte rendu est prêt.",
             ],
             models_title: "Modèles",
+            models_intro: "Pour chaque étape, vous choisissez qui travaille : un modèle sur cet ordinateur, un service en ligne, ou votre propre adresse.",
+            models_note: "Les modèles « sur cet ordinateur » sont ceux que Summit trouve installés. Une clé est gardée dans le trousseau de votre système, jamais dans un fichier. L’audio ne quitte jamais cet ordinateur : seul le texte du transcript part vers un service en ligne, après votre accord.",
+            model_state: "Modèle de transcription",
+            model_ready: "Prêt",
+            model_here: "Installé · {} · tourne sur cet ordinateur, sans réseau",
+            model_missing: "Pas encore sur cet ordinateur : il est proposé au premier transcript.",
+            installed: "installé, {}",
+            keep_other: "Autre nombre de jours…",
             transcription: "Transcription",
             on_this_computer: "Sur cet ordinateur — rien ne sort",
             reminder: [
@@ -518,7 +546,7 @@ pub fn window(language: Language) -> Window {
                 "Au démarrage, une ligne rappelle de dire que la réunion est enregistrée.",
             ],
             sessions_folder: [
-                "Dossier des sessions",
+                "Dossier des réunions",
                 "Les nouvelles réunions y sont écrites. Celles déjà enregistrées restent où elles étaient : la fenêtre et la garde de l’audio suivent ce dossier.",
             ],
             choose: "Choisir…",

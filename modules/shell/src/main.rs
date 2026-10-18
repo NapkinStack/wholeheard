@@ -418,6 +418,8 @@ struct SettingsShown {
     shortcut: Option<String>,
     shortcut_settings: bool,
     sessions: PathBuf,
+    /// The same, as people write it: from their home, with a tilde.
+    sessions_said: String,
     after: After,
     reminder: bool,
     keep_audio: KeepAudio,
@@ -451,6 +453,11 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
     SettingsShown {
         shortcut: shell.shortcut.lock().unwrap().clone(),
         shortcut_settings: keyboard_settings().is_some(),
+        sessions_said: match dirs::home_dir().and_then(|home| settings.sessions.strip_prefix(home).ok().map(PathBuf::from)) {
+            Some(rest) if rest.as_os_str().is_empty() => "~".to_string(),
+            Some(rest) => format!("~/{}", rest.display()),
+            None => settings.sessions.display().to_string(),
+        },
         sessions: settings.sessions,
         after: settings.after,
         reminder: settings.reminder,
