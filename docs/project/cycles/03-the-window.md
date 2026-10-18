@@ -24,7 +24,7 @@ deliverables:
   - id: D19
     title: "A user frees space — the audio alone, or the whole meeting — sees what it frees before, and can undo"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given the sessions, when the user chooses to free the audio alone or the whole meeting, then the heaviest are shown first, those older than thirty days can be ticked at once, and what will be freed is said before anything is done"
       - "Given the user's word, when the space is freed, then what is freed goes to the system's trash, nothing is deleted for good; a session whose audio alone was freed still lists, and its transcript and minutes still read; and a session restored from the trash is listed again as it was"
@@ -47,7 +47,7 @@ deliverables:
   - id: D22
     title: "While a recording runs, a small window shows its time and its two sources' levels, and stops it"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a recording started from the tray or the shortcut, when the user opens the small window, then it shows the time recorded and a level for the microphone and one for the meeting, moving as sound comes, and *Arrêter* stops the recording as the tray does; it opens the full window, and it never opens without a gesture"
   - id: D23
