@@ -41,6 +41,7 @@ here=$(dirname "$0")
 printf '%s\\n' "$*" > "$here/summary-args"
 printf '%s' "${SUMMIT_PROVIDER_KEY:-none}" > "$here/summary-key"
 if [ "$1" != --test ]; then
+  [ -e "$here/slow-minutes" ] && sleep 3
   echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
   printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" > "$1/minutes.md"
   echo '{"event": "written", "file": "x"}'
@@ -97,6 +98,17 @@ def shot(browser, name: str) -> None:
     if folder:
         Path(folder).mkdir(parents=True, exist_ok=True)
         browser.save_screenshot(str(Path(folder) / f"{name}.png"))
+
+
+def press(browser, element_id: str) -> None:
+    """A click on the page as it is: drawn again under the driver, the element is found afresh."""
+    for _ in range(5):
+        try:
+            browser.find_element(By.ID, element_id).click()
+            return
+        except StaleElementReferenceException:
+            time.sleep(0.2)
+    browser.find_element(By.ID, element_id).click()
 
 
 def stop_from_small(browser) -> None:
@@ -362,8 +374,16 @@ def main() -> int:
         maker = minutes.find_element(By.CSS_SELECTOR, ".maker").text
         check(
             "who wrote the minutes, and where, as the board says it — the model as people say it, the day without its year",
-            maker.startswith("Écrit par Claude Sonnet, via openrouter.ai · ") and "2026" not in maker,
+            maker.startswith("Écrit par Claude Sonnet, via openrouter.ai · ") and "2026" not in maker and "," not in maker.split(" · ")[-1],
             maker,
+        )
+        named = browser.execute_script(
+            "return ['anthropic/claude-sonnet-4-5', 'mistral:7b-instruct-q4_K_M', 'llama3.1:8b-fp16', 'org/model/', 'gpt-4o-mini'].map(modelSaid)"
+        )
+        check(
+            "a model as people say it: a version with its point, no quantisation, a name even after a last slash",
+            named == ["Claude Sonnet 4.5", "Mistral 7b Instruct", "Llama3.1 8b", "Model", "GPT 4o Mini"],
+            named,
         )
         said = browser.execute_script(
             "return [...document.querySelectorAll('.lines li')].map(li => [li.querySelector('.at'), li.querySelector('.who'), li.querySelector('.text')].map(c => c.textContent).join(' | '))"
@@ -663,7 +683,7 @@ def main() -> int:
         check("not asking again is the user's tick, unticked", not browser.find_element(By.ID, "agree-remember").is_selected())
         # The provider changed in the file while the page asks: the word was not for that one.
         window.file.write_text(window.file.read_text().replace("https://openrouter.ai/api/v1", "https://api.mistral.ai/v1"))
-        browser.find_element(By.ID, "agree-send").click()
+        press(browser, "agree-send")
         refused = wait_for(browser, lambda b: any(said.is_displayed() for said in b.find_elements(By.ID, "not-saved")), 5)
         check(
             "the word is for the host shown: chosen otherwise meanwhile, nothing is sent",
@@ -674,7 +694,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
-        browser.find_element(By.ID, "agree-send").click()
+        press(browser, "agree-send")
         sent = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         check(
             "on the word, this meeting is sent — once: the host is not kept",
@@ -687,8 +707,8 @@ def main() -> int:
         (asked / "minutes.md").unlink()
         browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "agree-remember"))
-        browser.find_element(By.ID, "agree-remember").click()
-        browser.find_element(By.ID, "agree-send").click()
+        press(browser, "agree-remember")
+        press(browser, "agree-send")
         kept = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         check("ticked, the host is kept for the next ones", kept and 'minutes_agreed = "openrouter.ai"' in window.file.read_text(), window.file.read_text())
         # On this computer instead: nothing goes to the host, nothing is agreed.
@@ -716,9 +736,17 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"))
         chips = browser.find_element(By.CSS_SELECTOR, "#meeting .holds").text
         check("the meeting's page says where its transcript was made", "Transcript · sur cette machine" in chips, chips)
+        (WORK / "slow-minutes").touch()
         browser.find_element(By.ID, "make-minutes").click()
-        made = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         said = browser.find_element(By.CSS_SELECTOR, "#meeting .minutes").text
+        # While its minutes are written, the meeting is busy: shown, never offered to be freed.
+        browser.execute_script("location.hash = '#/free'")
+        held = wait_for(browser, lambda b: [r.text for r in b.find_elements(By.CSS_SELECTOR, "#free .freeable.busy")], 3)
+        busy = [r.text for r in browser.find_elements(By.CSS_SELECTOR, "#free .freeable.busy")]
+        check("while its minutes are written, the meeting is busy on the page that frees space", held and "compte rendu" in " ".join(busy), busy)
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        made = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
+        (WORK / "slow-minutes").unlink()
         check("what a meeting lacks is offered, and made on the word", made and "Demandé" in said, said)
         # Refaire…: another model, this time only; the minutes there go to the trash once replaced.
         browser.execute_script("location.hash = '#/'")
@@ -853,6 +881,7 @@ def main() -> int:
         check("the heaviest first, by their audio", weighs == ["6 Mo", "3 Mo", "1 Mo"], weighs)
         check("nothing is freed before a choice", not browser.find_element(By.ID, "free-do").is_enabled())
         browser.find_element(By.ID, "free-older").click()
+        check("the page drawn again, the focus stays where the keyboard left it", browser.execute_script("return document.activeElement.id") == "free-older")
         ticked = browser.execute_script("return [...document.querySelectorAll('#free .freeable input:checked')].map(i => i.value)")
         check("those older than 30 days are ticked at once", sorted(ticked) == ["light", "old"], ticked)
         said = browser.find_element(By.CSS_SELECTOR, "#free .free-total").text
@@ -902,6 +931,7 @@ def main() -> int:
         clock = browser.find_element(By.CSS_SELECTOR, "#small .time").text
         check("it shows the time recorded and the levels, moving as sound comes", clock.startswith("00:00:0") and clock != "00:00:00" and len(moving) > 1, (clock, moving))
         check("the meeting's level too", "50%" in browser.find_element(By.ID, "level-others").get_attribute("style"))
+        check("nothing follows the stop here: the small window does not say the transcript writes itself", not browser.find_element(By.CSS_SELECTOR, "#small .says").is_displayed())
         stop_from_small(browser)
         browser.switch_to.window(main)
         closed = wait_for(browser, lambda b: len(b.window_handles) == 1, 5)
@@ -913,7 +943,7 @@ def main() -> int:
         check("once stopped, nothing opens it again", len(browser.window_handles) == 1, browser.window_handles)
     taping_en = WORK / "taping-en"
     taping_en.mkdir()
-    with Window(taping_en, "en_GB.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+    with Window(taping_en, "en_GB.UTF-8", "reminder = false\n") as browser:
         main = browser.current_window_handle
         browser.find_element(By.ID, "record").click()
         wait_for(browser, lambda b: b.find_element(By.ID, "small-link").is_displayed(), 5)
@@ -925,6 +955,10 @@ def main() -> int:
         fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
         said = browser.find_element(By.CSS_SELECTOR, "#small .said").text
         check("in English too, it holds in its window", said == "Your microphone" and fits[0] <= fits[1], (said, fits))
+        starts = browser.execute_script("return [...document.querySelectorAll('#small .track')].map(t => t.getBoundingClientRect().left)")
+        check("the two meters start at the same place", len(starts) == 2 and starts[0] == starts[1], starts)
+        note = browser.find_element(By.CSS_SELECTOR, "#small .says")
+        check("the transcript follows the stop: the small window says so", note.is_displayed() and "transcript" in note.text, note.text)
         stop_from_small(browser)
         browser.switch_to.window(main)
         wait_for(browser, lambda b: len(b.window_handles) == 1, 5)

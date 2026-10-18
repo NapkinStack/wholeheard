@@ -336,8 +336,9 @@ function minutesCard(read, words, session, transcript) {
   card.querySelector("h2").after(redo);
   const made = read.made && dayOf({ instant: Date.parse(read.made) / 1000 || null });
   // As the board says it: the day of the week, no year, and the model as people say it.
-  const options = { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" };
-  const when = made ? new Intl.DateTimeFormat(words.locale, options).format(made) : "—";
+  const day = { weekday: "short", day: "numeric", month: "short" };
+  const hour = { hour: "2-digit", minute: "2-digit" };
+  const when = made ? `${new Intl.DateTimeFormat(words.locale, day).format(made)} ${new Intl.DateTimeFormat(words.locale, hour).format(made)}` : "—";
   card.append(element("p", "maker", fill(words.written_by, read.model ? modelSaid(read.model) : "—", read.provider || "—", when)));
   // The minutes as written, rendered by the shell: raw HTML in them is text there, a link its words.
   const body = element("div", "body");
@@ -617,12 +618,15 @@ function minutesRow(minutes, words, locked) {
 // A provider's model named as people say it: `anthropic/claude-sonnet` is Claude Sonnet; its
 // version and size stay as written (`mistral:7b` is Mistral 7b).
 function modelSaid(model) {
-  const name = model.split("/").pop();
-  return name
-    .split(/[-_:\s]+/)
-    .filter(Boolean)
-    .map((word) => (word.toLowerCase() === "gpt" ? "GPT" : /^[a-z]/.test(word) ? word[0].toUpperCase() + word.slice(1) : word))
-    .join(" ");
+  // The last part of an id that has one; a quantisation (q4_K_M, fp16…) is no part of the name.
+  const name = (model.split("/").filter(Boolean).pop() ?? model).replace(/[-_:.](?:i?q\d\w*|b?fp?16|fp?32|int[48])$/i, "");
+  const said = [];
+  for (const word of name.split(/[-_:\s]+/).filter(Boolean)) {
+    // A version written with dashes — claude-sonnet-4-5 — is said with its point.
+    if (/^\d+$/.test(word) && /^\d+(\.\d+)*$/.test(said.at(-1) ?? "")) said[said.length - 1] += `.${word}`;
+    else said.push(word.toLowerCase() === "gpt" ? "GPT" : /^[a-z]/.test(word) ? word[0].toUpperCase() + word.slice(1) : word);
+  }
+  return said.join(" ");
 }
 
 function spoken(name) {
@@ -933,7 +937,11 @@ function showSmall(words) {
   stop.type = "button";
   stop.id = "small-stop";
   stop.addEventListener("click", () => window.__TAURI__.core.invoke("record"));
-  page.replaceChildren(top, meter(words.small_mic, "level-me"), meter(words.small_meeting, "level-others"), stop, element("p", "says", words.small_note));
+  const meters = element("div", "meters");
+  meters.append(meter(words.small_mic, "level-me"), meter(words.small_meeting, "level-others"));
+  const note = element("p", "says", words.small_note);
+  note.hidden = true;
+  page.replaceChildren(top, meters, stop, note);
   const tick = async () => {
     const now = await window.__TAURI__.core.invoke("recording_now").catch(() => null);
     if (now === null) return;
@@ -946,6 +954,7 @@ function showSmall(words) {
       fill_.parentElement.setAttribute("aria-valuenow", String(percent));
     }
     stop.disabled = !now.recording;
+    note.hidden = !now.transcript_follows;
   };
   setInterval(tick, 100);
   tick();
@@ -1053,7 +1062,11 @@ function showFree(listing, busy, words) {
     said.textContent = page.dataset.said ?? "";
     delete page.dataset.said;
     parts.push(total, said);
+    // Each gesture draws the page again: the focus goes back where the keyboard left it.
+    const focused = page.contains(document.activeElement) ? document.activeElement : null;
+    const refocus = focused && (focused.id ? `#${focused.id}` : focused.name ? `input[name="${focused.name}"][value="${focused.value}"]` : null);
     page.replaceChildren(...parts);
+    if (refocus) page.querySelector(refocus)?.focus();
   };
   draw();
 }

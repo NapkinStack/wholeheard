@@ -424,11 +424,34 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
                 .contains("minutes-before-1760751234.md")
         );
         assert!(
-            words::transcript_kept_beside(language, "transcript-before-1760751234.jsonl")
+            words::transcript_kept_beside(language, "transcript-before-1760751234.jsonl", false)
                 .body
                 .contains("transcript-before-1760751234.jsonl")
         );
+        // A transcript made again that failed, and the one there not put back: said as such,
+        // never as a trash that refused.
+        let back = words::transcript_kept_beside(language, "transcript-before-1760751234.jsonl", true);
+        let trashed = words::transcript_kept_beside(language, "transcript-before-1760751234.jsonl", false);
+        assert!(
+            back.body.contains("transcript-before-1760751234.jsonl") && back.title != trashed.title && back.body != trashed.body,
+            "{}",
+            back.body
+        );
+        // Minutes made again that failed: the ones there stayed, and the menu's entry is not offered.
+        let redo = words::minutes(&Minutes::RedoFailed("the provider's answer is not minutes".into()), language);
+        let failed = words::minutes(&Minutes::Failed("x".into()), language);
+        assert!(
+            redo.title != failed.title
+                && !redo.body.contains(words::menu(language).minutes)
+                && redo.body.ends_with("(the provider's answer is not minutes)"),
+            "{}",
+            redo.body
+        );
     }
+    assert_eq!(
+        words::minutes(&Minutes::RedoFailed(String::new()), Language::French).title,
+        "Le compte rendu n’a pas été refait"
+    );
     assert_eq!(
         words::minutes(&Minutes::Waiting("openrouter.ai".into()), Language::French).body,
         "Rien n’est envoyé à openrouter.ai avant votre accord, dans la fenêtre de Summit."

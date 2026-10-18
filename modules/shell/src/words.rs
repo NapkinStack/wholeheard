@@ -506,7 +506,7 @@ pub fn window(language: Language) -> Window {
             free_audio_note: "Without its audio, a meeting can no longer be transcribed again by a better engine.",
             free_do_audio: "Move their audio to the trash",
             free_do_whole: "Move these meetings to the trash",
-            free_busy: "being recorded or transcribed",
+            free_busy: "being recorded, transcribed or summed up",
             free_done: "Done: in the trash.",
             redo: "Redo…",
             redo_title: "Write the minutes again",
@@ -665,7 +665,7 @@ pub fn window(language: Language) -> Window {
             free_audio_note: "Sans son audio, une réunion ne pourra plus être transcrite à nouveau par un meilleur moteur.",
             free_do_audio: "Mettre leur audio à la corbeille",
             free_do_whole: "Mettre ces réunions à la corbeille",
-            free_busy: "en cours d’enregistrement ou de transcription",
+            free_busy: "en cours d’enregistrement, de transcription ou de compte rendu",
             free_done: "C’est fait : dans la corbeille.",
             redo: "Refaire…",
             redo_title: "Refaire le compte rendu",
@@ -847,6 +847,8 @@ pub enum Minutes {
     ReadyKeptBeside(String),
     /// Not made: summit-summary's sentence.
     Failed(String),
+    /// Made again (*Refaire…*) and not made: the ones there stayed; summit-summary's sentence.
+    RedoFailed(String),
     /// Online, and the user has not agreed to send this meeting to this host yet.
     Waiting(String),
     /// No one is chosen to write them.
@@ -889,6 +891,16 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
             format!("Le transcript est intact. «\u{a0}{entry}\u{a0}», dans le menu de Summit, le refait."),
             why.as_str(),
         ),
+        (Minutes::RedoFailed(why), English) => (
+            "The minutes were not made again",
+            "The ones there stay in place.".to_string(),
+            why.as_str(),
+        ),
+        (Minutes::RedoFailed(why), French) => (
+            "Le compte rendu n’a pas été refait",
+            "Celui d’avant est resté en place.".to_string(),
+            why.as_str(),
+        ),
         (Minutes::Waiting(host), English) => (
             "The minutes wait for your agreement",
             format!("Nothing is sent to {host} before you agree, in Summit’s window."),
@@ -926,16 +938,25 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
     notice(title, body, why).expect("the minutes' end is always said")
 }
 
-/// Said when a transcript made again replaced one the trash refused: kept beside it.
-pub fn transcript_kept_beside(language: Language, name: &str) -> Notice {
-    let (title, body) = match language {
-        Language::English => (
+/// Said when a transcript made again replaced one the trash refused: kept beside it; or, the
+/// new one failed (`not_put_back`), when the one there could not be put back: where it is.
+pub fn transcript_kept_beside(language: Language, name: &str, not_put_back: bool) -> Notice {
+    let (title, body) = match (language, not_put_back) {
+        (Language::English, false) => (
             "The previous transcript is kept",
             format!("It could not go to the trash: it is beside the new one, as {name}."),
         ),
-        Language::French => (
+        (Language::French, false) => (
             "L’ancien transcript est gardé",
             format!("Il n’a pas pu aller à la corbeille : il est à côté du nouveau, sous {name}."),
+        ),
+        (Language::English, true) => (
+            "The transcript could not be put back",
+            format!("It is in the meeting’s folder, as {name}."),
+        ),
+        (Language::French, true) => (
+            "Le transcript n’a pas pu être remis en place",
+            format!("Il est dans le dossier de la réunion, sous {name}."),
         ),
     };
     Notice { title: title.into(), body }

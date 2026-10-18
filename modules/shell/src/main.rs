@@ -81,7 +81,8 @@ struct Shell {
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
     minuting: Mutex<Option<Summarising>>,
-    writing_minutes: Mutex<bool>,
+    /// The meeting whose minutes are being written: busy, never freed meanwhile (D19).
+    writing_minutes: Mutex<Option<PathBuf>>,
     /// The sessions whose transcripts wait for the one being made, or for the model — in
     /// the order they were asked, each once.
     waiting: Mutex<VecDeque<PathBuf>>,
@@ -213,7 +214,7 @@ fn main() {
                 meter: Mutex::new((None, [0.0, 0.0])),
                 redoing: Mutex::new(None),
                 hearing: Mutex::new(None),
-                writing_minutes: Mutex::new(false),
+                writing_minutes: Mutex::new(None),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
                 download,
@@ -393,7 +394,11 @@ fn transcript_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Re
 fn busy(shell: &Shell) -> Vec<PathBuf> {
     let recording = shell.recording.lock().unwrap().is_some();
     let recorded = shell.recorded.lock().unwrap().clone().filter(|_| recording);
-    recorded.into_iter().chain(shell.hearing.lock().unwrap().clone()).collect()
+    recorded
+        .into_iter()
+        .chain(shell.hearing.lock().unwrap().clone())
+        .chain(shell.writing_minutes.lock().unwrap().clone())
+        .collect()
 }
 
 /// Their names, for the page that frees space (D19).
@@ -407,7 +412,7 @@ fn busy_meetings(shell: State<'_, Shell>) -> Vec<String> {
 
 /// Frees space on the user's word (D19): the meetings' audio alone — their transcript and minutes
 /// still read —, or the whole meetings; to the system's trash, never deleted, restored from there.
-/// A meeting being recorded or transcribed is refused.
+/// A meeting being recorded, transcribed or summed up is refused.
 #[tauri::command]
 fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(), String> {
     let busy = busy(&shell);
@@ -415,7 +420,7 @@ fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(),
     for name in &names {
         let folder = session_folder(&shell, name)?;
         if busy.contains(&folder) {
-            return Err(format!("{name} is being recorded or transcribed"));
+            return Err(format!("{name} is being recorded, transcribed or summed up"));
         }
         if whole {
             gone.push(folder);
@@ -441,6 +446,8 @@ struct Now {
     recording: bool,
     seconds: f64,
     levels: [f32; 2],
+    /// Whether the transcript is made at the stop, by itself: the small window says so then only.
+    transcript_follows: bool,
 }
 
 #[tauri::command]
@@ -450,6 +457,7 @@ fn recording_now(shell: State<'_, Shell>) -> Now {
         recording: shell.recording.lock().unwrap().is_some() && started.is_some(),
         seconds: started.map_or(0.0, |started| started.elapsed().as_secs_f64()),
         levels,
+        transcript_follows: shell.settings.lock().unwrap().after != settings::After::Nothing,
     }
 }
 
@@ -952,9 +960,10 @@ fn make_minutes(app: &AppHandle, folder: PathBuf) {
 fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, chosen: Option<(String, String)>) {
     let shell = app.state::<Shell>();
     let mut writing = shell.writing_minutes.lock().unwrap();
-    if *writing {
+    if writing.is_some() {
         return;
     }
+    let again = chosen.is_some();
     let settings = match shell.reread() {
         Ok(settings) => settings,
         Err(why) => return tell(app, &words::trouble(&Trouble::Settings(why), shell.language)),
@@ -982,7 +991,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
             .unwrap_or_default();
         return open_window_at(app, &format!("#/agree/{name}"));
     }
-    *writing = true;
+    *writing = Some(folder.clone());
     drop(writing);
     minuting(app, true);
     let app = app.clone();
@@ -998,7 +1007,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
             Ok(previous) => Some(previous),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => {
-                *shell.writing_minutes.lock().unwrap() = false;
+                *shell.writing_minutes.lock().unwrap() = None;
                 minuting(&app, false);
                 let why = format!("the minutes there could not be set aside ({error}): nothing was made");
                 return tell(&app, &words::minutes(&words::Minutes::Failed(why), shell.language));
@@ -1020,7 +1029,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
                 if let Some(previous) = &previous {
                     let _ = std::fs::remove_file(previous);
                 }
-                *shell.writing_minutes.lock().unwrap() = false;
+                *shell.writing_minutes.lock().unwrap() = None;
                 minuting(&app, false);
                 return tell(&app, &words::minutes(&words::Minutes::Failed(error.to_string()), shell.language));
             }
@@ -1046,7 +1055,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
                 }
             }
         }
-        *shell.writing_minutes.lock().unwrap() = false;
+        *shell.writing_minutes.lock().unwrap() = None;
         minuting(&app, false);
         if *shell.leaving.lock().unwrap() {
             return;
@@ -1054,6 +1063,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
         let said = match made {
             summarising::Made::Written(_) if kept_beside.is_some() => words::Minutes::ReadyKeptBeside(kept_beside.unwrap_or_default()),
             summarising::Made::Written(_) => words::Minutes::Ready,
+            summarising::Made::Failed(why) if again => words::Minutes::RedoFailed(why),
             summarising::Made::Failed(why) => words::Minutes::Failed(why),
         };
         tell(&app, &words::minutes(&said, shell.language));
@@ -1279,9 +1289,9 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         if let Some((current, previous)) = shell.redoing.lock().unwrap().take() {
             let name = previous.file_name().map(|name| name.to_string_lossy().into_owned());
             match made {
-                Made::Written(_) if trash::delete(&previous).is_err() => kept_beside = name,
+                Made::Written(_) if trash::delete(&previous).is_err() => kept_beside = name.map(|name| (name, false)),
                 Made::Written(_) => {}
-                Made::Failed(_) if std::fs::rename(&previous, &current).is_err() => kept_beside = name,
+                Made::Failed(_) if std::fs::rename(&previous, &current).is_err() => kept_beside = name.map(|name| (name, true)),
                 Made::Failed(_) => {}
             }
         }
@@ -1289,8 +1299,8 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
             return;
         }
         tell(&app, &words::made(&made, shell.language));
-        if let Some(name) = kept_beside {
-            tell(&app, &words::transcript_kept_beside(shell.language, &name));
+        if let Some((name, not_put_back)) = kept_beside {
+            tell(&app, &words::transcript_kept_beside(shell.language, &name, not_put_back));
         }
         // The transcripts waiting in line go on, as after any other.
         let next = shell.waiting.lock().unwrap().pop_front();
