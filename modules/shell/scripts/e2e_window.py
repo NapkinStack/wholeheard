@@ -222,6 +222,13 @@ def main() -> int:
         check("its sections are named in French for a screen reader", sections == "Rubriques", sections)
         listed = rows(browser)
         shot(browser, "1-sessions")
+        # The header's gesture, as the board has it — never pressed here: no recorder is played.
+        said = browser.find_element(By.ID, "record").text
+        check("the header offers to start a recording", said == "Démarrer un enregistrement", said)
+        drawn = browser.execute_script(
+            "return [...document.querySelectorAll('#groups .session')].map(s => s.querySelector('.relief.small:not(.quiet) .said') !== null)"
+        )
+        check("a transcript that cannot be read draws no one", drawn and True not in drawn, drawn)
         check(
             "every session, newest first, each under its week; the one with no readable day last",
             [(heading, holds) for heading, _, holds in listed] == expected,
@@ -269,8 +276,14 @@ def main() -> int:
     )
     with Window(meetings, "fr_FR.UTF-8") as browser:
         browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB, Keys.TAB)
+        focused = browser.execute_script("return document.activeElement.id")
+        check("Tab reaches the header's gesture after the two sections", focused == "record", focused)
+        browser.find_element(By.ID, "record").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.className")
-        check("Tab reaches the first meeting after the two sections", "session" in focused, focused)
+        check("then the first meeting", "session" in focused, focused)
+        drawn = browser.execute_script("return [...document.querySelectorAll('#groups .session')].map(s => s.querySelector('.relief.small:not(.quiet) .said') !== null)")
+        check("a meeting whose transcript reads shows who spoke, small, beside it", True in drawn, drawn)
+        shot(browser, "1-sessions-drawn")
         browser.find_elements(By.CSS_SELECTOR, ".session")[0].click()
         shown = wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".lines li"))
         check("a click on a meeting opens it", shown and not browser.find_element(By.ID, "list").is_displayed())
@@ -290,7 +303,7 @@ def main() -> int:
             items,
         )
         drawn = browser.execute_script(
-            "const s = document.querySelector('.relief'); return [s.getAttribute('aria-label'),"
+            "const s = document.querySelector('#meeting .relief'); return [s.getAttribute('aria-label'),"
             " ...['local', 'remote'].map(t => s.querySelector('.' + t).getAttribute('points').split(' ').map(p => +p.split(',')[1]))]"
         )
         label, here, remote = drawn

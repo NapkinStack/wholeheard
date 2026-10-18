@@ -9,6 +9,7 @@
 //! and tried there. Here is only what needs a desktop.
 
 use std::{
+    collections::HashMap,
     collections::VecDeque,
     path::PathBuf,
     sync::{Mutex, mpsc::Receiver},
@@ -69,6 +70,8 @@ struct Shell {
     shortcut: Mutex<Option<String>>,
     /// The menu's entry that has the minutes of the last recording written.
     minutes: MenuItem<Wry>,
+    /// The list's small reliefs, by transcript, kept until it changes.
+    shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
     minuting: Mutex<Option<Summarising>>,
     writing_minutes: Mutex<bool>,
@@ -114,6 +117,8 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             listed,
+            header,
+            record,
             opened,
             open_folder,
             settings_shown,
@@ -188,6 +193,7 @@ fn main() {
                 shortcut: Mutex::new(None),
                 minutes: minutes.clone(),
                 minuting: Mutex::new(None),
+                shapes: Mutex::new(HashMap::new()),
                 writing_minutes: Mutex::new(false),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
@@ -247,16 +253,86 @@ struct Listing {
     words: words::Window,
     folder: PathBuf,
     sessions: Vec<Listed>,
+    /// For each session, in the same order, who spoke over it — here, then remote — when its
+    /// transcript reads: the small relief each row draws.
+    shapes: Vec<Option<[Vec<f32>; 2]>>,
+    /// Whether a recording runs, and the shortcut's keys as the desktop granted them: the header's.
+    recording: bool,
+    shortcut: Option<String>,
+}
+
+/// A meeting's small relief, kept until its transcript changes: the list is drawn each time the
+/// window comes forward, and a transcript is read again only when it was written meanwhile.
+type Shapes = HashMap<PathBuf, (Option<std::time::SystemTime>, u64, Option<[Vec<f32>; 2]>)>;
+
+/// The list, read away from the window's and the tray's thread: it reads every transcript it
+/// has not read yet.
+#[tauri::command]
+async fn listed(app: AppHandle) -> Result<Listing, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let recorded = shell.recorded.lock().unwrap().clone();
+        let sessions = sessions::list(&shell.settings().sessions, recorded.as_deref());
+        let mut kept = shell.shapes.lock().unwrap();
+        let shapes = sessions
+            .iter()
+            .map(|session| {
+                let file = session.folder.join("transcript.jsonl");
+                let stamp = std::fs::metadata(&file)
+                    .map(|data| (data.modified().ok(), data.len()))
+                    .unwrap_or((None, 0));
+                if let Some((modified, length, shape)) = kept.get(&file)
+                    && (*modified, *length) == stamp
+                    && session.seconds.is_some()
+                {
+                    return shape.clone();
+                }
+                let shape = match meeting::transcript(&session.folder) {
+                    Read::Present(transcript) if !transcript.segments.is_empty() => {
+                        let said = transcript.segments.iter().map(|segment| segment.end).fold(0.0, f64::max);
+                        Some(meeting::shape(&transcript, session.seconds.unwrap_or(said).max(said), 24))
+                    }
+                    _ => None,
+                };
+                kept.insert(file, (stamp.0, stamp.1, shape.clone()));
+                shape
+            })
+            .collect();
+        drop(kept);
+        Listing {
+            words: words::window(shell.language),
+            folder: shell.settings().sessions.clone(),
+            sessions,
+            shapes,
+            recording: shell.recording.lock().unwrap().is_some(),
+            shortcut: shell.shortcut.lock().unwrap().clone(),
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// What the header shows, asked often: whether a recording runs — started from the tray or the
+/// shortcut as well —, and the shortcut's keys.
+#[derive(serde::Serialize)]
+struct Header {
+    recording: bool,
+    shortcut: Option<String>,
 }
 
 #[tauri::command]
-fn listed(shell: State<'_, Shell>) -> Listing {
-    let recorded = shell.recorded.lock().unwrap().clone();
-    Listing {
-        words: words::window(shell.language),
-        folder: shell.settings().sessions.clone(),
-        sessions: sessions::list(&shell.settings().sessions, recorded.as_deref()),
+fn header(shell: State<'_, Shell>) -> Header {
+    Header {
+        recording: shell.recording.lock().unwrap().is_some(),
+        shortcut: shell.shortcut.lock().unwrap().clone(),
     }
+}
+
+/// The header's button: starts a recording, or stops the one running — as the tray and the
+/// shortcut do.
+#[tauri::command]
+fn record(app: AppHandle) {
+    toggle_recording(&app);
 }
 
 /// The folder of a session the window names (`sessions::folder`).
