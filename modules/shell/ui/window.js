@@ -67,7 +67,8 @@ function heading(session, words) {
 function holdings(session, words, where) {
   const holds = document.createElement("div");
   holds.className = "holds";
-  const ran = (text, here) => (where ? `${text} · ${here ? words.ran_here : words.ran_online}` : text);
+  // A place is said only where it is known: `here` true or false; unknown, the chip says none.
+  const ran = (text, here) => (where && here !== undefined ? `${text} · ${here ? words.ran_here : words.ran_online}` : text);
   if (session.state === "recording") holds.append(chip(words.recording, "live"));
   if (session.state === "interrupted") holds.append(chip(words.interrupted, "cut"));
   if (session.minutes) holds.append(chip(ran(words.minutes, where?.minutes_here)));
@@ -241,8 +242,10 @@ function minutesCard(read, words, session, transcript) {
     return card;
   }
   const made = read.made && dayOf({ instant: Date.parse(read.made) / 1000 || null });
-  const when = made ? new Intl.DateTimeFormat(words.locale, { dateStyle: "medium", timeStyle: "short" }).format(made) : "—";
-  card.append(element("p", "maker", fill(words.written_by, read.model || "—", read.provider || "—", when)));
+  // As the board says it: the day of the week, no year, and the model as people say it.
+  const options = { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" };
+  const when = made ? new Intl.DateTimeFormat(words.locale, options).format(made) : "—";
+  card.append(element("p", "maker", fill(words.written_by, read.model ? modelSaid(read.model) : "—", read.provider || "—", when)));
   // The minutes as written, rendered by the shell: raw HTML in them is text there, a link its words.
   const body = element("div", "body");
   body.innerHTML = read.body;
@@ -313,7 +316,8 @@ function showMeeting({ session, transcript, minutes }, words) {
   const named = element("div", "named");
   named.append(element("h1", "", heading(session, words)));
   if (session.seconds !== null) named.append(element("span", "length", length(session.seconds)));
-  const minutesHere = minutes.state === "present" && (minutes.provider === "local" || minutes.provider === null);
+  // Where the minutes were written, from their own front matter: unread, or naming none, not said.
+  const minutesHere = minutes.state === "present" && minutes.provider ? minutes.provider === "local" : undefined;
   title.append(named, holdings(session, words, { minutes_here: minutesHere }));
   const said = transcript.state === "present" ? transcript.segments : [];
   const total = session.seconds || said.reduce((end, s) => Math.max(end, s.end), 0) || 1;
@@ -508,6 +512,17 @@ function minutesRow(minutes, words, locked) {
 
 // A Whisper model's file named as people say it: `ggml-large-v3-turbo-q8_0.bin` is Whisper large
 // v3 turbo. A file of another kind, or outside Summit's folder, keeps its own name.
+// A provider's model named as people say it: `anthropic/claude-sonnet` is Claude Sonnet; its
+// version and size stay as written (`mistral:7b` is Mistral 7b).
+function modelSaid(model) {
+  const name = model.split("/").pop();
+  return name
+    .split(/[-_:\s]+/)
+    .filter(Boolean)
+    .map((word) => (word.toLowerCase() === "gpt" ? "GPT" : /^[a-z]/.test(word) ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(" ");
+}
+
 function spoken(name) {
   const file = name.match(/^ggml-(.+?)(?:[-.](?:q\d+_\d+|f16|f32))?(?:\.bin)?$/i);
   return file ? `Whisper ${file[1].replace(/[-_]/g, " ")}` : name;
