@@ -581,8 +581,8 @@ function showAgreement(name, agreement, words) {
     line.append(element("span", "sign", mark === "leaves" ? "→" : "×"), said);
     return line;
   };
-  goes.append(item("leaves", words.agree_leaves, Math.max(1, Math.round(agreement.seconds / 60)), agreement.words.toLocaleString()));
-  if (agreement.context_words !== null) goes.append(item("leaves", words.agree_context, agreement.context_words.toLocaleString()));
+  goes.append(item("leaves", words.agree_leaves, Math.max(1, Math.round(agreement.seconds / 60)), agreement.words.toLocaleString(document.documentElement.lang)));
+  if (agreement.context_words !== null) goes.append(item("leaves", words.agree_context, agreement.context_words.toLocaleString(document.documentElement.lang)));
   goes.append(item("stays", words.agree_stays));
   const to = element("dl", "recipient");
   to.append(element("dt", "", words.agree_to), element("dd", "", agreement.host), element("dt", "", words.agree_model), element("dd", "", agreement.model));
@@ -607,7 +607,7 @@ function showAgreement(name, agreement, words) {
   const send = element("button", "primary", words.agree_send);
   send.type = "button";
   send.id = "agree-send";
-  send.addEventListener("click", () => act("agreed", { remember: tick.checked }));
+  send.addEventListener("click", () => act("agreed", { host: agreement.host, remember: tick.checked }));
   const not = element("a", "open", words.agree_not);
   not.href = "#/";
   not.id = "agree-not";

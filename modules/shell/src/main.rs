@@ -336,8 +336,13 @@ async fn agreement_shown(shell: State<'_, Shell>, name: String) -> Result<Agreem
 /// The user's word: this meeting is sent; and, when they ticked it, the host is agreed to for the
 /// next ones, kept in the settings.
 #[tauri::command]
-fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, remember: bool) -> Result<(), String> {
+fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, remember: bool) -> Result<(), String> {
     let folder = session_folder(&shell, &name)?;
+    // The word given is for the host the page showed: chosen otherwise meanwhile, nothing goes.
+    let now = shell.reread()?.minutes_provider.as_deref().and_then(providers::host);
+    if now.as_deref() != Some(host.as_str()) {
+        return Err(format!("the minutes are no longer written by {host}: look again"));
+    }
     if remember {
         let _saving = shell.saving.lock().unwrap();
         let mut settings = shell.reread()?;
@@ -726,7 +731,10 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: bool) {
     if !matches!(meeting::transcript(&folder), meeting::Read::Present(transcript) if transcript.complete) {
         return tell(app, &words::minutes(&words::Minutes::NoTranscript, shell.language));
     }
-    let host = providers::host(&provider).unwrap_or_default();
+    let Some(host) = providers::host(&provider) else {
+        let why = format!("{provider} is no provider's address");
+        return tell(app, &words::minutes(&words::Minutes::Failed(why), shell.language));
+    };
     if !agreed_now && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
         tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language));
         let name = folder
