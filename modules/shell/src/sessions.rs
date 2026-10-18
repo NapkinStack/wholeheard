@@ -125,6 +125,14 @@ fn complete(folder: &Path) -> bool {
     matches!(crate::meeting::transcript(folder), crate::meeting::Read::Present(transcript) if transcript.complete)
 }
 
+/// A meeting's audio: every `.wav` under its folder, never through a link — what freeing its audio
+/// alone sends to the trash.
+pub fn audio_of(folder: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    sounds(folder, &mut found);
+    found
+}
+
 /// Every `.wav` under a folder.
 fn sounds(folder: &Path, found: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(folder) else { return };

@@ -127,6 +127,7 @@ function row(session, shape, words) {
 function show({ words, folder, sessions, shapes, recording, shortcut }) {
   document.documentElement.lang = words.locale;
   // The header's gesture, as the board has it: start or stop, with the shortcut beside.
+  document.getElementById("free-link").textContent = words.free;
   document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
   document.getElementById("record").classList.toggle("live", recording);
   const keys = document.getElementById("header-keys");
@@ -898,6 +899,113 @@ function showAgreement(name, agreement, words) {
   send.focus();
 }
 
+// Freeing space (D11's third board): the audio alone or the whole meeting, the heaviest first,
+// what is freed said before; everything to the system's trash, on the user's word.
+function showFree(listing, busy, words) {
+  const page = document.getElementById("free");
+  let whole = page.dataset.whole === "true";
+  const ticked = new Set(JSON.parse(page.dataset.ticked || "[]"));
+  const draw = () => {
+    page.dataset.whole = String(whole);
+    page.dataset.ticked = JSON.stringify([...ticked]);
+    const weight = (s) => (whole ? s.audio + s.text : s.audio);
+    const free = listing.sessions.filter((s) => weight(s) > 0 && !busy.includes(nameOf(s)));
+    const kept = listing.sessions.filter((s) => busy.includes(nameOf(s)));
+    free.sort((a, b) => weight(b) - weight(a));
+    for (const name of [...ticked]) if (!free.some((s) => nameOf(s) === name)) ticked.delete(name);
+    // As the board heads it: the way back, and the page's name.
+    const top = element("div", "page-top");
+    const back = element("a", "back", `‹ ${words.back}`);
+    back.href = "#/";
+    top.append(back, element("h1", "", words.free));
+    const parts = [top, element("p", "eyebrow", words.free_what)];
+    const ways = element("div", "ways");
+    ways.setAttribute("role", "radiogroup");
+    for (const [value, said] of [[false, words.free_audio], [true, words.free_whole]]) {
+      const one = choice("free-what", String(value), said, whole === value, false);
+      one.querySelector("input").addEventListener("change", () => {
+        whole = value;
+        draw();
+      });
+      ways.append(one);
+    }
+    parts.push(ways);
+    const head = element("div", "row");
+    const older = element("button", "open", words.free_older);
+    older.type = "button";
+    older.id = "free-older";
+    older.addEventListener("click", () => {
+      const month = Date.now() / 1000 - 30 * 86400;
+      for (const s of free) if (s.instant !== null && s.instant < month) ticked.add(nameOf(s));
+      draw();
+    });
+    head.append(element("p", "eyebrow", words.free_heaviest), older);
+    parts.push(head);
+    const list = element("ol", "free-list");
+    for (const s of free) {
+      const item = element("li");
+      const row = element("label", "card freeable");
+      const box = element("input");
+      box.type = "checkbox";
+      box.value = nameOf(s);
+      box.checked = ticked.has(nameOf(s));
+      box.addEventListener("change", () => {
+        if (box.checked) ticked.add(nameOf(s));
+        else ticked.delete(nameOf(s));
+        draw();
+      });
+      const said = element("span", "said");
+      said.append(element("span", "name", heading(s, words)), element("span", "length", s.seconds !== null ? length(s.seconds) : ""));
+      row.append(box, said, element("span", "weighs", size(weight(s), words)));
+      item.append(row);
+      list.append(item);
+    }
+    for (const s of kept) {
+      const item = element("li");
+      const row = element("div", "card freeable busy");
+      const said = element("span", "said");
+      said.append(element("span", "name", heading(s, words)), element("span", "length", words.free_busy));
+      row.append(said);
+      item.append(row);
+      list.append(item);
+    }
+    parts.push(list);
+    const chosen = free.filter((s) => ticked.has(nameOf(s)));
+    const freed = chosen.reduce((sum, s) => sum + weight(s), 0);
+    const total = element("section", "card free-total");
+    const sum = element("div", "said");
+    const named = element("div", "total");
+    named.append(element("strong", "", size(freed, words)), element("span", "", chosen.length === 1 ? words.free_one : fill(words.free_total, chosen.length)));
+    sum.append(named, element("p", "says", words.free_note));
+    if (!whole) sum.append(element("p", "says", words.free_audio_note));
+    const go = element("button", "danger", whole ? words.free_do_whole : words.free_do_audio);
+    go.type = "button";
+    go.id = "free-do";
+    go.disabled = chosen.length === 0;
+    const said = element("p", "note");
+    said.id = "free-said";
+    said.setAttribute("aria-live", "polite");
+    go.addEventListener("click", async () => {
+      go.disabled = true;
+      try {
+        await window.__TAURI__.core.invoke("freed", { names: chosen.map(nameOf), whole });
+        ticked.clear();
+        page.dataset.ticked = "[]";
+        page.dataset.said = words.free_done;
+      } catch (why) {
+        page.dataset.said = fill(words.not_saved, why);
+      }
+      await refresh();
+    });
+    total.append(sum, go);
+    said.textContent = page.dataset.said ?? "";
+    delete page.dataset.said;
+    parts.push(total, said);
+    page.replaceChildren(...parts);
+  };
+  draw();
+}
+
 let words = null;
 
 async function refresh() {
@@ -906,6 +1014,10 @@ async function refresh() {
   show(listing);
   const wanted = location.hash.match(/^#\/meeting\/(.+)$/);
   const settings = location.hash === "#/settings";
+  const freeing = location.hash === "#/free";
+  document.getElementById("free").hidden = !freeing;
+  if (freeing) showFree(listing, await window.__TAURI__.core.invoke("busy_meetings"), words);
+  else document.getElementById("free").replaceChildren();
   const agreeing = location.hash.match(/^#\/agree\/(.+)$/);
   let agreement = null;
   if (agreeing) {
@@ -924,7 +1036,7 @@ async function refresh() {
       history.replaceState(null, "", "#/");
     }
   }
-  document.getElementById("list").hidden = opened !== null || settings || agreement !== null;
+  document.getElementById("list").hidden = opened !== null || settings || agreement !== null || freeing;
   document.getElementById("agree").hidden = agreement === null;
   // Shown or emptied: never a question left hidden under another page.
   if (agreement) showAgreement(decodeURIComponent(agreeing[1]), agreement, words);
