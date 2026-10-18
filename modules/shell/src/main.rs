@@ -114,6 +114,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             listed,
+            record,
             opened,
             open_folder,
             settings_shown,
@@ -247,16 +248,43 @@ struct Listing {
     words: words::Window,
     folder: PathBuf,
     sessions: Vec<Listed>,
+    /// For each session, in the same order, who spoke over it — here, then remote — when its
+    /// transcript reads: the small relief each row draws.
+    shapes: Vec<Option<[Vec<f32>; 2]>>,
+    /// Whether a recording runs, and the shortcut's keys as the desktop granted them: the header's.
+    recording: bool,
+    shortcut: Option<String>,
 }
 
 #[tauri::command]
 fn listed(shell: State<'_, Shell>) -> Listing {
     let recorded = shell.recorded.lock().unwrap().clone();
+    let sessions = sessions::list(&shell.settings().sessions, recorded.as_deref());
+    let shapes = sessions
+        .iter()
+        .map(|session| match meeting::transcript(&session.folder) {
+            Read::Present(transcript) if !transcript.segments.is_empty() => {
+                let said = transcript.segments.iter().map(|segment| segment.end).fold(0.0, f64::max);
+                Some(meeting::shape(&transcript, session.seconds.unwrap_or(said).max(said), 24))
+            }
+            _ => None,
+        })
+        .collect();
     Listing {
         words: words::window(shell.language),
         folder: shell.settings().sessions.clone(),
-        sessions: sessions::list(&shell.settings().sessions, recorded.as_deref()),
+        sessions,
+        shapes,
+        recording: shell.recording.lock().unwrap().is_some(),
+        shortcut: shell.shortcut.lock().unwrap().clone(),
     }
+}
+
+/// The header's button: starts a recording, or stops the one running — as the tray and the
+/// shortcut do.
+#[tauri::command]
+fn record(app: AppHandle) {
+    toggle_recording(&app);
 }
 
 /// The folder of a session the window names (`sessions::folder`).

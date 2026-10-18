@@ -150,3 +150,22 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .tag { margin-left: 6px; font: 12.5px ui-monospace, monospace; color: var(--soft); }
 .path { flex: 1 1 240px; min-width: 0; text-align: left; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--soft); font: 13.5px ui-monospace, monospace; cursor: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .path:hover { border-color: var(--line); color: var(--ink); }
+
+/* The header's gesture and the list's rows (D11's first board). */
+.bar { display: flex; align-items: center; gap: 20px; }
+.act { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.act .primary { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 16px; }
+.act .dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+.act .primary.live { background: var(--red); }
+.act .primary.live .dot { animation: beat 1.2s ease-in-out infinite; }
+@keyframes beat { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .act .primary.live .dot { animation: none; } }
+.session { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 10px 22px; }
+.session .shape { width: 132px; display: flex; }
+.relief.small { width: 132px; height: 36px; }
+.relief.small polyline { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.session .length { font: 13px ui-monospace, monospace; }
+.chevron { color: var(--soft); font-size: 22px; line-height: 1; transition: transform 120ms ease; }
+.session:hover .chevron { transform: translateX(3px); color: var(--accent); }
+@media (max-width: 640px) { .session { grid-template-columns: 1fr auto; } .session .shape, .session .chevron { display: none; } }
+.relief.small.quiet polyline { stroke: var(--line); }

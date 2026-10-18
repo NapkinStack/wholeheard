@@ -320,6 +320,9 @@ pub struct Window {
     /// The folder the sessions go to, and the button that opens the system's dialog for it.
     pub sessions_folder: [&'static str; 2],
     pub choose: &'static str,
+    /// The header's button, at rest and while a recording runs.
+    pub record_start: &'static str,
+    pub record_stop: &'static str,
     /// The agreement before a meeting first leaves for a host (D11's fifth board): what leaves,
     /// what stays, to whom; the user's word, once or for this service; on this computer instead.
     pub agree_eyebrow: &'static str,
@@ -442,6 +445,8 @@ pub fn window(language: Language) -> Window {
                 "New meetings are written here. Those already recorded stay where they were: the window and the audio's keeping follow this folder.",
             ],
             choose: "Choose…",
+            record_start: "Start a recording",
+            record_stop: "Stop the recording",
             agree_eyebrow: "Before the first minutes online",
             agree_title: "This meeting’s text is about to leave your computer",
             agree_lead: "To write the minutes, Summit sends the transcript to the service you chose. Here is exactly what leaves.",
@@ -560,6 +565,8 @@ pub fn window(language: Language) -> Window {
                 "Les nouvelles réunions y sont écrites. Celles déjà enregistrées restent où elles étaient : la fenêtre et la garde de l’audio suivent ce dossier.",
             ],
             choose: "Choisir…",
+            record_start: "Démarrer un enregistrement",
+            record_stop: "Arrêter l’enregistrement",
             agree_eyebrow: "Avant le premier compte rendu en ligne",
             agree_title: "Le texte de cette réunion va quitter votre ordinateur",
             agree_lead: "Pour écrire le compte rendu, Summit envoie le transcript au service que vous avez choisi. Voici exactement ce qui part.",

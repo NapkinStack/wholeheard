@@ -113,3 +113,32 @@ fn an_instant_said_at_once_is_kept_and_a_line_missing_what_the_contract_asks_is_
     fs::write(folder.path().join("transcript.jsonl"), format!("{not_a_header}\n")).unwrap();
     assert_eq!(meeting::transcript(folder.path()), Read::Unreadable);
 }
+
+#[test]
+fn a_meeting_s_shape_is_how_much_each_side_spoke_in_each_part() {
+    let folder = tempfile::tempdir().unwrap();
+    std::fs::write(
+        folder.path().join("transcript.jsonl"),
+        concat!(
+            r#"{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}"#,
+            "\n",
+            r#"{"type":"segment","speaker":"me","track":"local","start":0.0,"end":5.0,"text":"a"}"#,
+            "\n",
+            r#"{"type":"segment","speaker":"others","track":"remote","start":5.0,"end":10.0,"text":"b"}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+    let Read::Present(transcript) = meeting::transcript(folder.path()) else {
+        panic!("not read")
+    };
+    let [here, remote] = meeting::shape(&transcript, 10.0, 4);
+    assert_eq!(here, [1.0, 1.0, 0.0, 0.0]);
+    assert_eq!(remote, [0.0, 0.0, 1.0, 1.0]);
+    // Half a part spoken is half; nothing beyond the end; no length, no shape to draw.
+    let [here, _] = meeting::shape(&transcript, 20.0, 4);
+    assert_eq!(here, [1.0, 0.0, 0.0, 0.0]);
+    let [here, _] = meeting::shape(&transcript, 40.0, 4);
+    assert_eq!(here, [0.5, 0.0, 0.0, 0.0]);
+    assert_eq!(meeting::shape(&transcript, 0.0, 4), [vec![0.0; 4], vec![0.0; 4]]);
+}

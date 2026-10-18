@@ -107,3 +107,29 @@ fn segment(value: &serde_json::Value) -> Option<Segment> {
         text: said,
     })
 }
+
+/// How much each side spoke in each of `parts` equal parts of a meeting `seconds` long: for the
+/// track `local`, then `remote`, the share of the part covered by speech, from 0 to 1. What a list
+/// draws small, the meeting's page large.
+pub fn shape(transcript: &Transcript, seconds: f64, parts: usize) -> [Vec<f32>; 2] {
+    let mut shares = [vec![0.0_f32; parts], vec![0.0_f32; parts]];
+    if seconds <= 0.0 || parts == 0 {
+        return shares;
+    }
+    let width = seconds / parts as f64;
+    for segment in &transcript.segments {
+        let side = usize::from(segment.track != "local");
+        let first = (segment.start / width).floor().max(0.0) as usize;
+        for (part, share) in shares[side].iter_mut().enumerate().skip(first) {
+            let (from, to) = (part as f64 * width, (part + 1) as f64 * width);
+            if from >= segment.end {
+                break;
+            }
+            let covered = segment.end.min(to) - segment.start.max(from);
+            if covered > 0.0 {
+                *share = (*share + (covered / width) as f32).min(1.0);
+            }
+        }
+    }
+    shares
+}

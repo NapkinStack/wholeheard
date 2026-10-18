@@ -74,7 +74,24 @@ function holdings(session, words) {
   return holds;
 }
 
-function row(session, words) {
+// Who spoke over a meeting, small, as the list draws it beside each one: here above, remote below.
+function shapeOf([here, remote], words) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 132 36");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", words.who_spoke);
+  svg.classList.add("relief", "small");
+  const step = 132 / Math.max(1, here.length - 1);
+  for (const [track, shares, sign, base] of [["local", here, -1, 17], ["remote", remote, 1, 19]]) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    line.setAttribute("points", shares.map((v, i) => `${(i * step).toFixed(1)},${(base + sign * v * 15).toFixed(1)}`).join(" "));
+    line.classList.add(track);
+    svg.append(line);
+  }
+  return svg;
+}
+
+function row(session, shape, words) {
   const item = document.createElement("li");
   const link = document.createElement("a");
   link.className = "card session";
@@ -92,13 +109,29 @@ function row(session, words) {
     lasted.textContent = length(session.seconds);
     when.append(lasted);
   }
-  link.append(when, holdings(session, words));
+  // No transcript read: a quiet line where its relief would be, so the rows keep their rhythm.
+  const drawn = element("span", "shape");
+  const none = new Array(24).fill(0);
+  const small = shapeOf(shape ?? [none, none], words);
+  if (!shape) {
+    small.classList.add("quiet");
+    small.setAttribute("aria-hidden", "true");
+    small.removeAttribute("role");
+  }
+  drawn.append(small);
+  link.append(drawn, when, holdings(session, words), element("span", "chevron", "›"));
   item.append(link);
   return item;
 }
 
-function show({ words, folder, sessions }) {
+function show({ words, folder, sessions, shapes, recording, shortcut }) {
   document.documentElement.lang = words.locale;
+  // The header's gesture, as the board has it: start or stop, with the shortcut beside.
+  document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
+  document.getElementById("record").classList.toggle("live", recording);
+  const keys = document.getElementById("header-keys");
+  keys.textContent = shortcut ?? "";
+  keys.hidden = !shortcut;
   document.getElementById("meetings").textContent = words.meetings;
   document.getElementById("sections").setAttribute("aria-label", words.sections);
   document.getElementById("settings-link").textContent = words.settings;
@@ -125,7 +158,7 @@ function show({ words, folder, sessions }) {
   const groups = document.getElementById("groups");
   groups.replaceChildren();
   let current = null;
-  for (const session of sessions) {
+  for (const [index, session] of sessions.entries()) {
     const name = group(dayOf(session), now, words);
     if (!current || current.name !== name) {
       const section = document.createElement("section");
@@ -137,7 +170,7 @@ function show({ words, folder, sessions }) {
       groups.append(section);
       current = { name, list };
     }
-    current.list.append(row(session, words));
+    current.list.append(row(session, shapes[index], words));
   }
 }
 
@@ -590,6 +623,8 @@ function showSettings(shown, minutes, words) {
   const said = shown.sessions_said.replace(/^~(?=\/|$)/, words.home).split("/").filter(Boolean).join(" / ");
   const folderShown = element("button", "path", shown.sessions_said.startsWith("/") ? `/ ${said}` : said);
   folderShown.type = "button";
+  whereSaid.id = "sessions-label";
+  folderShown.setAttribute("aria-labelledby", "sessions-label sessions-shown");
   folderShown.id = "sessions-shown";
   folderShown.disabled = locked;
   folderShown.addEventListener("click", () => {
@@ -768,6 +803,11 @@ async function refresh() {
   }
 }
 
+document.getElementById("record").addEventListener("click", async () => {
+  await window.__TAURI__.core.invoke("record");
+  // The recording says it started, or stopped, a moment later: then the header follows.
+  setTimeout(refresh, 1200);
+});
 refresh();
 window.addEventListener("focus", refresh);
 window.addEventListener("hashchange", () => {
