@@ -63,13 +63,15 @@ function heading(session, words) {
   return `${date} · ${time}`;
 }
 
-function holdings(session, words) {
+// What a meeting holds; on its page, where each step ran (`where`: the minutes' provider known).
+function holdings(session, words, where) {
   const holds = document.createElement("div");
   holds.className = "holds";
+  const ran = (text, here) => (where ? `${text} · ${here ? words.ran_here : words.ran_online}` : text);
   if (session.state === "recording") holds.append(chip(words.recording, "live"));
   if (session.state === "interrupted") holds.append(chip(words.interrupted, "cut"));
-  if (session.minutes) holds.append(chip(words.minutes));
-  if (session.transcript) holds.append(chip(words.transcript));
+  if (session.minutes) holds.append(chip(ran(words.minutes, where?.minutes_here)));
+  if (session.transcript) holds.append(chip(ran(words.transcript, true)));
   holds.append(session.audio > 0 ? chip(fill(words.audio, size(session.audio, words))) : chip(words.audio_freed, "gone"));
   return holds;
 }
@@ -211,11 +213,31 @@ function relief(segments, total, words) {
   return svg;
 }
 
-function minutesCard(read, words) {
+// What a meeting lacks, offered on its page and made on the user's word: once asked, said so.
+function offer(card, label, id, command, session, words) {
+  const button = element("button", "primary", label);
+  button.type = "button";
+  button.id = id;
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await window.__TAURI__.core.invoke(command, { name: nameOf(session) });
+      button.replaceWith(element("p", "note", words.asked));
+    } catch (why) {
+      button.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
+    }
+  });
+  card.append(button);
+}
+
+function minutesCard(read, words, session, transcript) {
   const card = element("article", "card minutes");
   card.append(element("h2", "label", words.minutes_title));
   if (read.state !== "present") {
     card.append(element("p", "none", read.state === "absent" ? words.no_minutes : words.unreadable));
+    if (read.state === "absent" && transcript.state === "present" && transcript.complete) {
+      offer(card, words.make_minutes, "make-minutes", "minutes_asked", session, words);
+    }
     return card;
   }
   const made = read.made && dayOf({ instant: Date.parse(read.made) / 1000 || null });
@@ -230,7 +252,7 @@ function minutesCard(read, words) {
 
 const folded = (text) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
-function transcriptCard(read, words) {
+function transcriptCard(read, words, session) {
   const card = element("aside", "card transcript");
   card.setAttribute("aria-label", words.transcript_title);
   const top = element("div", "top");
@@ -238,6 +260,9 @@ function transcriptCard(read, words) {
   card.append(top);
   if (read.state !== "present") {
     card.append(element("p", "none", read.state === "absent" ? words.no_transcript : words.unreadable));
+    if (read.state === "absent" && session.audio > 0 && session.state !== "recording") {
+      offer(card, words.make_transcript, "make-transcript", "transcript_asked", session, words);
+    }
     return card;
   }
   const search = element("input", "search");
@@ -246,7 +271,7 @@ function transcriptCard(read, words) {
   search.placeholder = words.search;
   search.setAttribute("aria-label", words.search);
   top.append(search);
-  card.append(element("p", "maker", fill(words.heard_by, read.model || read.engine || "—")));
+  card.append(element("p", "maker", fill(words.heard_by, read.model ? spoken(read.model) : read.engine || "—")));
   if (!read.complete) card.append(element("p", "note", words.being_made));
   if (read.unread > 0) card.append(element("p", "note", fill(words.unread, read.unread)));
   const lines = element("ol", "lines");
@@ -288,15 +313,20 @@ function showMeeting({ session, transcript, minutes }, words) {
   const named = element("div", "named");
   named.append(element("h1", "", heading(session, words)));
   if (session.seconds !== null) named.append(element("span", "length", length(session.seconds)));
-  title.append(named, holdings(session, words));
+  const minutesHere = minutes.state === "present" && (minutes.provider === "local" || minutes.provider === null);
+  title.append(named, holdings(session, words, { minutes_here: minutesHere }));
   const said = transcript.state === "present" ? transcript.segments : [];
   const total = session.seconds || said.reduce((end, s) => Math.max(end, s.end), 0) || 1;
   const drawn = element("section", "card drawn");
   const legend = element("div", "legend");
-  legend.append(element("span", "here", words.here_described), element("span", "remote", words.remote_described));
+  legend.append(
+    element("span", "here", words.here_described),
+    element("span", "remote", words.remote_described),
+    element("span", "range", `${clock(0)} – ${clock(total)}`),
+  );
   drawn.append(relief(said, total, words), legend);
   const columns = element("div", "columns");
-  columns.append(minutesCard(minutes, words), transcriptCard(transcript, words));
+  columns.append(minutesCard(minutes, words, session, transcript), transcriptCard(transcript, words, session));
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
   page.dataset.name = nameOf(session);
@@ -479,7 +509,7 @@ function minutesRow(minutes, words, locked) {
 // A Whisper model's file named as people say it: `ggml-large-v3-turbo-q8_0.bin` is Whisper large
 // v3 turbo. A file of another kind, or outside Summit's folder, keeps its own name.
 function spoken(name) {
-  const file = name.match(/^ggml-(.+?)(?:[-.](?:q\d+_\d+|f16|f32))?\.bin$/i);
+  const file = name.match(/^ggml-(.+?)(?:[-.](?:q\d+_\d+|f16|f32))?(?:\.bin)?$/i);
   return file ? `Whisper ${file[1].replace(/[-_]/g, " ")}` : name;
 }
 
@@ -809,7 +839,9 @@ document.getElementById("record").addEventListener("click", async () => {
 // the window is shown: asked lightly, every second and a half.
 setInterval(async () => {
   if (document.hidden || words === null) return;
-  const { recording, shortcut } = await window.__TAURI__.core.invoke("header");
+  const asked = await window.__TAURI__.core.invoke("header").catch(() => null);
+  if (asked === null) return;
+  const { recording, shortcut } = asked;
   document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
   document.getElementById("record").classList.toggle("live", recording);
   const keys = document.getElementById("header-keys");

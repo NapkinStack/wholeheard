@@ -170,3 +170,8 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .session:hover .chevron { transform: translateX(3px); color: var(--accent); }
 @media (max-width: 640px) { .session { grid-template-columns: 1fr auto; } .session .shape, .session .chevron { display: none; } }
 .relief.small.quiet polyline { stroke: none; }
+
+/* One meeting (D11's second board): where each step ran, the relief's span, makers in monospace. */
+.drawn .legend .range { margin-left: auto; font: 12.5px ui-monospace, monospace; color: var(--soft); }
+.maker { font: 12.5px ui-monospace, monospace; color: var(--soft); }
+.minutes > .primary, .transcript > .primary { align-self: flex-start; }
