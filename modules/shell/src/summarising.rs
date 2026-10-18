@@ -9,6 +9,7 @@ use std::{
     process::{Child, Command, Stdio},
     sync::{
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver},
     },
     thread,
@@ -56,10 +57,14 @@ impl Summarising {
         let (tell, events) = mpsc::channel();
         // Its output, read to its end: `sending` passed on as it comes; the rest is said at the end.
         let (said, (read, all_read)) = (tell.clone(), mpsc::channel());
+        let written = Arc::new(AtomicBool::new(false));
+        let heard_written = Arc::clone(&written);
         thread::spawn(move || {
             for line in BufReader::new(output).lines().map_while(Result::ok) {
                 if let Some(sending) = sending(&line) {
                     let _ = said.send(sending);
+                } else if event(&line).as_deref() == Some("written") {
+                    heard_written.store(true, Ordering::SeqCst);
                 }
             }
             let _ = read.send(());
@@ -83,7 +88,9 @@ impl Summarising {
             let _ = all_read.recv_timeout(Duration::from_secs(1));
             let _ = errors_all.recv_timeout(Duration::from_secs(1));
             let ended_well = status.is_some_and(|status| status.success());
-            let made = if ended_well && folder.join("minutes.md").is_file() {
+            // Written: said so, by a program that ended well, the file there — minutes of before
+            // standing alone are not the new ones.
+            let made = if ended_well && written.load(Ordering::SeqCst) && folder.join("minutes.md").is_file() {
                 Made::Written(folder)
             } else {
                 let said = last.lock().map(|said| said.clone()).unwrap_or_default();
@@ -105,6 +112,12 @@ impl Summarising {
             let _ = child.kill();
         }
     }
+}
+
+/// The event a line of the contract names; none for a line that is not one.
+fn event(line: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(line).ok()?;
+    Some(value.get("event")?.as_str()?.to_string())
 }
 
 /// A `sending` line of the contract; any other line — a later version's event, or none — is not.

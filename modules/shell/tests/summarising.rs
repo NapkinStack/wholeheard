@@ -7,9 +7,15 @@ use std::{fs, os::unix::fs::PermissionsExt, path::Path, sync::Mutex, time::Durat
 use summit_shell::summarising::{Event, Made, Summarising};
 
 /// What a making by a script said, to its end — one at a time, as for transcripts.
+static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
 fn said(folder: &Path, script: &str, key: Option<&str>) -> Vec<Event> {
-    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
-    let _held = ONE_AT_A_TIME.lock().unwrap();
+    let _held = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    said_held(folder, script, key)
+}
+
+/// The same, the lock already held by the caller.
+fn said_held(folder: &Path, script: &str, key: Option<&str>) -> Vec<Event> {
     let path = folder.join("summit-summary");
     fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
@@ -40,7 +46,8 @@ fn minutes_made_say_where_they_go_then_that_they_are_written() {
 [ "$SUMMIT_PROVIDER_KEY" = a-key ] || exit 8
 echo 'a line that is no object'
 echo '{"event":"sending","host":"openrouter.ai","model":"a-model","characters":120}'
-echo '{"event":"of a later version"}'
+echo '{"event":"of a later version","host":"elsewhere","model":"m","characters":1}'
+echo '{"event":"sending","host":"elsewhere","model":"m","characters":1.5}'
 echo '## A' > "$1/minutes.md"
 echo '{"event":"written","file":"x"}'"#,
         Some("a-key"),
@@ -62,8 +69,10 @@ echo '{"event":"written","file":"x"}'"#,
 fn a_making_that_failed_says_the_programs_sentence_and_no_key_is_given_unless_kept() {
     let folder = session();
     // A key in Summit's own environment is never passed on: only the one kept for the provider.
+    // Set while no other test starts a program.
+    let _held = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     unsafe { std::env::set_var("SUMMIT_PROVIDER_KEY", "summits-own") };
-    let events = said(
+    let events = said_held(
         folder.path(),
         r#"[ -z "$SUMMIT_PROVIDER_KEY" ] || exit 8
 echo '{"event":"sending","host":"openrouter.ai","model":"a-model","characters":1}'
@@ -86,6 +95,9 @@ fn written_is_believed_only_from_a_program_that_ended_well_with_the_file_there()
         r#"echo '{"event":"written","file":"x"}'; exit 1"#,
         r#"echo '{"event":"written","file":"x"}'"#,
         "exit 3",
+        // The file there — minutes of before, or written — is not enough: `written` is said.
+        r#"echo '## A' > "$1/minutes.md""#,
+        r#"echo '## A' > "$1/minutes.md"; echo '{"event":"written","file":"x"}'; echo 'summit-summary: late' >&2; exit 1"#,
     ] {
         let folder = session();
         let events = said(folder.path(), script, None);
@@ -93,5 +105,30 @@ fn written_is_believed_only_from_a_program_that_ended_well_with_the_file_there()
             panic!("{script}: {events:?}")
         };
         assert!(!why.is_empty(), "{script}");
+        // The sentence said last, just before the end, is the one told.
+        if script.contains("late") {
+            assert_eq!(why, "late");
+        }
     }
+}
+
+#[test]
+fn a_making_ended_by_summit_ends_failed_and_soon() {
+    let folder = session();
+    let _held = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let path = folder.path().join("summit-summary");
+    fs::write(
+        &path,
+        "#!/bin/sh
+exec sleep 30
+",
+    )
+    .unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    let (making, events) = Summarising::start(&path, &folder.path().join("session"), "http://127.0.0.1:9/v1", "m", None).unwrap();
+    making.end();
+    assert!(matches!(
+        events.recv_timeout(Duration::from_secs(5)),
+        Ok(Event::Ended(Made::Failed(_)))
+    ));
 }
