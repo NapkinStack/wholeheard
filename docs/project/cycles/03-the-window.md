@@ -134,7 +134,7 @@ and by when" are there as written, not as parsed).
 | Criterion | Where it stands |
 |---|---|
 | The minutes beside the transcript, who wrote them and where, who spoke, search, the folder | Holds — the window's scenario J (#182, #183) |
-| What a session lacks offered, made on the user's word | Not built — after D20, which chooses the model, and D21, the agreement before an online provider |
+| What a session lacks offered, made on the user's word | Holds — the minutes and the transcript offered on a meeting's page, through the tray's gates (#214, #215); scenarios N and H |
 | *Refaire…* with the model chosen, the current kept until the new one is whole | Not built — after D20 and D21 |
 
 ### D19
@@ -176,6 +176,18 @@ saves undoing each other, and a folder note that promised more than it held.
 
 Board 5, the second agreement. The first — the transcription model fetched on the user's word
 — is built (cycle 02, D12) and is drawn in the window as it is.
+
+**Offered for acceptance** — its acceptance issue: [#216](https://github.com/NapkinStack/summit/issues/216), the decider's trial with a real provider and their key. Built in pull requests each verified: summit-summary's run as a contract, `summarising/v1` (#203), provided (#204), read by the shell (#205); the host agreed to in the settings and an address of this machine told apart — read as summit-summary reads it (#206, #207); the minutes from the tray, chained after a transcript, nothing sent unagreed (#208); the agreement page as the board drew it, "Ne plus demander pour ce service" unticked by default (#209); the word bound to the host shown, to the send (#210, #212); the minutes asked from a meeting's page (#214).
+
+| Criterion | Where it stands |
+|---|---|
+| Before the first sending to an online host, exactly what leaves and to whom, nothing sent before the word; then chained without asking; another host asks again; written on this computer instead | Holds — the tray's scenario M and the window's N, with summit-summary played; a real provider is the decider's (#216) |
+| Told when the minutes are ready; a failure in one sentence, the transcript untouched | Holds — scenario M and summit-summary's tests; the notifications on the decider's desktop are theirs to see (#216) |
+
+Seen by the verifiers and corrected before merging: the contract promising a host format the
+program never wrote; a draft written through a link; minutes told written from a file alone; an
+address the program refuses judged local — twice, then the shell's reading redesigned on the
+program's own; the agreement kept for any host the file named at the click, then at the send.
 
 ### D22
 
