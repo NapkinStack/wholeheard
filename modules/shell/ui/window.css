@@ -105,3 +105,27 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .keys { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--ground); font: inherit; }
 .folder input { flex: 1 1 240px; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; }
 .field input { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; }
+
+/* The agreement before a meeting first leaves (D11's fifth board). */
+#agree { align-items: center; }
+.agreement { width: min(560px, 100%); padding: 28px; display: flex; flex-direction: column; gap: 16px; }
+.agreement h1 { margin: 0; font-size: 22px; line-height: 1.25; }
+.eyebrow { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--soft); }
+.goes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.goes li { display: flex; gap: 14px; align-items: baseline; }
+.goes li > div { display: flex; flex-direction: column; gap: 2px; }
+.goes .sign { flex: 0 0 18px; font-weight: 700; color: var(--soft); }
+.goes .leaves .sign { color: var(--accent); }
+.recipient { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--raised); display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; }
+.recipient dt { color: var(--soft); }
+.recipient dd { margin: 0; text-align: right; font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+.remember { display: flex; gap: 12px; align-items: center; cursor: pointer; }
+.remember input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
+.choices { display: flex; flex-wrap: wrap; gap: 10px; }
+.choices .primary { flex: 1 1 240px; }
+.choices .open { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.primary { min-height: 48px; padding: 0 20px; border: 0; border-radius: 12px; background: var(--accent); color: var(--surface); font: inherit; font-weight: 700; cursor: pointer; transition: transform 120ms ease, filter 120ms ease; }
+.primary:hover { filter: brightness(1.08); }
+.primary:active { transform: translateY(1px); }
+.link { align-self: flex-start; padding: 6px 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.link:hover { text-decoration: underline; }

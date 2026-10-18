@@ -121,6 +121,9 @@ fn main() {
             minutes_shown,
             minutes_saved,
             minutes_tested,
+            agreement_shown,
+            agreed,
+            local_instead,
             choose_folder,
             shortcut_settings
         ])
@@ -282,6 +285,95 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
         transcript: meeting::transcript(&folder),
         minutes: minutes::minutes(&folder),
     })
+}
+
+/// What the agreement page shows before a meeting first leaves for a host (D11's fifth board):
+/// to whom, with which model, and what goes — the transcript, its length and how many words; the
+/// context the user attached, how many words —; the audio stays. And the models that would write
+/// the minutes on this computer instead.
+#[derive(serde::Serialize)]
+struct Agreement {
+    host: String,
+    model: String,
+    seconds: f64,
+    words: usize,
+    context_words: Option<usize>,
+    ollama: Vec<String>,
+}
+
+#[tauri::command]
+async fn agreement_shown(shell: State<'_, Shell>, name: String) -> Result<Agreement, String> {
+    let folder = session_folder(&shell, &name)?;
+    let settings = shell.reread()?;
+    let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
+        return Err("no one is chosen to write the minutes".into());
+    };
+    let meeting::Read::Present(transcript) = meeting::transcript(&folder) else {
+        return Err(format!("{name} has no transcript to send"));
+    };
+    let words = |text: &str| text.split_whitespace().count();
+    let listed = sessions::list(&settings.sessions, None)
+        .into_iter()
+        .find(|listed| listed.folder == folder);
+    let said_until = transcript.segments.iter().map(|segment| segment.end).fold(0.0, f64::max);
+    let base = ollama();
+    let ollama = tauri::async_runtime::spawn_blocking(move || providers::ollama_models(&base))
+        .await
+        .unwrap_or_default();
+    Ok(Agreement {
+        host: providers::host(&provider).unwrap_or(provider),
+        model,
+        seconds: listed.and_then(|listed| listed.seconds).unwrap_or(said_until),
+        words: transcript.segments.iter().map(|segment| words(&segment.text)).sum(),
+        context_words: std::fs::read_to_string(folder.join("context.txt"))
+            .ok()
+            .map(|context| words(&context))
+            .filter(|&n| n > 0),
+        ollama,
+    })
+}
+
+/// The user's word: this meeting is sent; and, when they ticked it, the host is agreed to for the
+/// next ones, kept in the settings.
+#[tauri::command]
+fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, remember: bool) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    if remember {
+        let _saving = shell.saving.lock().unwrap();
+        let mut settings = shell.reread()?;
+        let host = settings
+            .minutes_provider
+            .as_deref()
+            .and_then(providers::host)
+            .ok_or("no one is chosen to write the minutes")?;
+        settings.minutes_agreed = Some(host);
+        let file = settings::file().ok_or("this system names no folder for settings")?;
+        settings::write(&file, &settings).map_err(|error| error.to_string())?;
+        *shell.settings.lock().unwrap() = settings;
+    }
+    write_minutes(&app, folder, true);
+    Ok(())
+}
+
+/// Written on this computer instead: Ollama's model chosen for these minutes and the next ones;
+/// nothing is agreed to, nothing leaves.
+#[tauri::command]
+fn local_instead(app: AppHandle, shell: State<'_, Shell>, name: String, model: String) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    if model.trim().is_empty() {
+        return Err("a model is named".into());
+    }
+    {
+        let _saving = shell.saving.lock().unwrap();
+        let mut settings = shell.reread()?;
+        settings.minutes_provider = Some(providers::ollama_address(&ollama()));
+        settings.minutes_model = Some(model.trim().to_string());
+        let file = settings::file().ok_or("this system names no folder for settings")?;
+        settings::write(&file, &settings).map_err(|error| error.to_string())?;
+        *shell.settings.lock().unwrap() = settings;
+    }
+    make_minutes(&app, folder);
+    Ok(())
 }
 
 /// Opens a session's folder in the system's file manager.
@@ -613,6 +705,11 @@ fn refusal(error: &trash::Error) -> Refusal {
 /// Has a session's minutes written by whoever the settings name. Nothing leaves this machine for
 /// a host the user has not agreed to: the window is opened to ask, and nothing is sent until then.
 fn make_minutes(app: &AppHandle, folder: PathBuf) {
+    write_minutes(app, folder, false);
+}
+
+/// The same, `agreed_now` when the user just agreed to send this meeting, once.
+fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: bool) {
     let shell = app.state::<Shell>();
     let mut writing = shell.writing_minutes.lock().unwrap();
     if *writing {
@@ -630,7 +727,7 @@ fn make_minutes(app: &AppHandle, folder: PathBuf) {
         return tell(app, &words::minutes(&words::Minutes::NoTranscript, shell.language));
     }
     let host = providers::host(&provider).unwrap_or_default();
-    if !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
+    if !agreed_now && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
         tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language));
         let name = folder
             .file_name()

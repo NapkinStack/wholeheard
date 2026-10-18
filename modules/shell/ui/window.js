@@ -566,6 +566,81 @@ function showSettings(shown, minutes, words) {
   page.replaceChildren(...parts);
 }
 
+// Before a meeting first leaves for a host (D11's fifth board): what leaves, what stays, to
+// whom; the user's word — once, or for this service —; or the minutes written on this computer.
+// Nothing here is sent before a click.
+function showAgreement(name, agreement, words) {
+  const page = document.getElementById("agree");
+  const card = element("section", "card agreement");
+  card.append(element("p", "eyebrow", words.agree_eyebrow), element("h1", "", words.agree_title), element("p", "says", words.agree_lead));
+  const goes = element("ul", "goes");
+  const item = (mark, [title, says], ...values) => {
+    const line = element("li", mark);
+    const said = element("div", "");
+    said.append(element("strong", "", title), element("span", "says", fill(says, ...values)));
+    line.append(element("span", "sign", mark === "leaves" ? "→" : "×"), said);
+    return line;
+  };
+  goes.append(item("leaves", words.agree_leaves, Math.max(1, Math.round(agreement.seconds / 60)), agreement.words.toLocaleString()));
+  if (agreement.context_words !== null) goes.append(item("leaves", words.agree_context, agreement.context_words.toLocaleString()));
+  goes.append(item("stays", words.agree_stays));
+  const to = element("dl", "recipient");
+  to.append(element("dt", "", words.agree_to), element("dd", "", agreement.host), element("dt", "", words.agree_model), element("dd", "", agreement.model));
+  const remember = element("label", "remember");
+  const tick = element("input");
+  tick.type = "checkbox";
+  tick.id = "agree-remember";
+  remember.append(tick, element("span", "", words.agree_remember));
+  const failed = element("p", "note warn");
+  failed.id = "not-saved";
+  failed.hidden = true;
+  const act = async (command, args) => {
+    try {
+      await window.__TAURI__.core.invoke(command, { name, ...args });
+      location.hash = `#/meeting/${encodeURIComponent(name)}`;
+    } catch (why) {
+      failed.textContent = fill(words.not_saved, why);
+      failed.hidden = false;
+    }
+  };
+  const choices = element("div", "choices");
+  const send = element("button", "primary", words.agree_send);
+  send.type = "button";
+  send.id = "agree-send";
+  send.addEventListener("click", () => act("agreed", { remember: tick.checked }));
+  const not = element("a", "open", words.agree_not);
+  not.href = "#/";
+  not.id = "agree-not";
+  choices.append(send, not);
+  card.append(goes, to, remember, choices, failed);
+  if (agreement.ollama.length > 0) {
+    const instead = element("button", "link", words.agree_local);
+    instead.type = "button";
+    instead.id = "agree-local-open";
+    const here = element("div", "choices");
+    here.hidden = true;
+    const pick = element("select");
+    pick.id = "agree-local";
+    for (const model of agreement.ollama) {
+      const option = element("option", "", model);
+      option.value = model;
+      pick.append(option);
+    }
+    const write = element("button", "open", words.agree_local_write);
+    write.type = "button";
+    write.id = "agree-local-write";
+    write.addEventListener("click", () => act("local_instead", { model: pick.value }));
+    here.append(pick, write);
+    instead.addEventListener("click", () => {
+      here.hidden = false;
+      pick.focus();
+    });
+    card.append(instead, here);
+  }
+  page.replaceChildren(card);
+  send.focus();
+}
+
 let words = null;
 
 async function refresh() {
@@ -574,6 +649,15 @@ async function refresh() {
   show(listing);
   const wanted = location.hash.match(/^#\/meeting\/(.+)$/);
   const settings = location.hash === "#/settings";
+  const agreeing = location.hash.match(/^#\/agree\/(.+)$/);
+  let agreement = null;
+  if (agreeing) {
+    try {
+      agreement = await window.__TAURI__.core.invoke("agreement_shown", { name: decodeURIComponent(agreeing[1]) });
+    } catch {
+      history.replaceState(null, "", "#/");
+    }
+  }
   let opened = null;
   if (wanted) {
     // A meeting no longer there, or a name that is none, goes back to the list.
@@ -583,10 +667,14 @@ async function refresh() {
       history.replaceState(null, "", "#/");
     }
   }
-  document.getElementById("list").hidden = opened !== null || settings;
+  document.getElementById("list").hidden = opened !== null || settings || agreement !== null;
+  document.getElementById("agree").hidden = agreement === null;
+  // Shown or emptied: never a question left hidden under another page.
+  if (agreement) showAgreement(decodeURIComponent(agreeing[1]), agreement, words);
+  else document.getElementById("agree").replaceChildren();
   document.getElementById("meeting").hidden = opened === null;
   document.getElementById("settings").hidden = !settings;
-  document.getElementById("meetings").setAttribute("aria-current", settings ? "false" : "page");
+  document.getElementById("meetings").setAttribute("aria-current", settings || agreement ? "false" : "page");
   document.getElementById("settings-link").setAttribute("aria-current", settings ? "page" : "false");
   if (opened) showMeeting(opened, words);
   if (settings) {
