@@ -346,17 +346,16 @@ fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, r
     if remember {
         let _saving = shell.saving.lock().unwrap();
         let mut settings = shell.reread()?;
-        let host = settings
-            .minutes_provider
-            .as_deref()
-            .and_then(providers::host)
-            .ok_or("no one is chosen to write the minutes")?;
-        settings.minutes_agreed = Some(host);
+        // Kept only for the host shown, as the file still names it.
+        if settings.minutes_provider.as_deref().and_then(providers::host).as_deref() != Some(host.as_str()) {
+            return Err(format!("the minutes are no longer written by {host}: look again"));
+        }
+        settings.minutes_agreed = Some(host.clone());
         let file = settings::file().ok_or("this system names no folder for settings")?;
         settings::write(&file, &settings).map_err(|error| error.to_string())?;
         *shell.settings.lock().unwrap() = settings;
     }
-    write_minutes(&app, folder, true);
+    write_minutes(&app, folder, Some(&host));
     Ok(())
 }
 
@@ -710,11 +709,12 @@ fn refusal(error: &trash::Error) -> Refusal {
 /// Has a session's minutes written by whoever the settings name. Nothing leaves this machine for
 /// a host the user has not agreed to: the window is opened to ask, and nothing is sent until then.
 fn make_minutes(app: &AppHandle, folder: PathBuf) {
-    write_minutes(app, folder, false);
+    write_minutes(app, folder, None);
 }
 
-/// The same, `agreed_now` when the user just agreed to send this meeting, once.
-fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: bool) {
+/// The same, `agreed_now` naming the host the user just agreed to send this meeting to, once:
+/// the gate is passed only if that is still the host the settings name as it is read here.
+fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>) {
     let shell = app.state::<Shell>();
     let mut writing = shell.writing_minutes.lock().unwrap();
     if *writing {
@@ -735,7 +735,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: bool) {
         let why = format!("{provider} is no provider's address");
         return tell(app, &words::minutes(&words::Minutes::Failed(why), shell.language));
     };
-    if !agreed_now && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
+    if agreed_now != Some(host.as_str()) && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
         tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language));
         let name = folder
             .file_name()
