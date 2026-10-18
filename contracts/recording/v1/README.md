@@ -37,6 +37,7 @@ order of the events, and what each means, are said here and nowhere else.
 | `started` | `folder`: the session's folder, a path; `sources`: for `me` and `others`, the name the system gave it, or `unavailable` | The recording runs, and `session.json` is in the folder. **Once**, and first unless `unavailable` came before |
 | `silent` | `source` | This source has given no sound for ten seconds. Said once per silence |
 | `heard` | `source` | A source that was said `silent` gives sound again |
+| `level` | `source`; `level`: how loud it is now, from 0 (silence) to 1 (the loudest it can be), a number | About ten times a second for each source being recorded, after `started` and before `stopped`: for a meter that moves as sound comes (cycle 03, D22) |
 | `stopped` | `folder`; `seconds`: the recording's length, a number | The session's files are whole and `session.json` says `stopped`. **Last**, and only when the recording was stopped as below |
 
 **Stopping**: the line `stop` on the program's input, an interrupt or a termination signal.
@@ -49,7 +50,9 @@ nothing.
 
 ## What it never does
 
-- It never says how loud a source is, nor anything of what was said.
+- It never says anything of what was said: a `level` is how loud, not what — it was added for
+  the meter of the small window (cycle 03, D22), as additive as the comparator allows: a consumer
+  of this version already ignores an `event` it does not know.
 - It never says `stopped` for a recording that was killed: the consumer learns it from the
   program's end, and from a `session.json` without `stopped`.
 - It never prints anything but these lines on its output: a consumer may refuse a line that
@@ -69,6 +72,7 @@ Valid — a recording where nothing plays for a while, stopped by the line `stop
 
 ```text
 {"event":"started","folder":"<sessions-folder>/2026-10-13_14-05","sources":{"me":"Digital Microphone","others":"Speaker"}}
+{"event":"level","source":"me","level":0.42}
 {"event":"silent","source":"others"}
 {"event":"heard","source":"others"}
 {"event":"stopped","folder":"<sessions-folder>/2026-10-13_14-05","seconds":1912.4}
