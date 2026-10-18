@@ -214,7 +214,7 @@ NOT VERIFIED   what was not tested, and why
 RISKS          possible side effects, debt introduced, follow-ups needed
 ```
 
-Never inflate this summary. A summary that overstates the validation is more dangerous
+Lead with the result: no preamble, no restating the task. Never inflate this summary. A summary that overstates the validation is more dangerous
 than no summary at all.
 
 ---

@@ -79,6 +79,17 @@ the problem is the framing, not the context:
 - Which **decisions** (ADR/PDR) constrain this choice?
 - What is this task's **oracle**?
 
+**What a command prints is context too.** Run a command in its quiet form when it has one,
+and read a long output through what decides — the failures, the summary line. A failure is
+read in full: nothing filters out the lines of the error being fixed. The tool that filters
+is the workstation's, or one the project names in its rules (`docs/project/rules/`); the
+framework requires none.
+
+**One session, one task.** A session keeps what its earlier tasks needed. When the task
+changes — another deliverable, another module — it writes down what the next one needs,
+where things stand and what is left, and a fresh session starts from that. A wide search runs
+in a separate agent, and only its conclusion comes back (§5).
+
 ---
 
 ## 4. Crossing a boundary

@@ -53,7 +53,12 @@ mention such a commit, and where a ruleset does refuse, it catches a bypass.
 **Where the CI runs.** Every job runs on GitHub's hosted Ubuntu unless the repository
 variable `NSTACK_RUNS_ON` names another runner label — a self-hosted runner, for a private
 repository whose hosted minutes are spent: `gh variable set NSTACK_RUNS_ON --body
-<label>`. Such a runner needs `git` on its path; the workflows install uv themselves. What a
+<label>`. Such a runner needs `git` on its path, and whatever each module's commands need —
+its toolchain, its system libraries — which hosted Ubuntu mostly preinstalls; the workflows
+install uv themselves. A runner stopped leaves every run queued until it returns. Removing
+the variable sends new runs to hosted runners; queued ones keep the label they asked for, and
+are cancelled, then run again, by whoever holds **Actions: write** — never the agent's App,
+which has no other use for it. What a
 pull request costs there or on hosted minutes: about five jobs across the workflows for a
 change to one module, each billed at least a minute, plus what the module's own commands take. Never on a public repository: there, a pull request from a
 fork would run its code on that machine — and hosted minutes are unlimited anyway.
