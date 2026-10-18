@@ -212,7 +212,8 @@ body.small-window .bar { display: none; }
 @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
 .small-top .time { font: 500 30px ui-monospace, monospace; letter-spacing: 0.02em; }
 .small-top .icon { margin-left: auto; width: 40px; min-height: 40px; padding: 0; font-size: 18px; }
-.meter { display: grid; grid-template-columns: max-content 1fr; align-items: center; gap: 16px; }
+.meters { display: grid; grid-template-columns: max-content 1fr; align-items: center; gap: 10px 16px; }
+.meter { display: contents; }
 .meter .said { white-space: nowrap; min-width: 110px; }
 .meter .track { height: 8px; border-radius: 4px; background: var(--raised); overflow: hidden; }
 .meter .fill { display: block; height: 100%; width: 0; border-radius: 4px; background: var(--accent); transition: width 90ms linear; }
