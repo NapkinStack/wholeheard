@@ -81,8 +81,10 @@ struct Shell {
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
     minuting: Mutex<Option<Summarising>>,
-    /// Minutes made again (*Refaire…*) with a model, waiting for the user's agreement to send.
-    asked_again: Mutex<Option<(PathBuf, (String, String))>>,
+    /// Minutes made again (*Refaire…*) with a model, waiting for the user's agreement to send:
+    /// the meeting, the model chosen, and who the settings named then — changed since, it is
+    /// dropped: the page the user agrees on shows the settings as they are.
+    asked_again: Mutex<Option<AskedAgain>>,
     /// The meeting whose minutes are being written: busy, never freed meanwhile (D19).
     writing_minutes: Mutex<Option<PathBuf>>,
     /// The sessions whose transcripts wait for the one being made, or for the model — in
@@ -578,7 +580,9 @@ async fn agreement_shown(shell: State<'_, Shell>, name: String) -> Result<Agreem
 fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, remember: bool) -> Result<(), String> {
     let folder = session_folder(&shell, &name)?;
     // The word given is for the host the page showed: chosen otherwise meanwhile, nothing goes.
-    let now = shell.reread()?.minutes_provider.as_deref().and_then(providers::host);
+    let read = shell.reread()?;
+    let named = read.minutes_provider.clone().zip(read.minutes_model.clone());
+    let now = read.minutes_provider.as_deref().and_then(providers::host);
     if now.as_deref() != Some(host.as_str()) {
         return Err(format!("the minutes are no longer written by {host}: look again"));
     }
@@ -599,8 +603,8 @@ fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, r
         .lock()
         .unwrap()
         .take()
-        .filter(|(asked, _)| *asked == folder)
-        .map(|(_, choice)| choice);
+        .filter(|asked| asked.folder == folder && asked.named == named)
+        .map(|asked| asked.choice);
     write_minutes(&app, folder, Some(&host), again);
     Ok(())
 }
@@ -965,6 +969,13 @@ fn make_minutes(app: &AppHandle, folder: PathBuf) {
     write_minutes(app, folder, None, None);
 }
 
+/// Minutes made again with a model, asked before the user agreed to send them.
+struct AskedAgain {
+    folder: PathBuf,
+    choice: (String, String),
+    named: Option<(String, String)>,
+}
+
 /// The same, `agreed_now` naming the host the user just agreed to send this meeting to, once:
 /// the gate is passed only if that is still the host the settings name as it is read here.
 fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, chosen: Option<(String, String)>) {
@@ -979,6 +990,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
         Ok(settings) => settings,
         Err(why) => return tell(app, &words::trouble(&Trouble::Settings(why), shell.language)),
     };
+    let named = settings.minutes_provider.clone().zip(settings.minutes_model.clone());
     // Made again with another model, this time only; or by whoever the settings name.
     let (provider, model) = match chosen.or(settings.minutes_provider.zip(settings.minutes_model)) {
         Some(choice) => choice,
@@ -997,7 +1009,11 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
     if agreed_now != Some(host.as_str()) && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
         tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language));
         // Made again with a model chosen on the page: once agreed, with that model, as asked.
-        *shell.asked_again.lock().unwrap() = asked_again.map(|choice| (folder.clone(), choice));
+        *shell.asked_again.lock().unwrap() = asked_again.map(|choice| AskedAgain {
+            folder: folder.clone(),
+            choice,
+            named,
+        });
         let name = folder
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
