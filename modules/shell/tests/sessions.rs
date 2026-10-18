@@ -333,3 +333,30 @@ fn a_file_set_aside_never_writes_over_another() {
         assert_eq!(folder.path().read_dir().unwrap().count(), 4, "a copy was left");
     }
 }
+
+#[test]
+fn a_meeting_s_audio_is_every_sound_in_its_folder_and_nothing_else() {
+    let folder = tempfile::tempdir().unwrap();
+    let meeting = folder.path();
+    fs::create_dir_all(meeting.join("derived")).unwrap();
+    for name in [
+        "local.wav",
+        "remote.WAV",
+        "derived/local.wav",
+        "transcript.jsonl",
+        "minutes.md",
+        "session.json",
+    ] {
+        fs::write(meeting.join(name), "x").unwrap();
+    }
+    let mut found = sessions::audio_of(meeting);
+    found.sort();
+    assert_eq!(
+        found,
+        [
+            meeting.join("derived/local.wav"),
+            meeting.join("local.wav"),
+            meeting.join("remote.WAV")
+        ]
+    );
+}

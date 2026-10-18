@@ -109,6 +109,7 @@ def session(folder: Path, started: dt.datetime, minutes: float | None, files: di
     record["sources" if form == "v1" else "tracks"] = {}
     (folder / "session.json").write_text(json.dumps(record))
     for name, size in files.items():
+        (folder / name).parent.mkdir(parents=True, exist_ok=True)
         with open(folder / name, "wb") as made:
             made.truncate(size)
 
@@ -295,6 +296,9 @@ def main() -> int:
         focused = browser.execute_script("return document.activeElement.id")
         check("Tab reaches the header's gesture after the two sections", focused == "record", focused)
         browser.find_element(By.ID, "record").send_keys(Keys.TAB)
+        focused = browser.execute_script("return document.activeElement.id")
+        check("then freeing space, beside the weights", focused == "free-link", focused)
+        browser.find_element(By.ID, "free-link").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.className")
         check("then the first meeting", "session" in focused, focused)
         drawn = browser.execute_script("return [...document.querySelectorAll('#groups .session')].map(s => s.querySelector('.relief.small:not(.quiet) .said') !== null)")
@@ -362,7 +366,7 @@ def main() -> int:
         search.send_keys("voix")
         none = [p.text for p in browser.find_elements(By.CSS_SELECTOR, ".transcript .none") if p.is_displayed()]
         check("a search looks at what was said, not at who or when", none == ["Rien de ce qui a été dit ne correspond."], none)
-        check("the folder can be opened from the meeting", browser.find_element(By.CSS_SELECTOR, ".open").text == "Ouvrir le dossier")
+        check("the folder can be opened from the meeting", browser.find_element(By.CSS_SELECTOR, "#meeting .meeting-top .open").text == "Ouvrir le dossier")
         browser.find_element(By.CSS_SELECTOR, ".back").click()
         back = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed())
         check("the way back is the list", back and not browser.find_element(By.ID, "meeting").is_displayed())
@@ -806,6 +810,50 @@ def main() -> int:
             (asked / "transcript.jsonl").read_text(),
         )
     tags.shutdown()
+
+    print("P. freeing space: the audio alone or the whole meeting, the heaviest first, to the trash")
+    roomy = WORK / "roomy"
+    now = dt.datetime.now().astimezone()
+    session(roomy / "light", now - dt.timedelta(days=40), 10, {"local.wav": 1_000_000, "transcript.jsonl": 100})
+    session(roomy / "heavy", now - dt.timedelta(days=2), 60, {"local.wav": 5_000_000, "derived/local.wav": 1_000_000, "transcript.jsonl": 100})
+    session(roomy / "old", now - dt.timedelta(days=60), 30, {"local.wav": 3_000_000, "minutes.md": 50})
+    with Window(roomy, "fr_FR.UTF-8") as browser:
+        offered = browser.find_element(By.ID, "free-link").text
+        check("the weights offer to free space", offered == "Faire de la place", offered)
+        browser.find_element(By.ID, "free-link").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "free-do"))
+        shot(browser, "3-free")
+        weighs = [w.text for w in browser.find_elements(By.CSS_SELECTOR, "#free .weighs")]
+        check("the heaviest first, by their audio", weighs == ["6 Mo", "3 Mo", "1 Mo"], weighs)
+        check("nothing is freed before a choice", not browser.find_element(By.ID, "free-do").is_enabled())
+        browser.find_element(By.ID, "free-older").click()
+        ticked = browser.execute_script("return [...document.querySelectorAll('#free .freeable input:checked')].map(i => i.value)")
+        check("those older than 30 days are ticked at once", sorted(ticked) == ["light", "old"], ticked)
+        said = browser.find_element(By.CSS_SELECTOR, "#free .free-total").text
+        check("what will be freed is said before anything is done", "2 réunions" in said and "corbeille" in said, said)
+        browser.find_element(By.ID, "free-do").click()
+        gone = wait_for(browser, lambda b: not (roomy / "old" / "local.wav").exists() and not (roomy / "light" / "local.wav").exists(), 10)
+        trash = WORK / "data" / "Trash" / "files"
+        check(
+            "their audio alone goes to the trash; transcript and minutes stay",
+            gone and (roomy / "light" / "transcript.jsonl").exists() and (roomy / "old" / "minutes.md").exists()
+            and (roomy / "heavy" / "local.wav").exists() and len(list(trash.glob("local.wav*"))) >= 2,
+            sorted(p.name for p in trash.glob("*")),
+        )
+        # The whole meeting: its folder, to the trash.
+        # The page is drawn again after each gesture: each is found afresh.
+        time.sleep(1)
+        browser.execute_script("document.querySelector('#free input[name=free-what][value=true]').click()")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#free .freeable input[value=heavy]"))
+        browser.execute_script("document.querySelector('#free .freeable input[value=heavy]').click()")
+        button = browser.find_element(By.ID, "free-do")
+        check("the whole meeting is said as such", button.text == "Mettre ces réunions à la corbeille", button.text)
+        button.click()
+        whole = wait_for(browser, lambda b: not (roomy / "heavy").exists(), 10)
+        check("the whole meeting's folder goes to the trash", whole and (trash / "heavy").is_dir(), sorted(p.name for p in trash.glob("*")))
+        browser.execute_script("location.hash = '#/'")
+        listed = wait_for(browser, lambda b: len(b.find_elements(By.CSS_SELECTOR, "#groups .session")) == 2, 5)
+        check("a meeting whose audio was freed is still listed; the whole one is not", listed)
 
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"

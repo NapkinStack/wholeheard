@@ -73,6 +73,8 @@ struct Shell {
     /// A transcript made again: where it goes back, and where it was set aside — taken by the
     /// run's end, or by Summit quitting, whichever comes first.
     redoing: Mutex<Option<(PathBuf, PathBuf)>>,
+    /// The meeting whose transcript is being made, when one is: it cannot be freed meanwhile.
+    hearing: Mutex<Option<PathBuf>>,
     /// The list's small reliefs, by transcript, kept until it changes.
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
@@ -123,6 +125,8 @@ fn main() {
             header,
             record,
             minutes_asked,
+            busy_meetings,
+            freed,
             minutes_redo,
             transcript_redo,
             transcript_asked,
@@ -202,6 +206,7 @@ fn main() {
                 minuting: Mutex::new(None),
                 shapes: Mutex::new(HashMap::new()),
                 redoing: Mutex::new(None),
+                hearing: Mutex::new(None),
                 writing_minutes: Mutex::new(false),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
@@ -376,6 +381,51 @@ fn transcript_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Re
     }
     transcribe(&app, folder);
     Ok(())
+}
+
+/// The meetings that cannot be freed now: the one being recorded, the one being transcribed.
+fn busy(shell: &Shell) -> Vec<PathBuf> {
+    let recording = shell.recording.lock().unwrap().is_some();
+    let recorded = shell.recorded.lock().unwrap().clone().filter(|_| recording);
+    recorded.into_iter().chain(shell.hearing.lock().unwrap().clone()).collect()
+}
+
+/// Their names, for the page that frees space (D19).
+#[tauri::command]
+fn busy_meetings(shell: State<'_, Shell>) -> Vec<String> {
+    busy(&shell)
+        .iter()
+        .filter_map(|folder| folder.file_name().map(|name| name.to_string_lossy().into_owned()))
+        .collect()
+}
+
+/// Frees space on the user's word (D19): the meetings' audio alone — their transcript and minutes
+/// still read —, or the whole meetings; to the system's trash, never deleted, restored from there.
+/// A meeting being recorded or transcribed is refused.
+#[tauri::command]
+fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(), String> {
+    let busy = busy(&shell);
+    let mut gone = Vec::new();
+    for name in &names {
+        let folder = session_folder(&shell, name)?;
+        if busy.contains(&folder) {
+            return Err(format!("{name} is being recorded or transcribed"));
+        }
+        if whole {
+            gone.push(folder);
+        } else {
+            gone.extend(sessions::audio_of(&folder));
+        }
+    }
+    if gone.is_empty() {
+        return Ok(());
+    }
+    trash::delete_all(&gone).map_err(|error| refusal_said(&error, shell.language))
+}
+
+/// A trash's refusal, in the user's words (as the audio's expiry says it).
+fn refusal_said(error: &trash::Error, language: Language) -> String {
+    words::audio_trashed(language, &Err(refusal(error))).body
 }
 
 /// The header's button: starts a recording, or stops the one running — as the tray and the
@@ -1152,6 +1202,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
     // Who puts the earlier transcript back, or trashes it: this run's end, or Summit quitting —
     // whichever comes first takes it, the other finds nothing.
     *shell.redoing.lock().unwrap() = previous.clone().map(|previous| (current.clone(), previous));
+    *shell.hearing.lock().unwrap() = Some(folder.clone());
     drop(running);
     transcribing(app, true);
     let app = app.clone();
@@ -1159,6 +1210,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         let made = made.recv().unwrap_or(Made::Failed(String::new()));
         let shell = app.state::<Shell>();
         shell.transcription.lock().unwrap().take();
+        shell.hearing.lock().unwrap().take();
         transcribing(&app, false);
         // Replaced, the earlier transcript goes to the trash — refused, it stays beside, and it is
         // said; not replaced, it is put back — failing that, it is said where it is.
@@ -1217,12 +1269,14 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         Err(error) => return tell(app, &words::trouble(&Trouble::NoTranscriber(error.to_string()), shell.language)),
     };
     *running = Some(transcription);
+    *shell.hearing.lock().unwrap() = Some(folder.clone());
     transcribing(app, true);
     let app = app.clone();
     std::thread::spawn(move || {
         let made = made.recv().unwrap_or(Made::Failed(String::new()));
         let shell = app.state::<Shell>();
         shell.transcription.lock().unwrap().take();
+        shell.hearing.lock().unwrap().take();
         transcribing(&app, false);
         // Ended by Summit as it quits: nothing to tell, it goes on next time.
         if *shell.leaving.lock().unwrap() {
