@@ -21,3 +21,4 @@
 /contracts/                    @NapkinStack/maintainers
 /modules/shell/                @NapkinStack/maintainers
 /modules/platform/             @NapkinStack/maintainers
+/modules/install/              @NapkinStack/maintainers
