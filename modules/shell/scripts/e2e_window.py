@@ -229,6 +229,12 @@ def main() -> int:
             "return [...document.querySelectorAll('#groups .session')].map(s => s.querySelector('.relief.small:not(.quiet) .said') !== null)"
         )
         check("a transcript that cannot be read draws no one", drawn and True not in drawn, drawn)
+        # A meeting with its audio and no transcript offers one — never asked here: no engine is played.
+        browser.execute_script("location.hash = '#/meeting/f'")
+        offered = wait_for(browser, lambda b: b.find_elements(By.ID, "make-transcript"), 5)
+        check("a meeting without its transcript offers it on its page", offered)
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
         check(
             "every session, newest first, each under its week; the one with no readable day last",
             [(heading, holds) for heading, _, holds in listed] == expected,
@@ -657,6 +663,17 @@ def main() -> int:
             and (WORK / "summary-args").read_text().split()[1:] == ["--provider", f"{ollama}/v1", "--model", "qwen3:14b"],
             text,
         )
+        # A meeting without its minutes offers them on its page, made on the word.
+        (asked / "minutes.md").unlink()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"))
+        chips = browser.find_element(By.CSS_SELECTOR, "#meeting .holds").text
+        check("the meeting's page says where its transcript was made", "Transcript · sur cette machine" in chips, chips)
+        browser.find_element(By.ID, "make-minutes").click()
+        made = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
+        said = browser.find_element(By.CSS_SELECTOR, "#meeting .minutes").text
+        check("what a meeting lacks is offered, and made on the word", made and "Demandé" in said, said)
     tags.shutdown()
 
     print("I. the window, in English; and a folder with no session")

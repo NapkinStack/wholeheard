@@ -119,6 +119,8 @@ fn main() {
             listed,
             header,
             record,
+            minutes_asked,
+            transcript_asked,
             opened,
             open_folder,
             settings_shown,
@@ -326,6 +328,26 @@ fn header(shell: State<'_, Shell>) -> Header {
         recording: shell.recording.lock().unwrap().is_some(),
         shortcut: shell.shortcut.lock().unwrap().clone(),
     }
+}
+
+/// What a meeting lacks, made on the user's word from its page (D18): its minutes — through the
+/// same gate as the tray's, the agreement included —, or its transcript.
+#[tauri::command]
+fn minutes_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    make_minutes(&app, folder);
+    Ok(())
+}
+
+#[tauri::command]
+fn transcript_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    // The meeting being recorded has no transcript to make yet.
+    if shell.recording.lock().unwrap().is_some() && shell.recorded.lock().unwrap().as_deref() == Some(folder.as_path()) {
+        return Err(format!("{name} is being recorded"));
+    }
+    transcribe(&app, folder);
+    Ok(())
 }
 
 /// The header's button: starts a recording, or stops the one running — as the tray and the
