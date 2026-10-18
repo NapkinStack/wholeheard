@@ -387,3 +387,37 @@ fn audio_sent_to_the_trash_is_said_with_its_counts_and_a_refusal_never_claims_to
     assert!(said(Language::English, Err(Refusal::Other)).contains("The system's trash did not take it."));
     assert!(said(Language::French, Err(Refusal::NotAllowed)).contains("La corbeille a refusé l’accès."));
 }
+
+#[test]
+fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
+    use summit_shell::words::Minutes;
+    for language in BOTH {
+        let entry = words::menu(language).minutes;
+        let ready = words::minutes(&Minutes::Ready, language);
+        assert!(!ready.title.is_empty());
+        // Failed: the program's sentence, the transcript untouched, the entry that makes them again.
+        let failed = words::minutes(&Minutes::Failed("the provider at openrouter.ai refused the key".into()), language);
+        assert!(
+            failed.body.contains(entry) && failed.body.ends_with("(the provider at openrouter.ai refused the key)"),
+            "{}",
+            failed.body
+        );
+        // Waiting: nothing sent to that host before the user agrees, in the window.
+        let waiting = words::minutes(&Minutes::Waiting("openrouter.ai".into()), language);
+        assert!(waiting.body.contains("openrouter.ai"), "{}", waiting.body);
+        for other in [Minutes::Unchosen, Minutes::NoTranscript] {
+            let said = words::minutes(&other, language);
+            assert!(
+                !said.title.is_empty() && !said.body.is_empty() && !said.body.contains('('),
+                "{}",
+                said.body
+            );
+        }
+        assert_ne!(words::menu(language).minuting, entry);
+    }
+    assert_eq!(words::minutes(&Minutes::Ready, Language::French).title, "Compte rendu prêt");
+    assert_eq!(
+        words::minutes(&Minutes::Waiting("openrouter.ai".into()), Language::French).body,
+        "Rien n’est envoyé à openrouter.ai avant votre accord, dans la fenêtre de Summit."
+    );
+}
