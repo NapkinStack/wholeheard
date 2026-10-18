@@ -258,3 +258,16 @@ fn a_meter_moves_with_sound_and_starts_again_at_each_reading() {
     track.push(&vec![0.0; 4_800]).unwrap();
     assert_eq!(track.level(), 0.0, "silence moved the meter");
 }
+
+#[test]
+fn a_source_resting_away_from_zero_reads_silence_on_the_meter() {
+    // A microphone may rest at a constant offset: what it rests at is taken out of the track,
+    // and the meter reads what is written — so a source at rest moves no meter.
+    let folder = tempfile::tempdir().unwrap();
+    let mut track = Track::create(&folder.path().join("me.wav"), 48_000, 1).unwrap();
+    track.push(&tone(48_000, 1, 1.0, 0.0, 0.3)).unwrap();
+    track.level();
+    track.push(&tone(48_000, 1, 1.0, 0.0, 0.3)).unwrap();
+    let rest = track.level();
+    assert!(rest < 0.05, "a source resting at 0.3 read as {rest}");
+}
