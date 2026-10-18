@@ -240,3 +240,21 @@ fn a_session_names_the_tracks_it_holds_and_says_whether_it_was_stopped() {
     assert_eq!(session["tracks"]["local"]["device"], "Digital Microphone");
     assert!(!folder.path().join("session.json.part").exists());
 }
+
+#[test]
+fn a_meter_moves_with_sound_and_starts_again_at_each_reading() {
+    // D22's small window reads these ten times a second: loud sound must say loud, and each
+    // reading must be of the time since the last, not of the whole recording.
+    let folder = tempfile::tempdir().unwrap();
+    let mut track = Track::create(&folder.path().join("me.wav"), 48_000, 1).unwrap();
+    track.push(&tone(48_000, 1, 1.0, 0.5, 0.0)).unwrap();
+    let loud = track.level();
+    assert!(loud > 0.8, "half of full scale read as {loud}");
+    assert!(track.loudest() > 0.4, "the loudest sample was not kept");
+    assert_eq!(track.level(), 0.0, "a reading did not start again");
+    // The filters ring for a few milliseconds after a sound: the reading after that is silence.
+    track.push(&vec![0.0; 4_800]).unwrap();
+    track.level();
+    track.push(&vec![0.0; 4_800]).unwrap();
+    assert_eq!(track.level(), 0.0, "silence moved the meter");
+}
