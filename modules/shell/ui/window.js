@@ -338,7 +338,7 @@ function minutesCard(read, words, session, transcript) {
   // As the board says it: the day of the week, no year, and the model as people say it.
   const day = { weekday: "short", day: "numeric", month: "short" };
   const hour = { hour: "2-digit", minute: "2-digit" };
-  const when = made ? `${new Intl.DateTimeFormat(words.locale, day).format(made)} ${new Intl.DateTimeFormat(words.locale, hour).format(made)}` : "—";
+  const when = made ? `${new Intl.DateTimeFormat(words.locale, day).format(made)} ${words.at} ${new Intl.DateTimeFormat(words.locale, hour).format(made)}` : "—";
   card.append(element("p", "maker", fill(words.written_by, read.model ? modelSaid(read.model) : "—", read.provider || "—", when)));
   // The minutes as written, rendered by the shell: raw HTML in them is text there, a link its words.
   const body = element("div", "body");
@@ -618,12 +618,19 @@ function minutesRow(minutes, words, locked) {
 // A provider's model named as people say it: `anthropic/claude-sonnet` is Claude Sonnet; its
 // version and size stay as written (`mistral:7b` is Mistral 7b).
 function modelSaid(model) {
-  // The last part of an id that has one; a quantisation (q4_K_M, fp16…) is no part of the name.
-  const name = (model.split("/").filter(Boolean).pop() ?? model).replace(/[-_:.](?:i?q\d\w*|b?fp?16|fp?32|int[48])$/i, "");
+  // What people say of a model: the last part of its id, without what only machines read — a
+  // file's extension, a tag "latest", a date of release, a quantisation (q4_K_M, fp16, qat…).
+  let name = model.split("/").filter(Boolean).pop() ?? model;
+  name = name.replace(/\.(gguf|bin)$/i, "").replace(/:latest$/i, "");
+  name = name.replace(/[-_:](?:\d{8}|\d{4}-\d{2}-\d{2})$/, "");
+  const machine = /^(?:i?q\d(?:_[a-z0-9]+)*|b?fp?16|fp?32|int[48]|qat|k|m|s|l)$/i;
+  const words = name.split(/[-_:\s]+/).filter(Boolean);
+  while (words.length > 1 && machine.test(words.at(-1))) words.pop();
+  if (words.length === 0 || (words.length === 1 && machine.test(words[0]))) return model;
   const said = [];
-  for (const word of name.split(/[-_:\s]+/).filter(Boolean)) {
+  for (const word of words) {
     // A version written with dashes — claude-sonnet-4-5 — is said with its point.
-    if (/^\d+$/.test(word) && /^\d+(\.\d+)*$/.test(said.at(-1) ?? "")) said[said.length - 1] += `.${word}`;
+    if (/^\d{1,2}$/.test(word) && /^\d{1,2}(\.\d{1,2})*$/.test(said.at(-1) ?? "")) said[said.length - 1] += `.${word}`;
     else said.push(word.toLowerCase() === "gpt" ? "GPT" : /^[a-z]/.test(word) ? word[0].toUpperCase() + word.slice(1) : word);
   }
   return said.join(" ");
@@ -1008,6 +1015,7 @@ function showFree(listing, busy, words) {
       const row = element("label", "card freeable");
       const box = element("input");
       box.type = "checkbox";
+      box.name = "freeable";
       box.value = nameOf(s);
       box.checked = ticked.has(nameOf(s));
       box.addEventListener("change", () => {
@@ -1064,7 +1072,7 @@ function showFree(listing, busy, words) {
     parts.push(total, said);
     // Each gesture draws the page again: the focus goes back where the keyboard left it.
     const focused = page.contains(document.activeElement) ? document.activeElement : null;
-    const refocus = focused && (focused.id ? `#${focused.id}` : focused.name ? `input[name="${focused.name}"][value="${focused.value}"]` : null);
+    const refocus = focused && (focused.id ? `#${CSS.escape(focused.id)}` : focused.name ? `input[name="${CSS.escape(focused.name)}"][value="${CSS.escape(focused.value)}"]` : null);
     page.replaceChildren(...parts);
     if (refocus) page.querySelector(refocus)?.focus();
   };

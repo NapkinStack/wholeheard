@@ -81,6 +81,8 @@ struct Shell {
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
     minuting: Mutex<Option<Summarising>>,
+    /// Minutes made again (*Refaire…*) with a model, waiting for the user's agreement to send.
+    asked_again: Mutex<Option<(PathBuf, (String, String))>>,
     /// The meeting whose minutes are being written: busy, never freed meanwhile (D19).
     writing_minutes: Mutex<Option<PathBuf>>,
     /// The sessions whose transcripts wait for the one being made, or for the model — in
@@ -215,6 +217,7 @@ fn main() {
                 redoing: Mutex::new(None),
                 hearing: Mutex::new(None),
                 writing_minutes: Mutex::new(None),
+                asked_again: Mutex::new(None),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
                 download,
@@ -412,7 +415,7 @@ fn busy_meetings(shell: State<'_, Shell>) -> Vec<String> {
 
 /// Frees space on the user's word (D19): the meetings' audio alone — their transcript and minutes
 /// still read —, or the whole meetings; to the system's trash, never deleted, restored from there.
-/// A meeting being recorded, transcribed or summed up is refused.
+/// A meeting being recorded, transcribed or its minutes written is refused.
 #[tauri::command]
 fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(), String> {
     let busy = busy(&shell);
@@ -420,7 +423,7 @@ fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(),
     for name in &names {
         let folder = session_folder(&shell, name)?;
         if busy.contains(&folder) {
-            return Err(format!("{name} is being recorded, transcribed or summed up"));
+            return Err(format!("{name} is being recorded, transcribed or its minutes written"));
         }
         if whole {
             gone.push(folder);
@@ -591,7 +594,14 @@ fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, r
         settings::write(&file, &settings).map_err(|error| error.to_string())?;
         *shell.settings.lock().unwrap() = settings;
     }
-    write_minutes(&app, folder, Some(&host), None);
+    let again = shell
+        .asked_again
+        .lock()
+        .unwrap()
+        .take()
+        .filter(|(asked, _)| *asked == folder)
+        .map(|(_, choice)| choice);
+    write_minutes(&app, folder, Some(&host), again);
     Ok(())
 }
 
@@ -964,6 +974,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
         return;
     }
     let again = chosen.is_some();
+    let asked_again = chosen.clone();
     let settings = match shell.reread() {
         Ok(settings) => settings,
         Err(why) => return tell(app, &words::trouble(&Trouble::Settings(why), shell.language)),
@@ -985,6 +996,8 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
     };
     if agreed_now != Some(host.as_str()) && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
         tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language));
+        // Made again with a model chosen on the page: once agreed, with that model, as asked.
+        *shell.asked_again.lock().unwrap() = asked_again.map(|choice| (folder.clone(), choice));
         let name = folder
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -1010,7 +1023,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
                 *shell.writing_minutes.lock().unwrap() = None;
                 minuting(&app, false);
                 let why = format!("the minutes there could not be set aside ({error}): nothing was made");
-                return tell(&app, &words::minutes(&words::Minutes::Failed(why), shell.language));
+                return tell(&app, &words::minutes(&words::Minutes::failed(why, again), shell.language));
             }
         };
         let started = Summarising::start(
@@ -1031,7 +1044,10 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
                 }
                 *shell.writing_minutes.lock().unwrap() = None;
                 minuting(&app, false);
-                return tell(&app, &words::minutes(&words::Minutes::Failed(error.to_string()), shell.language));
+                return tell(
+                    &app,
+                    &words::minutes(&words::Minutes::failed(error.to_string(), again), shell.language),
+                );
             }
         };
         let made = events
@@ -1063,8 +1079,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
         let said = match made {
             summarising::Made::Written(_) if kept_beside.is_some() => words::Minutes::ReadyKeptBeside(kept_beside.unwrap_or_default()),
             summarising::Made::Written(_) => words::Minutes::Ready,
-            summarising::Made::Failed(why) if again => words::Minutes::RedoFailed(why),
-            summarising::Made::Failed(why) => words::Minutes::Failed(why),
+            summarising::Made::Failed(why) => words::Minutes::failed(why, again),
         };
         tell(&app, &words::minutes(&said, shell.language));
     });

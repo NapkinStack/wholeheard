@@ -374,15 +374,16 @@ def main() -> int:
         maker = minutes.find_element(By.CSS_SELECTOR, ".maker").text
         check(
             "who wrote the minutes, and where, as the board says it — the model as people say it, the day without its year",
-            maker.startswith("Écrit par Claude Sonnet, via openrouter.ai · ") and "2026" not in maker and "," not in maker.split(" · ")[-1],
+            maker.startswith("Écrit par Claude Sonnet, via openrouter.ai · ") and "2026" not in maker and "," not in maker.split(" · ")[-1] and " à " in maker.split(" · ")[-1],
             maker,
         )
         named = browser.execute_script(
-            "return ['anthropic/claude-sonnet-4-5', 'mistral:7b-instruct-q4_K_M', 'llama3.1:8b-fp16', 'org/model/', 'gpt-4o-mini'].map(modelSaid)"
+            "return ['anthropic/claude-sonnet-4-5', 'mistral:7b-instruct-q4_K_M', 'llama3.1:8b-fp16', 'org/model/', 'gpt-4o-mini',"
+            " 'claude-sonnet-4-5-20250929', 'openai/gpt-4o-2024-08-06', 'llama3.1:latest', 'model-q4_K_M.gguf', 'q4_K_M'].map(modelSaid)"
         )
         check(
-            "a model as people say it: a version with its point, no quantisation, a name even after a last slash",
-            named == ["Claude Sonnet 4.5", "Mistral 7b Instruct", "Llama3.1 8b", "Model", "GPT 4o Mini"],
+            "a model as people say it: a version with its point, no date, tag, file or quantisation, a name even after a last slash",
+            named == ["Claude Sonnet 4.5", "Mistral 7b Instruct", "Llama3.1 8b", "Model", "GPT 4o Mini", "Claude Sonnet 4.5", "GPT 4o", "Llama3.1", "Model", "q4_K_M"],
             named,
         )
         said = browser.execute_script(
@@ -882,6 +883,9 @@ def main() -> int:
         check("nothing is freed before a choice", not browser.find_element(By.ID, "free-do").is_enabled())
         browser.find_element(By.ID, "free-older").click()
         check("the page drawn again, the focus stays where the keyboard left it", browser.execute_script("return document.activeElement.id") == "free-older")
+        browser.find_element(By.CSS_SELECTOR, "#free .freeable input[value=heavy]").click()
+        browser.find_element(By.CSS_SELECTOR, "#free .freeable input[value=heavy]").click()
+        check("on a meeting's box too", browser.execute_script("return document.activeElement.value") == "heavy", browser.execute_script("return document.activeElement.outerHTML"))
         ticked = browser.execute_script("return [...document.querySelectorAll('#free .freeable input:checked')].map(i => i.value)")
         check("those older than 30 days are ticked at once", sorted(ticked) == ["light", "old"], ticked)
         said = browser.find_element(By.CSS_SELECTOR, "#free .free-total").text

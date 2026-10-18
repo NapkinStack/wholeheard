@@ -272,6 +272,8 @@ pub struct Window {
     pub search: &'static str,
     /// The minutes' maker: the model, the provider, when.
     pub written_by: &'static str,
+    /// Between a day and its hour: "mar. 13 oct. à 12:21", "Tue, Oct 13 at 12:21 PM".
+    pub at: &'static str,
     /// The transcript's maker: the model, on this computer.
     pub heard_by: &'static str,
     pub here: &'static str,
@@ -438,6 +440,7 @@ pub fn window(language: Language) -> Window {
             transcript_title: "Transcript",
             search: "Search the meeting",
             written_by: "Written by {}, via {} · {}",
+            at: "at",
             heard_by: "Written by {}, on this computer",
             here: "Here",
             remote: "Remote",
@@ -506,7 +509,7 @@ pub fn window(language: Language) -> Window {
             free_audio_note: "Without its audio, a meeting can no longer be transcribed again by a better engine.",
             free_do_audio: "Move their audio to the trash",
             free_do_whole: "Move these meetings to the trash",
-            free_busy: "being recorded, transcribed or summed up",
+            free_busy: "being recorded, transcribed or its minutes written",
             free_done: "Done: in the trash.",
             redo: "Redo…",
             redo_title: "Write the minutes again",
@@ -597,6 +600,7 @@ pub fn window(language: Language) -> Window {
             transcript_title: "Transcript",
             search: "Chercher dans la réunion",
             written_by: "Écrit par {}, via {} · {}",
+            at: "à",
             heard_by: "Écrit par {}, sur cet ordinateur",
             here: "Ici",
             remote: "À distance",
@@ -665,7 +669,7 @@ pub fn window(language: Language) -> Window {
             free_audio_note: "Sans son audio, une réunion ne pourra plus être transcrite à nouveau par un meilleur moteur.",
             free_do_audio: "Mettre leur audio à la corbeille",
             free_do_whole: "Mettre ces réunions à la corbeille",
-            free_busy: "en cours d’enregistrement, de transcription ou de compte rendu",
+            free_busy: "en cours d’enregistrement, de transcription ou de rédaction du compte rendu",
             free_done: "C’est fait : dans la corbeille.",
             redo: "Refaire…",
             redo_title: "Refaire le compte rendu",
@@ -857,6 +861,13 @@ pub enum Minutes {
     NoTranscript,
 }
 
+impl Minutes {
+    /// Not made: as a first making, or as minutes made again (*Refaire…*) — the ones there stayed.
+    pub fn failed(why: String, again: bool) -> Self {
+        if again { Minutes::RedoFailed(why) } else { Minutes::Failed(why) }
+    }
+}
+
 pub fn minutes(said: &Minutes, language: Language) -> Notice {
     use Language::{English, French};
     let entry = menu(language).minutes;
@@ -893,7 +904,7 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         ),
         (Minutes::RedoFailed(why), English) => (
             "The minutes were not made again",
-            "The ones there stay in place.".to_string(),
+            "The previous ones stayed in place.".to_string(),
             why.as_str(),
         ),
         (Minutes::RedoFailed(why), French) => (

@@ -438,7 +438,11 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
             back.body
         );
         // Minutes made again that failed: the ones there stayed, and the menu's entry is not offered.
-        let redo = words::minutes(&Minutes::RedoFailed("the provider's answer is not minutes".into()), language);
+        let redo = words::minutes(&Minutes::failed("the provider's answer is not minutes".into(), true), language);
+        assert_eq!(
+            words::minutes(&Minutes::failed("x".into(), false), language).title,
+            words::minutes(&Minutes::Failed("x".into()), language).title
+        );
         let failed = words::minutes(&Minutes::Failed("x".into()), language);
         assert!(
             redo.title != failed.title
