@@ -219,3 +219,15 @@ body.small-window .bar { display: none; }
 .meter .fill { display: block; height: 100%; width: 0; border-radius: 4px; background: var(--accent); transition: width 90ms linear; }
 #level-others { background: var(--ok); }
 #small .danger { width: 100%; }
+
+/* What is made in the background (D25): said on the meeting's page, and on a list's row. */
+.chip.making { color: var(--accent); font-weight: 600; }
+.chip.making.failed { color: var(--red); }
+.making-state { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--raised); }
+.making-state .what { font-weight: 600; }
+.making-state .by { color: var(--soft); font-size: 14px; }
+.making-state .bar { flex-basis: 100%; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent) 0 0 / 40% 100% no-repeat, var(--line); animation: travel 1.4s ease-in-out infinite; }
+.making-state.failed { background: transparent; border: 1px solid var(--red); }
+.making-state.failed .what { color: var(--red); font-weight: 500; }
+@keyframes travel { from { background-position: -40% 0, 0 0; } to { background-position: 140% 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .making-state .bar { animation: none; background: var(--accent); opacity: 0.5; } }

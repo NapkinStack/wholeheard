@@ -203,7 +203,7 @@ def rows(browser) -> list[tuple[str, str, str]]:
     return browser.execute_script(
         """return [...document.querySelectorAll('.group')].flatMap(g => [...g.querySelectorAll('.session')].map(s =>
              [g.querySelector('h2').textContent, s.querySelector('.day').textContent,
-              [...s.querySelectorAll('.length, .chip')].map(c => c.textContent).join('|')]))"""
+              [...s.querySelectorAll('.length, .chip')].filter(c => !c.hidden).map(c => c.textContent).join('|')]))"""
     )
 
 
@@ -666,6 +666,11 @@ def main() -> int:
         '{"type":"complete","duration":1200.0}\n'
     )
     (asked / "context.txt").write_text("Réunion budget, trois personnes.\n")
+    # A second meeting, its minutes asked while the first one's are written (D25).
+    other = agreeing / "2026-10-18_14-00"
+    other.mkdir()
+    for name in ("session.json", "transcript.jsonl"):
+        (other / name).write_text((asked / name).read_text().replace("T11:", "T14:"))
     (WORK / "summary-args").unlink(missing_ok=True)
     online = 'minutes_provider = "https://openrouter.ai/api/v1"\nminutes_model = "a-model"\n'
     window = Window(agreeing, "fr_FR.UTF-8", online, ollama=ollama)
@@ -740,7 +745,20 @@ def main() -> int:
         check("the meeting's page says where its transcript was made", "Transcript · sur cette machine" in chips, chips)
         (WORK / "slow-minutes").touch()
         browser.find_element(By.ID, "make-minutes").click()
-        said = browser.find_element(By.CSS_SELECTOR, "#meeting .minutes").text
+        state = lambda b: b.find_element(By.ID, "minutes-state").text if b.find_elements(By.ID, "minutes-state") else ""
+        shown = wait_for(browser, lambda b: "Rédaction du compte rendu" in state(b), 3)
+        said = state(browser)
+        check("while they are written, the page says so — what, by which model, for how long", shown and "Qwen3 14b" in said and "0:0" in said, said)
+        # Asked meanwhile for another meeting: it waits its turn, said on its page and in the list.
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_14-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"))
+        browser.find_element(By.ID, "make-minutes").click()
+        waits = wait_for(browser, lambda b: "En attente de son tour — 1 avant" in state(b), 3)
+        check("one asked while another is written waits its turn, said on its page", waits, state(browser))
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: len([c for c in b.find_elements(By.CSS_SELECTOR, ".chip.making") if c.is_displayed()]) == 2, 3)
+        rowed = sorted(c.text for c in browser.find_elements(By.CSS_SELECTOR, ".chip.making") if c.is_displayed())
+        check("the list says it too, on each meeting's row", rowed == ["Compte rendu…", "En attente"], rowed)
         # While its minutes are written, the meeting is busy: shown, never offered to be freed.
         browser.execute_script("location.hash = '#/free'")
         held = wait_for(browser, lambda b: [r.text for r in b.find_elements(By.CSS_SELECTOR, "#free .freeable.busy")], 3)
@@ -748,8 +766,12 @@ def main() -> int:
         check("while its minutes are written, the meeting is busy on the page that frees space", held and "compte rendu" in " ".join(busy), busy)
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         made = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
+        check("what a meeting lacks is offered, and made on the word", made)
+        turn = wait_for(browser, lambda b: (other / "minutes.md").exists(), 10)
         (WORK / "slow-minutes").unlink()
-        check("what a meeting lacks is offered, and made on the word", made and "Demandé" in said, said)
+        check("then the one waiting is made in its turn, never dropped", turn)
+        drawn = wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes") and not b.find_element(By.ID, "minutes-state").is_displayed(), 5)
+        check("written, the page shows them by itself, the state gone", drawn)
         # Refaire…: another model, this time only; the minutes there go to the trash once replaced.
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
@@ -800,6 +822,9 @@ def main() -> int:
         browser.find_element(By.ID, "redo-do").click()
         told = wait_for(browser, lambda b: "pas été refait" in heard.read_text(), 10)
         check("minutes made again that fail: the ones there stay, and the notice says a redo", told and (asked / "minutes.md").read_text() == before, heard.read_text()[-400:])
+        failed = wait_for(browser, lambda b: "the provider's answer is not minutes" in state(b), 5)
+        check("the failure said on the meeting's page too, with its reason, and a way to try again",
+              failed and "n’a pas été fait" in state(browser) and browser.find_elements(By.ID, "minutes-again"), state(browser))
         settled = window.file.read_text()
         window.file.write_text(
             "\n".join(line for line in settled.splitlines() if not line.startswith(("minutes_provider", "minutes_model", "minutes_agreed")))

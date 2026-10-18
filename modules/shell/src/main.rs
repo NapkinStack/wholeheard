@@ -11,7 +11,7 @@
 use std::{
     collections::HashMap,
     collections::VecDeque,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Mutex, mpsc::Receiver},
     time::{Duration, Instant},
 };
@@ -87,6 +87,12 @@ struct Shell {
     asked_again: Mutex<Option<AskedAgain>>,
     /// The meeting whose minutes are being written: busy, never freed meanwhile (D19).
     writing_minutes: Mutex<Option<PathBuf>>,
+    /// What writes them, and since when: said on the meeting's page (D25).
+    minutes_by: Mutex<Option<(String, String, Instant)>>,
+    /// Minutes asked while others were written: made in turn, never dropped (D25).
+    minutes_waiting: Mutex<VecDeque<Queued>>,
+    /// Why the last minutes of a meeting were not written, until they are (D25).
+    minutes_failed: Mutex<HashMap<PathBuf, String>>,
     /// The sessions whose transcripts wait for the one being made, or for the model — in
     /// the order they were asked, each once.
     waiting: Mutex<VecDeque<PathBuf>>,
@@ -130,6 +136,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             listed,
             header,
+            makings,
             record,
             recording_now,
             small_window,
@@ -219,6 +226,9 @@ fn main() {
                 redoing: Mutex::new(None),
                 hearing: Mutex::new(None),
                 writing_minutes: Mutex::new(None),
+                minutes_by: Mutex::new(None),
+                minutes_waiting: Mutex::new(VecDeque::new()),
+                minutes_failed: Mutex::new(HashMap::new()),
                 asked_again: Mutex::new(None),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
@@ -969,6 +979,94 @@ fn make_minutes(app: &AppHandle, folder: PathBuf) {
     write_minutes(app, folder, None, None);
 }
 
+/// Minutes asked while others were being written, as they were asked.
+struct Queued {
+    folder: PathBuf,
+    agreed: Option<String>,
+    chosen: Option<(String, String)>,
+}
+
+/// A making of minutes is over: its meeting free, its failure kept for its page, and the next
+/// one asked meanwhile started — those that cannot start yet (an agreement to give) left as said.
+fn minutes_ended(app: &AppHandle, folder: &Path, failed: Option<String>) {
+    let shell = app.state::<Shell>();
+    *shell.writing_minutes.lock().unwrap() = None;
+    shell.minutes_by.lock().unwrap().take();
+    if let Some(why) = failed {
+        shell.minutes_failed.lock().unwrap().insert(folder.to_path_buf(), why);
+    }
+    minuting(app, false);
+    if *shell.leaving.lock().unwrap() {
+        return;
+    }
+    loop {
+        let Some(next) = shell.minutes_waiting.lock().unwrap().pop_front() else {
+            return;
+        };
+        write_minutes(app, next.folder, next.agreed.as_deref(), next.chosen);
+        if shell.writing_minutes.lock().unwrap().is_some() {
+            return;
+        }
+    }
+}
+
+/// What is being made in the background, for the pages (D25): the minutes being written, by
+/// what and for how long, those waiting their turn, the transcript being made and those waiting,
+/// and why a meeting's last minutes were not written.
+#[derive(serde::Serialize)]
+struct Makings {
+    minutes: Option<Making>,
+    minutes_waiting: Vec<String>,
+    transcript: Option<String>,
+    transcripts_waiting: Vec<String>,
+    failed: HashMap<String, String>,
+}
+
+#[derive(serde::Serialize)]
+struct Making {
+    name: String,
+    model: String,
+    host: String,
+    seconds: u64,
+}
+
+fn named(folder: &Path) -> String {
+    folder
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+fn makings(shell: State<'_, Shell>) -> Makings {
+    let writing = shell.writing_minutes.lock().unwrap().clone();
+    let by = shell.minutes_by.lock().unwrap().clone();
+    Makings {
+        minutes: writing.zip(by).map(|(folder, (model, host, since))| Making {
+            name: named(&folder),
+            model,
+            host,
+            seconds: since.elapsed().as_secs(),
+        }),
+        minutes_waiting: shell
+            .minutes_waiting
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|queued| named(&queued.folder))
+            .collect(),
+        transcript: shell.hearing.lock().unwrap().as_deref().map(named),
+        transcripts_waiting: shell.waiting.lock().unwrap().iter().map(|folder| named(folder)).collect(),
+        failed: shell
+            .minutes_failed
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(folder, why)| (named(folder), why.clone()))
+            .collect(),
+    }
+}
+
 /// Minutes made again with a model, asked before the user agreed to send them.
 struct AskedAgain {
     folder: PathBuf,
@@ -981,7 +1079,16 @@ struct AskedAgain {
 fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, chosen: Option<(String, String)>) {
     let shell = app.state::<Shell>();
     let mut writing = shell.writing_minutes.lock().unwrap();
-    if writing.is_some() {
+    if let Some(being) = writing.as_ref() {
+        // One at a time: asked meanwhile, it waits its turn — said on its page —, once.
+        let mut waiting = shell.minutes_waiting.lock().unwrap();
+        if *being != folder && !waiting.iter().any(|queued| queued.folder == folder) {
+            waiting.push_back(Queued {
+                folder,
+                agreed: agreed_now.map(str::to_string),
+                chosen,
+            });
+        }
         return;
     }
     let again = chosen.is_some();
@@ -1022,6 +1129,8 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
     }
     *writing = Some(folder.clone());
     drop(writing);
+    *shell.minutes_by.lock().unwrap() = Some((model.clone(), host.clone(), Instant::now()));
+    shell.minutes_failed.lock().unwrap().remove(&folder);
     minuting(app, true);
     let app = app.clone();
     // The keyring may ask the user first: never on the window's and the tray's thread.
@@ -1036,9 +1145,8 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
             Ok(previous) => Some(previous),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => {
-                *shell.writing_minutes.lock().unwrap() = None;
-                minuting(&app, false);
                 let why = format!("the minutes there could not be set aside ({error}): nothing was made");
+                minutes_ended(&app, &folder, Some(why.clone()));
                 return tell(&app, &words::minutes(&words::Minutes::failed(why, again), shell.language));
             }
         };
@@ -1058,8 +1166,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
                 if let Some(previous) = &previous {
                     let _ = std::fs::remove_file(previous);
                 }
-                *shell.writing_minutes.lock().unwrap() = None;
-                minuting(&app, false);
+                minutes_ended(&app, &folder, Some(error.to_string()));
                 return tell(
                     &app,
                     &words::minutes(&words::Minutes::failed(error.to_string(), again), shell.language),
@@ -1087,8 +1194,14 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
                 }
             }
         }
-        *shell.writing_minutes.lock().unwrap() = None;
-        minuting(&app, false);
+        minutes_ended(
+            &app,
+            &folder,
+            match &made {
+                summarising::Made::Failed(why) => Some(why.clone()),
+                summarising::Made::Written(_) => None,
+            },
+        );
         if *shell.leaving.lock().unwrap() {
             return;
         }
