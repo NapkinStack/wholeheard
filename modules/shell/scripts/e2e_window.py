@@ -32,13 +32,20 @@ from urllib3.exceptions import HTTPError
 
 BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
 # summit-summary played here: it says what it was given — its arguments, the key in its
-# environment —, refuses a key at openrouter.ai and answers elsewhere. Nothing leaves the machine.
+# environment. A test refuses a key at openrouter.ai and answers elsewhere; minutes are written,
+# the way it was called kept beside them. Nothing leaves the machine.
 SUMMARY = WORK / "summit-summary"
 SUMMARY.write_text(
     """#!/bin/sh
 here=$(dirname "$0")
 printf '%s\\n' "$*" > "$here/summary-args"
 printf '%s' "${SUMMIT_PROVIDER_KEY:-none}" > "$here/summary-key"
+if [ "$1" != --test ]; then
+  echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
+  printf -- '---\\ncontract: minutes/v1\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' > "$1/minutes.md"
+  echo '{"event": "written", "file": "x"}'
+  exit 0
+fi
 case "$*" in *openrouter.ai*) echo "summit-summary: the provider at openrouter.ai refused the key" >&2; exit 1;; esac
 echo '{"event": "sending"}'
 echo '{"event": "answered"}'
@@ -55,6 +62,14 @@ def check(what: str, held: bool, got: object = "") -> None:
     print(f"  {'ok  ' if held else 'FAIL'}  {what}" + ("" if held else f"\n        got: {got}"))
     if not held:
         FAILED.append(what)
+
+
+def shot(browser, name: str) -> None:
+    """The page as it is, saved where SUMMIT_SCREENSHOTS says: for an eye against D11's boards."""
+    folder = os.environ.get("SUMMIT_SCREENSHOTS")
+    if folder:
+        Path(folder).mkdir(parents=True, exist_ok=True)
+        browser.save_screenshot(str(Path(folder) / f"{name}.png"))
 
 
 def wait_for(browser, holds, seconds: float = 10) -> bool:
@@ -495,7 +510,6 @@ def main() -> int:
         WebDriverWait(browser, 5).until(staleness_of(before))
         said = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
         check("an address that is none is said, and nothing changes", said and window.file.read_text() == text, browser.find_element(By.ID, "not-saved").text)
-    tags.shutdown()
     broken = WORK / "broken"
     broken.mkdir()
     window = Window(broken, "fr_FR.UTF-8", "keep_audio = 0\n")
@@ -517,6 +531,72 @@ def main() -> int:
         browser.execute_script("window.dispatchEvent(new Event('focus'))")
         open_again = wait_for(browser, lambda b: not b.find_element(By.ID, "reminder").get_attribute("disabled"), 5)
         check("a file corrected by hand opens the page again", open_again and not browser.find_elements(By.CSS_SELECTOR, "#settings .warn:not([hidden])")[1:])
+
+    print("N. before a meeting first leaves for a host: what leaves, to whom; sent only on the word")
+    agreeing = WORK / "agreeing"
+    asked = agreeing / "2026-10-18_11-00"
+    asked.mkdir(parents=True)
+    (asked / "session.json").write_text('{"contract":"session-audio/v2","started":"2026-10-18T11:00:00+02:00","stopped":"2026-10-18T11:20:00+02:00","tracks":{}}')
+    (asked / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"others","track":"remote","start":0.0,"end":2.0,"text":"Le budget est validé."}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":2.0,"end":4.0,"text":"Je préviens Alexandre."}\n'
+        '{"type":"complete","duration":1200.0}\n'
+    )
+    (asked / "context.txt").write_text("Réunion budget, trois personnes.\n")
+    (WORK / "summary-args").unlink(missing_ok=True)
+    online = 'minutes_provider = "https://openrouter.ai/api/v1"\nminutes_model = "a-model"\n'
+    window = Window(agreeing, "fr_FR.UTF-8", online, ollama=ollama)
+    with window as browser:
+        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
+        shot(browser, "agreement")
+        page = browser.find_element(By.ID, "agree").text
+        check(
+            "what leaves is said — the transcript, its length and words, the context —, what stays, to whom",
+            "Le texte de cette réunion va quitter votre ordinateur" in page
+            and "20 minutes, environ 7 mots" in page and "Environ 4 mots" in page
+            and "Reste ici : l’audio" in page and "openrouter.ai" in page and "a-model" in page,
+            page,
+        )
+        check("nothing has left before the word", not (WORK / "summary-args").exists())
+        check("not asking again is the user's tick, unticked", not browser.find_element(By.ID, "agree-remember").is_selected())
+        browser.find_element(By.ID, "agree-send").click()
+        sent = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
+        check(
+            "on the word, this meeting is sent — once: the host is not kept",
+            sent and "minutes_agreed" not in window.file.read_text()
+            and (WORK / "summary-args").read_text().split() == [str(asked), "--provider", "https://openrouter.ai/api/v1", "--model", "a-model"],
+            window.file.read_text(),
+        )
+        check("then the meeting is shown", wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/meeting/2026-10-18_11-00", 5))
+        # Ticked: this meeting and the next ones go to that service without asking.
+        (asked / "minutes.md").unlink()
+        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-remember"))
+        browser.find_element(By.ID, "agree-remember").click()
+        browser.find_element(By.ID, "agree-send").click()
+        kept = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
+        check("ticked, the host is kept for the next ones", kept and 'minutes_agreed = "openrouter.ai"' in window.file.read_text(), window.file.read_text())
+        # On this computer instead: nothing goes to the host, nothing is agreed.
+        (asked / "minutes.md").unlink()
+        (WORK / "summary-args").unlink()
+        window.file.write_text(window.file.read_text().replace('minutes_agreed = "openrouter.ai"\n', ""))
+        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-local-open"))
+        browser.find_element(By.ID, "agree-local-open").click()
+        Select(browser.find_element(By.ID, "agree-local")).select_by_visible_text("qwen3:14b")
+        browser.find_element(By.ID, "agree-local-write").click()
+        here = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
+        text = window.file.read_text()
+        check(
+            "or written on this computer, chosen for the next ones too, nothing agreed",
+            here and f'minutes_provider = "{ollama}/v1"' in text and 'minutes_model = "qwen3:14b"' in text
+            and "minutes_agreed" not in text
+            and (WORK / "summary-args").read_text().split()[1:] == ["--provider", f"{ollama}/v1", "--model", "qwen3:14b"],
+            text,
+        )
+    tags.shutdown()
 
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"
