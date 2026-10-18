@@ -230,7 +230,11 @@ pub fn set_aside(file: &Path, moved: bool) -> std::io::Result<PathBuf> {
         let aside = folder.join(name);
         match fs::OpenOptions::new().write(true).create_new(true).open(&aside) {
             Ok(mut made) => {
-                made.write_all(&content)?;
+                // Written whole, or not left at all.
+                if let Err(error) = made.write_all(&content) {
+                    let _ = fs::remove_file(&aside);
+                    return Err(error);
+                }
                 if moved {
                     fs::remove_file(file)?;
                 }

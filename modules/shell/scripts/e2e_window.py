@@ -742,6 +742,20 @@ def main() -> int:
         check("made again, the copies kept are all there, none written over", written and kept == sorted([before, second]), kept)
         for path in aside(asked):
             path.unlink()
+        # Minutes that cannot be set aside are not made over: nothing runs, they stay as they are.
+        (asked / "minutes.md").chmod(0o000)
+        (WORK / "summary-args").unlink()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes") or b.find_elements(By.ID, "make-minutes"))
+        browser.execute_script("window.__TAURI__.core.invoke('minutes_redo', {name: '2026-10-18_11-00', provider: null, model: null})")
+        time.sleep(3)
+        (asked / "minutes.md").chmod(0o644)
+        check(
+            "minutes that cannot be set aside are not made over",
+            not (WORK / "summary-args").exists() and "model: mistral:7b" in (asked / "minutes.md").read_text() and not aside(asked),
+            (WORK / "summary-args").exists(),
+        )
         trash.unlink()
         (WORK / "data" / "Trash-aside").rename(trash)
     tags.shutdown()

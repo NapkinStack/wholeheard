@@ -318,6 +318,18 @@ fn a_file_set_aside_never_writes_over_another() {
     let moved = sessions::set_aside(&transcript, true).unwrap();
     assert!(!transcript.exists() && std::fs::read_to_string(&moved).unwrap() == "T");
     assert!(moved.file_name().unwrap().to_string_lossy().ends_with(".jsonl"));
-    // Nothing there: nothing set aside.
-    assert!(sessions::set_aside(&folder.path().join("absent.md"), false).is_err());
+    // Nothing there: nothing set aside, and said so; there and unreadable, refused, nothing left.
+    assert_eq!(
+        sessions::set_aside(&folder.path().join("absent.md"), false).unwrap_err().kind(),
+        std::io::ErrorKind::NotFound
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&minutes, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let refused = sessions::set_aside(&minutes, false);
+        std::fs::set_permissions(&minutes, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(refused.is_err());
+        assert_eq!(folder.path().read_dir().unwrap().count(), 4, "a copy was left");
+    }
 }

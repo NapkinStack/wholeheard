@@ -880,7 +880,17 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
         // The minutes there stay until the new ones are whole: copied aside under a name of their
         // own, they go to the trash once replaced, and the copy is dropped — the minutes still in
         // place — when the making fails.
-        let previous = sessions::set_aside(&folder.join("minutes.md"), false).ok();
+        // Nothing there, nothing to keep; there and not set aside, nothing is made.
+        let previous = match sessions::set_aside(&folder.join("minutes.md"), false) {
+            Ok(previous) => Some(previous),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => {
+                *shell.writing_minutes.lock().unwrap() = false;
+                minuting(&app, false);
+                let why = format!("the minutes there could not be set aside ({error}): nothing was made");
+                return tell(&app, &words::minutes(&words::Minutes::Failed(why), shell.language));
+            }
+        };
         let started = Summarising::start(
             &program("summit-summary", "SUMMIT_SUMMARY"),
             &folder,
