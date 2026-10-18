@@ -297,6 +297,12 @@ check test -s "$meeting/minutes.md"
 check is "$(cat "$work/summarised")" "$meeting --provider http://127.0.0.1:9/v1 --model mistral"
 check is "$(titles 'Compte rendu prêt')" 1
 click 6
+# An address that names no host: said, nothing run.
+start fr_FR.UTF-8 "minutes_provider = \"nowhere\"\nminutes_model = \"m\"" "$work/summit-capture"
+click 5; sleep 2
+check is "$(titles 'Le compte rendu n’a pas été fait')" 1
+check is "$(wc -l < "$work/summarised")" 1
+click 6
 # Online, not agreed: nothing is sent, the window opens to ask.
 rm "$meeting/minutes.md"
 start fr_FR.UTF-8 "minutes_provider = \"https://openrouter.ai/api/v1\"\nminutes_model = \"a-model\"" "$work/summit-capture"

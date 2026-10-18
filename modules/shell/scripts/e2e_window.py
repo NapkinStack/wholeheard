@@ -561,6 +561,19 @@ def main() -> int:
         )
         check("nothing has left before the word", not (WORK / "summary-args").exists())
         check("not asking again is the user's tick, unticked", not browser.find_element(By.ID, "agree-remember").is_selected())
+        # The provider changed in the file while the page asks: the word was not for that one.
+        window.file.write_text(window.file.read_text().replace("https://openrouter.ai/api/v1", "https://api.mistral.ai/v1"))
+        browser.find_element(By.ID, "agree-send").click()
+        refused = wait_for(browser, lambda b: any(said.is_displayed() for said in b.find_elements(By.ID, "not-saved")), 5)
+        check(
+            "the word is for the host shown: chosen otherwise meanwhile, nothing is sent",
+            refused and not (WORK / "summary-args").exists() and "minutes_agreed" not in window.file.read_text(),
+            [said.text for said in browser.find_elements(By.ID, "not-saved")],
+        )
+        window.file.write_text(window.file.read_text().replace("https://api.mistral.ai/v1", "https://openrouter.ai/api/v1"))
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
         browser.find_element(By.ID, "agree-send").click()
         sent = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         check(
