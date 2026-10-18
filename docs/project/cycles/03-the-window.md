@@ -135,11 +135,36 @@ and by when" are there as written, not as parsed).
 |---|---|
 | The minutes beside the transcript, who wrote them and where, who spoke, search, the folder | Holds — the window's scenario J (#182, #183) |
 | What a session lacks offered, made on the user's word | Holds — the minutes and the transcript offered on a meeting's page, through the tray's gates (#214, #215); scenarios N and H |
-| *Refaire…* with the model chosen, the current kept until the new one is whole | Not built — after D20 and D21 |
+| *Refaire…* with the model chosen, the current kept until the new one is whole | Holds — the minutes made again with another model, the current ones kept until the new are whole, then in the trash (#218); the transcript made again by another model of this computer, the current put back if the new fails (#219); the window's scenario K |
+
+**Offered for acceptance** — its acceptance issue: [#228](https://github.com/NapkinStack/summit/issues/228), the decider's trial on their desktop.
+
+Seen by the verifiers and corrected before merging: a trash that refuses deleting the replaced
+minutes, kept copies written over by the next making, minutes made over when they could not be
+set aside, the transcript not put back when Summit quit during a redo, and a recording's
+transcript left waiting behind a redo. The redesign of the minutes' reading, above, followed two
+failed verifications.
 
 ### D19
 
 Board 3. The system's trash, never a delete: what the decider asked for undoing.
+
+Built in one pull request, verified (#220): *Faire de la place* beside the meetings' weights;
+the audio alone or the whole meeting; the heaviest first by what would go; *Cocher celles de plus
+de 30 jours*; what is freed said before anything is done; the audio or the folders to the
+system's trash. A meeting being recorded or transcribed is shown, never offered, and the shell
+refuses it whatever the page sends.
+
+**Offered for acceptance** — its acceptance issue: [#229](https://github.com/NapkinStack/summit/issues/229), the decider's trial on their desktop.
+
+| Criterion | Where it stands |
+|---|---|
+| The heaviest first, those older than thirty days ticked at once, what will be freed said before | Holds — the window's scenario P |
+| To the system's trash, nothing deleted; a meeting whose audio went still lists and reads; one restored from the trash lists again | Holds for the trash and the listing — scenario P, in the scenario's own trash. Restoring is the system's: the list reads the folder, so a meeting put back lists again; seen in the acceptance trial, never by a scenario |
+
+Seen by the verifier, left for the shell's polish pull request: a danger button's words too pale
+on the dark theme's red (corrected with D22), a meeting whose minutes are being written not yet
+held as busy, and the focus lost at each tick for a keyboard user.
 
 ### D20
 
