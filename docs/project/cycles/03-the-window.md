@@ -70,6 +70,13 @@ deliverables:
     acceptance:
       - "Given minutes or a transcript asked for — from a meeting's page, Refaire… or the tray — when it is being made, then the meeting's page and the list say so: what, by which model, for how long; one asked while another is made waits its turn and says so, never dropped; a failure is said on the meeting's page in one sentence with its reason, not only in a notification"
       - "Given the settings, when the user picks who writes the minutes, then nothing is saved before their gesture, and the page says what is in use"
+  - id: D27
+    title: "Summit installs on Ubuntu from one package, its programs built on the system they ship to"
+    module: install
+    state: ready
+    acceptance:
+      - "Given Ubuntu 24.04, when a user installs Summit from one package file (`sudo apt install ./summit_<version>_amd64.deb`), then Summit is in the applications menu and starts in the tray with nothing built and no variable set, and removing it leaves the user's meetings and settings"
+      - "Given a release for a system — Fedora or Ubuntu —, when the programs are built, then they are built in a container of that system, so that no package depends on the machine that made it"
   - id: D26
     title: "A user listens to a meeting, its words following"
     module: shell
@@ -301,6 +308,16 @@ word (`write_minutes` returns), the page said only *Asked*, and a local model fa
 minutes' form said so in a notification alone. In Settings, picking a local model saved it at
 once — the decider's file held `codellama:latest`, a model for code. It fits what is left of the
 appetite; the end date does not move.
+
+### D27
+
+**Added on the decider's word, 2026-10-18**: "can Summit run on Ubuntu? … for Ubuntu, I think
+both [check it and add a `.deb`], I leave you the choice of what you recommend". A program built
+on Fedora 44 does not start on Ubuntu 24.04 (an older `glibc`): each program is built in a
+container of the system it ships to, chosen by the environment every release reads (NapkinStack
+0.9.6), and `install` makes the `.deb` there too — Fedora's package built the same way. Tried
+with `apt` in an Ubuntu that never saw Summit, as Fedora's with `dnf`. A colleague with the
+repository's access is the trial. macOS stays *Later*: no macOS container; a Mac builds it.
 
 ### D26
 
