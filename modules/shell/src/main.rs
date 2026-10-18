@@ -908,13 +908,11 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
             })
             .unwrap_or(summarising::Made::Failed(String::new()));
         shell.minuting.lock().unwrap().take();
+        // Replaced, the earlier minutes go to the trash — refused, they stay beside, and it is said.
+        let mut kept_beside = false;
         if kept {
             match made {
-                summarising::Made::Written(_) => {
-                    if trash::delete(&previous).is_err() {
-                        let _ = std::fs::remove_file(&previous);
-                    }
-                }
+                summarising::Made::Written(_) => kept_beside = trash::delete(&previous).is_err(),
                 summarising::Made::Failed(_) => {
                     let _ = std::fs::remove_file(&previous);
                 }
@@ -926,6 +924,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
             return;
         }
         let said = match made {
+            summarising::Made::Written(_) if kept_beside => words::Minutes::ReadyKeptBeside,
             summarising::Made::Written(_) => words::Minutes::Ready,
             summarising::Made::Failed(why) => words::Minutes::Failed(why),
         };

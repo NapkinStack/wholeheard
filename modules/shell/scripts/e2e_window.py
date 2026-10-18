@@ -42,7 +42,7 @@ printf '%s\\n' "$*" > "$here/summary-args"
 printf '%s' "${SUMMIT_PROVIDER_KEY:-none}" > "$here/summary-key"
 if [ "$1" != --test ]; then
   echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
-  printf -- '---\\ncontract: minutes/v1\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' > "$1/minutes.md"
+  printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" > "$1/minutes.md"
   echo '{"event": "written", "file": "x"}'
   exit 0
 fi
@@ -708,6 +708,25 @@ def main() -> int:
             and not (asked / "minutes-previous.md").exists(),
             (WORK / "summary-args").read_text(),
         )
+        # A trash that refuses: the minutes replaced stay beside the new ones, never deleted.
+        trash = WORK / "data" / "Trash"
+        trash.rename(WORK / "data" / "Trash-aside")
+        trash.write_text("")
+        before = (asked / "minutes.md").read_text()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
+        browser.find_element(By.ID, "redo-minutes").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
+        browser.find_element(By.ID, "redo-do").click()
+        beside = asked / "minutes-previous.md"
+        # The new minutes written — they name their model —, then a moment for what follows them.
+        written = wait_for(browser, lambda b: "model: qwen3:14b" in (asked / "minutes.md").read_text(), 10)
+        time.sleep(2)
+        kept = beside.exists() and beside.read_text() == before
+        check("a trash that refuses keeps the minutes replaced beside the new ones", written and kept, (written, beside.exists()))
+        trash.unlink()
+        (WORK / "data" / "Trash-aside").rename(trash)
     tags.shutdown()
 
     print("I. the window, in English; and a folder with no session")

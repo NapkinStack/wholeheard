@@ -763,6 +763,8 @@ pub fn made(made: &Made, language: Language) -> Notice {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Minutes {
     Ready,
+    /// Ready, and the minutes they replace could not go to the trash: kept beside them.
+    ReadyKeptBeside,
     /// Not made: summit-summary's sentence.
     Failed(String),
     /// Online, and the user has not agreed to send this meeting to this host yet.
@@ -780,6 +782,16 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         (Minutes::Ready, English) => (
             "Minutes ready",
             "They are in Summit’s window, beside the transcript.".to_string(),
+            "",
+        ),
+        (Minutes::ReadyKeptBeside, English) => (
+            "Minutes ready",
+            "The ones they replace could not go to the trash: they are kept beside them, as minutes-previous.md.".to_string(),
+            "",
+        ),
+        (Minutes::ReadyKeptBeside, French) => (
+            "Compte rendu prêt",
+            "Celui qu’il remplace n’a pas pu aller à la corbeille : il est gardé à côté, sous minutes-previous.md.".to_string(),
             "",
         ),
         (Minutes::Ready, French) => (
