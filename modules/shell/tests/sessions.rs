@@ -294,3 +294,42 @@ fn a_link_in_a_session_never_sends_what_it_points_to() {
     let now = instant("2026-10-17T10:00:00Z").unwrap();
     assert_eq!(sessions::expired_audio(&root, 1, now), [root.join("old/local.wav")]);
 }
+
+#[test]
+fn a_file_set_aside_never_writes_over_another() {
+    let folder = tempfile::tempdir().unwrap();
+    let minutes = folder.path().join("minutes.md");
+    std::fs::write(&minutes, "A").unwrap();
+    // Copied aside twice in the same second: two names, neither written over.
+    let first = sessions::set_aside(&minutes, false).unwrap();
+    std::fs::write(&minutes, "B").unwrap();
+    let second = sessions::set_aside(&minutes, false).unwrap();
+    assert_ne!(first, second);
+    assert_eq!(
+        (std::fs::read_to_string(&first).unwrap(), std::fs::read_to_string(&second).unwrap()),
+        ("A".into(), "B".into())
+    );
+    assert_eq!(std::fs::read_to_string(&minutes).unwrap(), "B");
+    let name = first.file_name().unwrap().to_string_lossy().into_owned();
+    assert!(name.starts_with("minutes-before-") && name.ends_with(".md"), "{name}");
+    // Moved aside: the file itself goes, under a name of its own.
+    let transcript = folder.path().join("transcript.jsonl");
+    std::fs::write(&transcript, "T").unwrap();
+    let moved = sessions::set_aside(&transcript, true).unwrap();
+    assert!(!transcript.exists() && std::fs::read_to_string(&moved).unwrap() == "T");
+    assert!(moved.file_name().unwrap().to_string_lossy().ends_with(".jsonl"));
+    // Nothing there: nothing set aside, and said so; there and unreadable, refused, nothing left.
+    assert_eq!(
+        sessions::set_aside(&folder.path().join("absent.md"), false).unwrap_err().kind(),
+        std::io::ErrorKind::NotFound
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&minutes, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let refused = sessions::set_aside(&minutes, false);
+        std::fs::set_permissions(&minutes, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(refused.is_err());
+        assert_eq!(folder.path().read_dir().unwrap().count(), 4, "a copy was left");
+    }
+}

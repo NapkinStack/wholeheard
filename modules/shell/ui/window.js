@@ -231,6 +231,48 @@ function offer(card, label, id, command, session, words) {
   card.append(button);
 }
 
+function redoPanel(choices, session, words) {
+  const panel = element("section", "redo");
+  panel.id = "redo-panel";
+  panel.append(element("h3", "", words.redo_title), element("p", "says", words.redo_with));
+  const options = [];
+  if (choices.provider && choices.model) options.push([choices.provider, choices.model, choices.provider === choices.ollama_address]);
+  for (const name of choices.ollama) {
+    if (!(choices.provider === choices.ollama_address && choices.model === name)) options.push([choices.ollama_address, name, true]);
+  }
+  const list = element("div", "group");
+  list.setAttribute("role", "radiogroup");
+  options.forEach(([provider, model, here], index) => {
+    const one = element("label", "choice");
+    const input = element("input");
+    input.type = "radio";
+    input.name = "redo-with";
+    input.value = String(index);
+    input.checked = index === 0;
+    const said = element("span", "said");
+    said.append(element("span", "name", modelSaid(model)));
+    one.append(input, said, element("span", "says", here ? words.on_computer : words.ran_online));
+    list.append(one);
+  });
+  const go = element("button", "primary", words.redo_do);
+  go.type = "button";
+  go.id = "redo-do";
+  go.disabled = options.length === 0;
+  go.addEventListener("click", async () => {
+    const picked = panel.querySelector("input[name=redo-with]:checked");
+    const [provider, model] = options[Number(picked?.value ?? 0)] ?? [];
+    go.disabled = true;
+    try {
+      await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: provider ?? null, model: model ?? null });
+      go.replaceWith(element("p", "note", words.asked));
+    } catch (why) {
+      go.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
+    }
+  });
+  panel.append(list, element("p", "says", words.redo_note), go);
+  return panel;
+}
+
 function minutesCard(read, words, session, transcript) {
   const card = element("article", "card minutes");
   card.append(element("h2", "label", words.minutes_title));
@@ -241,6 +283,16 @@ function minutesCard(read, words, session, transcript) {
     }
     return card;
   }
+  // Refaire… (D11's sixth board): another model, this time only; the minutes stay until the new
+  // ones are whole.
+  const redo = element("button", "open", words.redo);
+  redo.type = "button";
+  redo.id = "redo-minutes";
+  redo.addEventListener("click", async () => {
+    const choices = await window.__TAURI__.core.invoke("minutes_shown");
+    redo.replaceWith(redoPanel(choices, session, words));
+  });
+  card.querySelector("h2").after(redo);
   const made = read.made && dayOf({ instant: Date.parse(read.made) / 1000 || null });
   // As the board says it: the day of the week, no year, and the model as people say it.
   const options = { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" };

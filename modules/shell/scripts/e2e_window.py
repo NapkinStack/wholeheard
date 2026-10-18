@@ -42,7 +42,7 @@ printf '%s\\n' "$*" > "$here/summary-args"
 printf '%s' "${SUMMIT_PROVIDER_KEY:-none}" > "$here/summary-key"
 if [ "$1" != --test ]; then
   echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
-  printf -- '---\\ncontract: minutes/v1\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' > "$1/minutes.md"
+  printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" > "$1/minutes.md"
   echo '{"event": "written", "file": "x"}'
   exit 0
 fi
@@ -680,6 +680,84 @@ def main() -> int:
         made = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         said = browser.find_element(By.CSS_SELECTOR, "#meeting .minutes").text
         check("what a meeting lacks is offered, and made on the word", made and "Demandé" in said, said)
+        # Refaire…: another model, this time only; the minutes there go to the trash once replaced.
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
+        browser.find_element(By.ID, "redo-minutes").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
+        browser.execute_script("document.getElementById('redo-panel').scrollIntoView({block: 'center'})")
+        shot(browser, "6-redo")
+        offered = browser.execute_script("return [...document.querySelectorAll('#redo-panel .choice')].map(c => c.textContent)")
+        check(
+            "Refaire offers the model chosen first, then the others on this computer",
+            offered == ["Qwen3 14bsur cet ordinateur", "Mistral 7bsur cet ordinateur"],
+            offered,
+        )
+        before = (asked / "minutes.md").read_text()
+        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        browser.find_element(By.ID, "redo-do").click()
+        def aside(folder):
+            return sorted(folder.glob("minutes-before-*.md")) if folder.exists() else []
+
+        trash_files = WORK / "data" / "Trash" / "files"
+        redone = wait_for(browser, lambda b: aside(trash_files), 10)
+        check(
+            "made again with the model chosen, this time only; the minutes there in the trash",
+            redone
+            and (WORK / "summary-args").read_text().split()[-1] == "mistral:7b"
+            and aside(trash_files)[0].read_text() == before
+            and 'minutes_model = "qwen3:14b"' in window.file.read_text()
+            and not aside(asked),
+            (WORK / "summary-args").read_text(),
+        )
+        # A trash that refuses: the minutes replaced stay beside the new ones, never deleted.
+        trash = WORK / "data" / "Trash"
+        trash.rename(WORK / "data" / "Trash-aside")
+        trash.write_text("")
+        before = (asked / "minutes.md").read_text()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
+        browser.find_element(By.ID, "redo-minutes").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
+        browser.find_element(By.ID, "redo-do").click()
+        # The new minutes written — they name their model —, then a moment for what follows them.
+        written = wait_for(browser, lambda b: "model: qwen3:14b" in (asked / "minutes.md").read_text(), 10)
+        time.sleep(2)
+        kept = [path.read_text() for path in aside(asked)]
+        check("a trash that refuses keeps the minutes replaced beside the new ones", written and kept == [before], kept)
+        # Made again while the trash still refuses: the copy kept is never written over.
+        second = (asked / "minutes.md").read_text()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
+        browser.find_element(By.ID, "redo-minutes").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
+        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        browser.find_element(By.ID, "redo-do").click()
+        written = wait_for(browser, lambda b: "model: mistral:7b" in (asked / "minutes.md").read_text(), 10)
+        time.sleep(2)
+        kept = sorted(path.read_text() for path in aside(asked))
+        check("made again, the copies kept are all there, none written over", written and kept == sorted([before, second]), kept)
+        for path in aside(asked):
+            path.unlink()
+        # Minutes that cannot be set aside are not made over: nothing runs, they stay as they are.
+        (asked / "minutes.md").chmod(0o000)
+        (WORK / "summary-args").unlink()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes") or b.find_elements(By.ID, "make-minutes"))
+        browser.execute_script("window.__TAURI__.core.invoke('minutes_redo', {name: '2026-10-18_11-00', provider: null, model: null})")
+        time.sleep(3)
+        (asked / "minutes.md").chmod(0o644)
+        check(
+            "minutes that cannot be set aside are not made over",
+            not (WORK / "summary-args").exists() and "model: mistral:7b" in (asked / "minutes.md").read_text() and not aside(asked),
+            (WORK / "summary-args").exists(),
+        )
+        trash.unlink()
+        (WORK / "data" / "Trash-aside").rename(trash)
     tags.shutdown()
 
     print("I. the window, in English; and a folder with no session")

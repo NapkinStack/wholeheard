@@ -416,6 +416,14 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
         assert_ne!(words::menu(language).minuting, entry);
     }
     assert_eq!(words::minutes(&Minutes::Ready, Language::French).title, "Compte rendu prêt");
+    // The minutes replaced, kept beside when the trash refused them: said, with where.
+    for language in BOTH {
+        assert!(
+            words::minutes(&Minutes::ReadyKeptBeside("minutes-before-1760751234.md".into()), language)
+                .body
+                .contains("minutes-before-1760751234.md")
+        );
+    }
     assert_eq!(
         words::minutes(&Minutes::Waiting("openrouter.ai".into()), Language::French).body,
         "Rien n’est envoyé à openrouter.ai avant votre accord, dans la fenêtre de Summit."

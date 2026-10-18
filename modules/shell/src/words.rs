@@ -320,6 +320,13 @@ pub struct Window {
     /// The folder the sessions go to, and the button that opens the system's dialog for it.
     pub sessions_folder: [&'static str; 2],
     pub choose: &'static str,
+    /// *Refaire…* on the minutes (D11's sixth board): the panel's title, question, note and gesture.
+    pub redo: &'static str,
+    pub redo_title: &'static str,
+    pub redo_with: &'static str,
+    pub redo_note: &'static str,
+    pub redo_do: &'static str,
+    pub on_computer: &'static str,
     /// What a meeting lacks, offered on its page; what is said once asked; where a step ran.
     pub make_minutes: &'static str,
     pub make_transcript: &'static str,
@@ -451,6 +458,12 @@ pub fn window(language: Language) -> Window {
                 "New meetings are written here. Those already recorded stay where they were: the window and the audio's keeping follow this folder.",
             ],
             choose: "Choose…",
+            redo: "Redo…",
+            redo_title: "Write the minutes again",
+            redo_with: "With which model",
+            redo_note: "The current minutes stay in place until the new ones are ready, then go to the trash.",
+            redo_do: "Redo",
+            on_computer: "on this computer",
             make_minutes: "Write the minutes",
             make_transcript: "Write the transcript",
             asked: "Asked — a notification says when it is ready.",
@@ -576,6 +589,12 @@ pub fn window(language: Language) -> Window {
                 "Les nouvelles réunions y sont écrites. Celles déjà enregistrées restent où elles étaient : la fenêtre et la garde de l’audio suivent ce dossier.",
             ],
             choose: "Choisir…",
+            redo: "Refaire…",
+            redo_title: "Refaire le compte rendu",
+            redo_with: "Avec quel modèle",
+            redo_note: "Le compte rendu actuel reste en place tant que le nouveau n’est pas prêt, et se retrouve ensuite dans la corbeille.",
+            redo_do: "Refaire",
+            on_computer: "sur cet ordinateur",
             make_minutes: "Faire le compte rendu",
             make_transcript: "Faire le transcript",
             asked: "Demandé — une notification dira quand c’est prêt.",
@@ -744,6 +763,8 @@ pub fn made(made: &Made, language: Language) -> Notice {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Minutes {
     Ready,
+    /// Ready, and the minutes they replace could not go to the trash: kept beside them, by this name.
+    ReadyKeptBeside(String),
     /// Not made: summit-summary's sentence.
     Failed(String),
     /// Online, and the user has not agreed to send this meeting to this host yet.
@@ -761,6 +782,16 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         (Minutes::Ready, English) => (
             "Minutes ready",
             "They are in Summit’s window, beside the transcript.".to_string(),
+            "",
+        ),
+        (Minutes::ReadyKeptBeside(name), English) => (
+            "Minutes ready",
+            format!("The ones they replace could not go to the trash: they are kept beside them, as {name}."),
+            "",
+        ),
+        (Minutes::ReadyKeptBeside(name), French) => (
+            "Compte rendu prêt",
+            format!("Celui qu’il remplace n’a pas pu aller à la corbeille : il est gardé à côté, sous {name}."),
             "",
         ),
         (Minutes::Ready, French) => (

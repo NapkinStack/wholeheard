@@ -204,3 +204,45 @@ pub fn instant(text: &str) -> Option<i64> {
     let days = era * 146_097 + of_cycle - 719_468;
     Some(days * 86_400 + hour * 3600 + minute * 60 + second - offset)
 }
+
+/// Sets a session's file aside before it is made again, under a name of its own —
+/// `minutes-before-1760751234.md`, a second counted on when two share one —: never written over,
+/// so a copy kept earlier, or left by a making cut short, is never lost. Copied (`moved` false)
+/// the file stays in place; moved, it goes. The name set aside is given back.
+pub fn set_aside(file: &Path, moved: bool) -> std::io::Result<PathBuf> {
+    use std::io::Write;
+    let folder = file.parent().unwrap_or(Path::new("."));
+    let stem = file.file_stem().map(|stem| stem.to_string_lossy().into_owned()).unwrap_or_default();
+    let extension = file
+        .extension()
+        .map(|extension| format!(".{}", extension.to_string_lossy()))
+        .unwrap_or_default();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs());
+    let content = fs::read(file)?;
+    for count in 0..1000 {
+        let name = if count == 0 {
+            format!("{stem}-before-{now}{extension}")
+        } else {
+            format!("{stem}-before-{now}-{count}{extension}")
+        };
+        let aside = folder.join(name);
+        match fs::OpenOptions::new().write(true).create_new(true).open(&aside) {
+            Ok(mut made) => {
+                // Written whole, or not left at all.
+                if let Err(error) = made.write_all(&content) {
+                    let _ = fs::remove_file(&aside);
+                    return Err(error);
+                }
+                if moved {
+                    fs::remove_file(file)?;
+                }
+                return Ok(aside);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(std::io::Error::other("no name free to set the file aside"))
+}
