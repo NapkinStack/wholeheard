@@ -325,6 +325,10 @@ forbidden paths.
 - business logic shared between distinct domains;
 - a shared database without a justifying ADR.
 
+**Allowed, declared:** another module's release artefacts — what its `release` wrote in its
+folder of `dist/` — read by the module that assembles what ships, which names it in
+`assembles` (`09-platform.md` §2). Its artefacts, never its code.
+
 **Allowed but worth watching:** shared technical primitives (logging, errors, utilities
 with no business logic). As soon as a business rule enters a shared package, two modules
 become inseparable. They live outside the module folders: a module never imports another

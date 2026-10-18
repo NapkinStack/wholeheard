@@ -61,15 +61,29 @@ section, with its own stack's commands.
 | `compat` | Tell whether a change to a contract version is compatible: exit 0 when `$NSTACK_HEAD_PATH` accepts what `$NSTACK_BASE_PATH` did | On the module holding contracts, once one is consumed or stable |
 | `contracts` | Validate and generate the contract artefacts | On every contract change |
 | `migrate` | Apply the data migrations | When the module owns data |
-| `release` | Produce the shippable artefact | Reproducibly |
+| `release` | Produce the module's shippable artefacts into `$NSTACK_DIST` | Reproducibly, for the platform its arguments name |
 
-The engine runs `bootstrap`, `check`, `test`, `run`, `e2e`, `clean` and `compat`: it reads the command from
+The engine runs `bootstrap`, `check`, `test`, `run`, `e2e`, `clean`, `compat` and `release`: it reads the command from
 the manifest and launches it from the module's folder, locally as in CI. `check` and
 `test` are mandatory as soon as the module holds anything beyond its description — its
 manifest, `AGENTS.md`, `README.md`, `docs/`; `bootstrap`, `e2e` and `clean` are optional. A new module
 holds only its description: its verbs report that there is nothing to run yet, and
-`nstack fitness` asks for `check` and `test` with its first other file. `contracts`,
-`migrate` and `release` are reserved names, to declare when a module needs them.
+`nstack fitness` asks for `check` and `test` with its first other file. `contracts` and
+`migrate` are reserved names, to declare when a module needs them.
+
+**What ships is assembled from artefacts, never from another module's folder.** `nstack
+release <module>` runs the module's `release` with `NSTACK_DIST` naming its own folder of the
+project's `dist/` — emptied first, outside every module, never committed — and passes what
+follows the module's name to its command: the platform, the target, the variant — a binary, a
+mobile build, a web bundle, an installer, whatever the stack ships. A module that makes what a
+user installs from other modules' artefacts declares them in its manifest, `assembles:
+[<module>, …]`, and reads them in their folders (`$NSTACK_DIST/../<module>/`); `nstack
+release` with no module runs each after what it assembles, and fails on a module declaring
+none only when that module is named. One target for every module — a platform, an
+architecture — is set in the environment they all inherit (`TARGET=… nstack release`); a module
+needing several targets of another's makes them all in that one's release, since each release
+empties its folder. Reading another module's artefacts without declaring it fails (`B9`), as a
+path into its folder does (`B2`); `assembles` names modules by their folder, as the verbs do.
 
 **A job leaves nothing behind.** GitHub's hosted runners are thrown away after each job; a
 self-hosted one is not. The module checks start on a clean checkout, and each module ends
