@@ -307,8 +307,12 @@ pub struct Window {
     pub model_missing: &'static str,
     /// The model's name as people say it, and its size once installed.
     pub installed: &'static str,
-    /// Another number of days, typed.
+    /// Another number of days, typed; and what is said of one that is none.
     pub keep_other: &'static str,
+    pub keep_not_days: &'static str,
+    /// The engine that hears, shipped with Summit; and the user's home, as a folder is said.
+    pub builtin: &'static str,
+    pub home: &'static str,
     pub transcription: &'static str,
     pub on_this_computer: &'static str,
     pub reminder: [&'static str; 2],
@@ -424,6 +428,9 @@ pub fn window(language: Language) -> Window {
             model_missing: "Not on this computer yet: it is offered at the first transcript.",
             installed: "installed, {}",
             keep_other: "Another number of days…",
+            keep_not_days: "{} is no number of days: from 1 to 36,500",
+            builtin: "built into Summit",
+            home: "Home folder",
             transcription: "Transcription",
             on_this_computer: "On this computer — nothing leaves it",
             reminder: [
@@ -539,6 +546,9 @@ pub fn window(language: Language) -> Window {
             model_missing: "Pas encore sur cet ordinateur : il est proposé au premier transcript.",
             installed: "installé, {}",
             keep_other: "Autre nombre de jours…",
+            keep_not_days: "{} n’est pas un nombre de jours : de 1 à 36 500",
+            builtin: "intégré à Summit",
+            home: "Dossier personnel",
             transcription: "Transcription",
             on_this_computer: "Sur cet ordinateur — rien ne sort",
             reminder: [

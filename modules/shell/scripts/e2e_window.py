@@ -402,6 +402,15 @@ def main() -> int:
         kept = window.file.read_text()
         offered = [o.text for o in browser.find_elements(By.CSS_SELECTOR, "#keep option")]
         check("any number of days can be typed, and is offered after", "keep_audio = 45" in kept and "45 jours" in offered, (kept, offered))
+        Select(browser.find_element(By.ID, "keep")).select_by_value("other")
+        typed_days = browser.find_element(By.ID, "keep-other")
+        typed_days.send_keys("0", Keys.ENTER)
+        refused = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
+        check(
+            "a number that is no number of days is said, nothing saved",
+            refused and "0 n’est pas un nombre de jours" in browser.find_element(By.ID, "not-saved").text and "keep_audio = 45" in window.file.read_text(),
+            browser.find_element(By.ID, "not-saved").text,
+        )
         # The shortcut: the keys the desktop granted, or that it granted none; its keyboard
         # settings offered where they can be opened — never opened here.
         keys = browser.find_element(By.ID, "shortcut").text
@@ -415,13 +424,22 @@ def main() -> int:
         )
         # The sessions' folder: typed, made when it is not there, and what the list reads.
         elsewhere = WORK / "elsewhere" / "Summit"
-        folder = browser.find_element(By.ID, "sessions")
-        check("the sessions' folder is shown", folder.get_attribute("value") == str(chosen), folder.get_attribute("value"))
+        spoken = browser.find_element(By.ID, "sessions-shown").get_attribute("textContent")
+        # Outside the home folder, from the root: / tmp / … / chosen.
+        check("the sessions' folder is shown as people say it", spoken == "/ " + " / ".join(chosen.parts[1:]), spoken)
+
+        def folder_field():
+            # A click on the folder as said makes it a path to type.
+            browser.find_element(By.ID, "sessions-shown").click()
+            return browser.find_element(By.ID, "sessions")
+
         typed = lambda field, text: (browser.execute_script("arguments[0].select()", field), field.send_keys(text, Keys.ENTER))  # noqa: E731
+        folder = folder_field()
+        check("a click makes it the path, to type", folder.get_attribute("value") == str(chosen), folder.get_attribute("value"))
         changed(lambda: typed(folder, str(elsewhere)))
         text = window.file.read_text()
         check("a folder typed is made, and in the settings file", elsewhere.is_dir() and f'sessions = "{elsewhere}"' in text, text)
-        folder = browser.find_element(By.ID, "sessions")
+        folder = folder_field()
         changed(lambda: typed(folder, "Summit"))
         said = browser.find_element(By.ID, "not-saved").text
         check("a folder that is not a whole path is said, and nothing changes", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == text, said)
@@ -500,6 +518,8 @@ def main() -> int:
             text,
         )
         kept = browser.find_element(By.ID, "minutes-key")
+        browser.execute_script("arguments[0].scrollIntoView({block: 'center'})", kept)
+        shot(browser, "4-settings-online")
         check(
             "the key is kept, said so, and never shown back nor written in the settings",
             kept.get_attribute("value") == "" and kept.get_attribute("placeholder").startswith("Une clé est gardée") and "sk-scenario" not in text,

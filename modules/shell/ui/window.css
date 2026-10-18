@@ -147,3 +147,6 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 /* The meetings by week (D11's first board): each week's title, then its meetings, a breath between weeks. */
 #groups { display: flex; flex-direction: column; gap: 24px; }
 .fields:empty { display: none; }
+.tag { margin-left: 6px; font: 12.5px ui-monospace, monospace; color: var(--soft); }
+.path { flex: 1 1 240px; min-width: 0; text-align: left; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--soft); font: 13.5px ui-monospace, monospace; cursor: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.path:hover { border-color: var(--line); color: var(--ink); }

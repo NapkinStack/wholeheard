@@ -371,7 +371,12 @@ function minutesRow(minutes, words, locked) {
       return;
     }
     where.className = "status online";
-    where.textContent = words.where_online;
+    let shown = minutes.provider ?? "";
+    try {
+      const address = new URL(value === "custom" ? minutes.provider : minutes.online[Number(value.split(":")[1])].address);
+      shown = `${address.host}${address.pathname}`;
+    } catch {}
+    where.replaceChildren(words.where_online, element("code", "tag", shown));
     const custom = value === "custom";
     const [addressWrap, address] = field("minutes-address", words.address, "url", custom && current === "custom" ? minutes.provider : "");
     const [modelWrap, model] = field("minutes-model", words.model_name, "text", current === value ? minutes.model : "");
@@ -389,12 +394,15 @@ function minutesRow(minutes, words, locked) {
     if (custom) fields.append(addressWrap);
     fields.append(modelWrap, keyWrap, button);
   };
+  // Tester sits on the key's row, as the board has it, or on its own row when there is none.
+  let place = () => {};
   pick.addEventListener("change", () => {
     if (pick.value.startsWith("ollama:")) save(minutes.ollama_address, pick.value.slice("ollama:".length), null);
     draw();
+    place();
   });
   draw();
-  box.append(row, fields, where);
+  box.append(row, where, fields);
   // Tester: the choice saved, asked whether it answers — one sentence of Summit's, said first.
   // One test at a time, the page drawn again meanwhile or not.
   if (minutes.provider && minutes.model) {
@@ -430,8 +438,10 @@ function minutesRow(minutes, words, locked) {
       const again = document.getElementById("minutes-test");
       if (again) again.disabled = again.dataset.locked === "true";
     });
-    test.append(button, tested);
+    test.append(tested);
     box.append(test);
+    place = () => (fields.childElementCount > 0 ? fields.append(button) : test.prepend(button));
+    place();
   }
   return box;
 }
@@ -496,7 +506,9 @@ function showSettings(shown, minutes, words) {
   }
   pick.addEventListener("change", () => save({ model: pick.value }));
   row.append(label, pick);
-  step.append(row, element("p", "status here", words.on_this_computer));
+  const here = element("p", "status here", words.on_this_computer);
+  here.append(element("code", "tag", words.builtin));
+  step.append(row, here);
   models.append(step, minutesRow(minutes, words, locked), element("p", "says", words.models_note));
   parts.push(models);
 
@@ -543,7 +555,10 @@ function showSettings(shown, minutes, words) {
   other.setAttribute("aria-label", words.keep_other);
   other.addEventListener("change", () => {
     const days = Number(other.value);
-    if (Number.isInteger(days) && days >= 1 && days <= 36500) save({ keep_audio: { days } });
+    if (other.value !== "" && Number.isInteger(days) && days >= 1 && days <= 36500) return save({ keep_audio: { days } });
+    const said = document.getElementById("not-saved");
+    said.textContent = fill(words.not_saved, fill(words.keep_not_days, other.value || "—"));
+    said.hidden = false;
   });
   other.addEventListener("keydown", (event) => {
     if (event.key === "Enter") other.blur();
@@ -570,6 +585,19 @@ function showSettings(shown, minutes, words) {
   path.value = shown.sessions_said;
   path.disabled = locked;
   path.spellcheck = false;
+  path.hidden = true;
+  // Shown as the board says it — Dossier personnel / Summit —; a click makes it a path to type.
+  const said = shown.sessions_said.replace(/^~(?=\/|$)/, words.home).split("/").filter(Boolean).join(" / ");
+  const folderShown = element("button", "path", shown.sessions_said.startsWith("/") ? `/ ${said}` : said);
+  folderShown.type = "button";
+  folderShown.id = "sessions-shown";
+  folderShown.disabled = locked;
+  folderShown.addEventListener("click", () => {
+    folderShown.hidden = true;
+    path.hidden = false;
+    path.focus();
+    path.select();
+  });
   path.addEventListener("change", () => save({ sessions: path.value.trim() }));
   // Enter says the folder is typed: the field lets go, which is its change.
   path.addEventListener("keydown", (event) => {
@@ -583,7 +611,7 @@ function showSettings(shown, minutes, words) {
     const chosen = await window.__TAURI__.core.invoke("choose_folder");
     if (chosen !== null) save({ sessions: chosen });
   });
-  where.append(whereSaid, path, choose);
+  where.append(whereSaid, folderShown, path, choose);
   // The shortcut: the desktop's to grant and to change; the page says which keys, and where.
   const keys = element("div", "row");
   const keysSaid = element("span", "said");
@@ -602,7 +630,7 @@ function showSettings(shown, minutes, words) {
     );
     keys.append(open);
   }
-  more.append(remind, keep, where, keys);
+  more.append(remind, keys, where, keep);
   parts.push(more);
 
   // The transcription model's state: there and ready, or offered at the first transcript.
