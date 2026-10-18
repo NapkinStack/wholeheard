@@ -740,7 +740,8 @@ def main() -> int:
         (asked / "minutes.md").unlink()
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"))
+        # Offered once what was being made for it is read as ended.
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes") and b.find_element(By.ID, "make-minutes").is_displayed())
         chips = browser.find_element(By.CSS_SELECTOR, "#meeting .holds").text
         check("the meeting's page says where its transcript was made", "Transcript · sur cette machine" in chips, chips)
         (WORK / "slow-minutes").touch()
@@ -779,21 +780,23 @@ def main() -> int:
         (WORK / "slow-minutes").unlink()
         check("then the one waiting is made in its turn, never dropped", turn)
         drawn = wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes") and not b.find_element(By.ID, "minutes-state").is_displayed(), 5)
-        check("written, the page shows them by itself, the state gone", drawn)
+        check("written, the page shows them by itself, the state gone", drawn,
+              (state(browser), bool(browser.find_elements(By.ID, "redo-minutes")), browser.execute_async_script("window.__TAURI__.core.invoke('makings').then(arguments[arguments.length - 1])")))
         # The line never waits on an agreement: set aside, said on its page, the next one made.
         invoke = lambda command, args: browser.execute_script("window.__TAURI__.core.invoke(arguments[0], arguments[1])", command, args)
         makings = lambda: browser.execute_async_script("window.__TAURI__.core.invoke('makings').then(arguments[arguments.length - 1])")
         settled = window.file.read_text()
+        unchosen = "\n".join(l for l in settled.splitlines() if not l.startswith(("minutes_provider", "minutes_model", "minutes_agreed"))) + "\n"
         (WORK / "slow-minutes").touch()
         invoke("minutes_redo", {"name": "2026-10-18_11-00", "provider": None, "model": None})
         wait_for(browser, lambda b: (makings()["minutes"] or {}).get("name") == "2026-10-18_11-00", 3)
+        invoke("minutes_asked", {"name": "2026-10-18_11-00"})
+        time.sleep(1)
+        check("asked again for the one being written, without a Refaire…: not made a second time", makings()["minutes_waiting"] == [], makings())
+        window.file.write_text(unchosen + 'minutes_provider = "https://openrouter.ai/api/v1"\nminutes_model = "a-model"\n')
         invoke("minutes_redo", {"name": "2026-10-18_11-00", "provider": None, "model": None})
         line = wait_for(browser, lambda b: makings()["minutes_waiting"] == ["2026-10-18_11-00"], 3)
-        check("made again with the settings' model while being written: it waits its turn, never dropped", line, makings())
-        window.file.write_text(
-            "\n".join(l for l in settled.splitlines() if not l.startswith(("minutes_provider", "minutes_model", "minutes_agreed")))
-            + '\nminutes_provider = "https://openrouter.ai/api/v1"\nminutes_model = "a-model"\n'
-        )
+        check("a Refaire… with the settings' model while being written: it waits its turn, never dropped", line, makings())
         invoke("minutes_redo", {"name": "2026-10-18_14-00", "provider": f"{ollama}/v1", "model": "mistral:7b"})
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         (WORK / "slow-minutes").unlink()
@@ -815,11 +818,23 @@ def main() -> int:
         browser.find_element(By.ID, "agree-not").click()
         kept_ = wait_for(browser, lambda b: makings()["awaiting"] == {"2026-10-18_11-00": "openrouter.ai"}, 3)
         check("not now: still waiting for the word, nothing sent", kept_ and (WORK / "summary-args").read_text().split()[-1] == "mistral:7b", makings())
-        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
-        press(browser, "agree-send")
-        sent_ = wait_for(browser, lambda b: (WORK / "summary-args").read_text().split()[-1] == "a-model" and not makings()["awaiting"] and makings()["minutes"] is None, 10)
-        check("given, they are written, the state gone", sent_, (makings(), (WORK / "summary-args").read_text()))
+        # The settings changed to this computer meanwhile: looked at again, made, no word needed.
+        invoke("minutes_saved", {"provider": f"{ollama}/v1", "model": "qwen3:14b", "key": None})
+        again_ = wait_for(browser, lambda b: (WORK / "summary-args").read_text().split()[-1] == "qwen3:14b" and not makings()["awaiting"] and makings()["minutes"] is None, 10)
+        check("set aside, then the settings changed: looked at again and made", again_, (makings(), (WORK / "summary-args").read_text()))
+        # Taken from the line with no one chosen any more: said on its page, no window over the user.
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        (WORK / "slow-minutes").touch()
+        invoke("minutes_redo", {"name": "2026-10-18_14-00", "provider": f"{ollama}/v1", "model": "mistral:7b"})
+        wait_for(browser, lambda b: makings()["minutes"] is not None, 3)
+        window.file.write_text(unchosen)
+        invoke("minutes_asked", {"name": "2026-10-18_11-00"})
+        wait_for(browser, lambda b: makings()["minutes_waiting"] == ["2026-10-18_11-00"], 3)
+        (WORK / "slow-minutes").unlink()
+        unsaid = wait_for(browser, lambda b: "2026-10-18_11-00" in makings()["failed"], 15)
+        time.sleep(1)
+        check("taken from the line with no one chosen: said on its page, no settings window opened over the user",
+              unsaid and browser.execute_script("return location.hash") == "#/meeting/2026-10-18_11-00", (makings(), browser.execute_script("return location.hash")))
         window.file.write_text(settled)
         # The trash emptied of these, as the user would: the next check counts its own.
         for made_before in (WORK / "data" / "Trash" / "files").glob("minutes-before-*.md"):

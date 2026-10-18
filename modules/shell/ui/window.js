@@ -84,8 +84,6 @@ function holdings(session, words, where) {
 
 // What Summit makes in the background (D25): read with the header, painted where it is shown.
 let makings = null;
-let wasMaking = null;
-let wasOpened = null;
 
 function stateOf(name, minutesOnly = false) {
   if (makings === null) return null;
@@ -113,6 +111,9 @@ function paintMakings() {
   const shown = stateOf(said.dataset.name, true);
   said.hidden = shown === null;
   said.className = `making-state ${shown?.kind ?? ""}`;
+  // Being made, waiting, or failed with Try again: not offered a second time.
+  const offered = document.getElementById("make-minutes");
+  if (offered) offered.hidden = shown !== null;
   if (shown === null) return said.replaceChildren();
   if (shown.kind === "making") {
     const minutes = `${Math.floor(shown.seconds / 60)}:${String(shown.seconds % 60).padStart(2, "0")}`;
@@ -142,12 +143,12 @@ async function readMakings() {
   // Only the meeting shown: its page hidden, the last one opened is no longer in front.
   const opened = document.getElementById("meeting").hidden ? null : document.getElementById("minutes-state")?.dataset.name;
   const now = opened ? stateOf(opened, true)?.kind : null;
-  // The minutes of the meeting shown just made: drawn again, to show them — unless the user has
-  // a panel open there, which a redraw would take from under them.
+  // The minutes of the meeting shown written since its page was drawn, however quickly: drawn
+  // again, to show them — unless the user has a panel open there, which a redraw would take from
+  // under them; then once it is closed.
   const busy = document.querySelector("#meeting .redo, #meeting input:focus");
-  if (opened === wasOpened && wasMaking === "making" && now !== "making" && now !== "failed" && !busy) refresh();
-  wasMaking = now ?? null;
-  wasOpened = opened ?? null;
+  const drawn = document.getElementById("minutes-state")?.dataset.made;
+  if (opened && makings && String(makings.made[opened] ?? 0) !== drawn && now !== "making" && !busy) refresh();
   paintMakings();
 }
 
@@ -401,6 +402,7 @@ function minutesCard(read, words, session, transcript) {
   const state = element("p", "making-state");
   state.id = "minutes-state";
   state.dataset.name = nameOf(session);
+  state.dataset.made = String(makings?.made[nameOf(session)] ?? 0);
   state.setAttribute("role", "status");
   state.hidden = true;
   card.append(state);
