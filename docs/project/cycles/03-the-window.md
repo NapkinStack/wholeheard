@@ -59,7 +59,7 @@ deliverables:
   - id: D24
     title: "Summit installs on Fedora from one package, and runs with nothing built or set"
     module: install
-    state: ready
+    state: in-progress
     acceptance:
       - "Given the decider's Fedora, when they install Summit from one package file (`sudo dnf install ./summit-<version>.x86_64.rpm`), then Summit is in the applications menu and starts in the tray with nothing built and no variable set: it records, transcribes — the Whisper model offered and fetched on first use — and writes the minutes"
       - "Given Summit installed, when the package is removed (`sudo dnf remove summit`), then the user's meetings and settings stay where they were"
@@ -257,10 +257,11 @@ exists — Summit is built from the repository. It fits what is left of the appe
 date does not move.
 
 Fedora only, as the decider builds and tests there; Windows and macOS stay *Later*, with the
-colleagues and the question of signing (charter). The package is made by the bundler Tauri
-ships for its applications (`rpm`), the shell's own build: the other programs ride beside it
-in the same folder, where the shell already looks for them. A new module, `install`, holds
-what makes the package and its checks; the programs stay their modules'.
+colleagues and the question of signing (charter). Each program's module leaves what it ships in
+its folder of `dist/` (`nstack release`, NapkinStack 0.9.6); a new module, `install`, assembles
+them into one package with `rpmbuild`, in a Fedora container — the programs side by side in
+`/usr/bin`, where the shell already looks for them (ADR-0006). Tauri's bundler was tried first
+and left: it must run in the shell's folder and requires only the shell's libraries.
 
 ## Out of scope
 
