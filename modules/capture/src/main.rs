@@ -218,6 +218,11 @@ fn record(sessions: &Path) -> Result<(), String> {
         if metered.elapsed() >= Duration::from_millis(100) {
             metered = Instant::now();
             for (index, source) in sources.iter_mut().enumerate() {
+                // A source that could not be opened is not being recorded: it has no level to
+                // say, as in v2 (recording/v1).
+                if source._stream.is_none() {
+                    continue;
+                }
                 say(Event::Level {
                     source: index,
                     level: source.track.level(),
