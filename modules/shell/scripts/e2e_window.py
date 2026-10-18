@@ -226,7 +226,7 @@ def main() -> int:
         said = browser.find_element(By.ID, "record").text
         check("the header offers to start a recording", said == "Démarrer un enregistrement", said)
         drawn = browser.execute_script(
-            "return [...document.querySelectorAll('#groups .session')].map(s => s.querySelector('.relief.small:not(.quiet)') !== null)"
+            "return [...document.querySelectorAll('#groups .session')].map(s => s.querySelector('.relief.small:not(.quiet) .said') !== null)"
         )
         check("a transcript that cannot be read draws no one", drawn and True not in drawn, drawn)
         check(
@@ -281,7 +281,7 @@ def main() -> int:
         browser.find_element(By.ID, "record").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.className")
         check("then the first meeting", "session" in focused, focused)
-        drawn = browser.execute_script("return [...document.querySelectorAll('#groups .session')].map(s => s.querySelector('.relief.small:not(.quiet)') !== null)")
+        drawn = browser.execute_script("return [...document.querySelectorAll('#groups .session')].map(s => s.querySelector('.relief.small:not(.quiet) .said') !== null)")
         check("a meeting whose transcript reads shows who spoke, small, beside it", True in drawn, drawn)
         shot(browser, "1-sessions-drawn")
         browser.find_elements(By.CSS_SELECTOR, ".session")[0].click()

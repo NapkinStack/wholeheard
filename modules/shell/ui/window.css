@@ -163,9 +163,10 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .session { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 10px 22px; }
 .session .shape { width: 132px; display: flex; }
 .relief.small { width: 132px; height: 36px; }
-.relief.small polyline { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.relief.small polyline { fill: none; stroke-width: 2; stroke-linejoin: round; stroke: var(--accent); }
+.relief.small .base { stroke: var(--line); stroke-width: 1; }
 .session .length { font: 13px ui-monospace, monospace; }
 .chevron { color: var(--soft); font-size: 22px; line-height: 1; transition: transform 120ms ease; }
 .session:hover .chevron { transform: translateX(3px); color: var(--accent); }
 @media (max-width: 640px) { .session { grid-template-columns: 1fr auto; } .session .shape, .session .chevron { display: none; } }
-.relief.small.quiet polyline { stroke: var(--line); }
+.relief.small.quiet polyline { stroke: none; }

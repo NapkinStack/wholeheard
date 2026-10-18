@@ -141,4 +141,26 @@ fn a_meeting_s_shape_is_how_much_each_side_spoke_in_each_part() {
     let [here, _] = meeting::shape(&transcript, 40.0, 4);
     assert_eq!(here, [0.5, 0.0, 0.0, 0.0]);
     assert_eq!(meeting::shape(&transcript, 0.0, 4), [vec![0.0; 4], vec![0.0; 4]]);
+    // Two lines of one side over the same part count once, never more than the whole part; a line
+    // that starts within a part counts from there.
+    std::fs::write(
+        folder.path().join("transcript.jsonl"),
+        concat!(
+            r#"{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}"#,
+            "\n",
+            r#"{"type":"segment","speaker":"me","track":"local","start":0.0,"end":2.5,"text":"a"}"#,
+            "\n",
+            r#"{"type":"segment","speaker":"me","track":"local","start":0.0,"end":2.5,"text":"a again"}"#,
+            "\n",
+            r#"{"type":"segment","speaker":"others","track":"remote","start":3.75,"end":5.0,"text":"b"}"#,
+            "\n",
+        ),
+    )
+    .unwrap();
+    let Read::Present(transcript) = meeting::transcript(folder.path()) else {
+        panic!("not read")
+    };
+    let [here, remote] = meeting::shape(&transcript, 10.0, 4);
+    assert_eq!(here, [1.0, 0.0, 0.0, 0.0]);
+    assert_eq!(remote, [0.0, 0.5, 0.0, 0.0]);
 }

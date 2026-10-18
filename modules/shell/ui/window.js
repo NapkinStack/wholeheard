@@ -74,20 +74,23 @@ function holdings(session, words) {
   return holds;
 }
 
-// Who spoke over a meeting, small, as the list draws it beside each one: here above, remote below.
-function shapeOf([here, remote], words) {
+// How much was said over a meeting, small, as the board draws it beside each one: one line of
+// speech, both sides together, over its baseline. Its page draws who spoke, side by side.
+function shapeOf([here, remote], quiet) {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 132 36");
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", words.who_spoke);
+  // The row says the meeting; the line only draws it: nothing for a screen reader to repeat.
+  svg.setAttribute("aria-hidden", "true");
   svg.classList.add("relief", "small");
+  if (quiet) svg.classList.add("quiet");
   const step = 132 / Math.max(1, here.length - 1);
-  for (const [track, shares, sign, base] of [["local", here, -1, 17], ["remote", remote, 1, 19]]) {
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-    line.setAttribute("points", shares.map((v, i) => `${(i * step).toFixed(1)},${(base + sign * v * 15).toFixed(1)}`).join(" "));
-    line.classList.add(track);
-    svg.append(line);
-  }
+  const base = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  for (const [name, value] of [["x1", 0], ["y1", 32], ["x2", 132], ["y2", 32]]) base.setAttribute(name, value);
+  base.classList.add("base");
+  const said = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  said.setAttribute("points", here.map((v, i) => `${(i * step).toFixed(1)},${(32 - Math.min(1, v + remote[i]) * 26).toFixed(1)}`).join(" "));
+  said.classList.add("said");
+  svg.append(base, said);
   return svg;
 }
 
@@ -112,13 +115,7 @@ function row(session, shape, words) {
   // No transcript read: a quiet line where its relief would be, so the rows keep their rhythm.
   const drawn = element("span", "shape");
   const none = new Array(24).fill(0);
-  const small = shapeOf(shape ?? [none, none], words);
-  if (!shape) {
-    small.classList.add("quiet");
-    small.setAttribute("aria-hidden", "true");
-    small.removeAttribute("role");
-  }
-  drawn.append(small);
+  drawn.append(shapeOf(shape ?? [none, none], !shape));
   link.append(drawn, when, holdings(session, words), element("span", "chevron", "›"));
   item.append(link);
   return item;
@@ -808,6 +805,17 @@ document.getElementById("record").addEventListener("click", async () => {
   // The recording says it started, or stopped, a moment later: then the header follows.
   setTimeout(refresh, 1200);
 });
+// The header follows a recording started or stopped elsewhere — the tray, the shortcut — while
+// the window is shown: asked lightly, every second and a half.
+setInterval(async () => {
+  if (document.hidden || words === null) return;
+  const { recording, shortcut } = await window.__TAURI__.core.invoke("header");
+  document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
+  document.getElementById("record").classList.toggle("live", recording);
+  const keys = document.getElementById("header-keys");
+  keys.textContent = shortcut ?? "";
+  keys.hidden = !shortcut;
+}, 1500);
 refresh();
 window.addEventListener("focus", refresh);
 window.addEventListener("hashchange", () => {
