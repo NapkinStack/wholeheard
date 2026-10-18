@@ -6,8 +6,9 @@
 # gitleaks-history: align it with the one of the gitleaks hook.
 # pre-commit autoupdate only sees tags on the default branch: do not use it.
 
-minimum_pre_commit_version: "3.0.0"
+minimum_pre_commit_version: "3.2.0"  # the stage names below
 default_install_hook_types: [pre-commit, commit-msg, pre-push]  # the message is read too
+default_stages: [pre-commit]  # a hook runs at commit only, unless it names its stages
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -15,12 +16,15 @@ repos:
     hooks:
       - id: detect-private-key
       - id: check-added-large-files
+        stages: [pre-commit]  # its own default adds the push
       # Also outside a git merge: Copier writes its update conflicts straight into the
       # files. The configuration its documentation recommends.
       - id: check-merge-conflict
         args: [--assume-in-merge]
       - id: check-executables-have-shebangs
+        stages: [pre-commit]
       - id: check-shebang-scripts-are-executable
+        stages: [pre-commit]
       # Actually loads the YAML: refuses duplicate keys, which PyYAML accepts silently.
       - id: check-yaml
 

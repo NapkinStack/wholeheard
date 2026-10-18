@@ -27,7 +27,8 @@ Deliverable: D<n>
 ## What it changes
 
 <The behaviour, not the list of files. The diff already says what changed; this section
-says why.>
+says why. A change with a shape — a flow, who reads what, a before and an after — is drawn:
+one Mermaid diagram with its legend, in place of the prose it shows; a change of words is not.>
 
 ## Oracle
 
@@ -59,7 +60,8 @@ other: <specify>
 - [ ] No contract affected
 - [ ] Contract consumed — the version is declared in the manifest
 - [ ] Contract changed, **additive** — contract tests green, and `nstack compat` proving it
-      once the version is consumed or stable
+      once the version is consumed or stable; a promise of its page reversed: <which, or none>
+      — no consumer relies on it, or the change is breaking
 - [ ] Contract changed, **breaking** — expand/contract step no. <1|2|3|4>, ADR linked,
   removal date set
 

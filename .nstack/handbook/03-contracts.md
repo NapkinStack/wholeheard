@@ -86,6 +86,15 @@ from seconds to milliseconds, a nullable field that becomes always filled. Techn
 compatible, functionally breaking. These are the most expensive breakages because no diff
 tool detects them — only contract tests do.
 
+**A comparator guards the consumers, not the shape.** It judges a version's schema: an
+addition is compatible, and a wrong field inside that addition is too. What a version says
+exactly — the event it emits, its fields' values — is held by the version's own tests. Nor
+does it read the contract's page: a promise written there — "never says how loud" — can be
+reversed by an addition it calls compatible. The diagram's first question decides it: a
+consumer that relied on the promise makes the change breaking; when none does, it stays
+additive and the page is corrected. A person catches it in review: the pull request's
+Contracts section names the promise it changes.
+
 ---
 
 ## 4. Expand / Contract

@@ -133,7 +133,7 @@ line. It narrows the window and does not close it: a pull request merged while y
 can still conflict with it, and the branch is brought current again by its author.
 
 **Splitting a change into pull requests that sit on one another.** Each is opened on the
-branch of the one before, and each carries its own sheet when the module asks for one. Two
+branch of the one before, and each carries its own sheet when the module asks for one. Three
 things the forge and the sheet do then, to know before the first merge:
 
 - merging the first **and deleting its branch** closes the next one, which was opened on it:
@@ -141,7 +141,12 @@ things the forge and the sheet do then, to know before the first merge:
 - the next one's head moves when the default branch is merged into it, and a sheet is tied to
   the commit tested. When that merge brings no file the branch did not already carry, the two
   commits hold the same tree and the sheet stands; when it brings one, the automated scenarios
-  are run again at the new head (§7).
+  are run again at the new head (§7);
+- a **squash** merge writes the first one's work as a new commit, and the next branch still
+  carries the old ones: it conflicts with what it already holds. Note the merged branch's last
+  commit before the branch goes, move the next one onto the default branch, `git rebase --onto
+  <default> <that commit>`, and push it with `--force-with-lease`: a forced push dismisses an
+  approval it already had (`07-governance.md` §7).
 
 **Once merged, a branch is gone.** A merged branch is history, not a place to work: left
 there, it is one more name to read past, and one day somebody builds on it. The forge
