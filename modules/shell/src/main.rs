@@ -81,16 +81,17 @@ struct Shell {
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
     minuting: Mutex<Option<Summarising>>,
-    /// Minutes made again (*Refaire…*) with a model, waiting for the user's agreement to send:
-    /// the meeting, the model chosen, and who the settings named then — changed since, it is
+    /// Minutes made again (*Refaire…*) with a model, waiting for the user's agreement to send,
+    /// by meeting: the model chosen, and who the settings named then — changed since, it is
     /// dropped: the page the user agrees on shows the settings as they are.
-    asked_again: Mutex<Option<AskedAgain>>,
+    asked_again: Mutex<HashMap<PathBuf, AskedAgain>>,
     /// The meeting whose minutes are being written: busy, never freed meanwhile (D19).
     writing_minutes: Mutex<Option<PathBuf>>,
     /// What writes them, and since when: said on the meeting's page (D25).
     minutes_by: Mutex<Option<(String, String, Instant)>>,
-    /// The meeting whose minutes wait for the user's agreement: the line waits behind it (D25).
-    agreeing: Mutex<Option<PathBuf>>,
+    /// Meetings whose minutes wait for the user's agreement to send them, and to which host: set
+    /// aside, said on their page; the line never waits behind them (D25).
+    awaiting: Mutex<HashMap<PathBuf, String>>,
     /// Minutes asked while others were written: made in turn, never dropped (D25).
     minutes_waiting: Mutex<VecDeque<Queued>>,
     /// Why the last minutes of a meeting were not written, until they are (D25).
@@ -230,9 +231,9 @@ fn main() {
                 writing_minutes: Mutex::new(None),
                 minutes_by: Mutex::new(None),
                 minutes_waiting: Mutex::new(VecDeque::new()),
-                agreeing: Mutex::new(None),
+                awaiting: Mutex::new(HashMap::new()),
                 minutes_failed: Mutex::new(HashMap::new()),
-                asked_again: Mutex::new(None),
+                asked_again: Mutex::new(HashMap::new()),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
                 download,
@@ -615,10 +616,9 @@ fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, r
         .asked_again
         .lock()
         .unwrap()
-        .take()
-        .filter(|asked| asked.folder == folder && asked.named == named)
+        .remove(&folder)
+        .filter(|asked| asked.named == named)
         .map(|asked| asked.choice);
-    shell.agreeing.lock().unwrap().take();
     write_minutes(&app, folder, Some(&host), again);
     Ok(())
 }
@@ -640,7 +640,6 @@ fn local_instead(app: AppHandle, shell: State<'_, Shell>, name: String, model: S
         settings::write(&file, &settings).map_err(|error| error.to_string())?;
         *shell.settings.lock().unwrap() = settings;
     }
-    shell.agreeing.lock().unwrap().take();
     make_minutes(&app, folder);
     Ok(())
 }
@@ -1015,12 +1014,9 @@ fn minutes_ended(app: &AppHandle, folder: &Path, failed: Option<String>) {
         let Some(next) = shell.minutes_waiting.lock().unwrap().pop_front() else {
             return;
         };
-        let folder = next.folder.clone();
-        write_minutes(app, next.folder, next.agreed.as_deref(), next.chosen);
-        // Started, or now waiting for the user's agreement: the others wait behind it, never
-        // asking a second agreement over the first.
-        let agreeing = shell.agreeing.lock().unwrap().as_ref() == Some(&folder);
-        if shell.writing_minutes.lock().unwrap().is_some() || agreeing {
+        // Started, or set aside (an agreement to give, a reason it cannot): the next one then.
+        write_minutes_from(app, next.folder, next.agreed.as_deref(), next.chosen, true);
+        if shell.writing_minutes.lock().unwrap().is_some() {
             return;
         }
     }
@@ -1036,6 +1032,7 @@ struct Makings {
     transcript: Option<String>,
     transcripts_waiting: Vec<String>,
     failed: HashMap<String, String>,
+    awaiting: HashMap<String, String>,
 }
 
 #[derive(serde::Serialize)]
@@ -1080,12 +1077,18 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .iter()
             .map(|(folder, why)| (named(folder), why.clone()))
             .collect(),
+        awaiting: shell
+            .awaiting
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(folder, host)| (named(folder), host.clone()))
+            .collect(),
     }
 }
 
 /// Minutes made again with a model, asked before the user agreed to send them.
 struct AskedAgain {
-    folder: PathBuf,
     choice: (String, String),
     named: Option<(String, String)>,
 }
@@ -1093,18 +1096,24 @@ struct AskedAgain {
 /// The same, `agreed_now` naming the host the user just agreed to send this meeting to, once:
 /// the gate is passed only if that is still the host the settings name as it is read here.
 fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, chosen: Option<(String, String)>) {
+    write_minutes_from(app, folder, agreed_now, chosen, false);
+}
+
+/// `from_line`: taken from the line, where nobody asked just now — an agreement it needs is set
+/// aside and said on its page, never a window opened over what the user is doing.
+fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, chosen: Option<(String, String)>, from_line: bool) {
     let shell = app.state::<Shell>();
     let writing = shell.writing_minutes.lock().unwrap();
-    if let Some(being) = writing.as_ref() {
+    if writing.is_some() {
         // One at a time: asked meanwhile, it waits its turn — said on its page —, once.
-        // A Refaire… of the one being written waits too; asked again while waiting, the newer
-        // choice is the one made.
+        // Asked again for the one being written (a Refaire…), it waits too; asked again while
+        // waiting, the newer choice is the one made.
         let mut waiting = shell.minutes_waiting.lock().unwrap();
         if let Some(queued) = waiting.iter_mut().find(|queued| queued.folder == folder) {
             if chosen.is_some() {
                 queued.chosen = chosen;
             }
-        } else if *being != folder || chosen.is_some() {
+        } else {
             waiting.push_back(Queued {
                 folder,
                 agreed: agreed_now.map(str::to_string),
@@ -1118,6 +1127,7 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
     drop(writing);
     // Not started: said on the meeting's page as well as in a notification (D25).
     let refused = |why: String| {
+        shell.awaiting.lock().unwrap().remove(&folder);
         shell.minutes_failed.lock().unwrap().insert(folder.clone(), why);
     };
     let settings = match shell.reread() {
@@ -1147,14 +1157,18 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
         return tell(app, &words::minutes(&words::Minutes::Failed(why), shell.language));
     };
     if agreed_now != Some(host.as_str()) && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
-        tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language));
-        *shell.agreeing.lock().unwrap() = Some(folder.clone());
+        shell.awaiting.lock().unwrap().insert(folder.clone(), host.clone());
         // Made again with a model chosen on the page: once agreed, with that model, as asked.
-        *shell.asked_again.lock().unwrap() = asked_again.map(|choice| AskedAgain {
-            folder: folder.clone(),
-            choice,
-            named,
-        });
+        let mut asked = shell.asked_again.lock().unwrap();
+        match asked_again {
+            Some(choice) => asked.insert(folder.clone(), AskedAgain { choice, named }),
+            None => asked.remove(&folder),
+        };
+        drop(asked);
+        if from_line {
+            return;
+        }
+        tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language));
         let name = folder
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -1165,10 +1179,13 @@ fn write_minutes(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>, cho
     if writing.is_some() {
         // Another started meanwhile, between the reading and now: this one waits its turn.
         drop(writing);
-        return write_minutes(app, folder, agreed_now, again.then_some((provider, model)));
+        return write_minutes_from(app, folder, agreed_now, again.then_some((provider, model)), from_line);
     }
     *writing = Some(folder.clone());
     drop(writing);
+    // Started: out of the line, its agreement given, its last failure gone.
+    shell.minutes_waiting.lock().unwrap().retain(|queued| queued.folder != folder);
+    shell.awaiting.lock().unwrap().remove(&folder);
     *shell.minutes_by.lock().unwrap() = Some((model.clone(), host.clone(), Instant::now()));
     shell.minutes_failed.lock().unwrap().remove(&folder);
     minuting(app, true);

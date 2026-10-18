@@ -92,11 +92,11 @@ function stateOf(name, minutesOnly = false) {
   if (makings.minutes?.name === name) return { kind: "making", ...makings.minutes };
   const waiting = makings.minutes_waiting.indexOf(name);
   if (waiting >= 0) return { kind: "waiting", before: waiting + 1 };
+  if (makings.awaiting[name] !== undefined) return { kind: "awaiting", host: makings.awaiting[name] };
   if (makings.failed[name] !== undefined) return { kind: "failed", why: makings.failed[name] };
   if (minutesOnly) return null;
   if (makings.transcript === name) return { kind: "transcribing" };
   if (makings.transcripts_waiting.includes(name)) return { kind: "waiting", before: makings.transcripts_waiting.indexOf(name) + 1 };
-  if (makings.failed[name] !== undefined) return { kind: "failed", why: makings.failed[name] };
   return null;
 }
 
@@ -105,7 +105,7 @@ function paintMakings() {
     const state = stateOf(chip_.dataset.name);
     chip_.hidden = state === null;
     if (state === null) continue;
-    chip_.textContent = { making: words.chip_making, waiting: words.chip_waiting, transcribing: words.chip_transcribing, failed: words.chip_failed }[state.kind];
+    chip_.textContent = { making: words.chip_making, waiting: words.chip_waiting, awaiting: words.chip_awaiting, transcribing: words.chip_transcribing, failed: words.chip_failed }[state.kind];
     chip_.classList.toggle("failed", state.kind === "failed");
   }
   const said = document.getElementById("minutes-state");
@@ -119,6 +119,11 @@ function paintMakings() {
     said.replaceChildren(element("span", "what", words.minutes_making), element("span", "by", `${modelSaid(shown.model)} · ${shown.host} · ${minutes}`), element("span", "making-bar"));
   } else if (shown.kind === "waiting") {
     said.replaceChildren(element("span", "what", fill(words.minutes_waiting, shown.before)));
+  } else if (shown.kind === "awaiting") {
+    const agree = element("a", "open", words.agree_open);
+    agree.id = "minutes-agree";
+    agree.href = `#/agree/${said.dataset.name}`;
+    said.replaceChildren(element("span", "what", fill(words.minutes_awaiting, shown.host)), agree);
   } else {
     const again = element("button", "open", words.try_again);
     again.type = "button";

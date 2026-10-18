@@ -780,6 +780,51 @@ def main() -> int:
         check("then the one waiting is made in its turn, never dropped", turn)
         drawn = wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes") and not b.find_element(By.ID, "minutes-state").is_displayed(), 5)
         check("written, the page shows them by itself, the state gone", drawn)
+        # The line never waits on an agreement: set aside, said on its page, the next one made.
+        invoke = lambda command, args: browser.execute_script("window.__TAURI__.core.invoke(arguments[0], arguments[1])", command, args)
+        makings = lambda: browser.execute_async_script("window.__TAURI__.core.invoke('makings').then(arguments[arguments.length - 1])")
+        settled = window.file.read_text()
+        (WORK / "slow-minutes").touch()
+        invoke("minutes_redo", {"name": "2026-10-18_11-00", "provider": None, "model": None})
+        wait_for(browser, lambda b: (makings()["minutes"] or {}).get("name") == "2026-10-18_11-00", 3)
+        invoke("minutes_redo", {"name": "2026-10-18_11-00", "provider": None, "model": None})
+        line = wait_for(browser, lambda b: makings()["minutes_waiting"] == ["2026-10-18_11-00"], 3)
+        check("made again with the settings' model while being written: it waits its turn, never dropped", line, makings())
+        window.file.write_text(
+            "\n".join(l for l in settled.splitlines() if not l.startswith(("minutes_provider", "minutes_model", "minutes_agreed")))
+            + '\nminutes_provider = "https://openrouter.ai/api/v1"\nminutes_model = "a-model"\n'
+        )
+        invoke("minutes_redo", {"name": "2026-10-18_14-00", "provider": f"{ollama}/v1", "model": "mistral:7b"})
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        (WORK / "slow-minutes").unlink()
+        passed = wait_for(browser, lambda b: makings()["minutes"] is None and not makings()["minutes_waiting"], 15)
+        aside_ = wait_for(browser, lambda b: "En attente de votre accord pour l’envoyer à openrouter.ai" in state(b) and b.find_elements(By.ID, "minutes-agree"), 5)
+        check(
+            "one needing the user's agreement is set aside, said on its page with the way to give it; the next one made",
+            passed and aside_ and (WORK / "summary-args").read_text().split()[-1] == "mistral:7b"
+            and browser.execute_script("return location.hash") == "#/meeting/2026-10-18_11-00",
+            (makings(), state(browser), (WORK / "summary-args").read_text()),
+        )
+        browser.execute_script("location.hash = '#/'")
+        chip_ = wait_for(browser, lambda b: "Votre accord" in [c.text for c in b.find_elements(By.CSS_SELECTOR, ".chip.making") if c.is_displayed()], 3)
+        check("the list says it, on the meeting's row", chip_)
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-agree"), 5)
+        browser.find_element(By.ID, "minutes-agree").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-not"))
+        browser.find_element(By.ID, "agree-not").click()
+        kept_ = wait_for(browser, lambda b: makings()["awaiting"] == {"2026-10-18_11-00": "openrouter.ai"}, 3)
+        check("not now: still waiting for the word, nothing sent", kept_ and (WORK / "summary-args").read_text().split()[-1] == "mistral:7b", makings())
+        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
+        press(browser, "agree-send")
+        sent_ = wait_for(browser, lambda b: (WORK / "summary-args").read_text().split()[-1] == "a-model" and not makings()["awaiting"] and makings()["minutes"] is None, 10)
+        check("given, they are written, the state gone", sent_, (makings(), (WORK / "summary-args").read_text()))
+        window.file.write_text(settled)
+        # The trash emptied of these, as the user would: the next check counts its own.
+        for made_before in (WORK / "data" / "Trash" / "files").glob("minutes-before-*.md"):
+            made_before.unlink()
+            (WORK / "data" / "Trash" / "info" / f"{made_before.name}.trashinfo").unlink(missing_ok=True)
         # Refaire…: another model, this time only; the minutes there go to the trash once replaced.
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
@@ -809,7 +854,7 @@ def main() -> int:
             and aside(trash_files)[0].read_text() == before
             and 'minutes_model = "qwen3:14b"' in window.file.read_text()
             and not aside(asked),
-            (WORK / "summary-args").read_text(),
+            ((WORK / "summary-args").read_text(), aside(trash_files), aside(trash_files) and aside(trash_files)[0].read_text()[:60], before[:60], aside(asked)),
         )
         # Made again and failing — on this computer, then online through the agreement: the minutes
         # there stay, and the notice says a redo, not a first making.
