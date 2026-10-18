@@ -74,7 +74,82 @@ function holdings(session, words, where) {
   if (session.minutes) holds.append(chip(ran(words.minutes, where?.minutes_here)));
   if (session.transcript) holds.append(chip(ran(words.transcript, true)));
   holds.append(session.audio > 0 ? chip(fill(words.audio, size(session.audio, words))) : chip(words.audio_freed, "gone"));
+  // What is being made for it, in the background (D25): painted from `makings`.
+  const making = chip("", "making");
+  making.dataset.name = nameOf(session);
+  making.hidden = true;
+  holds.append(making);
   return holds;
+}
+
+// What Summit makes in the background (D25): read with the header, painted where it is shown.
+let makings = null;
+
+function stateOf(name, minutesOnly = false) {
+  if (makings === null) return null;
+  if (makings.minutes?.name === name) return { kind: "making", ...makings.minutes };
+  const waiting = makings.minutes_waiting.indexOf(name);
+  if (waiting >= 0) return { kind: "waiting", before: waiting + 1 };
+  if (makings.awaiting[name] !== undefined) return { kind: "awaiting", host: makings.awaiting[name] };
+  if (makings.failed[name] !== undefined) return { kind: "failed", why: makings.failed[name] };
+  if (minutesOnly) return null;
+  if (makings.transcript === name) return { kind: "transcribing" };
+  if (makings.transcripts_waiting.includes(name)) return { kind: "waiting", before: makings.transcripts_waiting.indexOf(name) + 1 };
+  return null;
+}
+
+function paintMakings() {
+  for (const chip_ of document.querySelectorAll(".chip.making")) {
+    const state = stateOf(chip_.dataset.name);
+    chip_.hidden = state === null;
+    if (state === null) continue;
+    chip_.textContent = { making: words.chip_making, waiting: words.chip_waiting, awaiting: words.chip_awaiting, transcribing: words.chip_transcribing, failed: words.chip_failed }[state.kind];
+    chip_.classList.toggle("failed", state.kind === "failed");
+  }
+  const said = document.getElementById("minutes-state");
+  if (!said) return;
+  const shown = stateOf(said.dataset.name, true);
+  said.hidden = shown === null;
+  said.className = `making-state ${shown?.kind ?? ""}`;
+  // Being made, waiting, or failed with Try again: not offered a second time.
+  const offered = document.getElementById("make-minutes");
+  if (offered) offered.hidden = shown !== null;
+  if (shown === null) return said.replaceChildren();
+  if (shown.kind === "making") {
+    const minutes = `${Math.floor(shown.seconds / 60)}:${String(shown.seconds % 60).padStart(2, "0")}`;
+    said.replaceChildren(element("span", "what", words.minutes_making), element("span", "by", `${modelSaid(shown.model)} · ${shown.host} · ${minutes}`), element("span", "making-bar"));
+  } else if (shown.kind === "waiting") {
+    said.replaceChildren(element("span", "what", fill(words.minutes_waiting, shown.before)));
+  } else if (shown.kind === "awaiting") {
+    const agree = element("a", "open", words.agree_open);
+    agree.id = "minutes-agree";
+    agree.href = `#/agree/${said.dataset.name}`;
+    said.replaceChildren(element("span", "what", fill(words.minutes_awaiting, shown.host)), agree);
+  } else {
+    const again = element("button", "open", words.try_again);
+    again.type = "button";
+    again.id = "minutes-again";
+    again.addEventListener("click", async () => {
+      again.disabled = true;
+      await window.__TAURI__.core.invoke("minutes_asked", { name: said.dataset.name }).catch(() => {});
+      readMakings();
+    });
+    said.replaceChildren(element("span", "what", fill(words.minutes_not_made, shown.why)), again);
+  }
+}
+
+async function readMakings() {
+  makings = await window.__TAURI__.core.invoke("makings").catch(() => null);
+  // Only the meeting shown: its page hidden, the last one opened is no longer in front.
+  const opened = document.getElementById("meeting").hidden ? null : document.getElementById("minutes-state")?.dataset.name;
+  const now = opened ? stateOf(opened, true)?.kind : null;
+  // The minutes of the meeting shown written since its page was drawn, however quickly: drawn
+  // again, to show them — unless the user has a panel open there, which a redraw would take from
+  // under them; then once it is closed.
+  const busy = document.querySelector("#meeting .redo, #meeting input:focus");
+  const drawn = document.getElementById("minutes-state")?.dataset.made;
+  if (opened && makings && String(makings.made[opened] ?? 0) !== drawn && now !== "making" && !busy) refresh();
+  paintMakings();
 }
 
 // How much was said over a meeting, small, as the board draws it beside each one: one line of
@@ -227,7 +302,11 @@ function offer(card, label, id, command, session, words) {
     button.disabled = true;
     try {
       await window.__TAURI__.core.invoke(command, { name: nameOf(session) });
-      button.replaceWith(element("p", "note", words.asked));
+      // The minutes' state is said where they are (D25); a transcript, still by a note.
+      if (command === "minutes_asked") {
+        button.remove();
+        readMakings();
+      } else button.replaceWith(element("p", "note", words.asked));
     } catch (why) {
       button.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
     }
@@ -268,7 +347,9 @@ function redoPanel(choices, session, words) {
     go.disabled = true;
     try {
       await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: provider ?? null, model: model ?? null });
-      go.replaceWith(element("p", "note", words.asked));
+      // Asked: the panel goes, the making is said where the minutes are (D25).
+      panel.remove();
+      readMakings();
     } catch (why) {
       go.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
     }
@@ -317,6 +398,14 @@ function redoTranscriptPanel(shown, session, words) {
 function minutesCard(read, words, session, transcript) {
   const card = element("article", "card minutes");
   card.append(element("h2", "label", words.minutes_title));
+  // What is being made for them, or why they were not (D25).
+  const state = element("p", "making-state");
+  state.id = "minutes-state";
+  state.dataset.name = nameOf(session);
+  state.dataset.made = String(makings?.made[nameOf(session)] ?? 0);
+  state.setAttribute("role", "status");
+  state.hidden = true;
+  card.append(state);
   if (read.state !== "present") {
     card.append(element("p", "none", read.state === "absent" ? words.no_minutes : words.unreadable));
     if (read.state === "absent" && transcript.state === "present" && transcript.complete) {
@@ -1132,6 +1221,7 @@ async function refresh() {
   document.getElementById("meetings").setAttribute("aria-current", settings || agreement ? "false" : "page");
   document.getElementById("settings-link").setAttribute("aria-current", settings ? "page" : "false");
   if (opened) showMeeting(opened, words);
+  paintMakings();
   if (settings) {
     const [shown, minutes] = await Promise.all([
       window.__TAURI__.core.invoke("settings_shown"),
@@ -1153,6 +1243,7 @@ setInterval(async () => {
   if (document.hidden || words === null) return;
   const asked = await window.__TAURI__.core.invoke("header").catch(() => null);
   if (asked === null) return;
+  readMakings();
   const { recording, shortcut } = asked;
   document.getElementById("small-link").hidden = !recording;
   document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
