@@ -70,6 +70,9 @@ struct Shell {
     shortcut: Mutex<Option<String>>,
     /// The menu's entry that has the minutes of the last recording written.
     minutes: MenuItem<Wry>,
+    /// A transcript made again: where it goes back, and where it was set aside — taken by the
+    /// run's end, or by Summit quitting, whichever comes first.
+    redoing: Mutex<Option<(PathBuf, PathBuf)>>,
     /// The list's small reliefs, by transcript, kept until it changes.
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
@@ -121,6 +124,7 @@ fn main() {
             record,
             minutes_asked,
             minutes_redo,
+            transcript_redo,
             transcript_asked,
             opened,
             open_folder,
@@ -197,6 +201,7 @@ fn main() {
                 minutes: minutes.clone(),
                 minuting: Mutex::new(None),
                 shapes: Mutex::new(HashMap::new()),
+                redoing: Mutex::new(None),
                 writing_minutes: Mutex::new(false),
                 waiting: Mutex::new(VecDeque::new()),
                 menu,
@@ -354,6 +359,12 @@ fn minutes_redo(
     let folder = session_folder(&shell, &name)?;
     write_minutes(&app, folder, None, provider.zip(model));
     Ok(())
+}
+
+#[tauri::command]
+fn transcript_redo(app: AppHandle, shell: State<'_, Shell>, name: String, model: PathBuf) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    retranscribe(&app, folder, model)
 }
 
 #[tauri::command]
@@ -1106,6 +1117,77 @@ fn wait(shell: &Shell, folder: PathBuf) {
     }
 }
 
+/// *Refaire…* on a transcript: made again with the model picked, this time only. The transcript
+/// there stays in place until the new one is whole — set aside for the run, since the program
+/// goes on from a transcript it finds —, then goes to the system's trash; a run that fails, or
+/// that Summit ends as it quits, puts it back.
+fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), String> {
+    let shell = app.state::<Shell>();
+    let mut running = shell.transcription.lock().unwrap();
+    if running.is_some() {
+        return Err("a transcript is being made: try again once it is done".into());
+    }
+    let settings = shell.reread()?;
+    if !settings::whisper_models(&models_folder(), &settings).contains(&model) {
+        return Err(format!("{} is no model on this computer", model.display()));
+    }
+    // Set aside under a name of its own, never written over; put back if the new one is not made.
+    let current = folder.join("transcript.jsonl");
+    let previous = match sessions::set_aside(&current, true) {
+        Ok(previous) => Some(previous),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(format!("the transcript there could not be set aside ({error}): nothing was made")),
+    };
+    let started = Transcription::start(&program("summit-transcription", "SUMMIT_TRANSCRIPTION"), &folder, &model);
+    let (transcription, made) = match started {
+        Ok(started) => started,
+        Err(error) => {
+            if let Some(previous) = &previous {
+                let _ = std::fs::rename(previous, &current);
+            }
+            return Err(error.to_string());
+        }
+    };
+    *running = Some(transcription);
+    // Who puts the earlier transcript back, or trashes it: this run's end, or Summit quitting —
+    // whichever comes first takes it, the other finds nothing.
+    *shell.redoing.lock().unwrap() = previous.clone().map(|previous| (current.clone(), previous));
+    drop(running);
+    transcribing(app, true);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let made = made.recv().unwrap_or(Made::Failed(String::new()));
+        let shell = app.state::<Shell>();
+        shell.transcription.lock().unwrap().take();
+        transcribing(&app, false);
+        // Replaced, the earlier transcript goes to the trash — refused, it stays beside, and it is
+        // said; not replaced, it is put back — failing that, it is said where it is.
+        let mut kept_beside = None;
+        if let Some((current, previous)) = shell.redoing.lock().unwrap().take() {
+            let name = previous.file_name().map(|name| name.to_string_lossy().into_owned());
+            match made {
+                Made::Written(_) if trash::delete(&previous).is_err() => kept_beside = name,
+                Made::Written(_) => {}
+                Made::Failed(_) if std::fs::rename(&previous, &current).is_err() => kept_beside = name,
+                Made::Failed(_) => {}
+            }
+        }
+        if *shell.leaving.lock().unwrap() {
+            return;
+        }
+        tell(&app, &words::made(&made, shell.language));
+        if let Some(name) = kept_beside {
+            tell(&app, &words::transcript_kept_beside(shell.language, &name));
+        }
+        // The transcripts waiting in line go on, as after any other.
+        let next = shell.waiting.lock().unwrap().pop_front();
+        if let Some(folder) = next {
+            transcribe(&app, folder);
+        }
+    });
+    Ok(())
+}
+
 /// Makes the transcript of a session — after the one being made, if there is one. What is
 /// missing — the model, the program — is said in one sentence; the recording is never touched.
 fn transcribe(app: &AppHandle, folder: PathBuf) {
@@ -1304,6 +1386,10 @@ fn leave(app: &AppHandle) {
     // A transcript being made is ended: run again, it goes on from where it was.
     if let Some(transcription) = shell.transcription.lock().unwrap().as_ref() {
         transcription.end();
+    }
+    // A transcript being made again is ended: the earlier one is put back now, before Summit goes.
+    if let Some((current, previous)) = shell.redoing.lock().unwrap().take() {
+        let _ = std::fs::rename(&previous, &current);
     }
     // Minutes being written are ended: nothing half-written is left, and they can be asked again.
     if let Some(making) = shell.minuting.lock().unwrap().as_ref() {
