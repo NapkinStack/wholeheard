@@ -26,6 +26,12 @@ check("the desktop entry is named as the application's id", "/usr/share/applicat
 check("its icon, under the same name", "/usr/share/icons/hicolor/512x512/apps/dev.summit.Summit.png" in files)
 check("nothing outside /usr: the user's meetings and settings are never the package's", all(f.startswith("/usr/") for f in files), files)
 check("pw-metadata required: capture runs it, no library names it", re.search(r"^Requires:\s+pipewire-utils$", spec, re.M) is not None)
+check("the tray's library required: the shell opens it at run time, no link names it",
+      re.search(r"^Requires:.*\blib(ayatana-)?appindicator-gtk3\b", spec, re.M) is not None)
+pairs = re.findall(r"^install -D\S* %\{artefacts\}/\S+/(\S+) %\{buildroot\}%\{_bindir\}/(\S+)$", spec, re.M)
+check("each program installs its own artefact", len(pairs) == 4 and all(a == b for a, b in pairs), pairs)
+scriptlets = re.findall(r"^%(pre|post|preun|postun|pretrans|posttrans|trigger\w*)\b", spec, re.M)
+check("no scriptlet: installing and removing touch nothing but the package's files", not scriptlets, scriptlets)
 print("test: passed" if not failed else "test: FAILED")
 sys.exit(failed)
 PY

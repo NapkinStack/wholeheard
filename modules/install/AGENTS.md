@@ -1,7 +1,5 @@
 # install — local instructions
 
-> Only what is **specific to this module**. Never duplicate a kernel rule (`/AGENTS.md`).
-
 ## What this module does not do
 
 - It builds no program: each module's `release` leaves its own in `dist/<module>/`; this one
@@ -24,10 +22,11 @@
 
 ## Known traps
 
-- A program run, not linked, by another (capture runs `pw-metadata`) → name its package in the
-  spec's `Requires`: rpmbuild sees libraries only.
+- A program run, not linked, by another (capture runs `pw-metadata`), or a library opened at run
+  time (the shell's tray: appindicator) → name its package in the spec's `Requires`: rpmbuild
+  sees linked libraries only.
 
 ## Non-standard commands
 
 - `e2e` needs `podman` and the network; with no argument it packs stand-in programs, given a
-  package (`dist/install/summit-….rpm`) it installs that one.
+  package (`dist/install/summit-….rpm`, any path) it installs that one.

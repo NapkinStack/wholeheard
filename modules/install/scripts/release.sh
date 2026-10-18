@@ -10,8 +10,9 @@ dist=${NSTACK_DIST:?run through nstack release, which names this module\'s artef
 artefacts=$(cd "$dist/.." && pwd)
 version=$(cat "$artefacts/shell/VERSION")
 release=$(rpm -E %fedora)
-podman run --rm \
-  -v "$artefacts:/artefacts:ro,Z" -v "$here/summit.spec:/summit.spec:ro,Z" -v "$dist:/out:Z" \
+# No relabelling of what is mounted (`:Z` would relabel the files in place): labels left alone.
+podman run --rm --security-opt label=disable \
+  -v "$artefacts:/artefacts:ro" -v "$here/summit.spec:/summit.spec:ro" -v "$dist:/out" \
   "registry.fedoraproject.org/fedora:$release" bash -euo pipefail -c "
 dnf install -y -q rpm-build >/dev/null
 rpmbuild -bb /summit.spec --define 'artefacts /artefacts' --define 'summit_version $version' \
