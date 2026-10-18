@@ -263,6 +263,22 @@ them into one package with `rpmbuild`, in a Fedora container — the programs si
 `/usr/bin`, where the shell already looks for them (ADR-0006). Tauri's bundler was tried first
 and left: it must run in the shell's folder and requires only the shell's libraries.
 
+Built, each verified: nstack 0.9.6's `release` taken (#238); each program's release into `dist/`
+(#239); the module `install` and its package (#240) — `summit-0.1.0-1.fc44.x86_64.rpm`, 7 MB.
+
+**Offered for acceptance** — its acceptance issue: [#241](https://github.com/NapkinStack/summit/issues/241), the decider's install on their desktop.
+
+| Criterion | Where it stands |
+|---|---|
+| One package, `dnf install`; Summit in the menu and the tray with nothing built or set; it records, transcribes, writes the minutes | Holds in a Fedora 44 that never saw Summit — installed, every library found, each program run, the tray's library brought — `install`'s e2e on the real package. The desktop, the tray and a meeting from the package: the trial |
+| Removed, the meetings and settings stay | Holds — nothing installed outside `/usr`, no scriptlet (`test.sh`); removed in the e2e, a user's files still there |
+
+Seen by the verifier and corrected before merging: the tray's library, opened at run time, was
+never required — a Fedora without the GNOME extension would have had no tray, which the
+decider's own desktop would have hidden. Left for a follow-up: the e2e installing without weak
+dependencies, file triggers refused like scriptlets, a pipe that could go falsely red. Before
+the package leaves this laptop: build paths remapped out of the binaries.
+
 ## Out of scope
 
 - The offer to record when an application takes the microphone, and recording by itself:
