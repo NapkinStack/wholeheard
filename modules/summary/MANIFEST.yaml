@@ -99,6 +99,7 @@ commands:
   test: cargo test --locked
   run: cargo run --locked --release --
   clean: cargo clean
+  release: 'cargo build --locked --release && cp target/release/summit-summary "$NSTACK_DIST/"'
 
 docs:
   readme: README.md
