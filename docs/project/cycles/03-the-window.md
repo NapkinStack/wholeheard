@@ -73,7 +73,7 @@ deliverables:
   - id: D27
     title: "Summit installs on Ubuntu from one package, its programs built on the system they ship to"
     module: install
-    state: ready
+    state: in-progress
     acceptance:
       - "Given Ubuntu 24.04, when a user installs Summit from one package file (`sudo apt install ./summit_<version>_amd64.deb`), then Summit is in the applications menu and starts in the tray with nothing built and no variable set, and removing it leaves the user's meetings and settings"
       - "Given a release for a system — Fedora or Ubuntu —, when the programs are built, then they are built in a container of that system, so that no package depends on the machine that made it"
