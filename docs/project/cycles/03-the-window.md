@@ -219,6 +219,24 @@ program's own; the agreement kept for any host the file named at the click, then
 Board 6, the small window. The levels come from what `capture` says while it records; if it
 says nothing that carries a level today, `recording/v1` gains it as the contract's rules allow.
 
+Built, each verified: `recording/v1` gains `level`, about ten times a second for each source
+being recorded (#222); capture says it (#223), and none for a source it could not open (#231);
+the shell's small window (#227) — offered in the header while a recording runs, opened on that
+gesture only, 380 by 260 and above the other windows, the time and both levels, *Arrêter*, ⤢ to
+the whole window, closed when the recording ends.
+
+**Offered for acceptance** — its acceptance issue: [#232](https://github.com/NapkinStack/summit/issues/232), the decider's trial on their desktop.
+
+| Criterion | Where it stands |
+|---|---|
+| The time and a level for the microphone and one for the meeting, moving as sound comes; *Arrêter* stops as the tray does; the full window from it; never opened without a gesture | Holds — the window's scenario Q, with a played capture saying levels, in French and in English; capture's tests and e2e on virtual devices. A real microphone and meeting moving the levels: the trial |
+
+Seen by the verifiers and corrected before merging: a label that wrapped in English and made the
+window scroll, a small window that a click just after the stop opened empty, meters a screen
+reader could not hear, and a reading test that could not tell the two sources apart. Left for
+the shell's polish pull request: the note "the transcript writes itself" shown whatever the
+setting, and in English the two meters' tracks not starting at the same place.
+
 ### D23
 
 The trial that closes the cycle, as cycle 01's D7 had it.
