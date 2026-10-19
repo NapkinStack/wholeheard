@@ -32,14 +32,10 @@ pairs = re.findall(r"^install -D\S* %\{artefacts\}/\S+/(\S+) %\{buildroot\}%\{_b
 check("each program installs its own artefact", len(pairs) == 4 and all(a == b for a, b in pairs), pairs)
 scriptlets = re.findall(r"^%(pre|post|preun|postun|pretrans|posttrans|trigger\w*)\b", spec, re.M)
 check("no scriptlet: installing and removing touch nothing but the package's files", not scriptlets, scriptlets)
-# The .deb (D27): made by deb/build.sh from the same artefacts, it installs what the rpm installs.
+# The .deb (D27): made by deb/build.sh from the same artefacts — what it installs is judged on the
+# package installed, by the e2e, against the spec's %files.
 build = open(sys.argv[2], encoding="utf-8").read()
 control = open(sys.argv[3], encoding="utf-8").read()
-# Every path the recipe writes under the package's root, whatever writes it — install, cp, a
-# redirection —; the programs' loop names them from its list.
-deb = {"/usr/bin/" + p.split("/", 1)[1] for p in re.findall(r"^for program in (.+); do$", build, re.M)[0].split()}
-deb |= {m for m in re.findall(r'"\$root(/[^"$]+)"', build) if m != "/usr" and not m.startswith("/DEBIAN")}
-check("the .deb installs what the rpm installs", deb == files, deb ^ files)
 check("pw-metadata and the tray's library named in its dependencies: run and opened, never linked",
       re.search(r"pipewire-bin, libayatana-appindicator3-1 \| libappindicator3-1", build) is not None)
 check("its control names the package, its version and its dependencies as computed",
