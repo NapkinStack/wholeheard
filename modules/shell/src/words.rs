@@ -376,6 +376,10 @@ pub struct Window {
     pub chip_transcript_failed: &'static str,
     /// Who writes the minutes chosen on the settings' page, not yet saved: who still does ({}).
     pub minutes_unsaved: &'static str,
+    pub minutes_unsaved_none: &'static str,
+    /// A transcript waiting for the default Whisper model: offered in the menu, or coming.
+    pub transcript_model_needed: &'static str,
+    pub transcript_model_coming: &'static str,
     pub ran_online: &'static str,
     pub ran_here: &'static str,
     /// The header's button, at rest and while a recording runs.
@@ -555,6 +559,9 @@ pub fn window(language: Language) -> Window {
             transcript_not_made: "The transcript was not written: {}",
             chip_transcript_failed: "Transcript not written",
             minutes_unsaved: "Not saved yet — the minutes are still written by {}.",
+            minutes_unsaved_none: "Not saved yet — no minutes are written until it is.",
+            transcript_model_needed: "Waiting for the Whisper model — download it from Summit's menu, in the tray.",
+            transcript_model_coming: "Waiting for the Whisper model, being downloaded.",
             ran_online: "online",
             ran_here: "on this machine",
             record_start: "Start a recording",
@@ -729,6 +736,9 @@ pub fn window(language: Language) -> Window {
             transcript_not_made: "Le transcript n’a pas été fait : {}",
             chip_transcript_failed: "Transcript non fait",
             minutes_unsaved: "Pas encore enregistré — le compte rendu reste fait par {}.",
+            minutes_unsaved_none: "Pas encore enregistré — aucun compte rendu n’est fait tant que ce n’est pas le cas.",
+            transcript_model_needed: "En attente du modèle Whisper — téléchargez-le depuis le menu de Summit, dans la barre système.",
+            transcript_model_coming: "En attente du modèle Whisper, en cours de téléchargement.",
             ran_online: "en ligne",
             ran_here: "sur cette machine",
             record_start: "Démarrer un enregistrement",

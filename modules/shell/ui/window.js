@@ -99,6 +99,8 @@ function transcriptState(name) {
   if (makings === null) return null;
   if (makings.transcript?.name === name) return { kind: "making", ...makings.transcript };
   const waiting = makings.transcripts_waiting.indexOf(name);
+  // Nothing being made and the model not there: the line waits for it, not for a turn.
+  if (waiting >= 0 && makings.transcript === null && makings.model_needed) return { kind: "model", coming: makings.model_coming };
   if (waiting >= 0) return { kind: "waiting", before: waiting + 1 };
   if (makings.transcripts_failed[name] !== undefined) return { kind: "failed", why: makings.transcripts_failed[name] };
   return null;
@@ -129,6 +131,8 @@ function paintState(said, shown, of) {
     said.replaceChildren(element("span", "what", of.making), element("span", "by", `${by} · ${minutes}`), element("span", "making-bar"));
   } else if (shown.kind === "waiting") {
     said.replaceChildren(element("span", "what", fill(words.minutes_waiting, shown.before)));
+  } else if (shown.kind === "model") {
+    said.replaceChildren(element("span", "what", shown.coming ? words.transcript_model_coming : words.transcript_model_needed));
   } else if (shown.kind === "awaiting") {
     const agree = element("a", "open", words.agree_open);
     agree.id = "minutes-agree";
@@ -141,6 +145,8 @@ function paintState(said, shown, of) {
     again.addEventListener("click", async () => {
       again.disabled = true;
       await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name }).catch(() => {});
+      // Failing again for the same reason is said again: the state drawn anew.
+      said.dataset.key = "";
       readMakings();
     });
     said.replaceChildren(element("span", "what", fill(of.not_made, shown.why)), again);
@@ -157,19 +163,19 @@ function paintMakings() {
     if (state === null) continue;
     chip_.textContent = minutes
       ? { making: words.chip_making, waiting: words.chip_waiting, awaiting: words.chip_awaiting, failed: words.chip_failed }[state.kind]
-      : { making: words.chip_transcribing, waiting: words.chip_waiting, failed: words.chip_transcript_failed }[state.kind];
+      : { making: words.chip_transcribing, waiting: words.chip_waiting, model: words.chip_waiting, failed: words.chip_transcript_failed }[state.kind];
     chip_.classList.toggle("failed", state.kind === "failed");
   }
   const minutes = document.getElementById("minutes-state");
   if (minutes) {
     paintState(minutes, minutesState(minutes.dataset.name), {
-      offer: "make-minutes", again: "minutes-again", ask: "minutes_asked", making: words.minutes_making, not_made: words.minutes_not_made,
+      offer: "make-minutes", again: "minutes-again", ask: "minutes_again", making: words.minutes_making, not_made: words.minutes_not_made,
     });
   }
   const transcript = document.getElementById("transcript-state");
   if (transcript) {
     paintState(transcript, transcriptState(transcript.dataset.name), {
-      offer: "make-transcript", again: "transcript-again", ask: "transcript_asked", making: words.transcript_making, not_made: words.transcript_not_made,
+      offer: "make-transcript", again: "transcript-again", ask: "transcript_again", making: words.transcript_making, not_made: words.transcript_not_made,
     });
   }
 }
@@ -350,7 +356,7 @@ function offer(card, label, id, command, session, words) {
   card.append(button);
 }
 
-function redoPanel(choices, session, words) {
+function redoPanel(choices, session, words, button) {
   const panel = element("section", "redo");
   panel.id = "redo-panel";
   panel.append(element("h3", "", words.redo_title), element("p", "says", words.redo_with));
@@ -384,7 +390,7 @@ function redoPanel(choices, session, words) {
     try {
       await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: provider ?? null, model: model ?? null });
       // Asked: the panel goes, the making is said where the minutes are (D25).
-      panel.remove();
+      panel.replaceWith(button);
       readMakings();
     } catch (why) {
       go.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
@@ -394,7 +400,7 @@ function redoPanel(choices, session, words) {
   return panel;
 }
 
-function redoTranscriptPanel(shown, session, words) {
+function redoTranscriptPanel(shown, session, words, button) {
   const panel = element("section", "redo");
   panel.id = "redo-transcript-panel";
   panel.append(element("h3", "", words.redo_transcript_title), element("p", "says", words.redo_with));
@@ -423,7 +429,7 @@ function redoTranscriptPanel(shown, session, words) {
     try {
       await window.__TAURI__.core.invoke("transcript_redo", { name: nameOf(session), model: picked.value });
       // Asked: the panel goes, the making is said where the transcript is (D25).
-      panel.remove();
+      panel.replaceWith(button);
       readMakings();
     } catch (why) {
       go.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
@@ -461,7 +467,7 @@ function minutesCard(read, words, session, transcript) {
   redo.id = "redo-minutes";
   redo.addEventListener("click", async () => {
     const choices = await window.__TAURI__.core.invoke("minutes_shown");
-    redo.replaceWith(redoPanel(choices, session, words));
+    redo.replaceWith(redoPanel(choices, session, words, redo));
   });
   top.append(redo);
   const made = read.made && dayOf({ instant: Date.parse(read.made) / 1000 || null });
@@ -512,7 +518,7 @@ function transcriptCard(read, words, session) {
   redo.id = "redo-transcript";
   redo.addEventListener("click", async () => {
     const shown = await window.__TAURI__.core.invoke("settings_shown");
-    redo.replaceWith(redoTranscriptPanel(shown, session, words));
+    redo.replaceWith(redoTranscriptPanel(shown, session, words, redo));
   });
   top.append(redo);
   card.append(element("p", "maker", fill(words.heard_by, read.model ? spoken(read.model) : read.engine || "—")));
@@ -645,6 +651,7 @@ function minutesRow(minutes, words, locked) {
     input.id = id;
     input.type = type;
     input.value = value || "";
+    input.defaultValue = input.value;
     input.disabled = locked;
     wrap.append(element("span", "name", text), input);
     return [wrap, input];
@@ -658,10 +665,8 @@ function minutesRow(minutes, words, locked) {
     } catch (why) {
       failed = fill(words.not_saved, why);
     }
+    notSaved = failed;
     await refresh();
-    const said = document.getElementById("not-saved");
-    said.textContent = failed ?? "";
-    said.hidden = failed === null;
   };
   // Chosen, not yet saved: who writes them meanwhile is said — going through the list, with the
   // keyboard's arrows too, never changes who does (D25).
@@ -672,7 +677,7 @@ function minutesRow(minutes, words, locked) {
     fields.replaceChildren();
     const value = pick.value;
     unsaved.hidden = value === current;
-    unsaved.textContent = fill(words.minutes_unsaved, inUse);
+    unsaved.textContent = minutes.provider && minutes.model ? fill(words.minutes_unsaved, inUse) : words.minutes_unsaved_none;
     if (value.startsWith("ollama:")) {
       where.className = "status here";
       where.textContent = words.on_this_computer;
@@ -803,16 +808,17 @@ function showSettings(shown, minutes, words) {
     } catch (why) {
       failed = fill(words.not_saved, why);
     }
+    notSaved = failed;
     await refresh();
-    const said = document.getElementById("not-saved");
-    said.textContent = failed ?? "";
-    said.hidden = failed === null;
   };
   const parts = [];
   if (locked) parts.push(element("p", "card note warn", fill(words.settings_unreadable, shown.unreadable)));
   const failed = element("p", "card note warn");
   failed.id = "not-saved";
-  failed.hidden = true;
+  // What the last save could not do, said on the page drawn after it — once.
+  failed.textContent = notSaved ?? "";
+  failed.hidden = notSaved === null;
+  notSaved = null;
   parts.push(failed);
 
   const after = element("section", "card group");
@@ -1232,6 +1238,9 @@ function showFree(listing, busy, words) {
 
 let words = null;
 
+// What the last save on the settings' page could not do, for the page drawn after it.
+let notSaved = null;
+
 // The latest drawing asked for: one begun before it, its answers come later, draws nothing.
 let drawing = 0;
 
@@ -1257,7 +1266,11 @@ async function refresh() {
   const settings = location.hash === "#/settings";
   const freeing = location.hash === "#/free";
   document.getElementById("free").hidden = !freeing;
-  if (freeing) showFree(listing, await window.__TAURI__.core.invoke("busy_meetings"), words);
+  if (freeing) {
+    const busy = await window.__TAURI__.core.invoke("busy_meetings");
+    if (mine !== drawing) return;
+    showFree(listing, busy, words);
+  }
   else document.getElementById("free").replaceChildren();
   const agreeing = location.hash.match(/^#\/agree\/(.+)$/);
   let agreement = null;
@@ -1269,11 +1282,12 @@ async function refresh() {
     }
   }
   let opened = null;
+  let seen = makings;
   if (wanted) {
     // What is being made, read before the meeting: the counts its page keeps are never ahead of
     // what it shows, never behind what was made before it was read — drawn again only for what
     // was made since.
-    makings = await window.__TAURI__.core.invoke("makings").catch(() => makings);
+    seen = await window.__TAURI__.core.invoke("makings").catch(() => makings);
     // A meeting no longer there, or a name that is none, goes back to the list.
     try {
       opened = await window.__TAURI__.core.invoke("opened", { name: decodeURIComponent(wanted[1]) });
@@ -1291,13 +1305,18 @@ async function refresh() {
   document.getElementById("settings").hidden = !settings;
   document.getElementById("meetings").setAttribute("aria-current", settings || agreement ? "false" : "page");
   document.getElementById("settings-link").setAttribute("aria-current", settings ? "page" : "false");
-  if (opened) showMeeting(opened, words);
+  // Drawn with what was read before it, never with a newer reading taken meanwhile.
+  if (opened) {
+    makings = seen;
+    showMeeting(opened, words);
+  }
   paintMakings();
   if (settings) {
     const [shown, minutes] = await Promise.all([
       window.__TAURI__.core.invoke("settings_shown"),
       window.__TAURI__.core.invoke("minutes_shown"),
     ]);
+    if (mine !== drawing) return;
     showSettings(shown, minutes, words);
   }
 }
@@ -1324,7 +1343,13 @@ setInterval(async () => {
   keys.hidden = !shortcut;
 }, 1500);
 refresh();
-window.addEventListener("focus", refresh);
+// Coming back to the window draws it anew — unless who writes the minutes is being chosen there
+// and not yet saved: that choice stays.
+window.addEventListener("focus", () => {
+  const choosing = document.querySelector("#minutes-unsaved:not([hidden])")
+    || [...document.querySelectorAll("#settings .fields input")].some((input) => input.value !== input.defaultValue);
+  if (!choosing) refresh();
+});
 window.addEventListener("hashchange", () => {
   refresh();
   window.scrollTo(0, 0);
