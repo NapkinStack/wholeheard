@@ -206,9 +206,7 @@ fn main() {
                             return;
                         }
                         match transcription::latest(&shell.settings().sessions) {
-                            Some(last) => {
-                                transcribe(app, last);
-                            }
+                            Some(last) => transcribe(app, last),
                             None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
                         }
                     }
@@ -451,12 +449,10 @@ fn transcript_again(app: AppHandle, shell: State<'_, Shell>, name: String) -> Re
     // Read, and the lock let go, before it is asked again: retranscribe takes it too.
     let tried = shell.transcripts_tried.lock().unwrap().get(&folder).cloned().flatten();
     match tried {
-        Some(model) => retranscribe(&app, folder, model),
-        None => {
-            transcribe(&app, folder);
-            Ok(())
-        }
+        Some(model) => retranscribe_or_say(&app, folder, model),
+        None => transcribe(&app, folder),
     }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1635,26 +1631,37 @@ fn heard(shell: &Shell, folder: &Path, made: &Made) {
 /// chose; one that cannot begin says why on its page, and the next one is taken.
 fn transcribe_next(app: &AppHandle) {
     let shell = app.state::<Shell>();
-    loop {
-        let Some((folder, model)) = shell.waiting.lock().unwrap().pop_front() else {
-            return;
+    // At most once each: one that cannot begin is said on its page, and the next one is taken.
+    let mut tries = shell.waiting.lock().unwrap().len();
+    while tries > 0 {
+        tries -= 1;
+        // Taken from the line under its lock, one at a time, in order. The default model missing,
+        // those made with it wait where they are — offered once already —, and the first
+        // Refaire… behind them, its model there, is made.
+        let missing = {
+            let model = shell.settings().model;
+            model == Settings::default().model && !model.is_file()
         };
-        let begun = match model {
-            None => transcribe(app, folder),
-            Some(model) => match retranscribe(app, folder.clone(), model.clone()) {
-                Ok(()) => Begun::Yes,
-                Err(why) => {
-                    shell.transcripts_tried.lock().unwrap().insert(folder.clone(), Some(model));
-                    shell.transcripts_failed.lock().unwrap().insert(folder, why);
-                    Begun::Not
-                }
-            },
+        let next = {
+            let mut waiting = shell.waiting.lock().unwrap();
+            let at = waiting.iter().position(|(_, model)| model.is_some() || !missing);
+            at.and_then(|at| waiting.remove(at))
         };
-        // Begun, or the line waits — for the one being made, or for the model: never taken again
-        // at once.
-        if begun != Begun::Not {
+        match next {
+            None => return,
+            Some((folder, None)) => transcribe(app, folder),
+            Some((folder, Some(model))) => retranscribe_or_say(app, folder, model),
+        }
+        if shell.transcription.lock().unwrap().is_some() {
             return;
         }
+    }
+}
+
+/// Made again with the model a Refaire… picked; one that cannot begin says why on its page.
+fn retranscribe_or_say(app: &AppHandle, folder: PathBuf, model: PathBuf) {
+    if let Err(why) = retranscribe(app, folder.clone(), model) {
+        app.state::<Shell>().transcripts_failed.lock().unwrap().insert(folder, why);
     }
 }
 
@@ -1738,12 +1745,12 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
 /// Makes the transcript of a session — after the one being made, if there is one. What is
 /// missing — the model, the program — is said in one sentence, and on its page; the recording is
 /// never touched. Whether it began.
-fn transcribe(app: &AppHandle, folder: PathBuf) -> Begun {
+fn transcribe(app: &AppHandle, folder: PathBuf) {
     let shell = app.state::<Shell>();
     let mut running = shell.transcription.lock().unwrap();
     if running.is_some() {
         wait(&shell, folder, None);
-        return Begun::Waits;
+        return;
     }
     shell.transcripts_tried.lock().unwrap().insert(folder.clone(), None);
     let _ = shell.reread();
@@ -1756,7 +1763,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) -> Begun {
             if !*shell.fetching.lock().unwrap() {
                 offer(app);
             }
-            return Begun::Waits;
+            return;
         } else {
             let trouble = Trouble::NoModel(model.display().to_string());
             shell
@@ -1766,7 +1773,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) -> Begun {
                 .insert(folder, format!("{} is no model on this computer", model.display()));
             tell(app, &words::trouble(&trouble, shell.language));
         }
-        return Begun::Not;
+        return;
     }
     let started = Transcription::start(&program("summit-transcription", "SUMMIT_TRANSCRIPTION"), &folder, model);
     let (transcription, made) = match started {
@@ -1774,7 +1781,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) -> Begun {
         Err(error) => {
             shell.transcripts_failed.lock().unwrap().insert(folder, error.to_string());
             tell(app, &words::trouble(&Trouble::NoTranscriber(error.to_string()), shell.language));
-            return Begun::Not;
+            return;
         }
     };
     *running = Some(transcription);
@@ -1807,16 +1814,6 @@ fn transcribe(app: &AppHandle, folder: PathBuf) -> Begun {
         }
         transcribe_next(&app);
     });
-    Begun::Yes
-}
-
-/// What asking for a transcript did: begun, put in line — behind the one being made, or until
-/// the model is there —, or not, said on the meeting's page.
-#[derive(PartialEq, Eq)]
-enum Begun {
-    Yes,
-    Waits,
-    Not,
 }
 
 /// The default model as published — or, for whoever tries Summit, as `SUMMIT_MODEL_PUBLISHED`
