@@ -1631,17 +1631,29 @@ fn heard(shell: &Shell, folder: &Path, made: &Made) {
 /// chose; one that cannot begin says why on its page, and the next one is taken.
 fn transcribe_next(app: &AppHandle) {
     let shell = app.state::<Shell>();
-    // Taken in order, all of it: one begun, the rest waits behind it, in that order; one waiting
-    // for the model goes back in line, and a Refaire… behind it — its model there — is made.
-    let line: Vec<(PathBuf, Option<PathBuf>)> = shell.waiting.lock().unwrap().drain(..).collect();
-    for (folder, model) in line {
-        if shell.transcription.lock().unwrap().is_some() {
-            wait(&shell, folder, model);
-            continue;
+    // At most once each: one that cannot begin is said on its page, and the next one is taken.
+    let mut tries = shell.waiting.lock().unwrap().len();
+    while tries > 0 {
+        tries -= 1;
+        // Taken from the line under its lock, one at a time, in order. The default model missing,
+        // those made with it wait where they are — offered once already —, and the first
+        // Refaire… behind them, its model there, is made.
+        let missing = {
+            let model = shell.settings().model;
+            model == Settings::default().model && !model.is_file()
+        };
+        let next = {
+            let mut waiting = shell.waiting.lock().unwrap();
+            let at = waiting.iter().position(|(_, model)| model.is_some() || !missing);
+            at.and_then(|at| waiting.remove(at))
+        };
+        match next {
+            None => return,
+            Some((folder, None)) => transcribe(app, folder),
+            Some((folder, Some(model))) => retranscribe_or_say(app, folder, model),
         }
-        match model {
-            None => transcribe(app, folder),
-            Some(model) => retranscribe_or_say(app, folder, model),
+        if shell.transcription.lock().unwrap().is_some() {
+            return;
         }
     }
 }
