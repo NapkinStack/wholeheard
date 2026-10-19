@@ -73,7 +73,7 @@ fn each_failure_of_a_provider_has_its_own_sentence() {
             panic!("{status}: accepted")
         };
         assert!(
-            why.contains(expected) && why.contains("the provider at local") && why.lines().count() == 1,
+            why.contains(expected) && why.contains("the provider on this computer") && why.lines().count() == 1,
             "{status}: {why}"
         );
     }
