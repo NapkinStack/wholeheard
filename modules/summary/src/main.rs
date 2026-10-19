@@ -103,8 +103,8 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     // A provider that sends the key back in its answer does not get it written in a file.
     if key.as_deref().is_some_and(|key| !key.is_empty() && answer.contains(key)) {
         return Err(Refused(format!(
-            "the provider at {} sent the key back in its answer: nothing was written",
-            provider.host()
+            "{} sent the key back in its answer: nothing was written",
+            provider.named()
         )));
     }
 

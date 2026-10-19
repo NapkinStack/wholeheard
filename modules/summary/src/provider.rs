@@ -135,9 +135,17 @@ impl Provider {
         }
     }
 
+    /// Who answers, as a sentence names it: "the provider on this computer", or at its host.
+    pub fn named(&self) -> String {
+        match self.host().as_str() {
+            "local" => "the provider on this computer".into(),
+            host => format!("the provider at {host}"),
+        }
+    }
+
     /// Asks once, and gives the answer's text — or what failed, in one sentence.
     pub fn ask(&self, request: &str) -> Result<String, Refused> {
-        let host = self.host();
+        let host = self.named();
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .max_redirects(0)
             .proxy(None)
@@ -153,35 +161,30 @@ impl Provider {
         let mut response = match call.send_json(&body) {
             Ok(response) => response,
             Err(ureq::Error::Timeout(_)) => {
-                return refused(format!(
-                    "the provider at {host} did not answer within {} s",
-                    self.patience.as_secs()
-                ));
+                return refused(format!("{host} did not answer within {} s", self.patience.as_secs()));
             }
-            Err(error) => return refused(format!("the provider at {host} could not be reached: {error}")),
+            Err(error) => return refused(format!("{host} could not be reached: {error}")),
         };
         match response.status().as_u16() {
             200 => {}
-            status @ (401 | 403) => return refused(format!("the provider at {host} refused the key (HTTP {status})")),
+            status @ (401 | 403) => return refused(format!("{host} refused the key (HTTP {status})")),
             402 => {
                 return refused(format!(
-                    "the provider at {host} refused for lack of credit (HTTP 402): add credit, or raise the key's limit, with this provider"
+                    "{host} refused for lack of credit (HTTP 402): add credit, or raise the key's limit, with this provider"
                 ));
             }
             404 => {
-                return refused(format!(
-                    "the provider at {host} does not know this model or this address (HTTP 404)"
-                ));
+                return refused(format!("{host} does not know this model or this address (HTTP 404)"));
             }
             status @ (301 | 302 | 303 | 307 | 308) => {
                 return refused(format!(
-                    "the provider at {host} sent the request elsewhere, and it was not followed (HTTP {status})"
+                    "{host} sent the request elsewhere, and it was not followed (HTTP {status})"
                 ));
             }
-            status => return refused(format!("the provider at {host} failed (HTTP {status})")),
+            status => return refused(format!("{host} failed (HTTP {status})")),
         }
         let Ok(answer) = response.body_mut().read_json::<serde_json::Value>() else {
-            return refused(format!("the provider at {host} sent an answer that could not be read to its end"));
+            return refused(format!("{host} sent an answer that could not be read to its end"));
         };
         let choice = &answer["choices"][0];
         // An answer is whole when the provider says it stopped by itself, or says nothing.
@@ -189,15 +192,13 @@ impl Provider {
             serde_json::Value::Null => {}
             reason if reason == "stop" => {}
             reason if reason == "length" => {
-                return refused(format!(
-                    "the provider at {host} cut its answer short: the minutes would be incomplete"
-                ));
+                return refused(format!("{host} cut its answer short: the minutes would be incomplete"));
             }
-            _ => return refused(format!("the provider at {host} stopped before the end of its answer")),
+            _ => return refused(format!("{host} stopped before the end of its answer")),
         }
         match choice["message"]["content"].as_str() {
             Some(text) if !text.trim().is_empty() => Ok(text.to_string()),
-            _ => refused(format!("the provider at {host} answered without any text")),
+            _ => refused(format!("{host} answered without any text")),
         }
     }
 }
