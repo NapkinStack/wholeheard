@@ -114,7 +114,9 @@ The decider's, from the idea file and the discovery:
 - A mobile application.
 - "Ask your notes a question" across meetings.
 - Sales analysis of calls, CRM integration.
-- Anything that sells the product: licence, payment, shop.
+- ~~Anything that sells the product: licence, payment, shop.~~ Lifted 2026-10-19 by
+  [PDR-0001](../pdr/0001-wholeheard-open-on-linux-paid-on-macos-and-windows.md): open and free on
+  Linux, sold once on macOS and Windows.
 
 The framer's, accepted with the discovery:
 
@@ -128,8 +130,9 @@ The framer's, accepted with the discovery:
 
 **Not blocking:**
 
-- Does the project pay for signing on macOS and Windows? Decided after the first cycle's
-  probe (D1), on what it records.
+- ~~Does the project pay for signing on macOS and Windows?~~ Answered 2026-10-19 by
+  [PDR-0001](../pdr/0001-wholeheard-open-on-linux-paid-on-macos-and-windows.md): yes, paid by the
+  licences sold on those two systems.
 - ~~May the reminder to announce the recording be switched off?~~ Answered 2026-10-13 by the
   decider: yes, as the idea file says (C7) — shown out of the box, a setting removes it. The
   framer had said no: the announcement is the only thing that makes a recording lawful.
