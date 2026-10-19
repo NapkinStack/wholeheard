@@ -12,6 +12,12 @@ target=${SUMMIT_TARGET:-}
 features=(--features vulkan)
 if [ -z "$target" ]; then
   (cd "$here" && cargo build --locked --release "${features[@]}")
+  # whisper-rs-sys does not build again when the flags change: a whisper.cpp built before them,
+  # tuned to this processor, would be shipped as it is — built again, then.
+  out=${CARGO_TARGET_DIR:-$here/target}/release
+  if grep -qs '^GGML_NATIVE:BOOL=ON' "$out"/build/whisper-rs-sys-*/out/build/CMakeCache.txt; then
+    (cd "$here" && cargo clean --release -p whisper-rs-sys && cargo build --locked --release "${features[@]}")
+  fi
   cp "${CARGO_TARGET_DIR:-$here/target}/release/summit-transcription" "$dist/"
   exit 0
 fi
