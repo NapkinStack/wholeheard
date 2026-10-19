@@ -1,0 +1,12 @@
+Package: summit
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: NapkinStack <napkinstack@users.noreply.github.com>
+Installed-Size: @SIZE@
+Depends: @DEPENDS@
+Recommends: gnome-shell-extension-appindicator
+Section: sound
+Priority: optional
+Description: Records a meeting, transcribes it and writes its minutes, on your machine
+ Summit records both sides of a call from the system tray, transcribes it on the machine with
+ Whisper, and writes its minutes with the model you choose. Your meetings stay in your folder.

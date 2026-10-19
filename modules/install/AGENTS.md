@@ -8,10 +8,11 @@
 
 ## Internal conventions nobody could guess
 
-- `scripts/release.sh <format>` — `rpm` today, for Fedora; the next system adds its format here
-  (a `dmg` for macOS) from the same artefacts.
-- The package is made in a Fedora of this system's release (a throwaway container), so that
-  `rpmbuild` is the distribution's own and nothing is installed on the workstation.
+- `scripts/release.sh` makes the package of the system `SUMMIT_TARGET` names: `fedora-<n>` an rpm
+  (`summit.spec`), `ubuntu-<n>.<n>` a .deb (`deb/build.sh`, `deb/control.in`); unset, an rpm for
+  this Fedora. The next system adds its format here (a `dmg` for macOS) from the same artefacts.
+- Each package is made in a throwaway container of its system, so that `rpmbuild`, `dpkg` and the
+  libraries they read are that system's, and nothing is installed on the workstation.
 
 ## Business invariants
 
@@ -23,10 +24,13 @@
 ## Known traps
 
 - A program run, not linked, by another (capture runs `pw-metadata`), or a library opened at run
-  time (the shell's tray: appindicator) → name its package in the spec's `Requires`: rpmbuild
-  sees linked libraries only.
+  time (the shell's tray: appindicator) → name its package in the spec's `Requires` and in
+  `deb/build.sh`'s `depends`: rpmbuild and dpkg-shlibdeps see linked libraries only.
+- dpkg-shlibdeps finds a library's package only if it is installed where it runs: a new library
+  linked by a program → add its runtime package to `deb/build.sh`'s `apt-get install`.
 
 ## Non-standard commands
 
-- `e2e` needs `podman` and the network; with no argument it packs stand-in programs, given a
-  package (`dist/install/summit-….rpm`, any path) it installs that one.
+- `e2e` needs `podman` and the network; for the system `SUMMIT_TARGET` names (unset: this
+  Fedora), with no argument it packs stand-in programs, given a package (`dist/install/…`) it
+  installs that one. On Ubuntu, apt fetches GTK for the tray's library: count ten minutes.
