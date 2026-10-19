@@ -433,6 +433,8 @@ pub struct Window {
     pub where_online: &'static str,
     /// The model saved, which this computer's Ollama does not have ({} the model).
     pub ollama_lacks: &'static str,
+    /// This computer's Ollama, saved, not answering — or answering with no model.
+    pub ollama_silent: &'static str,
     pub not_chosen: &'static str,
 }
 
@@ -614,6 +616,7 @@ pub fn window(language: Language) -> Window {
             save: "Save",
             where_online: "Online — the transcript's text is sent",
             ollama_lacks: "Ollama, on this computer, has no model named {}: choose one in the list, or fetch it with Ollama.",
+            ollama_silent: "Ollama, on this computer, does not answer, or has no model: start it, or fetch a model with it.",
             not_chosen: "Not chosen yet",
         },
         Language::French => Window {
@@ -792,6 +795,7 @@ pub fn window(language: Language) -> Window {
             save: "Enregistrer",
             where_online: "En ligne — le texte du transcript est envoyé",
             ollama_lacks: "Ollama, sur cet ordinateur, n’a pas de modèle nommé {} : choisissez-en un dans la liste, ou récupérez-le avec Ollama.",
+            ollama_silent: "Ollama, sur cet ordinateur, ne répond pas, ou n’a aucun modèle : démarrez-le, ou récupérez un modèle avec lui.",
             not_chosen: "Pas encore choisi",
         },
     }

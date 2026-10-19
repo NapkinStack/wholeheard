@@ -644,6 +644,7 @@ function minutesRow(minutes, words, locked) {
   row.append(label, pick);
   const fields = element("div", "fields");
   const where = element("p", "status");
+  where.id = "minutes-where";
   const field = (id, text, type, value) => {
     const wrap = element("label", "field");
     wrap.htmlFor = id;
@@ -703,10 +704,15 @@ function minutesRow(minutes, words, locked) {
     const here = value === "custom" && value === current && minutes.provider_local;
     where.className = here ? "status here" : "status online";
     where.replaceChildren(here ? words.on_this_computer : words.where_online, element("code", "tag", shown));
-    if (here && minutes.provider === minutes.ollama_address && minutes.model && !minutes.ollama.includes(minutes.model)) {
-      const lacking = element("p", "says warn", fill(words.ollama_lacks, minutes.model));
-      lacking.id = "minutes-lacking";
-      fields.append(lacking);
+    // Ollama answered without that model: named. Not answering, or with no model at all: said so —
+    // never "the model is missing" on a list that could not be read.
+    if (here && minutes.provider === minutes.ollama_address && minutes.model) {
+      const answered = minutes.ollama.length > 0;
+      if (!answered || !minutes.ollama.includes(minutes.model)) {
+        const said = element("p", "says warn", answered ? fill(words.ollama_lacks, minutes.model) : words.ollama_silent);
+        said.id = answered ? "minutes-lacking" : "minutes-silent";
+        fields.append(said);
+      }
     }
     const custom = value === "custom";
     const [addressWrap, address] = field("minutes-address", words.address, "url", custom && current === "custom" ? minutes.provider : "");
