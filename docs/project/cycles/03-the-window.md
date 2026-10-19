@@ -66,7 +66,7 @@ deliverables:
   - id: D25
     title: "What Summit makes in the background is seen on the page — working, waiting, or failed and why"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given minutes or a transcript asked for — from a meeting's page, Refaire… or the tray — when it is being made, then the meeting's page and the list say so: what, by which model, for how long; one asked while another is made waits its turn and says so, never dropped; a failure is said on the meeting's page in one sentence with its reason, not only in a notification"
       - "Given the settings, when the user picks who writes the minutes, then nothing is saved before their gesture, and the page says what is in use"
