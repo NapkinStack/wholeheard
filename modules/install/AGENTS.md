@@ -9,8 +9,8 @@
 ## Internal conventions nobody could guess
 
 - `scripts/release.sh` makes the package of the system `SUMMIT_TARGET` names: `fedora-<n>` an rpm
-  (`summit.spec`), `ubuntu-<n>.<n>` a .deb (`deb/build.sh`, `deb/control.in`); unset, an rpm for
-  this Fedora. The next system adds its format here (a `dmg` for macOS) from the same artefacts.
+  (`summit.spec`), `ubuntu-<n>.<n>` a .deb (`deb/build.sh`, `deb/control.in`); unset, the package
+  of the system it runs on (`/etc/os-release`). The next system adds its format here (a `dmg` for macOS) from the same artefacts.
 - Each package is made in a throwaway container of its system, so that `rpmbuild`, `dpkg` and the
   libraries they read are that system's, and nothing is installed on the workstation.
 
@@ -31,6 +31,6 @@
 
 ## Non-standard commands
 
-- `e2e` needs `podman` and the network; for the system `SUMMIT_TARGET` names (unset: this
-  Fedora), with no argument it packs stand-in programs, given a package (`dist/install/…`) it
+- `e2e` needs `podman` and the network; for the system `SUMMIT_TARGET` names (unset: the
+  system it runs on), with no argument it packs stand-in programs, given a package (`dist/install/…`) it
   installs that one. On Ubuntu, apt fetches GTK for the tray's library: count ten minutes.
