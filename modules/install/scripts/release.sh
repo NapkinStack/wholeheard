@@ -1,21 +1,35 @@
 #!/usr/bin/env bash
-# What a user installs, for the system named: `rpm` for Fedora — one package of the four
-# programs, made in a Fedora of this system's release so that rpmbuild reads their libraries.
+# What a user installs, for the system SUMMIT_TARGET names — as the programs were built for it
+# (D27): `fedora-*`, an rpm made with rpmbuild; `ubuntu-*`, a .deb made with dpkg; unset, an rpm
+# for this Fedora. One package of the four programs, made in a container of that system so that
+# the libraries each program links are read there and required by their packages.
 # Reads what the assembled modules' releases left beside this one's folder ($NSTACK_DIST/..).
 set -euo pipefail
-format=${1:-rpm}
-[ "$format" = rpm ] || { echo "release: '$format' is not made here yet (rpm)" >&2; exit 2; }
 here=$(cd "$(dirname "$0")/.." && pwd)
 dist=${NSTACK_DIST:?run through nstack release, which names this module\'s artefacts folder}
 artefacts=$(cd "$dist/.." && pwd)
 version=$(cat "$artefacts/shell/VERSION")
-release=$(rpm -E %fedora)
+target=${SUMMIT_TARGET:-fedora-$(rpm -E %fedora 2>/dev/null || echo unknown)}
 # No relabelling of what is mounted (`:Z` would relabel the files in place): labels left alone.
-podman run --rm --security-opt label=disable \
-  -v "$artefacts:/artefacts:ro" -v "$here/summit.spec:/summit.spec:ro" -v "$dist:/out" \
-  "registry.fedoraproject.org/fedora:$release" bash -euo pipefail -c "
+case $target in
+  fedora-[0-9]*)
+    podman run --rm --security-opt label=disable \
+      -v "$artefacts:/artefacts:ro" -v "$here/summit.spec:/summit.spec:ro" -v "$dist:/out" \
+      "registry.fedoraproject.org/fedora:${target#fedora-}" bash -euo pipefail -c "
 dnf install -y -q rpm-build >/dev/null
 rpmbuild -bb /summit.spec --define 'artefacts /artefacts' --define 'summit_version $version' \
   --define '_rpmdir /out' --define '_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm' --quiet
 "
-ls "$dist"/*.rpm
+    ls "$dist"/*.rpm
+    ;;
+  ubuntu-[0-9]*)
+    podman run --rm --security-opt label=disable -e version="$version" \
+      -v "$artefacts:/artefacts:ro" -v "$here/deb:/deb:ro" -v "$dist:/out" \
+      "docker.io/library/ubuntu:${target#ubuntu-}" bash -euo pipefail /deb/build.sh
+    ls "$dist"/*.deb
+    ;;
+  *)
+    echo "release: no package is made for '$target' here (fedora-<n>, ubuntu-<n>.<n>)" >&2
+    exit 2
+    ;;
+esac

@@ -71,7 +71,7 @@ dependencies: []
 # No stack is imposed. check and test are required once the module holds more than its
 # description (fitness M7): declare them before its first file of code.
 commands:
-  check: bash -n scripts/release.sh scripts/test.sh scripts/e2e.sh
+  check: bash -n scripts/release.sh scripts/test.sh scripts/e2e.sh scripts/judge-installed.sh deb/build.sh
   test: bash scripts/test.sh
   e2e: bash scripts/e2e.sh
   release: bash scripts/release.sh

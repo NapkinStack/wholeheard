@@ -74,8 +74,13 @@ declares `assembles: [shell, capture, transcription, summary]` and its release
 (`scripts/release.sh rpm`) builds `summit.spec` in a Fedora of this system's release. A program
 *run* rather than linked is required by name (`pw-metadata`, for capture).
 
-The next system adds its format to the same release — a `dmg` from the same artefacts — the
-modules' releases taking their target as argument.
+The next system adds its format to the same release — a `dmg` from the same artefacts. **The
+target is one for every module, named in the environment** (`SUMMIT_TARGET`, D27, 2026-10-19):
+each program's release builds in a container of that system, from its module's own
+`containers/<target>.Containerfile`, and `install` makes that system's package — `fedora-44`
+an rpm, `ubuntu-24.04` a `.deb` read by `dpkg-shlibdeps` — in a container of it too. A program
+built on Fedora 44 does not start on Ubuntu 24.04 (an older `glibc`): no package depends on the
+machine that made it.
 
 **Criticality: standard** — a broken package costs a reinstall from the repository, never a
 meeting or a setting: it installs nothing outside `/usr`. Not `prototype`: the charter's two

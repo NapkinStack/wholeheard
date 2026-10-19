@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# The spec, read: every file it installs is in %files and the other way round, the desktop entry
+# The spec and the .deb's recipe, read: every file it installs is in %files and the other way round, the desktop entry
 # carries the application's id (GNOME's shortcut portal finds Summit by it), and nothing is
 # installed outside /usr — so removing the package never touches a user's meetings or settings.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
-python3 - "$here/summit.spec" <<'PY'
-import re, sys
+python3 - "$here/summit.spec" "$here/deb/build.sh" "$here/deb/control.in" <<'PY'
+import os, re, sys
 spec = open(sys.argv[1], encoding="utf-8").read()
 macros = {"%{_bindir}": "/usr/bin", "%{_datadir}": "/usr/share", "%{buildroot}": ""}
 def expand(path):
@@ -32,6 +32,18 @@ pairs = re.findall(r"^install -D\S* %\{artefacts\}/\S+/(\S+) %\{buildroot\}%\{_b
 check("each program installs its own artefact", len(pairs) == 4 and all(a == b for a, b in pairs), pairs)
 scriptlets = re.findall(r"^%(pre|post|preun|postun|pretrans|posttrans|trigger\w*)\b", spec, re.M)
 check("no scriptlet: installing and removing touch nothing but the package's files", not scriptlets, scriptlets)
+# The .deb (D27): made by deb/build.sh from the same artefacts — what it installs is judged on the
+# package installed, by the e2e, against the spec's %files.
+build = open(sys.argv[2], encoding="utf-8").read()
+control = open(sys.argv[3], encoding="utf-8").read()
+check("pw-metadata and the tray's library named in its dependencies: run and opened, never linked",
+      re.search(r"pipewire-bin, libayatana-appindicator3-1 \| libappindicator3-1", build) is not None)
+check("its control names the package, its version and its dependencies as computed",
+      all(f"{field}: @" in control for field in ("Version", "Architecture", "Depends")) and "Package: summit" in control)
+scripts = [f for f in os.listdir(os.path.dirname(sys.argv[3])) if f in ("preinst", "postinst", "prerm", "postrm", "triggers")]
+check("no maintainer script: installing and removing touch nothing but the package's files", not scripts, scripts)
+check("the graphics card's Vulkan driver recommended by both: the transcript is made there",
+      re.search(r"^Recommends:\s+mesa-vulkan-drivers$", spec, re.M) is not None and "mesa-vulkan-drivers" in control)
 print("test: passed" if not failed else "test: FAILED")
 sys.exit(failed)
 PY
