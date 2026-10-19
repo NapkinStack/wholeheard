@@ -1346,8 +1346,8 @@ refresh();
 // Coming back to the window draws it anew — unless who writes the minutes is being chosen there
 // and not yet saved: that choice stays.
 window.addEventListener("focus", () => {
-  const choosing = document.querySelector("#minutes-unsaved:not([hidden])")
-    || [...document.querySelectorAll("#settings .fields input")].some((input) => input.value !== input.defaultValue);
+  const choosing = document.querySelector("#settings:not([hidden]) #minutes-unsaved:not([hidden])")
+    || [...document.querySelectorAll("#settings:not([hidden]) .fields input")].some((input) => input.value !== input.defaultValue);
   if (!choosing) refresh();
 });
 window.addEventListener("hashchange", () => {
