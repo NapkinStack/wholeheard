@@ -6,6 +6,8 @@
 set -euo pipefail
 shopt -s nullglob
 here=$(cd "$(dirname "$0")/.." && pwd)
+# As the other modules' e2e where their system is missing: said, not failed.
+command -v podman >/dev/null || { echo "e2e: NOT RUN — podman is missing here"; exit 0; }
 # Unset, the system this runs on, as it names itself (fedora-44, ubuntu-24.04).
 target=${SUMMIT_TARGET:-$(. /etc/os-release && echo "$ID-$VERSION_ID")}
 package=${1:+$(realpath "$1")}
