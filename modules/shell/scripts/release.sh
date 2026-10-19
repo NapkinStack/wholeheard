@@ -20,8 +20,10 @@ else
   cache=${XDG_CACHE_HOME:-$HOME/.cache}/summit-build/$target
   kept=$cache/shell-$(podman image inspect -f '{{.Id}}' "$image" | cut -c1-12)
   mkdir -p "$kept" "$cache/registry"
-  # No relabelling of what is mounted (`:Z` would relabel the files in place): labels left alone.
-  podman run --rm --security-opt label=disable -v "$here:/src:ro" -v "$kept:/target" \
+  # No relabelling of what is mounted (`:Z` would relabel the files in place): labels left alone;
+  # the source seen through a throwaway layer (`:O`): Tauri's build writes its schemas there
+  # (gen/), and none of it reaches the tree.
+  podman run --rm --security-opt label=disable -v "$here:/src:O" -v "$kept:/target" \
     -v "$cache/registry:/opt/cargo/registry" -e CARGO_TARGET_DIR=/target -w /src "$image" \
     cargo build --locked --release -q
   built=$kept/release
