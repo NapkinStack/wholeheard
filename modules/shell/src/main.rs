@@ -925,6 +925,9 @@ struct MinutesShown {
     provider: Option<String>,
     model: Option<String>,
     key_kept: bool,
+    /// Whether the address saved is this machine — read as the agreement reads it: what is sent
+    /// there never leaves it, and the page says so whatever the model.
+    provider_local: bool,
 }
 
 #[tauri::command]
@@ -939,7 +942,9 @@ async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, String> 
     // Ollama is asked away from the window and the tray: one that does not answer holds neither.
     let base = ollama();
     let models = tauri::async_runtime::spawn_blocking(move || providers::ollama_models(&base)).await;
+    let provider_local = settings.minutes_provider.as_deref().is_some_and(providers::local);
     Ok(MinutesShown {
+        provider_local,
         ollama: models.unwrap_or_default(),
         ollama_address: providers::ollama_address(&ollama()),
         online: providers::ONLINE,
