@@ -85,41 +85,54 @@ function holdings(session, words, where) {
 // What Summit makes in the background (D25): read with the header, painted where it is shown.
 let makings = null;
 
-function stateOf(name, minutesOnly = false) {
+function minutesState(name) {
   if (makings === null) return null;
   if (makings.minutes?.name === name) return { kind: "making", ...makings.minutes };
   const waiting = makings.minutes_waiting.indexOf(name);
   if (waiting >= 0) return { kind: "waiting", before: waiting + 1 };
   if (makings.awaiting[name] !== undefined) return { kind: "awaiting", host: makings.awaiting[name] };
   if (makings.failed[name] !== undefined) return { kind: "failed", why: makings.failed[name] };
-  if (minutesOnly) return null;
-  if (makings.transcript === name) return { kind: "transcribing" };
-  if (makings.transcripts_waiting.includes(name)) return { kind: "waiting", before: makings.transcripts_waiting.indexOf(name) + 1 };
   return null;
 }
 
-function paintMakings() {
-  for (const chip_ of document.querySelectorAll(".chip.making")) {
-    const state = stateOf(chip_.dataset.name);
-    chip_.hidden = state === null;
-    if (state === null) continue;
-    chip_.textContent = { making: words.chip_making, waiting: words.chip_waiting, awaiting: words.chip_awaiting, transcribing: words.chip_transcribing, failed: words.chip_failed }[state.kind];
-    chip_.classList.toggle("failed", state.kind === "failed");
-  }
-  const said = document.getElementById("minutes-state");
-  if (!said) return;
-  const shown = stateOf(said.dataset.name, true);
+function transcriptState(name) {
+  if (makings === null) return null;
+  if (makings.transcript?.name === name) return { kind: "making", ...makings.transcript };
+  const waiting = makings.transcripts_waiting.indexOf(name);
+  // Nothing being made and the model not there: the line waits for it, not for a turn.
+  if (waiting >= 0 && makings.transcript === null && makings.model_needed) return { kind: "model", coming: makings.model_coming };
+  if (waiting >= 0) return { kind: "waiting", before: waiting + 1 };
+  if (makings.transcripts_failed[name] !== undefined) return { kind: "failed", why: makings.transcripts_failed[name] };
+  return null;
+}
+
+// One card's state, said where its content is: what makes it and for how long, its place in
+// line, the word it waits for, or why it was not made, with Try again (D25).
+function paintState(said, shown, of) {
   said.hidden = shown === null;
   said.className = `making-state ${shown?.kind ?? ""}`;
   // Being made, waiting, or failed with Try again: not offered a second time.
-  const offered = document.getElementById("make-minutes");
+  const offered = document.getElementById(of.offer);
   if (offered) offered.hidden = shown !== null;
+  // Drawn again only when it says something else — a link or a button under the pointer or the
+  // keyboard's focus stays the same one —; while it is made, only its time moves.
+  const { seconds, ...same } = shown ?? {};
+  const key = shown === null ? "" : JSON.stringify(same);
+  const minutes = `${Math.floor((seconds ?? 0) / 60)}:${String((seconds ?? 0) % 60).padStart(2, "0")}`;
+  const by = shown?.kind !== "making" ? "" : shown.host === undefined ? spoken(shown.model) : `${modelSaid(shown.model)} · ${shown.host}`;
+  if (said.dataset.key === key && said.childElementCount > 0) {
+    const time = said.querySelector(".by");
+    if (time) time.textContent = `${by} · ${minutes}`;
+    return;
+  }
+  said.dataset.key = key;
   if (shown === null) return said.replaceChildren();
   if (shown.kind === "making") {
-    const minutes = `${Math.floor(shown.seconds / 60)}:${String(shown.seconds % 60).padStart(2, "0")}`;
-    said.replaceChildren(element("span", "what", words.minutes_making), element("span", "by", `${modelSaid(shown.model)} · ${shown.host} · ${minutes}`), element("span", "making-bar"));
+    said.replaceChildren(element("span", "what", of.making), element("span", "by", `${by} · ${minutes}`), element("span", "making-bar"));
   } else if (shown.kind === "waiting") {
     said.replaceChildren(element("span", "what", fill(words.minutes_waiting, shown.before)));
+  } else if (shown.kind === "model") {
+    said.replaceChildren(element("span", "what", shown.coming ? words.transcript_model_coming : words.transcript_model_needed));
   } else if (shown.kind === "awaiting") {
     const agree = element("a", "open", words.agree_open);
     agree.id = "minutes-agree";
@@ -128,13 +141,42 @@ function paintMakings() {
   } else {
     const again = element("button", "open", words.try_again);
     again.type = "button";
-    again.id = "minutes-again";
+    again.id = of.again;
     again.addEventListener("click", async () => {
       again.disabled = true;
-      await window.__TAURI__.core.invoke("minutes_asked", { name: said.dataset.name }).catch(() => {});
+      await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name }).catch(() => {});
+      // Failing again for the same reason is said again: the state drawn anew.
+      said.dataset.key = "";
       readMakings();
     });
-    said.replaceChildren(element("span", "what", fill(words.minutes_not_made, shown.why)), again);
+    said.replaceChildren(element("span", "what", fill(of.not_made, shown.why)), again);
+  }
+}
+
+function paintMakings() {
+  for (const chip_ of document.querySelectorAll(".chip.making")) {
+    // The minutes' state first; else the transcript's, which comes before them.
+    const minutes = minutesState(chip_.dataset.name);
+    const transcript = transcriptState(chip_.dataset.name);
+    const state = minutes ?? transcript;
+    chip_.hidden = state === null;
+    if (state === null) continue;
+    chip_.textContent = minutes
+      ? { making: words.chip_making, waiting: words.chip_waiting, awaiting: words.chip_awaiting, failed: words.chip_failed }[state.kind]
+      : { making: words.chip_transcribing, waiting: words.chip_waiting, model: words.chip_waiting, failed: words.chip_transcript_failed }[state.kind];
+    chip_.classList.toggle("failed", state.kind === "failed");
+  }
+  const minutes = document.getElementById("minutes-state");
+  if (minutes) {
+    paintState(minutes, minutesState(minutes.dataset.name), {
+      offer: "make-minutes", again: "minutes-again", ask: "minutes_again", making: words.minutes_making, not_made: words.minutes_not_made,
+    });
+  }
+  const transcript = document.getElementById("transcript-state");
+  if (transcript) {
+    paintState(transcript, transcriptState(transcript.dataset.name), {
+      offer: "make-transcript", again: "transcript-again", ask: "transcript_again", making: words.transcript_making, not_made: words.transcript_not_made,
+    });
   }
 }
 
@@ -142,13 +184,15 @@ async function readMakings() {
   makings = await window.__TAURI__.core.invoke("makings").catch(() => null);
   // Only the meeting shown: its page hidden, the last one opened is no longer in front.
   const opened = document.getElementById("meeting").hidden ? null : document.getElementById("minutes-state")?.dataset.name;
-  const now = opened ? stateOf(opened, true)?.kind : null;
-  // The minutes of the meeting shown written since its page was drawn, however quickly: drawn
-  // again, to show them — unless the user has a panel open there, which a redraw would take from
-  // under them; then once it is closed.
+  // The minutes or the transcript of the meeting shown written since its page was drawn, however
+  // quickly: drawn again, to show them — unless the user has a panel open there, or is typing in
+  // it, which a redraw would take from under them; then once that is done.
   const busy = document.querySelector("#meeting .redo, #meeting input:focus");
-  const drawn = document.getElementById("minutes-state")?.dataset.made;
-  if (opened && makings && String(makings.made[opened] ?? 0) !== drawn && now !== "making" && !busy) refresh();
+  const drawn = (id) => document.getElementById(id)?.dataset.made;
+  const moved = opened && makings
+    && ((String(makings.made[opened] ?? 0) !== drawn("minutes-state") && minutesState(opened)?.kind !== "making")
+      || (String(makings.transcripts_made[opened] ?? 0) !== drawn("transcript-state") && transcriptState(opened)?.kind !== "making"));
+  if (moved && !busy) refresh();
   paintMakings();
 }
 
@@ -302,11 +346,9 @@ function offer(card, label, id, command, session, words) {
     button.disabled = true;
     try {
       await window.__TAURI__.core.invoke(command, { name: nameOf(session) });
-      // The minutes' state is said where they are (D25); a transcript, still by a note.
-      if (command === "minutes_asked") {
-        button.remove();
-        readMakings();
-      } else button.replaceWith(element("p", "note", words.asked));
+      // Its state is said where it is made (D25).
+      button.remove();
+      readMakings();
     } catch (why) {
       button.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
     }
@@ -314,7 +356,7 @@ function offer(card, label, id, command, session, words) {
   card.append(button);
 }
 
-function redoPanel(choices, session, words) {
+function redoPanel(choices, session, words, button) {
   const panel = element("section", "redo");
   panel.id = "redo-panel";
   panel.append(element("h3", "", words.redo_title), element("p", "says", words.redo_with));
@@ -348,7 +390,7 @@ function redoPanel(choices, session, words) {
     try {
       await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: provider ?? null, model: model ?? null });
       // Asked: the panel goes, the making is said where the minutes are (D25).
-      panel.remove();
+      panel.replaceWith(button);
       readMakings();
     } catch (why) {
       go.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
@@ -358,7 +400,7 @@ function redoPanel(choices, session, words) {
   return panel;
 }
 
-function redoTranscriptPanel(shown, session, words) {
+function redoTranscriptPanel(shown, session, words, button) {
   const panel = element("section", "redo");
   panel.id = "redo-transcript-panel";
   panel.append(element("h3", "", words.redo_transcript_title), element("p", "says", words.redo_with));
@@ -386,7 +428,9 @@ function redoTranscriptPanel(shown, session, words) {
     go.disabled = true;
     try {
       await window.__TAURI__.core.invoke("transcript_redo", { name: nameOf(session), model: picked.value });
-      go.replaceWith(element("p", "note", words.asked));
+      // Asked: the panel goes, the making is said where the transcript is (D25).
+      panel.replaceWith(button);
+      readMakings();
     } catch (why) {
       go.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
     }
@@ -397,7 +441,10 @@ function redoTranscriptPanel(shown, session, words) {
 
 function minutesCard(read, words, session, transcript) {
   const card = element("article", "card minutes");
-  card.append(element("h2", "label", words.minutes_title));
+  // Its title, and Refaire… beside it: the state below them never sits under a button.
+  const top = element("div", "top");
+  top.append(element("h2", "label", words.minutes_title));
+  card.append(top);
   // What is being made for them, or why they were not (D25).
   const state = element("p", "making-state");
   state.id = "minutes-state";
@@ -420,9 +467,9 @@ function minutesCard(read, words, session, transcript) {
   redo.id = "redo-minutes";
   redo.addEventListener("click", async () => {
     const choices = await window.__TAURI__.core.invoke("minutes_shown");
-    redo.replaceWith(redoPanel(choices, session, words));
+    redo.replaceWith(redoPanel(choices, session, words, redo));
   });
-  card.querySelector("h2").after(redo);
+  top.append(redo);
   const made = read.made && dayOf({ instant: Date.parse(read.made) / 1000 || null });
   // As the board says it: the day of the week, no year, and the model as people say it.
   const day = { weekday: "short", day: "numeric", month: "short" };
@@ -444,6 +491,14 @@ function transcriptCard(read, words, session) {
   const top = element("div", "top");
   top.append(element("h2", "label", words.transcript_title));
   card.append(top);
+  // What is being made for it, or why it was not (D25).
+  const state = element("p", "making-state");
+  state.id = "transcript-state";
+  state.dataset.name = nameOf(session);
+  state.dataset.made = String(makings?.transcripts_made[nameOf(session)] ?? 0);
+  state.setAttribute("role", "status");
+  state.hidden = true;
+  card.append(state);
   if (read.state !== "present") {
     card.append(element("p", "none", read.state === "absent" ? words.no_transcript : words.unreadable));
     if (read.state === "absent" && session.audio > 0 && session.state !== "recording") {
@@ -463,9 +518,9 @@ function transcriptCard(read, words, session) {
   redo.id = "redo-transcript";
   redo.addEventListener("click", async () => {
     const shown = await window.__TAURI__.core.invoke("settings_shown");
-    redo.replaceWith(redoTranscriptPanel(shown, session, words));
+    redo.replaceWith(redoTranscriptPanel(shown, session, words, redo));
   });
-  top.after(redo);
+  top.append(redo);
   card.append(element("p", "maker", fill(words.heard_by, read.model ? spoken(read.model) : read.engine || "—")));
   if (!read.complete) card.append(element("p", "note", words.being_made));
   if (read.unread > 0) card.append(element("p", "note", fill(words.unread, read.unread)));
@@ -596,6 +651,7 @@ function minutesRow(minutes, words, locked) {
     input.id = id;
     input.type = type;
     input.value = value || "";
+    input.defaultValue = input.value;
     input.disabled = locked;
     wrap.append(element("span", "name", text), input);
     return [wrap, input];
@@ -609,17 +665,28 @@ function minutesRow(minutes, words, locked) {
     } catch (why) {
       failed = fill(words.not_saved, why);
     }
+    notSaved = failed;
     await refresh();
-    const said = document.getElementById("not-saved");
-    said.textContent = failed ?? "";
-    said.hidden = failed === null;
   };
+  // Chosen, not yet saved: who writes them meanwhile is said — going through the list, with the
+  // keyboard's arrows too, never changes who does (D25).
+  const unsaved = element("p", "says");
+  unsaved.id = "minutes-unsaved";
+  const inUse = minutes.provider && minutes.model ? modelSaid(minutes.model) : words.not_chosen;
   const draw = () => {
     fields.replaceChildren();
     const value = pick.value;
+    unsaved.hidden = value === current;
+    unsaved.textContent = minutes.provider && minutes.model ? fill(words.minutes_unsaved, inUse) : words.minutes_unsaved_none;
     if (value.startsWith("ollama:")) {
       where.className = "status here";
       where.textContent = words.on_this_computer;
+      const button = element("button", "open", words.save);
+      button.type = "button";
+      button.id = "minutes-save";
+      button.disabled = locked || value === current;
+      button.addEventListener("click", () => save(minutes.ollama_address, value.slice("ollama:".length), null));
+      fields.append(button);
       return;
     }
     if (value === "none") {
@@ -653,12 +720,11 @@ function minutesRow(minutes, words, locked) {
   // Tester sits on the key's row, as the board has it, or on its own row when there is none.
   let place = () => {};
   pick.addEventListener("change", () => {
-    if (pick.value.startsWith("ollama:")) save(minutes.ollama_address, pick.value.slice("ollama:".length), null);
     draw();
     place();
   });
   draw();
-  box.append(row, where, fields);
+  box.append(row, where, fields, unsaved);
   // Tester: the choice saved, asked whether it answers — one sentence of Summit's, said first.
   // One test at a time, the page drawn again meanwhile or not.
   if (minutes.provider && minutes.model) {
@@ -742,16 +808,17 @@ function showSettings(shown, minutes, words) {
     } catch (why) {
       failed = fill(words.not_saved, why);
     }
+    notSaved = failed;
     await refresh();
-    const said = document.getElementById("not-saved");
-    said.textContent = failed ?? "";
-    said.hidden = failed === null;
   };
   const parts = [];
   if (locked) parts.push(element("p", "card note warn", fill(words.settings_unreadable, shown.unreadable)));
   const failed = element("p", "card note warn");
   failed.id = "not-saved";
-  failed.hidden = true;
+  // What the last save could not do, said on the page drawn after it — once.
+  failed.textContent = notSaved ?? "";
+  failed.hidden = notSaved === null;
+  notSaved = null;
   parts.push(failed);
 
   const after = element("section", "card group");
@@ -1171,7 +1238,14 @@ function showFree(listing, busy, words) {
 
 let words = null;
 
+// What the last save on the settings' page could not do, for the page drawn after it.
+let notSaved = null;
+
+// The latest drawing asked for: one begun before it, its answers come later, draws nothing.
+let drawing = 0;
+
 async function refresh() {
+  const mine = ++drawing;
   // The small window is its own: it draws its view once, and asks for nothing else.
   if (location.hash === "#/small") {
     if (!document.body.classList.contains("small-window")) {
@@ -1185,13 +1259,18 @@ async function refresh() {
     return;
   }
   const listing = await window.__TAURI__.core.invoke("listed");
+  if (mine !== drawing) return;
   words = listing.words;
   show(listing);
   const wanted = location.hash.match(/^#\/meeting\/(.+)$/);
   const settings = location.hash === "#/settings";
   const freeing = location.hash === "#/free";
   document.getElementById("free").hidden = !freeing;
-  if (freeing) showFree(listing, await window.__TAURI__.core.invoke("busy_meetings"), words);
+  if (freeing) {
+    const busy = await window.__TAURI__.core.invoke("busy_meetings");
+    if (mine !== drawing) return;
+    showFree(listing, busy, words);
+  }
   else document.getElementById("free").replaceChildren();
   const agreeing = location.hash.match(/^#\/agree\/(.+)$/);
   let agreement = null;
@@ -1203,7 +1282,12 @@ async function refresh() {
     }
   }
   let opened = null;
+  let seen = makings;
   if (wanted) {
+    // What is being made, read before the meeting: the counts its page keeps are never ahead of
+    // what it shows, never behind what was made before it was read — drawn again only for what
+    // was made since.
+    seen = await window.__TAURI__.core.invoke("makings").catch(() => makings);
     // A meeting no longer there, or a name that is none, goes back to the list.
     try {
       opened = await window.__TAURI__.core.invoke("opened", { name: decodeURIComponent(wanted[1]) });
@@ -1211,6 +1295,7 @@ async function refresh() {
       history.replaceState(null, "", "#/");
     }
   }
+  if (mine !== drawing) return;
   document.getElementById("list").hidden = opened !== null || settings || agreement !== null || freeing;
   document.getElementById("agree").hidden = agreement === null;
   // Shown or emptied: never a question left hidden under another page.
@@ -1220,13 +1305,18 @@ async function refresh() {
   document.getElementById("settings").hidden = !settings;
   document.getElementById("meetings").setAttribute("aria-current", settings || agreement ? "false" : "page");
   document.getElementById("settings-link").setAttribute("aria-current", settings ? "page" : "false");
-  if (opened) showMeeting(opened, words);
+  // Drawn with what was read before it, never with a newer reading taken meanwhile.
+  if (opened) {
+    makings = seen;
+    showMeeting(opened, words);
+  }
   paintMakings();
   if (settings) {
     const [shown, minutes] = await Promise.all([
       window.__TAURI__.core.invoke("settings_shown"),
       window.__TAURI__.core.invoke("minutes_shown"),
     ]);
+    if (mine !== drawing) return;
     showSettings(shown, minutes, words);
   }
 }
@@ -1253,7 +1343,13 @@ setInterval(async () => {
   keys.hidden = !shortcut;
 }, 1500);
 refresh();
-window.addEventListener("focus", refresh);
+// Coming back to the window draws it anew — unless who writes the minutes is being chosen there
+// and not yet saved: that choice stays.
+window.addEventListener("focus", () => {
+  const choosing = document.querySelector("#minutes-unsaved:not([hidden])")
+    || [...document.querySelectorAll("#settings .fields input")].some((input) => input.value !== input.defaultValue);
+  if (!choosing) refresh();
+});
 window.addEventListener("hashchange", () => {
   refresh();
   window.scrollTo(0, 0);

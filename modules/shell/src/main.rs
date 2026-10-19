@@ -90,8 +90,9 @@ struct Shell {
     /// What writes them, and since when: said on the meeting's page (D25).
     minutes_by: Mutex<Option<(String, String, Instant)>>,
     /// Meetings whose minutes wait for the user's agreement to send them, and to which host: set
-    /// aside, said on their page; the line never waits behind them (D25).
-    awaiting: Mutex<HashMap<PathBuf, String>>,
+    /// aside, said on their page, in the order they were set aside; the line never waits behind
+    /// them (D25).
+    awaiting: Mutex<Vec<(PathBuf, String)>>,
     /// Minutes asked while others were written: made in turn, never dropped (D25).
     minutes_waiting: Mutex<VecDeque<Queued>>,
     /// Why the last minutes of a meeting were not written, until they are (D25).
@@ -99,9 +100,21 @@ struct Shell {
     /// How many times each meeting's minutes were written since the start: a page drawn with
     /// fewer is drawn again, however quickly they were made (D25).
     minutes_made: Mutex<HashMap<PathBuf, u64>>,
+    /// The model each meeting's last minutes were asked with, when one was named (a Refaire…):
+    /// tried again, with that one (D25).
+    minutes_tried: Mutex<HashMap<PathBuf, Option<(String, String)>>>,
     /// The sessions whose transcripts wait for the one being made, or for the model — in
-    /// the order they were asked, each once.
-    waiting: Mutex<VecDeque<PathBuf>>,
+    /// the order they were asked, each once; with the model a *Refaire…* chose (D25).
+    waiting: Mutex<VecDeque<(PathBuf, Option<PathBuf>)>>,
+    /// The model making the transcript, and since when: said on the meeting's page (D25).
+    hearing_by: Mutex<Option<(String, Instant)>>,
+    /// Why a meeting's last transcript was not made, until one is begun (D25).
+    transcripts_failed: Mutex<HashMap<PathBuf, String>>,
+    /// How many transcripts each meeting got since the start: its page drawn with fewer is drawn
+    /// again (D25).
+    transcripts_made: Mutex<HashMap<PathBuf, u64>>,
+    /// The same for the transcript: the Whisper model a Refaire… chose, tried again with it.
+    transcripts_tried: Mutex<HashMap<PathBuf, Option<PathBuf>>>,
     /// The tray's menu, and its entry that fetches the default model — in it only while the
     /// model is needed and not there.
     menu: Menu<Wry>,
@@ -148,11 +161,13 @@ fn main() {
             small_window,
             full_window,
             minutes_asked,
+            minutes_again,
             busy_meetings,
             freed,
             minutes_redo,
             transcript_redo,
             transcript_asked,
+            transcript_again,
             opened,
             open_folder,
             settings_shown,
@@ -191,7 +206,9 @@ fn main() {
                             return;
                         }
                         match transcription::latest(&shell.settings().sessions) {
-                            Some(last) => transcribe(app, last),
+                            Some(last) => {
+                                transcribe(app, last);
+                            }
                             None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
                         }
                     }
@@ -234,11 +251,16 @@ fn main() {
                 writing_minutes: Mutex::new(None),
                 minutes_by: Mutex::new(None),
                 minutes_waiting: Mutex::new(VecDeque::new()),
-                awaiting: Mutex::new(HashMap::new()),
+                awaiting: Mutex::new(Vec::new()),
                 minutes_failed: Mutex::new(HashMap::new()),
                 minutes_made: Mutex::new(HashMap::new()),
+                minutes_tried: Mutex::new(HashMap::new()),
                 asked_again: Mutex::new(HashMap::new()),
                 waiting: Mutex::new(VecDeque::new()),
+                hearing_by: Mutex::new(None),
+                transcripts_failed: Mutex::new(HashMap::new()),
+                transcripts_made: Mutex::new(HashMap::new()),
+                transcripts_tried: Mutex::new(HashMap::new()),
                 menu,
                 download,
                 fetching: Mutex::new(false),
@@ -380,6 +402,16 @@ fn minutes_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Resul
     Ok(())
 }
 
+/// *Try again*, on a meeting whose minutes were not made: asked as they were last, with the model
+/// a Refaire… named then.
+#[tauri::command]
+fn minutes_again(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    let chosen = shell.minutes_tried.lock().unwrap().get(&folder).cloned().flatten();
+    write_minutes(&app, folder, None, chosen);
+    Ok(())
+}
+
 /// *Refaire…*: the minutes made again, with the model chosen on the page, this time only — the
 /// settings' choice when none is named. Through the same gate; the minutes there stay until the
 /// new ones are whole, then go to the trash.
@@ -409,6 +441,22 @@ fn minutes_redo(
 fn transcript_redo(app: AppHandle, shell: State<'_, Shell>, name: String, model: PathBuf) -> Result<(), String> {
     let folder = session_folder(&shell, &name)?;
     retranscribe(&app, folder, model)
+}
+
+/// *Try again*, on a meeting whose transcript was not made: as it was last asked — made again
+/// with the model a Refaire… picked, the transcript there kept until the new one is whole.
+#[tauri::command]
+fn transcript_again(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    // Read, and the lock let go, before it is asked again: retranscribe takes it too.
+    let tried = shell.transcripts_tried.lock().unwrap().get(&folder).cloned().flatten();
+    match tried {
+        Some(model) => retranscribe(&app, folder, model),
+        None => {
+            transcribe(&app, folder);
+            Ok(())
+        }
+    }
 }
 
 #[tauri::command]
@@ -1058,11 +1106,23 @@ fn minutes_ended(app: &AppHandle, folder: &Path, failed: Option<String>) {
 struct Makings {
     minutes: Option<Making>,
     minutes_waiting: Vec<String>,
-    transcript: Option<String>,
+    transcript: Option<Hearing>,
     transcripts_waiting: Vec<String>,
+    /// The line waits for the default Whisper model, offered in the menu, or coming.
+    model_needed: bool,
+    model_coming: bool,
+    transcripts_failed: HashMap<String, String>,
+    transcripts_made: HashMap<String, u64>,
     failed: HashMap<String, String>,
     awaiting: HashMap<String, String>,
     made: HashMap<String, u64>,
+}
+
+#[derive(serde::Serialize)]
+struct Hearing {
+    name: String,
+    model: String,
+    seconds: u64,
 }
 
 #[derive(serde::Serialize)]
@@ -1098,8 +1158,37 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .iter()
             .map(|queued| named(&queued.folder))
             .collect(),
-        transcript: shell.hearing.lock().unwrap().as_deref().map(named),
-        transcripts_waiting: shell.waiting.lock().unwrap().iter().map(|folder| named(folder)).collect(),
+        transcript: shell
+            .hearing
+            .lock()
+            .unwrap()
+            .as_deref()
+            .zip(shell.hearing_by.lock().unwrap().clone())
+            .map(|(folder, (model, since))| Hearing {
+                name: named(folder),
+                model,
+                seconds: since.elapsed().as_secs(),
+            }),
+        transcripts_waiting: shell.waiting.lock().unwrap().iter().map(|(folder, _)| named(folder)).collect(),
+        model_needed: {
+            let model = &shell.settings().model;
+            *model == Settings::default().model && !model.is_file()
+        },
+        model_coming: *shell.fetching.lock().unwrap(),
+        transcripts_failed: shell
+            .transcripts_failed
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(folder, why)| (named(folder), why.clone()))
+            .collect(),
+        transcripts_made: shell
+            .transcripts_made
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(folder, times)| (named(folder), *times))
+            .collect(),
         failed: shell
             .minutes_failed
             .lock()
@@ -1134,7 +1223,7 @@ struct AskedAgain {
 /// are looked at again, in the line — made now, or still waiting for the word, said anew.
 fn look_again(app: &AppHandle) {
     let shell = app.state::<Shell>();
-    let aside: Vec<PathBuf> = shell.awaiting.lock().unwrap().drain().map(|(folder, _)| folder).collect();
+    let aside: Vec<PathBuf> = shell.awaiting.lock().unwrap().drain(..).map(|(folder, _)| folder).collect();
     let named = shell
         .reread()
         .ok()
@@ -1172,6 +1261,9 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                 queued.chosen = chosen;
             }
         } else if *being != folder || chosen.is_some() {
+            // In line now: no longer set aside, and an earlier choice made for it is not the one.
+            shell.awaiting.lock().unwrap().retain(|(aside, _)| *aside != folder);
+            shell.asked_again.lock().unwrap().remove(&folder);
             waiting.push_back(Queued {
                 folder,
                 agreed: agreed_now.map(str::to_string),
@@ -1183,9 +1275,10 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
     let again = chosen.is_some();
     let asked_again = chosen.clone();
     drop(writing);
+    shell.minutes_tried.lock().unwrap().insert(folder.clone(), chosen.clone());
     // Not started: said on the meeting's page as well as in a notification (D25).
     let refused = |why: String| {
-        shell.awaiting.lock().unwrap().remove(&folder);
+        shell.awaiting.lock().unwrap().retain(|(aside, _)| *aside != folder);
         shell.minutes_failed.lock().unwrap().insert(folder.clone(), why);
     };
     let settings = match shell.reread() {
@@ -1218,7 +1311,10 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
         return tell(app, &words::minutes(&words::Minutes::Failed(why), shell.language));
     };
     if agreed_now != Some(host.as_str()) && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
-        shell.awaiting.lock().unwrap().insert(folder.clone(), host.clone());
+        let mut awaiting = shell.awaiting.lock().unwrap();
+        awaiting.retain(|(aside, _)| *aside != folder);
+        awaiting.push((folder.clone(), host.clone()));
+        drop(awaiting);
         // Made again with a model chosen on the page: once agreed, with that model, as asked.
         let mut asked = shell.asked_again.lock().unwrap();
         match asked_again {
@@ -1246,7 +1342,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
     drop(writing);
     // Started: out of the line, its agreement given, its last failure gone.
     shell.minutes_waiting.lock().unwrap().retain(|queued| queued.folder != folder);
-    shell.awaiting.lock().unwrap().remove(&folder);
+    shell.awaiting.lock().unwrap().retain(|(aside, _)| *aside != folder);
     *shell.minutes_by.lock().unwrap() = Some((model.clone(), host.clone(), Instant::now()));
     shell.minutes_failed.lock().unwrap().remove(&folder);
     minuting(app, true);
@@ -1492,11 +1588,73 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     }
 }
 
-/// Puts a session in line for its transcript, once.
-fn wait(shell: &Shell, folder: PathBuf) {
+/// Puts a session in line for its transcript, once — with the model a *Refaire…* chose, the
+/// newer choice kept when it is asked again.
+fn wait(shell: &Shell, folder: PathBuf, model: Option<PathBuf>) {
     let mut waiting = shell.waiting.lock().unwrap();
-    if !waiting.contains(&folder) {
-        waiting.push_back(folder);
+    match waiting.iter_mut().find(|(queued, _)| *queued == folder) {
+        Some((_, chosen)) if model.is_some() => *chosen = model,
+        Some(_) => {}
+        None => waiting.push_back((folder, model)),
+    }
+}
+
+/// A transcript begun: what makes it, said on its page; its last failure gone.
+fn hearing(shell: &Shell, folder: &Path, model: &Path) {
+    *shell.hearing.lock().unwrap() = Some(folder.to_path_buf());
+    let name = model
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    *shell.hearing_by.lock().unwrap() = Some((name, Instant::now()));
+    shell.transcripts_failed.lock().unwrap().remove(folder);
+}
+
+/// A transcript ended: counted when written, its reason kept when not — said on its page.
+fn heard(shell: &Shell, folder: &Path, made: &Made) {
+    shell.hearing.lock().unwrap().take();
+    shell.hearing_by.lock().unwrap().take();
+    match made {
+        Made::Written(_) => *shell.transcripts_made.lock().unwrap().entry(folder.to_path_buf()).or_default() += 1,
+        Made::Failed(why) => {
+            let why = if why.trim().is_empty() {
+                "summit-transcription stopped without saying why"
+            } else {
+                why
+            };
+            shell
+                .transcripts_failed
+                .lock()
+                .unwrap()
+                .insert(folder.to_path_buf(), why.to_string());
+        }
+    }
+}
+
+/// The next transcript in line, once one ends: made, or made again with the model a Refaire…
+/// chose; one that cannot begin says why on its page, and the next one is taken.
+fn transcribe_next(app: &AppHandle) {
+    let shell = app.state::<Shell>();
+    loop {
+        let Some((folder, model)) = shell.waiting.lock().unwrap().pop_front() else {
+            return;
+        };
+        let begun = match model {
+            None => transcribe(app, folder),
+            Some(model) => match retranscribe(app, folder.clone(), model.clone()) {
+                Ok(()) => Begun::Yes,
+                Err(why) => {
+                    shell.transcripts_tried.lock().unwrap().insert(folder.clone(), Some(model));
+                    shell.transcripts_failed.lock().unwrap().insert(folder, why);
+                    Begun::Not
+                }
+            },
+        };
+        // Begun, or the line waits — for the one being made, or for the model: never taken again
+        // at once.
+        if begun != Begun::Not {
+            return;
+        }
     }
 }
 
@@ -1508,8 +1666,12 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
     let shell = app.state::<Shell>();
     let mut running = shell.transcription.lock().unwrap();
     if running.is_some() {
-        return Err("a transcript is being made: try again once it is done".into());
+        // One at a time: it waits its turn, said on its page — the one being made too.
+        drop(running);
+        wait(&shell, folder, Some(model));
+        return Ok(());
     }
+    shell.transcripts_tried.lock().unwrap().insert(folder.clone(), Some(model.clone()));
     let settings = shell.reread()?;
     if !settings::whisper_models(&models_folder(), &settings).contains(&model) {
         return Err(format!("{} is no model on this computer", model.display()));
@@ -1535,15 +1697,18 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
     // Who puts the earlier transcript back, or trashes it: this run's end, or Summit quitting —
     // whichever comes first takes it, the other finds nothing.
     *shell.redoing.lock().unwrap() = previous.clone().map(|previous| (current.clone(), previous));
-    *shell.hearing.lock().unwrap() = Some(folder.clone());
+    hearing(&shell, &folder, &model);
     drop(running);
     transcribing(app, true);
     let app = app.clone();
     std::thread::spawn(move || {
         let made = made.recv().unwrap_or(Made::Failed(String::new()));
         let shell = app.state::<Shell>();
-        shell.transcription.lock().unwrap().take();
-        shell.hearing.lock().unwrap().take();
+        // Ended and said so at once: none begun in between loses what it says of itself.
+        let mut running = shell.transcription.lock().unwrap();
+        running.take();
+        heard(&shell, &folder, &made);
+        drop(running);
         transcribing(&app, false);
         // Replaced, the earlier transcript goes to the trash — refused, it stays beside, and it is
         // said; not replaced, it is put back — failing that, it is said where it is.
@@ -1565,51 +1730,65 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
             tell(&app, &words::transcript_kept_beside(shell.language, &name, not_put_back));
         }
         // The transcripts waiting in line go on, as after any other.
-        let next = shell.waiting.lock().unwrap().pop_front();
-        if let Some(folder) = next {
-            transcribe(&app, folder);
-        }
+        transcribe_next(&app);
     });
     Ok(())
 }
 
 /// Makes the transcript of a session — after the one being made, if there is one. What is
-/// missing — the model, the program — is said in one sentence; the recording is never touched.
-fn transcribe(app: &AppHandle, folder: PathBuf) {
+/// missing — the model, the program — is said in one sentence, and on its page; the recording is
+/// never touched. Whether it began.
+fn transcribe(app: &AppHandle, folder: PathBuf) -> Begun {
     let shell = app.state::<Shell>();
     let mut running = shell.transcription.lock().unwrap();
     if running.is_some() {
-        return wait(&shell, folder);
+        wait(&shell, folder, None);
+        return Begun::Waits;
     }
+    shell.transcripts_tried.lock().unwrap().insert(folder.clone(), None);
     let _ = shell.reread();
     let model = &shell.settings().model;
     if !model.is_file() {
         // The default model is offered, its size and host shown; one the user named is theirs.
         if *model == Settings::default().model {
-            wait(&shell, folder);
+            wait(&shell, folder, None);
             // Already coming: the session waits for it, and nothing is offered twice.
             if !*shell.fetching.lock().unwrap() {
                 offer(app);
             }
+            return Begun::Waits;
         } else {
-            tell(app, &words::trouble(&Trouble::NoModel(model.display().to_string()), shell.language));
+            let trouble = Trouble::NoModel(model.display().to_string());
+            shell
+                .transcripts_failed
+                .lock()
+                .unwrap()
+                .insert(folder, format!("{} is no model on this computer", model.display()));
+            tell(app, &words::trouble(&trouble, shell.language));
         }
-        return;
+        return Begun::Not;
     }
     let started = Transcription::start(&program("summit-transcription", "SUMMIT_TRANSCRIPTION"), &folder, model);
     let (transcription, made) = match started {
         Ok(started) => started,
-        Err(error) => return tell(app, &words::trouble(&Trouble::NoTranscriber(error.to_string()), shell.language)),
+        Err(error) => {
+            shell.transcripts_failed.lock().unwrap().insert(folder, error.to_string());
+            tell(app, &words::trouble(&Trouble::NoTranscriber(error.to_string()), shell.language));
+            return Begun::Not;
+        }
     };
     *running = Some(transcription);
-    *shell.hearing.lock().unwrap() = Some(folder.clone());
+    hearing(&shell, &folder, model);
     transcribing(app, true);
+    let heard_folder = folder;
     let app = app.clone();
     std::thread::spawn(move || {
         let made = made.recv().unwrap_or(Made::Failed(String::new()));
         let shell = app.state::<Shell>();
-        shell.transcription.lock().unwrap().take();
-        shell.hearing.lock().unwrap().take();
+        let mut running = shell.transcription.lock().unwrap();
+        running.take();
+        heard(&shell, &heard_folder, &made);
+        drop(running);
         transcribing(&app, false);
         // Ended by Summit as it quits: nothing to tell, it goes on next time.
         if *shell.leaving.lock().unwrap() {
@@ -1626,11 +1805,18 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
             }
             Made::Failed(_) => tell(&app, &notice),
         }
-        let next = shell.waiting.lock().unwrap().pop_front();
-        if let Some(folder) = next {
-            transcribe(&app, folder);
-        }
+        transcribe_next(&app);
     });
+    Begun::Yes
+}
+
+/// What asking for a transcript did: begun, put in line — behind the one being made, or until
+/// the model is there —, or not, said on the meeting's page.
+#[derive(PartialEq, Eq)]
+enum Begun {
+    Yes,
+    Waits,
+    Not,
 }
 
 /// The default model as published — or, for whoever tries Summit, as `SUMMIT_MODEL_PUBLISHED`
@@ -1714,9 +1900,12 @@ fn fetch(app: &AppHandle) {
             let shell = handle.state::<Shell>();
             let _ = shell.menu.remove(&shell.download);
         });
-        let next = shell.waiting.lock().unwrap().pop_front();
-        if let Some(folder) = next.or_else(|| transcription::latest(&shell.settings().sessions)) {
-            transcribe(&app, folder);
+        if shell.waiting.lock().unwrap().is_empty() {
+            if let Some(folder) = transcription::latest(&shell.settings().sessions) {
+                transcribe(&app, folder);
+            }
+        } else {
+            transcribe_next(&app);
         }
     });
 }

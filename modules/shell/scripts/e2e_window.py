@@ -59,6 +59,7 @@ HEARING = WORK / "summit-transcription"
 HEARING.write_text(
     """#!/bin/sh
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "summit-transcription: the engine stopped" >&2; exit 1; }
+[ -e "$(dirname "$0")/slow-hearing" ] && sleep 3
 model=$(basename "$3" .bin)
 printf '{"type":"header","contract":"transcript/v1","engine":"e","model":"%s","language":null,"context":null}\\n{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Refait avec %s."}\\n{"type":"complete","duration":1.0}\\n' "$model" "$model" > "$1/transcript.jsonl"
 """
@@ -569,13 +570,24 @@ def main() -> int:
             offered == ["Pas encore choisi", "mistral:7b", "qwen3:14b", "OpenRouter", "OpenAI", "Mistral", "Personnalisé…"],
             offered,
         )
+        # Going through the list never saves: what is chosen is saved on the word (D25).
         before = browser.find_element(By.ID, "minutes")
+        Select(before).select_by_visible_text("qwen3:14b")
         Select(before).select_by_visible_text("mistral:7b")
+        time.sleep(1)
+        unsaid = browser.find_element(By.ID, "minutes-unsaved")
+        shot(browser, "8-minutes-unsaved")
+        check(
+            "a model chosen in the list is not saved by itself; who still writes them is said",
+            "minutes_" not in window.file.read_text() and unsaid.is_displayed() and unsaid.text == "Pas encore enregistré — aucun compte rendu n’est fait tant que ce n’est pas le cas.",
+            (window.file.read_text(), unsaid.text),
+        )
+        browser.find_element(By.ID, "minutes-save").click()
         WebDriverWait(browser, 5).until(staleness_of(before))
         local = wait_for(browser, lambda b: "mistral:7b" in window.file.read_text(), 5)
         check(
-            "a model of Ollama is chosen at once",
-            local and f'minutes_provider = "{ollama}/v1"' in window.file.read_text(),
+            "a model of Ollama is saved on the word, nothing left unsaid",
+            local and f'minutes_provider = "{ollama}/v1"' in window.file.read_text() and not browser.find_element(By.ID, "minutes-unsaved").is_displayed(),
             window.file.read_text(),
         )
         # Tester asks summit-summary about the choice saved: no key for Ollama here.
@@ -736,7 +748,10 @@ def main() -> int:
             and (WORK / "summary-args").read_text().split()[1:] == ["--provider", f"{ollama}/v1", "--model", "qwen3:14b"],
             text,
         )
-        # A meeting without its minutes offers them on its page, made on the word.
+        # A meeting without its minutes offers them on its page, made on the word — once the ones
+        # before are ended: while they are made, it is not offered.
+        idle = lambda b: b.execute_async_script("window.__TAURI__.core.invoke('makings').then(m => arguments[arguments.length - 1](m.minutes === null))")
+        wait_for(browser, idle, 10)
         (asked / "minutes.md").unlink()
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
@@ -813,9 +828,9 @@ def main() -> int:
         check("the list says it, on the meeting's row", chip_)
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-agree"), 5)
-        browser.find_element(By.ID, "minutes-agree").click()
+        press(browser, "minutes-agree")
         wait_for(browser, lambda b: b.find_elements(By.ID, "agree-not"))
-        browser.find_element(By.ID, "agree-not").click()
+        press(browser, "agree-not")
         kept_ = wait_for(browser, lambda b: makings()["awaiting"] == {"2026-10-18_11-00": "openrouter.ai"}, 3)
         check("not now: still waiting for the word, nothing sent", kept_ and (WORK / "summary-args").read_text().split()[-1] == "mistral:7b", makings())
         # The settings changed to this computer meanwhile: looked at again, made, no word needed.
@@ -844,7 +859,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
-        browser.find_element(By.ID, "redo-minutes").click()
+        press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
         browser.execute_script("document.getElementById('redo-panel').scrollIntoView({block: 'center'})")
         shot(browser, "6-redo")
@@ -884,7 +899,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
-        browser.find_element(By.ID, "redo-minutes").click()
+        press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
         browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
         browser.find_element(By.ID, "redo-do").click()
@@ -901,7 +916,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
-        browser.find_element(By.ID, "redo-minutes").click()
+        press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
         browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[0].click()
         time.sleep(1)
@@ -927,7 +942,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
-        browser.find_element(By.ID, "redo-minutes").click()
+        press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
         browser.find_element(By.ID, "redo-do").click()
         # The new minutes written — they name their model —, then a moment for what follows them.
@@ -940,7 +955,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
-        browser.find_element(By.ID, "redo-minutes").click()
+        press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
         browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
         browser.find_element(By.ID, "redo-do").click()
@@ -971,7 +986,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript"))
-        browser.find_element(By.ID, "redo-transcript").click()
+        press(browser, "redo-transcript")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-do"))
         offered = browser.execute_script("return [...document.querySelectorAll('#redo-transcript-panel .choice .name')].map(c => c.textContent)")
         check("Refaire offers the Whisper models of this computer, the one chosen first", offered == ["Whisper large v3 turbo", "Whisper small"], offered)
@@ -993,7 +1008,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript"))
-        browser.find_element(By.ID, "redo-transcript").click()
+        press(browser, "redo-transcript")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-do"))
         browser.find_element(By.ID, "redo-transcript-do").click()
         time.sleep(3)
@@ -1003,6 +1018,41 @@ def main() -> int:
             (asked / "transcript.jsonl").read_text() == heard and not sorted(asked.glob("transcript-before-*")),
             (asked / "transcript.jsonl").read_text(),
         )
+        heard_state = lambda b: b.find_element(By.ID, "transcript-state").text if b.find_elements(By.ID, "transcript-state") else ""
+        unmade = wait_for(browser, lambda b: "Le transcript n’a pas été fait : " in heard_state(b) and b.find_elements(By.ID, "transcript-again"), 5)
+        shot(browser, "9-transcript-failed")
+        check("a transcript not made says why on its card, with a way to try again", unmade, heard_state(browser))
+        # Tried again as it was asked: made again with the model the Refaire… picked, not resumed.
+        # Made again — the one there set aside, then in the trash —, never resumed from it.
+        trashed_before = len(sorted(trash_files.glob("transcript-before-*.jsonl")))
+        press(browser, "transcript-again")
+        tried = wait_for(browser, lambda b: len(sorted(trash_files.glob("transcript-before-*.jsonl"))) == trashed_before + 1, 10)
+        check("Try again after a Refaire… makes it again with the model it picked", tried and "Refait avec ggml-large" in (asked / "transcript.jsonl").read_text(), (asked / "transcript.jsonl").read_text() if (asked / "transcript.jsonl").exists() else "")
+        back_ = wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript"), 5)
+        check("Refaire… is offered again once asked, the panel gone", back_)
+        # Being made: said on its card, by which model, for how long; a Refaire… meanwhile waits its
+        # turn — the one being made too —, then is made, and the card shows it by itself.
+        (WORK / "slow-hearing").touch()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript"))
+        press(browser, "redo-transcript")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-do"))
+        paths = [i.get_attribute("value") for i in browser.find_elements(By.CSS_SELECTOR, "#redo-transcript-panel input")]
+        browser.find_elements(By.CSS_SELECTOR, "#redo-transcript-panel input")[1].click()
+        browser.find_element(By.ID, "redo-transcript-do").click()
+        making_ = wait_for(browser, lambda b: "Transcription en cours" in heard_state(b), 3)
+        shot(browser, "7-transcript-making")
+        check("while it is made, its card says so — what, by which model, for how long",
+              making_ and "Whisper small · 0:0" in heard_state(browser) and not browser.find_elements(By.ID, "transcript-again"), heard_state(browser))
+        browser.execute_script("window.__TAURI__.core.invoke('transcript_redo', {name: '2026-10-18_11-00', model: arguments[0]})", paths[0])
+        lined = lambda b: b.execute_async_script("window.__TAURI__.core.invoke('makings').then(m => arguments[arguments.length - 1](m.transcripts_waiting))")
+        queued = wait_for(browser, lambda b: lined(b) == ["2026-10-18_11-00"], 3)
+        check("a Refaire… while one is made waits its turn, never refused", queued, lined(browser))
+        (WORK / "slow-hearing").unlink()
+        said_ = lambda: (asked / "transcript.jsonl").read_text() if (asked / "transcript.jsonl").exists() else ""
+        turned = wait_for(browser, lambda b: "Refait avec ggml-large" in said_() and "Refait avec ggml-large" in b.find_element(By.ID, "meeting").text and not b.find_element(By.ID, "transcript-state").is_displayed(), 15)
+        check("then made in its turn, and the card shows it by itself", turned, (said_(), heard_state(browser)))
     tags.shutdown()
 
     print("P. freeing space: the audio alone or the whole meeting, the heaviest first, to the trash")
