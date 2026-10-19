@@ -431,6 +431,8 @@ pub struct Window {
     pub key_kept: &'static str,
     pub save: &'static str,
     pub where_online: &'static str,
+    /// The model saved, which this computer's Ollama does not have ({} the model).
+    pub ollama_lacks: &'static str,
     pub not_chosen: &'static str,
 }
 
@@ -611,6 +613,7 @@ pub fn window(language: Language) -> Window {
             key_kept: "A key is kept in the system's keyring; a new one replaces it.",
             save: "Save",
             where_online: "Online — the transcript's text is sent",
+            ollama_lacks: "Ollama, on this computer, has no model named {}: choose one in the list, or fetch it with Ollama.",
             not_chosen: "Not chosen yet",
         },
         Language::French => Window {
@@ -788,6 +791,7 @@ pub fn window(language: Language) -> Window {
             key_kept: "Une clé est gardée dans le trousseau du système ; une nouvelle la remplace.",
             save: "Enregistrer",
             where_online: "En ligne — le texte du transcript est envoyé",
+            ollama_lacks: "Ollama, sur cet ordinateur, n’a pas de modèle nommé {} : choisissez-en un dans la liste, ou récupérez-le avec Ollama.",
             not_chosen: "Pas encore choisi",
         },
     }

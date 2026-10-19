@@ -693,13 +693,21 @@ function minutesRow(minutes, words, locked) {
       where.textContent = "";
       return;
     }
-    where.className = "status online";
     let shown = minutes.provider ?? "";
     try {
       const address = new URL(value === "custom" ? minutes.provider : minutes.online[Number(value.split(":")[1])].address);
       shown = `${address.host}${address.pathname}`;
     } catch {}
-    where.replaceChildren(words.where_online, element("code", "tag", shown));
+    // The address saved is this machine — Ollama with a model it does not list, or another server
+    // here —: said as it is, nothing leaves; and a model Ollama does not have, named.
+    const here = value === "custom" && value === current && minutes.provider_local;
+    where.className = here ? "status here" : "status online";
+    where.replaceChildren(here ? words.on_this_computer : words.where_online, element("code", "tag", shown));
+    if (here && minutes.provider === minutes.ollama_address && minutes.model && !minutes.ollama.includes(minutes.model)) {
+      const lacking = element("p", "says warn", fill(words.ollama_lacks, minutes.model));
+      lacking.id = "minutes-lacking";
+      fields.append(lacking);
+    }
     const custom = value === "custom";
     const [addressWrap, address] = field("minutes-address", words.address, "url", custom && current === "custom" ? minutes.provider : "");
     const [modelWrap, model] = field("minutes-model", words.model_name, "text", current === value ? minutes.model : "");

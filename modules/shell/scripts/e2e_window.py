@@ -590,6 +590,23 @@ def main() -> int:
             local and f'minutes_provider = "{ollama}/v1"' in window.file.read_text() and not browser.find_element(By.ID, "minutes-unsaved").is_displayed(),
             window.file.read_text(),
         )
+        # This computer's Ollama with a model it does not have: said as here — nothing leaves —,
+        # and the model it lacks named; never "online, the transcript's text is sent".
+        saved = window.file.read_text()
+        window.file.write_text(saved.replace('minutes_model = "mistral:7b"', 'minutes_model = "absent:latest"'))
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/settings'")
+        lacking = wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-lacking"), 5)
+        said = " ".join(p.text for p in browser.find_elements(By.CSS_SELECTOR, "#settings .status, #minutes-lacking"))
+        check(
+            "this computer's Ollama with a model it lacks: said here, nothing leaves, the model named",
+            lacking and "Sur cet ordinateur" in said and "En ligne" not in said and "absent:latest" in said,
+            said,
+        )
+        window.file.write_text(saved)
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-test"), 5)
         # Tester asks summit-summary about the choice saved: no key for Ollama here.
         browser.find_element(By.ID, "minutes-test").click()
         answered = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").text == "Le modèle répond.", 10)
