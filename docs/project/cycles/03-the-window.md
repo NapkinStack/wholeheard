@@ -309,6 +309,24 @@ minutes' form said so in a notification alone. In Settings, picking a local mode
 once — the decider's file held `codellama:latest`, a model for code. It fits what is left of the
 appetite; the end date does not move.
 
+Built, each verified by an independent session: the minutes' line, never waiting on an
+agreement — one that needs it set aside and said, the next made —, each state said on the
+meeting's page and its row (#244); the same for the transcript, a Refaire… waiting its turn, the
+minutes' model saved only on *Enregistrer* (#246); a Refaire… never held behind the model, Try
+again saying why (#247). Found on the way and fixed: a lock taken twice that froze the window
+(the e2e now stops after 20 minutes), a page drawn again under a click.
+
+**Offered for acceptance** — its acceptance issue: [#254](https://github.com/NapkinStack/summit/issues/254), the decider's.
+
+| Criterion | Where it stands |
+|---|---|
+| Being made: what, by which model, for how long, on the page and the list; one asked meanwhile waits and says so, never dropped; a failure said on the page with its reason | Holds on stand-in programs — the shell's e2e, scenario N. Real models and the decider's eye: the trial |
+| Nothing saved before the user's gesture in Settings, what is in use said | Holds — the e2e: going through the list saves nothing, *Pas encore enregistré…* says who still writes them |
+
+Left, minor: a meeting put in line during a Refaire… while the default model is missing is
+never offered its download (as before D25); the line's head moved behind when the model
+arrives during a Refaire….
+
 ### D27
 
 **Added on the decider's word, 2026-10-18**: "can Summit run on Ubuntu? … for Ubuntu, I think
@@ -318,6 +336,27 @@ container of the system it ships to, chosen by the environment every release rea
 0.9.6), and `install` makes the `.deb` there too — Fedora's package built the same way. Tried
 with `apt` in an Ubuntu that never saw Summit, as Fedora's with `dnf`. A colleague with the
 repository's access is the trial. macOS stays *Later*: no macOS container; a Mac builds it.
+
+Built, each verified by an independent session: each program built in a container of the system
+`SUMMIT_TARGET` names, from its module's own recipe (#249 capture, #250 transcription, #251
+summary, #252 shell); `install` makes that system's package — the `.deb` read by
+`dpkg-shlibdeps`, the rpm as before (#253). Found by the verifier and fixed: whisper.cpp tuned to
+this laptop's processor (AVX-512) — a program that would stop on another — now built for
+x86-64-v3 whoever builds it; and the graphics card: ADR-0003 chose Vulkan, the release never
+built it — now built in, measured 24 s against 367 s for a meeting of 1 min 45, falling back to
+the processor where there is none. Only capture and transcription failed on Ubuntu when built
+on Fedora (`GLIBC_2.43`); summary and the shell are built on their target all the same.
+
+**Offered for acceptance** — its acceptance issue: [#255](https://github.com/NapkinStack/summit/issues/255), a colleague on Ubuntu 24.04.
+
+| Criterion | Where it stands |
+|---|---|
+| `sudo apt install ./summit_<version>_amd64.deb`; Summit in the menu and the tray with nothing built or set; removed, meetings and settings stay | Holds in an Ubuntu 24.04 that never saw Summit — `install`'s e2e on the real `.deb` (11 MB): every library found, each program run, nothing installed but its files and folders, no script, removed with a user's files still there. The desktop, the tray, a real meeting: the trial |
+| Built in a container of the system it ships to, no package depending on the machine that made it | Holds — the four programs and both packages built in containers of Ubuntu 24.04 and Fedora 44; no AVX-512 required (what remains is chosen at run time) |
+
+Left, minor: the processors' flags given by `.cargo/config.toml` yield to a variable set in the
+shell (`force = true`); the e2e's judge examines nothing when the listing itself fails (not
+reachable today); build folders of earlier images are never cleaned; `rustup-init` not pinned.
 
 ### D26
 
