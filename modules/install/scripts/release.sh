@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # What a user installs, for the system SUMMIT_TARGET names — as the programs were built for it
-# (D27): `fedora-*`, an rpm made with rpmbuild; `ubuntu-*`, a .deb made with dpkg; unset, an rpm
-# for this Fedora. One package of the four programs, made in a container of that system so that
+# (D27): `fedora-*`, an rpm made with rpmbuild; `ubuntu-*`, a .deb made with dpkg; unset, the
+# package of the system it runs on. One package of the four programs, made in a container of that system so that
 # the libraries each program links are read there and required by their packages.
 # Reads what the assembled modules' releases left beside this one's folder ($NSTACK_DIST/..).
 set -euo pipefail
@@ -9,7 +9,8 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 dist=${NSTACK_DIST:?run through nstack release, which names this module\'s artefacts folder}
 artefacts=$(cd "$dist/.." && pwd)
 version=$(cat "$artefacts/shell/VERSION")
-target=${SUMMIT_TARGET:-fedora-$(rpm -E %fedora 2>/dev/null || echo unknown)}
+# Unset, the system this runs on, as it names itself (fedora-44, ubuntu-24.04).
+target=${SUMMIT_TARGET:-$(. /etc/os-release && echo "$ID-$VERSION_ID")}
 # No relabelling of what is mounted (`:Z` would relabel the files in place): labels left alone.
 case $target in
   fedora-[0-9]*)
