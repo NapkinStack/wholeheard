@@ -4,7 +4,7 @@ Architecture: @ARCH@
 Maintainer: Summit <Hello@c12c.com>
 Installed-Size: @SIZE@
 Depends: @DEPENDS@
-Recommends: gnome-shell-extension-appindicator
+Recommends: gnome-shell-extension-appindicator, mesa-vulkan-drivers
 Section: sound
 Priority: optional
 Description: Records a meeting, transcribes it and writes its minutes, on your machine

@@ -46,6 +46,8 @@ check("its control names the package, its version and its dependencies as comput
       all(f"{field}: @" in control for field in ("Version", "Architecture", "Depends")) and "Package: summit" in control)
 scripts = [f for f in os.listdir(os.path.dirname(sys.argv[3])) if f in ("preinst", "postinst", "prerm", "postrm", "triggers")]
 check("no maintainer script: installing and removing touch nothing but the package's files", not scripts, scripts)
+check("the graphics card's Vulkan driver recommended by both: the transcript is made there",
+      re.search(r"^Recommends:\s+mesa-vulkan-drivers$", spec, re.M) is not None and "mesa-vulkan-drivers" in control)
 print("test: passed" if not failed else "test: FAILED")
 sys.exit(failed)
 PY

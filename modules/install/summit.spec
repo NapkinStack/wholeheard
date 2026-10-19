@@ -12,6 +12,9 @@ Requires:       pipewire-utils
 Requires:       (libayatana-appindicator-gtk3 or libappindicator-gtk3)
 # GNOME shows a tray icon only with this extension.
 Recommends:     gnome-shell-extension-appindicator
+# The graphics card's Vulkan driver: the transcript made there, a tenth of the meeting's length;
+# without it, on the processor. Installed on a desktop already.
+Recommends:     mesa-vulkan-drivers
 
 %description
 Summit records both sides of a call from the system tray, transcribes it on the machine with

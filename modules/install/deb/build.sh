@@ -5,7 +5,7 @@
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends dpkg-dev binutils \
-  libwebkit2gtk-4.1-0 libgtk-3-0t64 librsvg2-2 libpipewire-0.3-0t64 libasound2t64 >/dev/null
+  libwebkit2gtk-4.1-0 libgtk-3-0t64 librsvg2-2 libpipewire-0.3-0t64 libasound2t64 libvulkan1 >/dev/null
 root=/tmp/package
 for program in shell/summit capture/summit-capture transcription/summit-transcription summary/summit-summary; do
   install -Dm755 "/artefacts/$program" "$root/usr/bin/${program#*/}"
