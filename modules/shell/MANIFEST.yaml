@@ -166,14 +166,10 @@ dependencies:
 # description (fitness M7): declare them before its first file of code.
 commands:
   bootstrap: bash scripts/bootstrap.sh
-  check: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
+  check: bash -n scripts/release.sh && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
   test: cargo test --locked
   run: cargo run --locked --release --bin summit
-  release: >-
-    cargo build --locked --release
-    && cp target/release/summit linux/dev.summit.Summit.desktop "$NSTACK_DIST/"
-    && cp icons/icon.png "$NSTACK_DIST/dev.summit.Summit.png"
-    && python3 -c 'import json; print(json.load(open("tauri.conf.json"))["version"])' > "$NSTACK_DIST/VERSION"
+  release: bash scripts/release.sh
   e2e: bash scripts/e2e.sh
   clean: cargo clean
 
