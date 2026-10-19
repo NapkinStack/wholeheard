@@ -1,0 +1,10 @@
+# whisper.cpp tunes itself to the processor that builds it unless told otherwise: a program that
+# would stop on a processor without this one's instructions (AVX-512). Built for the processors of
+# the last ten years instead — AVX2, FMA, F16C (x86-64-v3) — whoever builds it, however (D27).
+# whisper-rs-sys does not rebuild when these change: after a change, `cargo clean -p whisper-rs-sys`.
+[env]
+GGML_NATIVE = "OFF"
+GGML_AVX = "ON"
+GGML_AVX2 = "ON"
+GGML_FMA = "ON"
+GGML_F16C = "ON"
