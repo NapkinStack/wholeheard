@@ -27,6 +27,12 @@ if [ ${#binaries[@]} -gt 0 ]; then
 fi
 depends="${linked:+$linked, }pipewire-bin, libayatana-appindicator3-1 | libappindicator3-1"
 mkdir -p "$root/DEBIAN"
-sed -e "s/@VERSION@/$version/" -e "s/@ARCH@/$(dpkg --print-architecture)/" \
-  -e "s/@SIZE@/$(du -sk "$root/usr" | cut -f1)/" -e "s/@DEPENDS@/$depends/" /deb/control.in > "$root/DEBIAN/control"
+# Filled in by bash, never sed: no character of a dependency can break the line it goes in.
+shopt -u patsub_replacement 2>/dev/null || :   # bash 5.2: an & in what replaces is that, not the match
+control=$(< /deb/control.in)
+control=${control//@VERSION@/$version}
+control=${control//@ARCH@/$(dpkg --print-architecture)}
+control=${control//@SIZE@/$(du -sk "$root/usr" | cut -f1)}
+control=${control//@DEPENDS@/$depends}
+printf '%s\n' "$control" > "$root/DEBIAN/control"
 dpkg-deb --build --root-owner-group "$root" "/out/summit_${version}_$(dpkg --print-architecture).deb" >/dev/null

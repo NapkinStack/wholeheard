@@ -35,8 +35,10 @@ check("no scriptlet: installing and removing touch nothing but the package's fil
 # The .deb (D27): made by deb/build.sh from the same artefacts, it installs what the rpm installs.
 build = open(sys.argv[2], encoding="utf-8").read()
 control = open(sys.argv[3], encoding="utf-8").read()
+# Every path the recipe writes under the package's root, whatever writes it — install, cp, a
+# redirection —; the programs' loop names them from its list.
 deb = {"/usr/bin/" + p.split("/", 1)[1] for p in re.findall(r"^for program in (.+); do$", build, re.M)[0].split()}
-deb |= {m.replace('"$root', "").rstrip('"') for m in re.findall(r'^install -Dm644 \S+ ("\$root/usr/\S+)$', build, re.M)}
+deb |= {m for m in re.findall(r'"\$root(/[^"$]+)"', build) if m != "/usr" and not m.startswith("/DEBIAN")}
 check("the .deb installs what the rpm installs", deb == files, deb ^ files)
 check("pw-metadata and the tray's library named in its dependencies: run and opened, never linked",
       re.search(r"pipewire-bin, libayatana-appindicator3-1 \| libappindicator3-1", build) is not None)

@@ -1,7 +1,7 @@
 Package: summit
 Version: @VERSION@
 Architecture: @ARCH@
-Maintainer: NapkinStack <napkinstack@users.noreply.github.com>
+Maintainer: Summit <Hello@c12c.com>
 Installed-Size: @SIZE@
 Depends: @DEPENDS@
 Recommends: gnome-shell-extension-appindicator
