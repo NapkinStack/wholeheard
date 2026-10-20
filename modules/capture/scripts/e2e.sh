@@ -25,6 +25,13 @@ for tool in ffmpeg ffprobe pw-play pw-dump pw-cli python3; do
 done
 
 cargo build --release --locked 2>&1 | tail -3 >> .evidence/e2e.txt
+# Its clocks are measured against the devices' own, which a loaded machine stamps late: a
+# quiet one is waited for, a few minutes at most — the build just made counts too (#281).
+quiet=$(( $(nproc) / 2 ))
+for _ in $(seq 60); do [ "$(cut -d. -f1 /proc/loadavg)" -lt "$quiet" ] && break; sleep 5; done
+if [ "$(cut -d. -f1 /proc/loadavg)" -ge "$quiet" ]; then
+  say "e2e: NOT RUN — the machine is busy (load $(cut -d' ' -f1 /proc/loadavg), $(nproc) processors): a clock cannot be measured on it"; exit 0
+fi
 bin=${CARGO_TARGET_DIR:-$PWD/target}/release/wholeheard-capture   # where cargo built it
 work=$(mktemp -d)
 # Its logs in the run's folder, never the user's (ADR-0007).
@@ -185,7 +192,7 @@ sleep 2; pw-play "$work/others-a.wav"; sleep 1
 kill -INT "$recorder"; wait "$recorder" || true
 check measure2 same-instant "$(ls -d "$work"/v2-clock/*/ | head -1)" 0.005
 
-say "H. each source as delivered: a source that stops, and comes back"
+say "H. each source as delivered: a source that stops, and comes back — twice"
 pactl set-default-source wholeheard_e2e_mic.monitor
 tone 880 30 "$work/others-long.wav"
 pw-play --target wholeheard_e2e_mic "$work/me.wav" & mic_player=$!
@@ -194,12 +201,14 @@ sleep 0.5
 WHOLEHEARD_TRACE=e2e-h "$bin" record "$work/v2-stops" --as v2 > /dev/null 2>&1 &
 recorder=$!
 sleep 4; python3 scripts/e2e_measure_v2.py pause "$recorder" remote 6   # six seconds without the remote source
-sleep 6
+# Back for three seconds, then gone again: each gap is logged, the second as the first (#285).
+sleep 3; python3 scripts/e2e_measure_v2.py pause "$recorder" remote 4
+sleep 3
 kill -INT "$recorder"; wait "$recorder" || true
 kill "$mic_player" "$others_player" 2>/dev/null || true
 check measure2 stopped-source "$(ls -d "$work"/v2-stops/*/ | head -1)"
 check logged e2e-h capture.started capture.zeros capture.stopped
-check zeros e2e-h 1
+check zeros e2e-h 2
 
 say "I. each source as delivered: a source mute from its start"
 # Its stream paused as soon as it is there: it delivers nothing, and its zeros are logged once.
