@@ -63,6 +63,13 @@ One JSON object per line on its output; errors go to the error stream.
 
 A source is named for the device the system's default stands for when the recording starts — read from PipeWire's metadata — so that a microphone other than the call's shows at once; `wholeheard-capture devices` prints it as `stands_for`. Unread, the default's own name.
 
+A recording follows the user's devices (D31): when the default changes — another chosen, a headset
+unplugged — the system moves the stream, and the track goes on in the form it opened with, the
+system converting the new device's sound to it. The program says `device` with the new one's name,
+or `null` when the system names none, and `session.json` keeps each change with when
+(`recording/v1`, `session-audio/v2`). A microphone chosen inside a call's own application is not
+the system's default, and is not followed.
+
 What it does is logged too — each event but the levels, each source opened with its device,
 rate and channels, a gap of zeros written for a mute source, a stream's error, a failure with its
 detail; never a sound, nor a session's path (ADR-0007): one JSON line per step in
