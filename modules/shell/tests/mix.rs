@@ -134,17 +134,19 @@ fn a_track_of_another_rate_is_heard_at_its_own_pitch_and_length() {
     let remote_note = note(&mixed[52_800..139_200], 48_000);
     assert!((local_note - 440.0).abs() < 3.0, "{local_note}");
     assert!((remote_note - 1000.0).abs() < 3.0, "{remote_note}");
-    // Read by range, the resampled part is the same as read whole, give or take a step.
-    let piece = mix.read(44 + 2 * 100_001, 2 * 4_000).unwrap();
-    let apart = piece
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .zip(&mixed[100_001..104_001])
-        .map(|(pair, whole)| (i32::from(i16::from_le_bytes([pair[0], pair[1]])) - i32::from(*whole)).abs())
-        .max()
-        .unwrap();
-    assert!(apart <= 2, "a range differs from the whole by {apart}");
+    // Read by range from anywhere, the resampled part is the same as read whole, give or take a step.
+    for first in [100_001usize, 100_037, 123_457, 61_111, 139_990] {
+        let piece = mix.read(44 + 2 * first as u64, 2 * 4_000).unwrap();
+        let apart = piece
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .zip(&mixed[first..])
+            .map(|(pair, whole)| (i32::from(i16::from_le_bytes(*pair)) - i32::from(*whole)).abs())
+            .max()
+            .unwrap();
+        assert!(apart <= 2, "from frame {first}, a range differs from the whole by {apart}");
+    }
 }
 
 #[test]

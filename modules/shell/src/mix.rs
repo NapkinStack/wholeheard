@@ -159,14 +159,13 @@ impl Track {
     }
 
     /// Adds this track, of a lower rate, brought up to `rate`, into `sum`: the mix's frames from
-    /// `first`. The resampler always starts on the same grid of its blocks, so a range of the mix
-    /// is made of the same frames, whoever asks for it and from where.
+    /// `first`. The resampler always starts on a frame of the track that falls on a frame of the
+    /// mix, so a range of the mix is made of the same frames, whoever asks for it and from where.
     fn raised(&self, rate: u32, first: i64, sum: &mut [f32]) -> io::Result<()> {
         let failed = |error: &dyn std::fmt::Display| io::Error::other(format!("a track could not be brought to {rate} Hz: {error}"));
         let shared = gcd(self.rate, rate);
         let (taken, given) = (i64::from(self.rate / shared), i64::from(rate / shared));
-        // Blocks of a whole number of the ratio's steps: each starts on a frame of the mix.
-        let chunk = taken * ((1024 + taken - 1) / taken);
+        let chunk = 1024;
         let mut resampler = Fft::<f32>::new_custom(
             self.rate as usize,
             rate as usize,
@@ -180,7 +179,7 @@ impl Track {
         let delay = resampler.output_delay() as i64;
         // Two blocks before the first frame asked, for the resampler to settle.
         let wanted = ((first - self.at) as f64 * taken as f64 / given as f64).floor() as i64;
-        let start = (wanted - 2 * chunk).div_euclid(chunk) * chunk;
+        let start = (wanted - 2 * chunk).div_euclid(taken) * taken;
         let from = self.at + start / taken * given;
         let (mut made, mut read) = (Vec::new(), start);
         let mut out = vec![0.0f32; resampler.output_frames_max()];
