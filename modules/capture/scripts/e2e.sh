@@ -27,7 +27,7 @@ done
 cargo build --release --locked 2>&1 | tail -3 >> .evidence/e2e.txt
 # Its clocks are measured against the devices' own, which a loaded machine stamps late: a
 # quiet one is waited for, a few minutes at most — the build just made counts too (#281).
-quiet=$(( $(nproc) / 2 ))
+quiet=$(( $(nproc) > 1 ? $(nproc) / 2 : 1 ))   # one processor: under 1
 for _ in $(seq 60); do [ "$(cut -d. -f1 /proc/loadavg)" -lt "$quiet" ] && break; sleep 5; done
 if [ "$(cut -d. -f1 /proc/loadavg)" -ge "$quiet" ]; then
   say "e2e: NOT RUN — the machine is busy (load $(cut -d' ' -f1 /proc/loadavg), $(nproc) processors): a clock cannot be measured on it"; exit 0
