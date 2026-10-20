@@ -103,16 +103,17 @@ deliverables:
     module: shell
     state: ready
     acceptance:
-      - "Given Wholeheard running and not recording, with the setting at its default, when another application starts taking a microphone — a call in Discord, in WhatsApp Web or another browser tab, in any program —, then within a few seconds Wholeheard offers to record it, with Record and Not this time; nothing is recorded without that gesture, and the offer is made once per taking, never while recording, never for Wholeheard's own capture"
-      - "Given the offer, when the user chooses Record, then the recording starts as from the menu, the reminder included; when they choose Not this time, nothing is offered again until that application lets the microphone go and takes it again"
-      - "Given Settings, when the user chooses that nothing is offered — there, or from the offer itself —, then no offer is made until they choose it again; the choice is kept in the settings file"
+      - "Given Wholeheard running and not recording, with the setting at its default, when another application starts taking a microphone — a call in Discord, in WhatsApp Web or another browser tab, in any program —, then within 3 seconds a notification names that application and offers Record and Not this time; no window opens for it (D17), and nothing is recorded without the gesture"
+      - "Given an application that takes a microphone, then the offer is made once for as long as it holds one — however many streams it opens —, never while recording, never for Wholeheard's own capture, never for a stream that reads what the computer plays (a sink's monitor) nor for a level meter (Settings, pavucontrol); a noise filter that holds the microphone from the start is offered once, and Not this time sets it aside until it lets the microphone go"
+      - "Given the offer, when the user chooses Record, then the recording starts as from the menu, the reminder included; when they choose Not this time, nothing is offered again until that application lets the microphone go and takes it again; when, in the offer or in Settings, they choose that nothing is offered, then none is until they choose it again, kept in the settings file"
+      - "Given an offer made, then what Wholeheard saw — which application, and when — is shown in the notification and written nowhere: not in the logs (D29), not in a session"
   - id: D31
     title: "The recording follows the user's devices, and says which it records"
     module: capture
     state: ready
     acceptance:
-      - "Given a recording, when the user switches the device the computer uses — a headset plugged or unplugged, a Bluetooth headset, the built-in microphone, the speakers, earphones with their microphone —, then the recording goes on with the new device, without a gap and without ending, whatever its channels and rate; and the user is told which microphone and which output are now recorded"
-      - "Given a recording, when a device is taken away with nothing to replace it, then the user is told that side is not recorded for now, and the recording goes on with the other; when a device comes back, it is recorded again"
+      - "Given a recording, when the user switches the device the computer uses — a headset plugged or unplugged, a Bluetooth headset, the built-in microphone, the speakers, earphones with their microphone —, then the recording goes on with the new device and does not end, each track keeping the format it opened with, and no zeros are written there for longer than capture's tolerance of 1.5 seconds (measured as #149 measured it)"
+      - "Given such a switch, then the shell tells the user which microphone and which output are now recorded; when a device is taken away with nothing to replace it, it says that side is not recorded for now and the recording goes on with the other; when a device comes back, it is recorded again"
       - "Given a session recorded across several devices, when it is read later, then it says each device it recorded and from when"
 ---
 
@@ -405,9 +406,14 @@ via wholeheard ?", then "oui cadre-le dans ce cycle, il faut bien prendre en com
 matériel utilisé (un user peut changer les sources audio : baffle, casque, micro intégré, micro
 écouteur etc.)". The end date does not move.
 
-- **D30, the offer.** Board 6's offer, not its recording by itself. On Linux, PipeWire tells of
-  each application that opens a microphone, through its PulseAudio interface (`pactl
-  subscribe`, present wherever `pipewire-pulse` is). The shell watches it and records nothing.
+- **D30, the offer.** Board 6's offer, not its recording by itself. Board 6 draws it as a card
+  apart from the small window, naming the application ("Firefox utilise votre micro"). It is
+  made as a notification, because a window opened by another application's microphone would
+  break D17's "no window opens without a gesture of the user". On Linux, PipeWire lists each
+  stream as it comes and goes. The shell watches `pw-dump --monitor` (`pipewire-utils`, which
+  the package already requires, D24) for a `Stream/Input/Audio` node of another process; it
+  does not use `pactl`, whose package (`pulseaudio-utils`) `pipewire-pulseaudio` does not
+  require. What it reads is an application's name and the moment, shown and kept nowhere.
   Board 4's setting holds "nothing" and "offer"; "record alone" stays out of scope. Windows and
   macOS follow with the rest.
 - **D31, the devices.** Capture opens the defaults without pinning them, so PipeWire moves its
@@ -419,11 +425,24 @@ matériel utilisé (un user peut changer les sources audio : baffle, casque, mic
   - a device with other channels could end the recording, because a track refuses a delivery
     that is not whole frames. This is read in the code, not measured.
 
-  D31 measures each case on virtual devices first, then makes it hold. Telling the user is a
-  `recording/v1` event, an additive change, and a `session-audio` record of each device, both
-  through the contracts module first. The contracts' own open questions (`recording/v1`, a
+  D31 measures each case on virtual devices first, then makes it hold. A track is one WAV, as
+  delivered, never resampled (`session-audio/v2`). A stream's format is fixed when it connects,
+  so PipeWire is expected to convert a moved stream to it. This is measured first, with a
+  device of other channels and rate. If it does not hold, the track's form is a new contract
+  version, decided then. Telling the user is a `recording/v1` event, an additive change, which
+  the shell turns into a notice, so the shell is touched too. Each device recorded is a
+  `session-audio` record. Both go through the contracts module first.
+  - A limit stays, as #149 found: a microphone chosen inside the call's own application is not
+    the system's default, so Wholeheard does not record it. D30 makes that visible, since it
+    knows which application took a microphone.
+  - Bluetooth and real devices are the decider's trial (D23); the e2e uses virtual devices. The contracts' own open questions (`recording/v1`, a
   source gone during the recording; `session-audio/v2`, a device changed during a meeting) are
   answered there.
+
+**Appetite.** D30 and D31 enter with 18 days left, beside D26 (in progress), D27 (a
+colleague's trial) and D23. Each is meant to take about a week. If they do not fit, D31's
+third criterion (the session's record of each device) is cut first, then D30's choice of
+nothing from the offer itself (Settings keep it). The end date does not move.
 
 ### D28
 
@@ -498,7 +517,8 @@ pull request per box, in this order.
 
 ## Later
 
-- The offer when an application takes the microphone, and recording by itself.
+- Recording by itself when an application takes the microphone, and stopping when it lets it go
+  (board 6); the offer is D30.
 - Windows and macOS, with the two colleagues.
 - `export`, with `all`.
 - Compressing the tracks without loss (cycle 02, D9: it halves their weight).
@@ -514,7 +534,8 @@ pull request per box, in this order.
 
 - ~~The appetite.~~ Answered by the decider on 2026-10-17, accepting the cycle ("c'est ok,
   avance en autonomie"): three weeks, from that day. When the seven deliverables do not fit,
-  D22 and D19 are cut first, never the end date.
+  D22 and D19 are cut first, never the end date. Both were accepted since. For what is left,
+  see D30 and D31's *Appetite*.
 
 **Not blocking:**
 
