@@ -691,17 +691,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
-name = "summit-summary"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "pulldown-cmark",
- "serde_json",
- "tempfile",
- "ureq",
-]
-
-[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -925,6 +914,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "wholeheard-summary"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "pulldown-cmark",
+ "serde_json",
+ "tempfile",
+ "ureq",
 ]
 
 [[package]]

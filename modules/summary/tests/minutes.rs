@@ -3,7 +3,7 @@
 
 use std::fs;
 
-use summit_summary::{Made, Refused, minutes, read_transcript, request, write_minutes};
+use wholeheard_summary::{Made, Refused, minutes, read_transcript, request, write_minutes};
 
 const HEADER: &str =
     r#"{"type": "header", "contract": "transcript/v1", "engine": "an-engine", "model": "a-model", "language": "fr", "context": null}"#;

@@ -8,7 +8,7 @@ Writes the minutes of a transcript.
 
 ```mermaid
 flowchart LR
-    T["transcript.jsonl<br/>context.txt"]:::file --> P["summit-summary<br/>a program, no window"]:::mod
+    T["transcript.jsonl<br/>context.txt"]:::file --> P["wholeheard-summary<br/>a program, no window"]:::mod
     P -->|"one request"| V["The provider the user configured:<br/>a model on the machine, or online"]:::ext
     V --> P
     P -->|"minutes/v1, whole or not at all"| M["minutes.md"]:::file
@@ -26,14 +26,14 @@ it contacts · orange: who reads its events, one JSON object per line.
 ```bash
 # The example: an online provider and a large model — the one that kept every action of the
 # meeting it was tried on (cycle 01, D5). The key is read from the environment, written nowhere.
-summit-summary <session-folder> --provider https://openrouter.ai/api/v1 --model anthropic/claude-sonnet-5.5
+wholeheard-summary <session-folder> --provider https://openrouter.ai/api/v1 --model anthropic/claude-sonnet-5.5
 
 # A model on the machine: nothing leaves it, no key — and, on a laptop, fewer of the actions.
-summit-summary <session-folder> --provider http://localhost:11434/v1 --model mistral
+wholeheard-summary <session-folder> --provider http://localhost:11434/v1 --model mistral
 
 # Whether a model answers, before any meeting: one sentence of the program's own is sent,
 # `sending` then `answered` said, or why not in one sentence. What the settings' Tester runs.
-summit-summary --test --provider http://localhost:11434/v1 --model mistral
+wholeheard-summary --test --provider http://localhost:11434/v1 --model mistral
 ```
 
 | Tried on one meeting, with its context | Of seven actions agreed: missing | Time |
@@ -64,7 +64,7 @@ person without doubt, against four. Which of the two does the most is not measur
 no request recovers is the owner of a task said as "I": each track holds two people (cycle 02,
 D16).
 
-A key, when the provider wants one, is read from `SUMMIT_PROVIDER_KEY` and written nowhere.
+A key, when the provider wants one, is read from `WHOLEHEARD_PROVIDER_KEY` and written nowhere.
 Whatever fails — no network, a refused key, no credit left with the provider, an unknown
 model, an answer cut short or that is not minutes — the reason is one sentence on the error
 stream, the transcript is untouched and the minutes that were there are still there.

@@ -6,7 +6,7 @@ mod common;
 use std::time::Duration;
 
 use common::{MINUTES, answering, provider};
-use summit_summary::{Refused, provider::Provider};
+use wholeheard_summary::{Refused, provider::Provider};
 
 fn asking(address: &str, key: Option<&str>) -> Result<String, Refused> {
     Provider::new(address, "a-model", key, Duration::from_secs(5))?.ask("the request")

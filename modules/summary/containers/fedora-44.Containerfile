@@ -1,4 +1,4 @@
-# What summit-summary is built with for Fedora 44 (D27): that system's C compiler (for the TLS
+# What wholeheard-summary is built with for Fedora 44 (D27): that system's C compiler (for the TLS
 # library's assembly), Rust as this repository uses it. Read by scripts/release.sh.
 FROM registry.fedoraproject.org/fedora:44
 RUN dnf install -y -q gcc && dnf clean all

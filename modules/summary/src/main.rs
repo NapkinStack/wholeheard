@@ -1,13 +1,13 @@
-//! `summit-summary` — writes the minutes of a session from its transcript, with no window.
+//! `wholeheard-summary` — writes the minutes of a session from its transcript, with no window.
 //!
-//!     summit-summary <session-folder> --provider <address> --model <name>
-//!     summit-summary --test --provider <address> --model <name>
+//!     wholeheard-summary <session-folder> --provider <address> --model <name>
+//!     wholeheard-summary --test --provider <address> --model <name>
 //!
 //! The second asks the provider one sentence of its own, nothing of a meeting, and says
 //! whether the model answered: what the settings' *Tester* runs.
 //!
 //! The address speaks the OpenAI protocol: a model on the machine or an online one. A key,
-//! when the provider wants one, is read from `SUMMIT_PROVIDER_KEY` and written nowhere.
+//! when the provider wants one, is read from `WHOLEHEARD_PROVIDER_KEY` and written nowhere.
 //!
 //! It says what happens as one JSON object per line on its output — `sending`, then
 //! `written` — and what failed in one sentence on the error stream. Whatever fails, the
@@ -16,7 +16,7 @@
 use std::{fs, io::Write, path::Path, process::ExitCode, time::Duration};
 
 use serde_json::json;
-use summit_summary::{Made, Refused, TEST, minutes, provider::Provider, read_transcript, request, write_minutes};
+use wholeheard_summary::{Made, Refused, TEST, minutes, provider::Provider, read_transcript, request, write_minutes};
 
 fn main() -> ExitCode {
     // Arguments that are not text are refused like any other mistake, not with a crash.
@@ -29,15 +29,15 @@ fn main() -> ExitCode {
             summarise(Path::new(folder), address, model)
         }
         _ => Err(Refused(
-            "usage: summit-summary <session-folder> --provider <address> --model <name>, \
-             or summit-summary --test --provider <address> --model <name>"
+            "usage: wholeheard-summary <session-folder> --provider <address> --model <name>, \
+             or wholeheard-summary --test --provider <address> --model <name>"
                 .into(),
         )),
     };
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(Refused(why)) => {
-            eprintln!("summit-summary: {why}");
+            eprintln!("wholeheard-summary: {why}");
             ExitCode::FAILURE
         }
     }
@@ -61,13 +61,17 @@ fn test(address: &str, model: &str) -> Result<(), Refused> {
     Ok(())
 }
 
-/// The key, when the provider wants one: from `SUMMIT_PROVIDER_KEY`, written nowhere.
+/// The key, when the provider wants one: from `WHOLEHEARD_PROVIDER_KEY`, written nowhere — or,
+/// from a shell older than D28, from `SUMMIT_PROVIDER_KEY`, until every module passes the new name.
 fn key() -> Result<Option<String>, Refused> {
-    match std::env::var("SUMMIT_PROVIDER_KEY") {
-        Ok(key) => Ok(Some(key)),
-        Err(std::env::VarError::NotPresent) => Ok(None),
-        Err(_) => Err(Refused("the key in SUMMIT_PROVIDER_KEY is not text".into())),
+    for name in ["WHOLEHEARD_PROVIDER_KEY", "SUMMIT_PROVIDER_KEY"] {
+        match std::env::var(name) {
+            Ok(key) => return Ok(Some(key)),
+            Err(std::env::VarError::NotPresent) => continue,
+            Err(_) => return Err(Refused(format!("the key in {name} is not text"))),
+        }
     }
+    Ok(None)
 }
 
 fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
