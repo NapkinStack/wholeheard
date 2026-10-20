@@ -65,7 +65,7 @@ read, an output that closed, and a provider that sends the key back in its answe
 | `provider.refused_key` | The provider refused the key (HTTP 401 or 403) | Give the provider's key again |
 | `provider.no_credit` | The provider refused for lack of credit (HTTP 402) | Add credit with the provider |
 | `provider.unknown_model` | The provider does not know this model or this address (HTTP 404) | Choose the model or the address again |
-| `provider.redirected` | The provider sent the request elsewhere (HTTP 3xx), which is not followed | Give the address it sends to |
+| `provider.redirected` | The provider sent the request elsewhere (HTTP 300, 301, 302, 303, 307 or 308: RFC 9110 §15.4), which is not followed | Check the address, or give the one it sends to |
 | `provider.failed` | Any other refusal by the provider (another HTTP status), or an answer it left unreadable, stopped, or empty | Try again later |
 | `answer.cut_short` | The model stopped at its length limit: the minutes would be incomplete | Choose a model that writes longer answers |
 | `answer.not_minutes` | The provider answered, and what it wrote is not minutes (`minutes/v1`) | Try again, or choose another model |
