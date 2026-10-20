@@ -171,7 +171,7 @@ pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: boo
         ("me.wav", "others.wav")
     };
     let made = serde_json::json!({
-        "made_by": format!("summit-transcription {}", env!("CARGO_PKG_VERSION")),
+        "made_by": format!("wholeheard-transcription {}", env!("CARGO_PKG_VERSION")),
         "rate": RATE,
         "local": { "from": [from_local, from_remote], "echo": echo },
         "remote": { "from": [from_remote] },

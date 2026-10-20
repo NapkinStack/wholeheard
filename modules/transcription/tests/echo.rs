@@ -4,7 +4,7 @@
 mod sound;
 
 use sound::{energy, room, speaking};
-use summit_transcription::{echo::cancelled, step::RATE};
+use wholeheard_transcription::{echo::cancelled, step::RATE};
 
 /// What a sound holds from `from` on, where `when` says, of the session's seconds.
 fn where_(sound: &[f32], from: usize, when: impl Fn(f64) -> bool) -> f64 {

@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeSet, fs, path::Path};
 
-use summit_transcription::{Making, Segment, Speaker, Transcript};
+use wholeheard_transcription::{Making, Segment, Speaker, Transcript};
 
 const SCHEMA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../contracts/transcript/v1/line.schema.json");
 

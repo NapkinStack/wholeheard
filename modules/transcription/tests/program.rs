@@ -4,7 +4,7 @@
 use std::{fs, process::Command};
 
 fn run(args: &[&str]) -> (bool, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_summit-transcription"))
+    let output = Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
         .args(args)
         .output()
         .unwrap();
@@ -25,8 +25,8 @@ fn what_cannot_be_heard_is_refused_in_one_sentence_before_anything_is_written() 
 
     for (args, expected) in [
         (vec![folder, "--model", model], "is not a session"),
-        (vec![folder], "usage: summit-transcription"),
-        (vec![folder, "--model", model, "--language"], "usage: summit-transcription"),
+        (vec![folder], "usage: wholeheard-transcription"),
+        (vec![folder, "--model", model, "--language"], "usage: wholeheard-transcription"),
     ] {
         let (ok, out, err) = run(&args);
         assert!(

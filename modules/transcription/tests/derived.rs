@@ -6,7 +6,7 @@ mod sound;
 use std::{fs, io, path::Path};
 
 use sound::{energy, room, speaking};
-use summit_transcription::{
+use wholeheard_transcription::{
     Segment,
     step::{DERIVED, Engine, MADE, RATE, transcribe},
 };

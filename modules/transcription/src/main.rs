@@ -1,7 +1,7 @@
-//! `summit-transcription` — writes the transcript of a session from its two audio files,
+//! `wholeheard-transcription` — writes the transcript of a session from its two audio files,
 //! with an engine on this machine and no window.
 //!
-//!     summit-transcription <session-folder> --model <model-file> [--language <code>]
+//!     wholeheard-transcription <session-folder> --model <model-file> [--language <code>]
 //!
 //! The model is a Whisper model in whisper.cpp's format, already on the machine: nothing is
 //! fetched. Stopped at any moment, the program is run again and goes on from where it was.
@@ -13,7 +13,7 @@
 use std::{io::Write, path::Path, process::ExitCode};
 
 use serde_json::json;
-use summit_transcription::{
+use wholeheard_transcription::{
     step::{hear, read},
     whisper::{Whisper, knows},
 };
@@ -33,12 +33,12 @@ fn main() -> ExitCode {
         [folder, "--model", model, "--language", language] | [folder, "--language", language, "--model", model] => {
             run(Path::new(folder), Path::new(model), Some(language))
         }
-        _ => Err("usage: summit-transcription <session-folder> --model <model-file> [--language <code>]".to_string()),
+        _ => Err("usage: wholeheard-transcription <session-folder> --model <model-file> [--language <code>]".to_string()),
     };
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(why) => {
-            eprintln!("summit-transcription: {why}");
+            eprintln!("wholeheard-transcription: {why}");
             ExitCode::FAILURE
         }
     }
@@ -56,7 +56,7 @@ fn run(folder: &Path, model: &Path, language: Option<&str>) -> Result<(), String
     // The session is judged before the model is loaded: nothing is said to be heard that is refused.
     let (form, session) = read(folder).map_err(|error| error.to_string())?;
     let mut engine = Whisper::load(model).map_err(|error| error.to_string())?;
-    let (name, model) = summit_transcription::step::Engine::name(&engine);
+    let (name, model) = wholeheard_transcription::step::Engine::name(&engine);
     // A model whose alignment heads are not known has its segments where the engine put them.
     let times = if engine.times_words() { "words" } else { "segments" };
     let _ = writeln!(
