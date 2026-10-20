@@ -54,7 +54,7 @@ tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -
 tone 440 40 "$work/me.wav"; tone 880 8 "$work/others-a.wav"; tone 880 8 "$work/others-b.wav"
 
 measure() { python3 scripts/e2e_measure.py "$@" 2>&1 | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
-# Whether the run of an id logged these steps, in this order among its own, and never a path of the run's folder.
+# Whether the run of an id logged these steps, in this order among its own, no level, and never a path of the run's folder.
 logged() {
   python3 - "$work" "$@" <<'PY'
 import json, pathlib, sys
@@ -62,7 +62,8 @@ work, trace, wanted = sys.argv[1], sys.argv[2], sys.argv[3:]
 text = "".join(path.read_text() for path in sorted(pathlib.Path(work, "logs").glob("capture.*.jsonl")))
 steps = [line["message"] for line in map(json.loads, text.splitlines()) if line.get("span", {}).get("trace") == trace]
 mine = iter(steps)
-sys.exit(0 if all(step in mine for step in wanted) and work not in text else f"{trace}: {steps}")
+# The levels, ten a second, are said to the shell and never logged.
+sys.exit(0 if all(step in mine for step in wanted) and work not in text and "capture.level" not in steps else f"{trace}: {steps}")
 PY
 }
 failed=0
