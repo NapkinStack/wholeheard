@@ -53,16 +53,16 @@ anywhere in them, and get no other file of the disk?
 
 **Dominant convention of the field:** a web view or a desktop browser shell plays local media
 from a URL its host serves. In Tauri that is the asset protocol, a custom scheme. In Electron
-it is a custom protocol (`protocol.handle`). Where a custom scheme is not playable, a host
+it is a custom protocol ([`protocol.handle`](https://www.electronjs.org/docs/latest/api/protocol)). Where a custom scheme is not playable, a host
 serves the file over HTTP on the loopback interface.
 
 **References examined:**
 
 | Reference | What it does | Applicable here? |
 |---|---|---|
-| Tauri's asset protocol (`convertFileSrc`, a scope) | Serves files of a scope under a custom scheme | Not on Linux for media: WebKitGTK's player refused it, as measured above |
-| A custom scheme of the shell (`register_asynchronous_uri_scheme_protocol`) | The same, with the shell answering | **Not measured.** It goes through the same WebKitGTK scheme handler as the asset protocol, so it is assumed to fail the same way |
-| `tauri-plugin-localhost` (Tauri's own), built on `tiny_http` | Serves the app's pages from `localhost` | Its approach: an HTTP server inside the app, on the loopback interface, on `tiny_http` |
+| Tauri's asset protocol ([`convertFileSrc`](https://v2.tauri.app/reference/javascript/api/namespacecore/), a scope) | Serves files of a scope under a custom scheme | Not on Linux for media: WebKitGTK's player refused it, as measured above |
+| A custom scheme of the shell ([`register_asynchronous_uri_scheme_protocol`](https://docs.rs/tauri/latest/tauri/struct.Builder.html)) | The same, with the shell answering | **Not measured.** On Linux a custom scheme reaches the web view through WebKitGTK's [`register_uri_scheme`](https://webkitgtk.org/reference/webkit2gtk/stable/method.WebContext.register_uri_scheme.html), as the asset protocol does, so it is assumed to fail the same way |
+| [`tauri-plugin-localhost`](https://v2.tauri.app/plugin/localhost/) (Tauri's own), built on `tiny_http` ([its dependencies](https://crates.io/crates/tauri-plugin-localhost)) | Serves the app's pages from `localhost` | Its approach: an HTTP server inside the app, on the loopback interface, on `tiny_http` |
 | A blob URL (`fetch`, then `createObjectURL`) | The whole file in memory | No: an hour's track is about a gigabyte |
 | Native playback in the shell (`rodio`) | Plays without the web view | Possible, but the page loses the media element's seeking and timing, and the shell draws its own clock |
 
