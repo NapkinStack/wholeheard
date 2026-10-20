@@ -323,9 +323,10 @@ def main() -> int:
     (meetings / "m" / "transcript.jsonl").write_text("".join(json.dumps(line, ensure_ascii=False) + "\n" for line in lines))
     (meetings / "m" / "minutes.md").write_text(
         "---\ncontract: minutes/v1\nmade: 2026-10-13T12:21:00+02:00\nprovider: openrouter.ai\nmodel: claude-sonnet\ncontext: null\n---\n\n"
-        "## Points saillants\n\nL’ouverture est fixée au lundi 16 novembre.\n\n"
-        "## Actions\n\n- Mettre à jour le planning — Marc — aujourd’hui\n- Couper deux serveurs de test — Julien — avant vendredi\n\n"
-        "## Points clés\n\n- Un serveur est gardé pour la démonstration du 20.\n"
+        # Numbered, as a small local model writes them (#261): the page names them.
+        "## 1.\n\nL’ouverture est fixée au lundi 16 novembre.\n\n"
+        "## 2.\n\n- Mettre à jour le planning — Marc — aujourd’hui\n- Couper deux serveurs de test — Julien — avant vendredi\n\n"
+        "## 3.\n\n- Un serveur est gardé pour la démonstration du 20.\n"
     )
     session(meetings / "n", now - dt.timedelta(days=1), 5, {"local.wav": 100})
     (meetings / "n" / "minutes.md").write_text("Not minutes.\n")
@@ -351,7 +352,7 @@ def main() -> int:
         shot(browser, "2-session")
         minutes = browser.find_element(By.CSS_SELECTOR, ".minutes")
         titles = [h.text for h in minutes.find_elements(By.CSS_SELECTOR, ".body h2")]
-        check("the minutes' three sections, by their own titles", titles == ["Points saillants", "Actions", "Points clés"], titles)
+        check("the minutes' three sections, named by the page whatever the model titled them", titles == ["Points saillants", "Actions", "Points clés"], titles)
         items = [li.text for li in minutes.find_elements(By.CSS_SELECTOR, ".body li")]
         check(
             "the minutes as written: each action, each key point",

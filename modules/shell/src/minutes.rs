@@ -21,11 +21,11 @@ pub struct Minutes {
     pub body: String,
 }
 
-/// The minutes of a session's folder.
-pub fn minutes(folder: &Path) -> Read<Minutes> {
+/// The minutes of a session's folder, their three sections named as the page names them.
+pub fn minutes(folder: &Path, sections: [&str; 3]) -> Read<Minutes> {
     match fs::read_to_string(folder.join("minutes.md")) {
         Err(_) => Read::Absent,
-        Ok(text) => parse_minutes(&text).map_or(Read::Unreadable, Read::Present),
+        Ok(text) => parse_minutes(&text, sections).map_or(Read::Unreadable, Read::Present),
     }
 }
 
@@ -41,7 +41,7 @@ fn value(written: &str) -> Option<String> {
     (read != "null" && !read.is_empty()).then_some(read)
 }
 
-fn parse_minutes(text: &str) -> Option<Minutes> {
+fn parse_minutes(text: &str, sections: [&str; 3]) -> Option<Minutes> {
     use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
     let rest = text.strip_prefix("---\n")?;
@@ -71,10 +71,41 @@ fn parse_minutes(text: &str) -> Option<Minutes> {
     if titles != 3 {
         return None;
     }
-    let shown = Parser::new(body).filter_map(|event| match event {
+    // Each section titled as the page names it: the order is the contract's, the words the
+    // model's own — a small one numbers them (#261).
+    let mut in_title = false;
+    let shown = Parser::new(body).filter_map(move |event| match event {
+        Event::Start(Tag::Heading {
+            level: HeadingLevel::H2, ..
+        }) => {
+            in_title = true;
+            Some(event)
+        }
+        Event::End(TagEnd::Heading(HeadingLevel::H2)) => {
+            in_title = false;
+            Some(event)
+        }
+        _ if in_title => None,
         Event::Html(raw) | Event::InlineHtml(raw) => Some(Event::Text(raw)),
         Event::Start(Tag::Link { .. } | Tag::Image { .. }) | Event::End(TagEnd::Link | TagEnd::Image) => None,
         other => Some(other),
+    });
+    let shown = shown.flat_map({
+        let mut named = 0;
+        move |event| {
+            let title = matches!(
+                event,
+                Event::Start(Tag::Heading {
+                    level: HeadingLevel::H2,
+                    ..
+                })
+            );
+            let name = title.then(|| {
+                named += 1;
+                Event::Text(sections[named - 1].into())
+            });
+            std::iter::once(event).chain(name)
+        }
     });
     let mut html = String::new();
     pulldown_cmark::html::push_html(&mut html, shown);
