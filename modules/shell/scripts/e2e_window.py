@@ -162,7 +162,7 @@ class Window:
         (config / "wholeheard").mkdir(parents=True, exist_ok=True)
         self.file = config / "wholeheard" / "settings.toml"
         self.file.write_text(f'sessions = "{sessions}"\n{more}')
-        self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), LANGUAGE="")
+        self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), XDG_STATE_HOME=str(WORK / "state"), LANGUAGE="")
         # An Ollama and a keyring of the scenario's, never the user's own.
         self.env.update(LANG=language, LC_ALL=language, WHOLEHEARD_OLLAMA=ollama, WHOLEHEARD_KEYRING="memory", WHOLEHEARD_SUMMARY=str(SUMMARY), WHOLEHEARD_TRANSCRIPTION=str(HEARING), WHOLEHEARD_CAPTURE=str(RECORDER))
 

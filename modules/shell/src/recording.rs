@@ -11,6 +11,7 @@ use std::{
 };
 
 use serde_json::Value;
+use tracing::{error, info, warn};
 
 /// One of a session's two sources.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,9 +102,12 @@ impl Recording {
     /// it says comes apart from the hold on it, so that one may listen while another stops
     /// it: it ends on `Stopped` or `Failed`, then closes.
     pub fn start(program: &Path, sessions: &Path) -> io::Result<(Self, Receiver<Said>)> {
+        let trace = crate::log::making();
+        info!(trace, "shell.recording");
         let mut program = Command::new(program)
             .arg("record")
             .arg(sessions)
+            .env("WHOLEHEARD_TRACE", &trace)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -122,6 +126,12 @@ impl Recording {
             let mut tell = Some(tell);
             for event in lines(output).filter_map(|line| read(&line)) {
                 let last = matches!(event, Said::Stopped(..));
+                match &event {
+                    Said::Started(folder, _) => info!(trace, session = %crate::transcription::named(folder), "shell.recording_started"),
+                    Said::Unavailable(source, why) => warn!(trace, source = ?source, detail = %why, "shell.recording_unavailable"),
+                    Said::Stopped(_, seconds) => info!(trace, seconds, "shell.recording_stopped"),
+                    _ => {}
+                }
                 if let Some(listener) = if last { tell.take() } else { tell.clone() } {
                     let _ = listener.send(event);
                 }
@@ -129,7 +139,9 @@ impl Recording {
             let Some(tell) = tell else { return };
             // Its output is closed and it never said "stopped": it failed, and its error stream
             // holds why once it has ended.
-            let _ = tell.send(Said::Failed(complaint.join().unwrap_or_default().trim().to_string()));
+            let why = complaint.join().unwrap_or_default().trim().to_string();
+            error!(trace, detail = %why, "shell.recording_failed");
+            let _ = tell.send(Said::Failed(why));
         });
         Ok((Self { program, input }, said))
     }

@@ -13,6 +13,7 @@ use std::{
     thread,
     time::Duration,
 };
+use tracing::{error, info};
 
 /// How a transcript ended.
 #[derive(Debug, Clone, PartialEq)]
@@ -34,8 +35,10 @@ impl Transcription {
     /// Starts the program that hears on a session's folder, with a model file. How it ended
     /// comes once on the receiver: `Written` only when it ended well with the transcript there.
     pub fn start(program: &Path, folder: &Path, model: &Path) -> io::Result<(Self, Receiver<Made>)> {
+        let trace = crate::log::making();
         let mut command = Command::new(program);
-        command.arg(folder).arg("--model").arg(model);
+        command.arg(folder).arg("--model").arg(model).env("WHOLEHEARD_TRACE", &trace);
+        info!(trace, session = %named(folder), model = %named(model), "shell.transcript");
         // A group of its own: ended, whatever it started ends with it.
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut command, 0);
@@ -69,6 +72,10 @@ impl Transcription {
             // A second for what it wrote last to be read; then what was read is what it said.
             let _ = all_read.recv_timeout(Duration::from_secs(1));
             let why = last.lock().map(|said| said.clone()).unwrap_or_default();
+            match written {
+                true => info!(trace, "shell.transcript_written"),
+                false => error!(trace, detail = %why, status = ?status, "shell.transcript_failed"),
+            }
             let _ = tell.send(if written { Made::Written(folder) } else { Made::Failed(why) });
         });
         Ok((Self { program }, made))
@@ -86,6 +93,11 @@ impl Transcription {
             let _ = child.kill();
         }
     }
+}
+
+/// A file's or a folder's own name, never its path: the path says whose meetings and where.
+pub(crate) fn named(path: &Path) -> String {
+    path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
 /// Reads a stream to its end, keeping its last line that is not blank as it goes.

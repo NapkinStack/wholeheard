@@ -15,6 +15,7 @@ use std::{
     thread,
     time::Duration,
 };
+use tracing::{error, info};
 
 /// What a making says, in its order.
 #[derive(Debug, Clone, PartialEq)]
@@ -43,8 +44,14 @@ impl Summarising {
     /// Starts `wholeheard-summary` on a session's folder. The key goes to its environment only — a
     /// key in Wholeheard's own environment never does.
     pub fn start(program: &Path, folder: &Path, provider: &str, model: &str, key: Option<&str>) -> io::Result<(Self, Receiver<Event>)> {
+        let trace = crate::log::making();
         let mut command = Command::new(program);
-        command.arg(folder).args(["--provider", provider, "--model", model]);
+        command
+            .arg(folder)
+            .args(["--provider", provider, "--model", model])
+            .env("WHOLEHEARD_TRACE", &trace);
+        let host = crate::providers::host(provider).unwrap_or_default();
+        info!(trace, session = %crate::transcription::named(folder), host, model, key = key.is_some(), "shell.minutes");
         command.env_remove("WHOLEHEARD_PROVIDER_KEY");
         if let Some(key) = key {
             command.env("WHOLEHEARD_PROVIDER_KEY", key);
@@ -101,6 +108,10 @@ impl Summarising {
                     (true, None) => "wholeheard-summary could not be waited for".into(),
                 })
             };
+            match &made {
+                Made::Written(_) => info!(trace, "shell.minutes_written"),
+                Made::Failed(why) => error!(trace, detail = %why, status = ?status, "shell.minutes_failed"),
+            }
             let _ = tell.send(Event::Ended(made));
         });
         Ok((Self { program }, events))
