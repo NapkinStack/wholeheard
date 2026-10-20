@@ -110,6 +110,9 @@ fn the_meeting_offered_is_served_as_one_sound_whole_or_by_range_to_the_token_alo
         assert_eq!(get(&refused, "GET", None).0, 404, "{refused}");
     }
 
+    // The same meeting drawn again: the same URL, still served — a player may be reading it.
+    assert_eq!(served.offer(offered.clone()).as_deref(), Some(url.as_str()));
+    assert_eq!(get(&url, "GET", Some("bytes=44-45")).0, 206);
     // Another meeting opened: the earlier offer is gone.
     let again = served.offer(vec![(remote.clone(), 0.0)]).unwrap();
     assert_eq!(get(&url, "GET", None).0, 404);
