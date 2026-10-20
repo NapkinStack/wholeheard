@@ -36,7 +36,7 @@ const PIECE: u64 = 96_000;
 struct Offered {
     number: u64,
     mix: Option<Arc<Mix>>,
-    tracks: Vec<PathBuf>,
+    tracks: Vec<(PathBuf, f64)>,
 }
 
 /// The loopback server, for as long as the shell runs.
@@ -68,11 +68,15 @@ impl Served {
 
     /// Serves these tracks, each with where its first frame is on the session's clock, as one
     /// sound — and no longer what was offered before: its URL, or none when no track reads as one.
+    /// The same tracks offered again — the page drawn again — keep their URL, which a player may
+    /// still be reading.
     pub fn offer(&self, tracks: Vec<(PathBuf, f64)>) -> Option<String> {
         let mut offered = self.offered.lock().unwrap();
-        offered.number += 1;
-        offered.mix = Mix::of(&tracks).map(Arc::new);
-        offered.tracks = tracks.into_iter().map(|(path, _)| path).collect();
+        if offered.tracks != tracks || offered.mix.is_none() {
+            offered.number += 1;
+            offered.mix = Mix::of(&tracks).map(Arc::new);
+            offered.tracks = tracks;
+        }
         offered.mix.as_ref()?;
         Some(format!("{}/{}/{}/mix", self.base, self.token, offered.number))
     }
@@ -117,7 +121,7 @@ fn named(url: &str, token: &str, offered: &Offered) -> Option<Arc<Mix>> {
     if parts.next().is_some() || given != token || number.parse::<u64>().ok()? != offered.number || what != "mix" {
         return None;
     }
-    offered.tracks.iter().all(|path| path.is_file()).then(|| offered.mix.clone())?
+    offered.tracks.iter().all(|(path, _)| path.is_file()).then(|| offered.mix.clone())?
 }
 
 type Body = BoxBody<Bytes, io::Error>;
