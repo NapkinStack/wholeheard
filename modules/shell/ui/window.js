@@ -149,7 +149,9 @@ function paintState(said, shown, of) {
       said.dataset.key = "";
       readMakings();
     });
-    said.replaceChildren(element("span", "what", fill(of.not_made, shown.why)), again);
+    // What the program said, only in developer mode: the shell sends nothing else (D29).
+    const detail = shown.why ? [element("code", "detail", fill(words.program_said, shown.why))] : [];
+    said.replaceChildren(element("span", "what", of.not_made), again, ...detail);
   }
 }
 
@@ -1006,6 +1008,23 @@ function showSettings(shown, minutes, words) {
   if (chosen) state.append(element("span", "ready", `✓ ${words.model_ready}`));
   state.id = "model-state";
   parts.push(state);
+
+  // Last, for whoever looks into a failure: the developer mode (D29).
+  const advanced = element("section", "card group");
+  advanced.append(element("h2", "", words.advanced_title));
+  const developer = element("label", "row");
+  const developerBox = element("input");
+  developerBox.type = "checkbox";
+  developerBox.id = "developer";
+  developerBox.setAttribute("role", "switch");
+  developerBox.checked = shown.developer;
+  developerBox.disabled = locked;
+  developerBox.addEventListener("change", () => save({ developer: developerBox.checked }));
+  const developerSaid = element("span", "said");
+  developerSaid.append(element("span", "name", words.developer[0]), element("span", "says", words.developer[1]));
+  developer.append(developerSaid, developerBox);
+  advanced.append(developer);
+  parts.push(advanced);
   page.replaceChildren(...parts);
 }
 

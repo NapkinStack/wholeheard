@@ -97,18 +97,18 @@ fn a_source_that_is_silent_or_refused_is_named_and_the_recording_is_said_to_go_o
             );
         }
     }
-    // What the program said of a refusal comes last, as it said it — a colon of its own kept.
+    // What the program said of a refusal is the log's, never the user's (D29).
     let refused = Said::Unavailable(Source::Me, "ALSA: the system names no default device".into());
     assert_eq!(
         told(&refused, false, Language::English),
         (
             "Your microphone is not recorded".into(),
-            "The meeting’s sound is still recorded. (ALSA: the system names no default device)".into()
+            "The meeting’s sound is still recorded.".into()
         )
     );
     assert_eq!(
         told(&refused, false, Language::French).1,
-        "Le son de la réunion est toujours enregistré. (ALSA: the system names no default device)"
+        "Le son de la réunion est toujours enregistré."
     );
 }
 
@@ -172,24 +172,22 @@ fn a_length_reads_as_a_person_says_it_each_to_the_nearest() {
 }
 
 #[test]
-fn a_failure_says_what_the_program_said_of_it_and_nothing_else_of_the_program() {
+fn a_failure_never_says_what_the_program_said_of_it() {
     let said = |sentence: &str, language| told(&Said::Failed(sentence.into()), false, language).1;
-    // The program that records names itself before its sentence: the name is not the user's to read.
-    assert_eq!(
-        said(
-            "wholeheard-capture: no source could be opened: nothing to record",
-            Language::English
-        ),
-        "What was recorded is in the session’s folder. (no source could be opened: nothing to record)"
-    );
-    assert!(said("wholeheard-capture: the disk is full", Language::French).ends_with("dossier de la session. (the disk is full)"));
-    // Any other sentence is kept whole, whatever stands before its colon.
-    for whole in [
+    // The sentence is the user's; what the program said is the log's, and the developer mode's (D29).
+    for sentence in [
+        "wholeheard-capture: no source could be opened: nothing to record",
         "Timeout: no sound for 30 s",
-        "Error: the disk is full",
-        "Wholeheard Capture: the disk is full",
+        "(os error 28)",
+        &"é".repeat(5000),
     ] {
-        assert!(said(whole, Language::English).ends_with(&format!("({whole})")), "{whole}");
+        for language in BOTH {
+            let body = said(sentence, language);
+            assert!(
+                !body.contains('(') && (body.ends_with("session’s folder.") || body.ends_with("dossier de la session.")),
+                "{sentence:?}: {body}"
+            );
+        }
     }
     // A program that said nothing — or its name and nothing — is said to have said nothing.
     for nothing in ["", "   ", "wholeheard-capture:", " wholeheard-capture: \t", "()"] {
@@ -201,16 +199,39 @@ fn a_failure_says_what_the_program_said_of_it_and_nothing_else_of_the_program() 
             );
         }
     }
-    // A sentence over several lines, or with a tab, is said on one.
-    assert!(said("wholeheard-capture: line one\nline two\n\tthree", Language::English).ends_with("(line one line two three)"));
-    // Brackets of its own are not doubled, and a very long sentence is cut short.
-    assert!(said("(os error 28)", Language::English).ends_with("folder. (os error 28)"));
-    let long = said(&"é".repeat(5000), Language::English);
-    assert!(
-        long.chars().count() < 300 && long.ends_with("…)"),
-        "{} characters",
-        long.chars().count()
-    );
+}
+
+#[test]
+fn no_notice_of_a_failure_carries_what_a_program_or_the_system_said() {
+    use wholeheard_shell::{
+        transcription::Made,
+        words::{Minutes, Trouble},
+    };
+    const SAID: &str = "wholeheard-summary: CANARY (os error 2)";
+    for language in BOTH {
+        let mut notices = vec![
+            words::trouble(&Trouble::NoRecorder(SAID.into()), language),
+            words::trouble(&Trouble::Shortcut(SAID.into()), language),
+            words::trouble(&Trouble::NoTranscriber(SAID.into()), language),
+            words::made(&Made::Failed(SAID.into()), language),
+            words::minutes(&Minutes::Failed(SAID.into()), language),
+            words::minutes(&Minutes::RedoFailed(SAID.into()), language),
+            words::fetched(&Err(SAID.into()), language),
+        ];
+        for said in [
+            Said::Failed(SAID.into()),
+            Said::Unavailable(Source::Me, SAID.into()),
+            Said::Unavailable(Source::Others, SAID.into()),
+        ] {
+            notices.extend(words::of(&said, false, language));
+        }
+        for Notice { title, body } in notices {
+            assert!(
+                !title.contains("CANARY") && !body.contains("CANARY") && !body.contains('('),
+                "{title} — {body}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -240,43 +261,35 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
             "{one} / {other}"
         );
     }
-    // A trouble says what it is, what still works, and last what the system said of it.
-    for trouble in [
-        Trouble::NoRecorder("No such file or directory (os error 2)".into()),
-        Trouble::Settings("settings.toml, line 3: invalid boolean".into()),
-        Trouble::Shortcut("the dialog was dismissed".into()),
-        Trouble::NoModel("<data>/wholeheard/models/ggml.bin".into()),
-        Trouble::NoTranscriber("No such file or directory (os error 2)".into()),
-    ] {
-        let detail = match &trouble {
-            Trouble::NoRecorder(why)
-            | Trouble::Settings(why)
-            | Trouble::Shortcut(why)
-            | Trouble::NoModel(why)
-            | Trouble::NoTranscriber(why) => why.clone(),
-            Trouble::NoSession => unreachable!("it has no detail"),
-        };
-        for language in BOTH {
+    // A trouble says what it is and what still works. Where the user has something to put
+    // right — the settings file's line, the place the model goes —, it says where (D29).
+    for language in BOTH {
+        for trouble in [
+            Trouble::NoRecorder(String::new()),
+            Trouble::Settings("settings.toml, line 3: invalid boolean".into()),
+            Trouble::Shortcut(String::new()),
+            Trouble::NoModel("<data>/wholeheard/models/ggml.bin".into()),
+            Trouble::NoTranscriber(String::new()),
+        ] {
             let Notice { title, body } = words::trouble(&trouble, language);
             assert!(
-                !title.is_empty() && !title.contains('\'') && body.ends_with(&format!("({detail})")),
+                !title.is_empty() && !title.contains('\'') && !body.contains('('),
                 "{title} — {body}"
             );
         }
+        let settings = words::trouble(&Trouble::Settings("settings.toml, line 3: invalid boolean".into()), language).body;
+        assert!(settings.contains("settings.toml, line 3: invalid boolean"), "{settings}");
+        let model = words::trouble(&Trouble::NoModel("<data>/wholeheard/models/ggml.bin".into()), language).body;
+        assert!(model.contains("<data>/wholeheard/models/ggml.bin"), "{model}");
     }
-    assert!(
-        !words::trouble(&Trouble::Shortcut(String::new()), Language::French)
-            .body
-            .contains('(')
-    );
     // Each says what still works, or what to do — not the trouble a second time.
     let body = |trouble, language| words::trouble(&trouble, language).body;
     assert!(body(Trouble::NoRecorder(String::new()), Language::English).ends_with("Installing Wholeheard again puts it back."));
     assert!(body(Trouble::NoRecorder(String::new()), Language::French).ends_with("Réinstaller Wholeheard le remet en place."));
     assert!(body(Trouble::Settings(String::new()), Language::English).contains("runs with its defaults"));
     assert!(body(Trouble::Shortcut(String::new()), Language::French).contains("permet toujours de démarrer"));
-    // What the system said comes out on one line.
-    assert!(body(Trouble::Settings("line one\n\tline two".into()), Language::English).ends_with("(line one line two)"));
+    // What the settings file holds wrong comes out on one line.
+    assert!(body(Trouble::Settings("line one\n\tline two".into()), Language::English).contains("line one line two"));
 }
 
 #[test]
@@ -285,7 +298,7 @@ fn a_transcript_is_said_ready_or_not_with_how_to_have_it_again() {
     let ready = |language| words::made(&Made::Written("/s/2026-10-16_09-30".into()), language);
     assert_eq!(ready(Language::English).title, "Transcript ready");
     assert!(ready(Language::French).body.contains("ouvrir le dossier"));
-    // Failed: what the program said, without its name; the recording untouched; the menu's entry.
+    // Failed: the recording untouched, the menu's entry — never what the program said.
     let failed = words::made(
         &Made::Failed("wholeheard-transcription: the model cannot be loaded".into()),
         Language::English,
@@ -295,7 +308,7 @@ fn a_transcript_is_said_ready_or_not_with_how_to_have_it_again() {
         "{}",
         failed.body
     );
-    assert!(failed.body.ends_with("(the model cannot be loaded)"), "{}", failed.body);
+    assert!(!failed.body.contains("cannot be loaded"), "{}", failed.body);
     let french = words::made(&Made::Failed(String::new()), Language::French);
     assert!(french.body.contains("Transcrire le dernier enregistrement") && !french.body.contains('('));
     // The entry named in the sentences is the menu's own.
@@ -337,7 +350,7 @@ fn the_model_is_offered_with_its_size_and_host_and_its_fetch_is_said() {
             "{checking}"
         );
         let refused = words::fetched(&Err("what came is not the published model".into()), language);
-        assert!(refused.body.ends_with("(what came is not the published model)"), "{}", refused.body);
+        assert!(!refused.body.contains("published model"), "{}", refused.body);
         assert_ne!(words::fetched(&Ok(()), language).title, refused.title);
     }
     assert_eq!(words::fetched(&Ok(()), Language::French).title, "Modèle prêt");
@@ -398,10 +411,10 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
         let entry = words::menu(language).minutes;
         let ready = words::minutes(&Minutes::Ready, language);
         assert!(!ready.title.is_empty());
-        // Failed: the program's sentence, the transcript untouched, the entry that makes them again.
+        // Failed: the transcript untouched, the entry that makes them again — never the program's sentence.
         let failed = words::minutes(&Minutes::Failed("the provider at openrouter.ai refused the key".into()), language);
         assert!(
-            failed.body.contains(entry) && failed.body.ends_with("(the provider at openrouter.ai refused the key)"),
+            failed.body.contains(entry) && !failed.body.contains("refused the key"),
             "{}",
             failed.body
         );
@@ -448,9 +461,7 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
         );
         let failed = words::minutes(&Minutes::Failed("x".into()), language);
         assert!(
-            redo.title != failed.title
-                && !redo.body.contains(words::menu(language).minutes)
-                && redo.body.ends_with("(the provider's answer is not minutes)"),
+            redo.title != failed.title && !redo.body.contains(words::menu(language).minutes) && !redo.body.contains("not minutes"),
             "{}",
             redo.body
         );

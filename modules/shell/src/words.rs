@@ -80,7 +80,7 @@ fn detail(said: &str) -> String {
 /// before `:` and `?`.
 pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
     use Language::{English, French};
-    let (title, body, why) = match (said, language) {
+    let (title, body) = match (said, language) {
         (Said::Started(..), _) if !reminder => return None,
         (Said::Heard(_) | Said::Level(..), _) => return None,
         // The microphone is named, so that one other than the call's shows at once.
@@ -92,7 +92,6 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
             return notice(
                 "Recording",
                 format!("{named}Tell the participants that this meeting is being recorded."),
-                "",
             );
         }
         (Said::Started(_, microphone), French) => {
@@ -103,79 +102,52 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
             return notice(
                 "Enregistrement en cours",
                 format!("{named}Prévenez les participants que cette réunion est enregistrée."),
-                "",
             );
         }
-        (Said::Unavailable(Source::Me, why), English) => (
-            "Your microphone is not recorded",
-            "The meeting’s sound is still recorded.",
-            why.as_str(),
-        ),
-        (Said::Unavailable(Source::Me, why), French) => (
-            "Votre micro n’est pas enregistré",
-            "Le son de la réunion est toujours enregistré.",
-            why.as_str(),
-        ),
-        (Said::Unavailable(Source::Others, why), English) => (
-            "The meeting’s sound is not recorded",
-            "Your microphone is still recorded.",
-            why.as_str(),
-        ),
-        (Said::Unavailable(Source::Others, why), French) => (
-            "Le son de la réunion n’est pas enregistré",
-            "Votre micro est toujours enregistré.",
-            why.as_str(),
-        ),
+        (Said::Unavailable(Source::Me, _), English) => ("Your microphone is not recorded", "The meeting’s sound is still recorded."),
+        (Said::Unavailable(Source::Me, _), French) => ("Votre micro n’est pas enregistré", "Le son de la réunion est toujours enregistré."),
+        (Said::Unavailable(Source::Others, _), English) => ("The meeting’s sound is not recorded", "Your microphone is still recorded."),
+        (Said::Unavailable(Source::Others, _), French) => {
+            ("Le son de la réunion n’est pas enregistré", "Votre micro est toujours enregistré.")
+        }
         (Said::Silent(Source::Me), English) => (
             "No sound from your microphone",
             "Nothing was heard for ten seconds. The recording goes on.",
-            "",
         ),
         (Said::Silent(Source::Me), French) => (
             "Votre micro ne capte aucun son",
             "Rien n’a été entendu depuis dix secondes. L’enregistrement continue.",
-            "",
         ),
         (Said::Silent(Source::Others), English) => (
             "No sound from the meeting",
             "Nothing was heard for ten seconds: is the call playing on this device? The recording goes on.",
-            "",
         ),
         (Said::Silent(Source::Others), French) => (
             "Aucun son venant de la réunion",
             "Rien n’a été entendu depuis dix secondes\u{a0}: l’appel passe-t-il par cet appareil\u{202f}? L’enregistrement continue.",
-            "",
         ),
-        (Said::Stopped(_, seconds), English) => return notice("Recording stopped", format!("{} recorded.", length(*seconds)), ""),
-        (Said::Stopped(_, seconds), French) => return notice("Enregistrement arrêté", format!("Durée\u{a0}: {}.", length(*seconds)), ""),
+        (Said::Stopped(_, seconds), English) => return notice("Recording stopped", format!("{} recorded.", length(*seconds))),
+        (Said::Stopped(_, seconds), French) => return notice("Enregistrement arrêté", format!("Durée\u{a0}: {}.", length(*seconds))),
         (Said::Failed(why), English) if detail(why).is_empty() => (
             "The recording stopped by itself",
             "The program that records ended without saying why. What was recorded is in the session’s folder.",
-            "",
         ),
         (Said::Failed(why), French) if detail(why).is_empty() => (
             "L’enregistrement s’est arrêté tout seul",
             "Le programme d’enregistrement s’est terminé sans dire pourquoi. Ce qui a été enregistré se trouve dans le dossier de la session.",
-            "",
         ),
-        (Said::Failed(why), English) => (
-            "The recording stopped by itself",
-            "What was recorded is in the session’s folder.",
-            why.as_str(),
-        ),
-        (Said::Failed(why), French) => (
+        (Said::Failed(_), English) => ("The recording stopped by itself", "What was recorded is in the session’s folder."),
+        (Said::Failed(_), French) => (
             "L’enregistrement s’est arrêté tout seul",
             "Ce qui a été enregistré se trouve dans le dossier de la session.",
-            why.as_str(),
         ),
     };
-    notice(title, body.to_string(), why)
+    notice(title, body.to_string())
 }
 
-/// A notice, with what a program said of it last, in brackets, as it said it.
-fn notice(title: &str, body: String, why: &str) -> Option<Notice> {
-    let why = detail(why);
-    let body = if why.is_empty() { body } else { format!("{body} ({why})") };
+/// A notice. What a program or the system said of a failure is never in it: it goes to the
+/// log, and to the window's page in developer mode (D29).
+fn notice(title: &str, body: String) -> Option<Notice> {
     Some(Notice {
         title: title.to_string(),
         body,
@@ -319,6 +291,12 @@ pub struct Window {
     pub on_this_computer: &'static str,
     pub reminder: [&'static str; 2],
     pub keep_audio: [&'static str; 2],
+    /// The settings' last card, and its one switch: what a program said of a failure, shown on
+    /// the page under the sentence (D29).
+    pub advanced_title: &'static str,
+    pub developer: [&'static str; 2],
+    /// Under a making not made, in developer mode: what its program said ({}).
+    pub program_said: &'static str,
     /// The folder the sessions go to, and the button that opens the system's dialog for it.
     pub sessions_folder: [&'static str; 2],
     pub choose: &'static str,
@@ -507,6 +485,12 @@ pub fn window(language: Language) -> Window {
                 "Remind me to tell the participants",
                 "At the start, a line reminds you to say the meeting is recorded.",
             ],
+            advanced_title: "Advanced",
+            developer: [
+                "Developer mode",
+                "Under a failure, shows what Wholeheard’s program said of it — for whoever looks into it.",
+            ],
+            program_said: "What the program said: {}",
             sessions_folder: [
                 "Meetings folder",
                 "New meetings are written here. Those already recorded stay where they were: the window and the audio's keeping follow this folder.",
@@ -552,7 +536,7 @@ pub fn window(language: Language) -> Window {
             minutes_waiting: "Waiting its turn — {} before it",
             minutes_awaiting: "Waiting for your agreement to send it to {}",
             agree_open: "Review and agree",
-            minutes_not_made: "The minutes were not written: {}",
+            minutes_not_made: "The minutes were not written. The transcript is untouched.",
             try_again: "Try again",
             chip_making: "Minutes…",
             chip_waiting: "Waiting",
@@ -560,7 +544,7 @@ pub fn window(language: Language) -> Window {
             chip_transcribing: "Transcript…",
             chip_failed: "Minutes not written",
             transcript_making: "Writing the transcript",
-            transcript_not_made: "The transcript was not written: {}",
+            transcript_not_made: "The transcript was not written. The recording is untouched.",
             chip_transcript_failed: "Transcript not written",
             minutes_unsaved: "Not saved yet — the minutes are still written by {}.",
             minutes_unsaved_none: "Not saved yet — no minutes are written until it is.",
@@ -686,6 +670,12 @@ pub fn window(language: Language) -> Window {
                 "Rappeler de prévenir les participants",
                 "Au démarrage, une ligne rappelle de dire que la réunion est enregistrée.",
             ],
+            advanced_title: "Avancé",
+            developer: [
+                "Mode développeur",
+                "Sous un échec, montre ce qu’en a dit le programme de Wholeheard — pour qui cherche sa cause.",
+            ],
+            program_said: "Ce qu’a dit le programme\u{a0}: {}",
             sessions_folder: [
                 "Dossier des réunions",
                 "Les nouvelles réunions y sont écrites. Celles déjà enregistrées restent où elles étaient : la fenêtre et la garde de l’audio suivent ce dossier.",
@@ -731,7 +721,7 @@ pub fn window(language: Language) -> Window {
             minutes_waiting: "En attente de son tour — {} avant",
             minutes_awaiting: "En attente de votre accord pour l’envoyer à {}",
             agree_open: "Voir et accepter",
-            minutes_not_made: "Le compte rendu n’a pas été fait : {}",
+            minutes_not_made: "Le compte rendu n’a pas été fait. Le transcript est intact.",
             try_again: "Réessayer",
             chip_making: "Compte rendu…",
             chip_waiting: "En attente",
@@ -739,7 +729,7 @@ pub fn window(language: Language) -> Window {
             chip_transcribing: "Transcript…",
             chip_failed: "Compte rendu non fait",
             transcript_making: "Transcription en cours",
-            transcript_not_made: "Le transcript n’a pas été fait : {}",
+            transcript_not_made: "Le transcript n’a pas été fait. L’enregistrement est intact.",
             chip_transcript_failed: "Transcript non fait",
             minutes_unsaved: "Pas encore enregistré — le compte rendu reste fait par {}.",
             minutes_unsaved_none: "Pas encore enregistré — aucun compte rendu n’est fait tant que ce n’est pas le cas.",
@@ -818,94 +808,95 @@ pub enum Trouble {
     NoSession,
 }
 
-/// What the user is told of a trouble: what it is, and what still works.
+/// What the user is told of a trouble: what it is, and what still works. Where the user has
+/// something to put right — the settings file's line, the place the model goes —, it says where;
+/// never what a program or the system said (D29).
 pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
     use Language::{English, French};
-    let nothing = String::new();
-    let (title, body, why) = match (trouble, language) {
-        (Trouble::NoRecorder(why), English) => (
+    let said = |title: &str, body: String| notice(title, body).expect("a trouble is always said");
+    let (title, body) = match (trouble, language) {
+        (Trouble::NoRecorder(_), English) => (
             "Wholeheard cannot record",
             "Its recording program could not be started. Installing Wholeheard again puts it back.",
-            why,
         ),
-        (Trouble::NoRecorder(why), French) => (
+        (Trouble::NoRecorder(_), French) => (
             "Wholeheard ne peut pas enregistrer",
             "Son programme d’enregistrement n’a pas pu démarrer. Réinstaller Wholeheard le remet en place.",
-            why,
         ),
-        (Trouble::Settings(why), English) => (
-            "Your settings were not read",
-            "Wholeheard runs with its defaults until the file is corrected.",
-            why,
-        ),
-        (Trouble::Settings(why), French) => (
-            "Vos réglages n’ont pas été lus",
-            "Wholeheard fonctionne avec ses réglages par défaut tant que le fichier n’est pas corrigé.",
-            why,
-        ),
-        (Trouble::Shortcut(why), English) => (
+        (Trouble::Settings(why), English) => {
+            return said(
+                "Your settings were not read",
+                format!("Wholeheard runs with its defaults until the file is corrected: {}.", detail(why)),
+            );
+        }
+        (Trouble::Settings(why), French) => {
+            return said(
+                "Vos réglages n’ont pas été lus",
+                format!(
+                    "Wholeheard fonctionne avec ses réglages par défaut tant que le fichier n’est pas corrigé\u{a0}: {}.",
+                    detail(why)
+                ),
+            );
+        }
+        (Trouble::Shortcut(_), English) => (
             "The keyboard shortcut is not set",
             "The menu of Wholeheard’s icon still starts and stops a recording.",
-            why,
         ),
-        (Trouble::Shortcut(why), French) => (
+        (Trouble::Shortcut(_), French) => (
             "Le raccourci clavier n’est pas actif",
             "Le menu de l’icône Wholeheard permet toujours de démarrer et d’arrêter un enregistrement.",
-            why,
         ),
-        (Trouble::NoModel(at), English) => (
-            "No transcript: the model is missing",
-            "The recording is kept. Place the Whisper model there, then use “Transcribe the last recording”.",
-            at,
-        ),
-        (Trouble::NoModel(at), French) => (
-            "Pas de transcription\u{a0}: le modèle manque",
-            "L’enregistrement est conservé. Placez le modèle Whisper à cet endroit, puis utilisez «\u{a0}Transcrire le dernier enregistrement\u{a0}».",
-            at,
-        ),
-        (Trouble::NoTranscriber(why), English) => (
+        (Trouble::NoModel(at), English) => {
+            return said(
+                "No transcript: the model is missing",
+                format!("The recording is kept. Place the Whisper model at {at}, then use “Transcribe the last recording”."),
+            );
+        }
+        (Trouble::NoModel(at), French) => {
+            return said(
+                "Pas de transcription\u{a0}: le modèle manque",
+                format!(
+                    "L’enregistrement est conservé. Placez le modèle Whisper à l’emplacement {at}, puis utilisez «\u{a0}Transcrire le dernier enregistrement\u{a0}»."
+                ),
+            );
+        }
+        (Trouble::NoTranscriber(_), English) => (
             "Wholeheard cannot transcribe",
             "Its transcription program could not be started. The recording is kept; installing Wholeheard again puts the program back.",
-            why,
         ),
         (Trouble::NoSession, English) => (
             "No recording to transcribe",
             "Record a meeting first: its transcript follows the stop.",
-            &nothing,
         ),
         (Trouble::NoSession, French) => (
             "Aucun enregistrement à transcrire",
             "Enregistrez d’abord une réunion\u{a0}: sa transcription suit l’arrêt.",
-            &nothing,
         ),
-        (Trouble::NoTranscriber(why), French) => (
+        (Trouble::NoTranscriber(_), French) => (
             "Wholeheard ne peut pas transcrire",
             "Son programme de transcription n’a pas pu démarrer. L’enregistrement est conservé\u{a0}; réinstaller Wholeheard remet le programme en place.",
-            why,
         ),
     };
-    notice(title, body.to_string(), why).expect("a trouble is always said")
+    said(title, body.to_string())
 }
 
 /// What the user is told of a transcript's end: there, with where it is — or not, with why,
 /// and how to have it made again.
 pub fn made(made: &Made, language: Language) -> Notice {
     use Language::{English, French};
-    let (title, body, why) = match (made, language) {
-        (Made::Written(_), English) => ("Transcript ready", "Click to open the session’s folder.", ""),
-        (Made::Written(_), French) => ("Transcription prête", "Cliquez pour ouvrir le dossier de la session.", ""),
-        (Made::Failed(why), English) => (
+    let (title, body) = match (made, language) {
+        (Made::Written(_), English) => ("Transcript ready", "Click to open the session’s folder."),
+        (Made::Written(_), French) => ("Transcription prête", "Cliquez pour ouvrir le dossier de la session."),
+        (Made::Failed(_), English) => (
             "The transcript was not made",
             "The recording is untouched. “Transcribe the last recording” in Wholeheard’s menu tries again from where it stopped.",
-            why.as_str(),
         ),
-        (Made::Failed(why), French) => (
+        (Made::Failed(_), French) => (
             "La transcription n’a pas été faite",
             "L’enregistrement est intact. «\u{a0}Transcrire le dernier enregistrement\u{a0}», dans le menu de Wholeheard, reprend là où elle s’est arrêtée.",
-            why.as_str(),
         ),
     };
-    notice(title, body.to_string(), why).expect("a transcript's end is always said")
+    notice(title, body.to_string()).expect("a transcript's end is always said")
 }
 
 /// What becomes of the minutes asked for, or chained after a transcript.
@@ -936,71 +927,55 @@ impl Minutes {
 pub fn minutes(said: &Minutes, language: Language) -> Notice {
     use Language::{English, French};
     let entry = menu(language).minutes;
-    let (title, body, why) = match (said, language) {
+    let (title, body) = match (said, language) {
         (Minutes::Ready, English) => (
             "Minutes ready",
             "They are in Wholeheard’s window, beside the transcript.".to_string(),
-            "",
         ),
         (Minutes::ReadyKeptBeside(name), English) => (
             "Minutes ready",
             format!("The ones they replace could not go to the trash: they are kept beside them, as {name}."),
-            "",
         ),
         (Minutes::ReadyKeptBeside(name), French) => (
             "Compte rendu prêt",
             format!("Celui qu’il remplace n’a pas pu aller à la corbeille : il est gardé à côté, sous {name}."),
-            "",
         ),
         (Minutes::Ready, French) => (
             "Compte rendu prêt",
             "Il est dans la fenêtre de Wholeheard, à côté du transcript.".to_string(),
-            "",
         ),
-        (Minutes::Failed(why), English) => (
+        (Minutes::Failed(_), English) => (
             "The minutes were not written",
             format!("The transcript is untouched. “{entry}”, in Wholeheard’s menu, tries again."),
-            why.as_str(),
         ),
-        (Minutes::Failed(why), French) => (
+        (Minutes::Failed(_), French) => (
             "Le compte rendu n’a pas été fait",
             format!("Le transcript est intact. «\u{a0}{entry}\u{a0}», dans le menu de Wholeheard, le refait."),
-            why.as_str(),
         ),
-        (Minutes::RedoFailed(why), English) => (
-            "The minutes were not made again",
-            "The previous ones stayed in place.".to_string(),
-            why.as_str(),
-        ),
-        (Minutes::RedoFailed(why), French) => (
+        (Minutes::RedoFailed(_), English) => ("The minutes were not made again", "The previous ones stayed in place.".to_string()),
+        (Minutes::RedoFailed(_), French) => (
             "Le compte rendu n’a pas été refait",
             "Celui d’avant est resté en place.".to_string(),
-            why.as_str(),
         ),
         (Minutes::Waiting(host), English) => (
             "The minutes wait for your agreement",
             format!("Nothing is sent to {host} before you agree, in Wholeheard’s window."),
-            "",
         ),
         (Minutes::Waiting(host), French) => (
             "Le compte rendu attend votre accord",
             format!("Rien n’est envoyé à {host} avant votre accord, dans la fenêtre de Wholeheard."),
-            "",
         ),
         (Minutes::Unchosen, English) => (
             "No one is chosen to write the minutes",
             "Choose in Wholeheard’s settings.".to_string(),
-            "",
         ),
         (Minutes::Unchosen, French) => (
             "Personne n’est choisi pour écrire le compte rendu",
             "Choisissez-le dans les réglages de Wholeheard.".to_string(),
-            "",
         ),
         (Minutes::NoTranscript, English) => (
             "No minutes without a transcript",
             format!("The last recording has no whole transcript: “{}” first.", menu(language).transcribe),
-            "",
         ),
         (Minutes::NoTranscript, French) => (
             "Pas de compte rendu sans transcript",
@@ -1008,10 +983,9 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
                 "Le dernier enregistrement n’a pas de transcript entier : «\u{a0}{}\u{a0}» d’abord.",
                 menu(language).transcribe
             ),
-            "",
         ),
     };
-    notice(title, body, why).expect("the minutes' end is always said")
+    notice(title, body).expect("the minutes' end is always said")
 }
 
 /// Said when a transcript made again replaced one the trash refused: kept beside it; or, the
@@ -1208,34 +1182,27 @@ pub fn model_needed(language: Language, size: &str, host: &str) -> Notice {
             ),
         ),
     };
-    notice(title, body, "").expect("always said")
+    notice(title, body).expect("always said")
 }
 
 /// Said when the model's fetch ended: ready, and the transcript begun — or not, with why, and
 /// that nothing of it was used.
 pub fn fetched(outcome: &Result<(), String>, language: Language) -> Notice {
     use Language::{English, French};
-    let (title, body, why) = match (outcome, language) {
+    let (title, body) = match (outcome, language) {
         (Ok(()), English) => (
             "Model ready",
             "Checked against its published fingerprint. The transcript is being made.",
-            "",
         ),
-        (Ok(()), French) => (
-            "Modèle prêt",
-            "Vérifié par son empreinte publiée. La transcription est en cours.",
-            "",
-        ),
-        (Err(why), English) => (
+        (Ok(()), French) => ("Modèle prêt", "Vérifié par son empreinte publiée. La transcription est en cours."),
+        (Err(_), English) => (
             "The model was not downloaded",
             "Nothing of it is used. The menu’s entry tries again.",
-            why.as_str(),
         ),
-        (Err(why), French) => (
+        (Err(_), French) => (
             "Le modèle n’a pas été téléchargé",
             "Rien n’en est utilisé. L’entrée du menu réessaie.",
-            why.as_str(),
         ),
     };
-    notice(title, body.to_string(), why).expect("always said")
+    notice(title, body.to_string()).expect("always said")
 }

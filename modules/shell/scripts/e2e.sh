@@ -147,7 +147,9 @@ start en_GB.UTF-8 "transcript = false" "$work/refuses"
 click 3
 check is "$(titles 'Wholeheard cannot record')" 2
 check is "$(titles 'The recording stopped by itself')" 0
-check grep -q 'Installing Wholeheard again puts it back. (no source could be opened: nothing to record)' "$work/notified"
+check grep -q 'Installing Wholeheard again puts it back.' "$work/notified"
+# What the program said is the log's, never a notification's (D29).
+check is "$(grep -c 'nothing to record' "$work/notified")" 0
 click 6
 
 say "E. one gesture, pressed twice: one recording; a recorder that never ends: quit asked twice leaves"
@@ -174,7 +176,8 @@ check test -s "$work/sessions/2026-10-13_14-05/transcript.jsonl"
 echo '{}' > "$work/sessions/2026-10-13_14-05/session.json"; touch "$work/sessions/fail-once"
 click 4; sleep 1
 check is "$(titles 'The transcript was not made')" 1
-check grep -q 'tries again from where it stopped. (the engine stopped)' "$work/notified"
+check grep -q 'tries again from where it stopped.' "$work/notified"
+check is "$(grep -c 'engine stopped' "$work/notified")" 0
 click 4; sleep 1
 check is "$(titles 'Transcript ready')" 2
 check is "$(wc -l < "$work/sessions/heard")" 3

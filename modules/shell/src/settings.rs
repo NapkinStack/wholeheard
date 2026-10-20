@@ -47,6 +47,8 @@ pub struct Settings {
     /// host asks again. None: none yet.
     pub minutes_agreed: Option<String>,
     pub keep_audio: KeepAudio,
+    /// Shows, under a failure on the window's page, what the program said of it (D29).
+    pub developer: bool,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -65,6 +67,7 @@ impl Default for Settings {
             minutes_model: None,
             minutes_agreed: None,
             keep_audio: KeepAudio::Always,
+            developer: false,
         }
     }
 }
@@ -106,6 +109,7 @@ struct Written {
     minutes_model: Option<String>,
     minutes_agreed: Option<String>,
     keep_audio: Option<toml::Spanned<toml::Value>>,
+    developer: Option<bool>,
 }
 
 /// Reads the settings. No file is no choice made: the defaults. A file that cannot be read as
@@ -138,6 +142,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     };
     let mut settings = Settings::default();
     settings.reminder = written.reminder.unwrap_or(settings.reminder);
+    settings.developer = written.developer.unwrap_or(settings.developer);
     settings.after = match (written.after, written.transcript) {
         (Some(after), _) => after,
         (None, Some(false)) => After::Nothing,
@@ -203,6 +208,9 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     let text = |path: &Path| Value::from(path.to_string_lossy().into_owned());
     if settings.reminder != before.reminder {
         set(&mut document, "reminder", Value::from(settings.reminder));
+    }
+    if settings.developer != before.developer {
+        set(&mut document, "developer", Value::from(settings.developer));
     }
     if settings.sessions != before.sessions {
         set(&mut document, "sessions", text(&settings.sessions));

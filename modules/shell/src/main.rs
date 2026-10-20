@@ -763,6 +763,7 @@ struct SettingsShown {
     keep_audio: KeepAudio,
     model: PathBuf,
     models: Vec<Model>,
+    developer: bool,
     unreadable: Option<String>,
 }
 
@@ -802,6 +803,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
+        developer: settings.developer,
         unreadable,
     }
 }
@@ -814,6 +816,7 @@ struct Change {
     reminder: Option<bool>,
     keep_audio: Option<KeepAudio>,
     model: Option<PathBuf>,
+    developer: Option<bool>,
 }
 
 /// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
@@ -840,6 +843,9 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
     }
     if let Some(reminder) = change.reminder {
         settings.reminder = reminder;
+    }
+    if let Some(developer) = change.developer {
+        settings.developer = developer;
     }
     // The same bounds as the file's: a value read refuses is never written.
     if let Some(KeepAudio::Days(days)) = change.keep_audio
@@ -1146,6 +1152,8 @@ struct Makings {
     /// The line waits for the default Whisper model, offered in the menu, or coming.
     model_needed: bool,
     model_coming: bool,
+    /// A making not made, by its meeting's name: what its program said of it in developer mode,
+    /// else nothing — the page says it in plain words (D29).
     transcripts_failed: HashMap<String, String>,
     transcripts_made: HashMap<String, u64>,
     failed: HashMap<String, String>,
@@ -1177,6 +1185,8 @@ fn named(folder: &Path) -> String {
 
 #[tauri::command]
 fn makings(shell: State<'_, Shell>) -> Makings {
+    let developer = shell.settings().developer;
+    let said = |why: &String| if developer { why.clone() } else { String::new() };
     let writing = shell.writing_minutes.lock().unwrap().clone();
     let by = shell.minutes_by.lock().unwrap().clone();
     Makings {
@@ -1215,7 +1225,7 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .lock()
             .unwrap()
             .iter()
-            .map(|(folder, why)| (named(folder), why.clone()))
+            .map(|(folder, why)| (named(folder), said(why)))
             .collect(),
         transcripts_made: shell
             .transcripts_made
@@ -1229,7 +1239,7 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .lock()
             .unwrap()
             .iter()
-            .map(|(folder, why)| (named(folder), why.clone()))
+            .map(|(folder, why)| (named(folder), said(why)))
             .collect(),
         made: shell
             .minutes_made
@@ -1927,6 +1937,9 @@ fn fetch(app: &AppHandle) {
         });
         let shell = app.state::<Shell>();
         *shell.fetching.lock().unwrap() = false;
+        if let Err(why) = &outcome {
+            tracing::error!(detail = %why, "shell.model_fetch_failed");
+        }
         tell(&app, &words::fetched(&outcome, language));
         if outcome.is_err() {
             return label(&app, words::download(language, &model::size(wanted.bytes), wanted.host), true);
@@ -2025,6 +2038,7 @@ fn shortcut(app: &AppHandle) {
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(why) = bound(&handle).await {
+            tracing::warn!(detail = %why, "shell.shortcut_refused");
             // Said from the main thread: a notification waits on the desktop, which a task of
             // this runtime may not do.
             let app = handle.clone();
