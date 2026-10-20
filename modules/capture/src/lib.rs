@@ -50,6 +50,12 @@ pub enum Event<'a> {
         source: usize,
         level: f32,
     },
+    /// A source is recorded from another device now: its name, or none when the system names
+    /// none.
+    Device {
+        source: usize,
+        device: Option<&'a str>,
+    },
     /// The recording is whole: its folder, and its length in seconds.
     Stopped {
         folder: &'a Path,
@@ -69,6 +75,7 @@ impl Event<'_> {
                 json!({ "event": "started", "folder": folder, "sources": { "me": me, "others": others } })
             }
             Event::Silent { source } => json!({ "event": "silent", "source": SOURCES[source] }),
+            Event::Device { source, device } => json!({ "event": "device", "source": SOURCES[source], "device": device }),
             Event::Heard { source } => json!({ "event": "heard", "source": SOURCES[source] }),
             // Rounded to a hundredth: a meter shows no more, and a line stays short.
             Event::Level { source, level } => {
@@ -349,4 +356,14 @@ pub fn standing_for(metadata: &str, key: &str) -> Option<String> {
     let value = line.split("value:'").nth(1)?.split("' type:").next()?;
     let value: serde_json::Value = serde_json::from_str(value).ok()?;
     Some(value["name"].as_str()?.to_string())
+}
+
+/// What the system said of a recorded source's device: `Some(true)` another device is recorded
+/// now, `Some(false)` none is left, `None` neither — another trouble of the stream (D31).
+pub fn moved(kind: cpal::ErrorKind) -> Option<bool> {
+    match kind {
+        cpal::ErrorKind::DeviceChanged => Some(true),
+        cpal::ErrorKind::DeviceNotAvailable => Some(false),
+        _ => None,
+    }
 }
