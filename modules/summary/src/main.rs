@@ -33,7 +33,7 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args_os().skip(1).filter_map(|arg| arg.into_string().ok()).collect();
     let all_text = args.len() + 1 == std::env::args_os().count();
     let outcome = match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
-        _ if !all_text => Err(Refused("an argument is not text".into())),
+        _ if !all_text => Err(Refused("an argument is not text".into(), None)),
         ["--test", "--provider", address, "--model", model] | ["--test", "--model", model, "--provider", address] => test(address, model),
         [folder, "--provider", address, "--model", model] | [folder, "--model", model, "--provider", address] => {
             summarise(Path::new(folder), address, model)
@@ -42,12 +42,17 @@ fn main() -> ExitCode {
             "usage: wholeheard-summary <session-folder> --provider <address> --model <name>, \
              or wholeheard-summary --test --provider <address> --model <name>"
                 .into(),
+            None,
         )),
     };
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
-        Err(Refused(why)) => {
-            error!(detail = %why, "summary.failed");
+        Err(Refused(why, code)) => {
+            error!(detail = %why, code, "summary.failed");
+            // The cause, when a person acts on it differently: the output's last line (summarising/v1).
+            if let Some(code) = code {
+                let _ = writeln!(std::io::stdout(), "{}", json!({ "event": "failed", "code": code }));
+            }
             eprintln!("wholeheard-summary: {why}");
             ExitCode::FAILURE
         }
@@ -62,7 +67,7 @@ fn test(address: &str, model: &str) -> Result<(), Refused> {
     info!(host = %provider.host(), model, key = key.is_some(), "summary.testing");
     let sending = json!({ "event": "sending", "host": provider.host(), "model": provider.model(), "characters": TEST.chars().count() });
     if writeln!(std::io::stdout(), "{sending}").is_err() {
-        return Err(Refused("nothing was sent: what is sent could not be said first".into()));
+        return Err(Refused("nothing was sent: what is sent could not be said first".into(), None));
     }
     let asked = Instant::now();
     provider.ask(TEST)?;
@@ -80,7 +85,10 @@ fn key() -> Result<Option<String>, Refused> {
     match std::env::var("WHOLEHEARD_PROVIDER_KEY") {
         Ok(key) => Ok(Some(key)),
         Err(std::env::VarError::NotPresent) => Ok(None),
-        Err(_) => Err(Refused("the key in WHOLEHEARD_PROVIDER_KEY is not text".into())),
+        Err(_) => Err(Refused(
+            "the key in WHOLEHEARD_PROVIDER_KEY is not text".into(),
+            Some("settings.invalid"),
+        )),
     }
 }
 
@@ -91,8 +99,12 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     info!(session = %named, "summary.started");
-    let transcript = fs::read_to_string(folder.join("transcript.jsonl"))
-        .map_err(|error| Refused(format!("this session has no transcript to read ({error})")))?;
+    let transcript = fs::read_to_string(folder.join("transcript.jsonl")).map_err(|error| {
+        Refused(
+            format!("this session has no transcript to read ({error})"),
+            Some("transcript.unusable"),
+        )
+    })?;
     let segments = read_transcript(&transcript)?;
     // A context that is there and is not text is said: sent without it, the minutes would
     // claim a context they did not have.
@@ -101,12 +113,13 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
         (Err(error), _) if error.kind() == std::io::ErrorKind::NotFound => None,
         (_, Ok(found)) if found.is_file() => match fs::read(&context).map(String::from_utf8) {
             Ok(Ok(text)) => Some(text),
-            Ok(Err(_)) => return Err(Refused("context.txt is not text: it must be UTF-8".into())),
-            Err(error) => return Err(Refused(format!("context.txt is there and cannot be read ({error})"))),
+            Ok(Err(_)) => return Err(Refused("context.txt is not text: it must be UTF-8".into(), None)),
+            Err(error) => return Err(Refused(format!("context.txt is there and cannot be read ({error})"), None)),
         },
         _ => {
             return Err(Refused(
                 "context.txt is there and cannot be read: it is not a file, or leads nowhere".into(),
+                None,
             ));
         }
     };
@@ -118,7 +131,7 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     // Said before anything leaves, and after the address was read: where it goes, and how much.
     let sending = json!({ "event": "sending", "host": provider.host(), "model": provider.model(), "characters": asked.chars().count() });
     if writeln!(std::io::stdout(), "{sending}").is_err() {
-        return Err(Refused("nothing was sent: what is sent could not be said first".into()));
+        return Err(Refused("nothing was sent: what is sent could not be said first".into(), None));
     }
     info!(host = %provider.host(), model, key = key.is_some(), characters = asked.chars().count(), "summary.sending");
     let sent = Instant::now();
@@ -130,10 +143,10 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     );
     // A provider that sends the key back in its answer does not get it written in a file.
     if key.as_deref().is_some_and(|key| !key.is_empty() && answer.contains(key)) {
-        return Err(Refused(format!(
-            "{} sent the key back in its answer: nothing was written",
-            provider.named()
-        )));
+        return Err(Refused(
+            format!("{} sent the key back in its answer: nothing was written", provider.named()),
+            None,
+        ));
     }
 
     let at = chrono::Local::now().fixed_offset();
@@ -146,7 +159,8 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
             context: context.as_deref(),
         },
     )?;
-    write_minutes(folder, &written).map_err(|error| Refused(format!("the minutes could not be written ({error})")))?;
+    write_minutes(folder, &written)
+        .map_err(|error| Refused(format!("the minutes could not be written ({error})"), Some("minutes.unwritable")))?;
     info!("summary.written");
     let _ = writeln!(
         std::io::stdout(),

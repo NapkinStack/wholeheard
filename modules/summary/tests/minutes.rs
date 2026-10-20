@@ -72,7 +72,7 @@ fn what_is_not_a_transcript_of_this_version_is_refused_with_its_reason() {
         ),
         (transcript(&[r#"{"type": "covered", "speaker": "me", "until": 30.0}"#]), "no speech"),
     ] {
-        let Err(Refused(why)) = read_transcript(&text) else {
+        let Err(Refused(why, _)) = read_transcript(&text) else {
             panic!("accepted: {text}")
         };
         assert!(why.contains(expected), "{why}");
@@ -223,7 +223,7 @@ fn an_answer_that_is_not_minutes_is_refused_before_anything_is_written() {
         ("## A\n\nx\n\n## B\n\n\u{200b}\n\n## C\n\nz\n", "a section is empty"),
         ("## A\n\nx\n\n## ****\n\ny\n\n## C\n\nz\n", "a section has no title"),
     ] {
-        let Err(Refused(why)) = minutes(answer, &made(None)) else {
+        let Err(Refused(why, _)) = minutes(answer, &made(None)) else {
             panic!("accepted: {answer}")
         };
         assert!(why.contains(expected), "{why}");
@@ -308,7 +308,7 @@ fn a_transcript_only_started_or_written_on_two_lines_is_refused_for_what_it_is()
             "more than one line",
         ),
     ] {
-        let Err(Refused(why)) = read_transcript(&text) else {
+        let Err(Refused(why, _)) = read_transcript(&text) else {
             panic!("accepted: {text}")
         };
         assert!(why.contains(expected), "{why}");
@@ -360,7 +360,7 @@ fn a_transcript_holds_its_header_first_and_each_segment_once() {
         (format!("\n{}", transcript(&[segment])), "does not name transcript/v1"),
         (transcript(&[&segment.replace("1.0", "-1.0")]), "refuses: -1 to 2"),
     ] {
-        let Err(Refused(why)) = read_transcript(&text) else {
+        let Err(Refused(why, _)) = read_transcript(&text) else {
             panic!("accepted: {text}")
         };
         assert!(why.contains(expected), "{why}");

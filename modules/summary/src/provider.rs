@@ -11,8 +11,11 @@ use ureq::http::Uri;
 
 use crate::Refused;
 
-fn refused<T>(why: impl Into<String>) -> Result<T, Refused> {
-    Err(Refused(why.into()))
+/// How long reaching the provider may take, before any answer is awaited.
+const CONNECT: Duration = Duration::from_secs(15);
+
+fn refused<T>(code: &'static str, why: impl Into<String>) -> Result<T, Refused> {
+    Err(Refused(why.into(), Some(code)))
 }
 
 /// Where the minutes are asked for.
@@ -43,7 +46,7 @@ fn checked(host: &str) -> Result<Option<IpAddr>, Refused> {
     if let Some(inside) = host.strip_prefix('[') {
         return match inside.strip_suffix(']').map(str::parse::<std::net::Ipv6Addr>) {
             Some(Ok(address)) => Ok(Some(IpAddr::V6(address))),
-            _ => refused("the provider's host is in brackets and is not an IPv6 address"),
+            _ => refused("settings.invalid", "the provider's host is in brackets and is not an IPv6 address"),
         };
     }
     if let Ok(address) = host.parse::<std::net::Ipv4Addr>() {
@@ -58,10 +61,16 @@ fn checked(host: &str) -> Result<Option<IpAddr>, Refused> {
             .next()
             .is_some_and(|last| last.starts_with(|c: char| c.is_ascii_digit()))
     {
-        return refused("the provider's host is neither a name nor an address written in full");
+        return refused(
+            "settings.invalid",
+            "the provider's host is neither a name nor an address written in full",
+        );
     }
     if name == "local" {
-        return refused("a host named local cannot be told from this machine in the minutes: give its full name or its address");
+        return refused(
+            "settings.invalid",
+            "a host named local cannot be told from this machine in the minutes: give its full name or its address",
+        );
     }
     Ok(None)
 }
@@ -71,14 +80,20 @@ impl Provider {
     /// A key, when there is one, is sent as a bearer token and written nowhere.
     pub fn new(address: &str, model: &str, key: Option<&str>, patience: Duration) -> Result<Self, Refused> {
         if address.contains(['?', '#', '@']) || address.chars().any(char::is_whitespace) {
-            return refused("the provider's address holds more than an address: no query, no fragment, no user or key in it");
+            return refused(
+                "settings.invalid",
+                "the provider's address holds more than an address: no query, no fragment, no user or key in it",
+            );
         }
         let joined = format!("{}/chat/completions", address.trim_end_matches('/'));
         let Ok(typed) = joined.parse::<Uri>() else {
-            return refused("the provider's address is not an address");
+            return refused("settings.invalid", "the provider's address is not an address");
         };
         let (Some(scheme @ ("http" | "https")), Some(authority), Some(host)) = (typed.scheme_str(), typed.authority(), typed.host()) else {
-            return refused("the provider's address must start with http:// or https:// and name a host");
+            return refused(
+                "settings.invalid",
+                "the provider's address must start with http:// or https:// and name a host",
+            );
         };
         // What follows the host is a port, or nothing: the client's reader lets a wrong one pass as none.
         let port = match authority.as_str().strip_prefix(host).unwrap_or_default() {
@@ -89,7 +104,7 @@ impl Provider {
             {
                 port.into()
             }
-            _ => return refused("the provider's address holds a port that is not one"),
+            _ => return refused("settings.invalid", "the provider's address holds a port that is not one"),
         };
         // "localhost" is this machine by definition: the request goes to its address, so that
         // no resolver decides otherwise after the minutes have said "local".
@@ -99,17 +114,20 @@ impl Provider {
             host
         };
         let Ok(uri) = format!("{scheme}://{host}{port}{}", typed.path()).parse::<Uri>() else {
-            return refused("the provider's address is not an address");
+            return refused("settings.invalid", "the provider's address is not an address");
         };
         checked(uri.host().unwrap_or_default())?;
         if model.trim().is_empty() || model.chars().any(char::is_control) {
-            return refused("the model's name is empty or holds a character that is not text");
+            return refused(
+                "settings.invalid",
+                "the model's name is empty or holds a character that is not text",
+            );
         }
         let key = key.filter(|key| !key.is_empty());
         // No space either: a server drops the ones around a key, and what it then sends back
         // is no longer the text this program would recognise.
         if key.is_some_and(|key| !key.chars().all(|c| c.is_ascii_graphic())) {
-            return refused("the key holds a space or a character a request cannot carry");
+            return refused("settings.invalid", "the key holds a space or a character a request cannot carry");
         }
         Ok(Self {
             uri,
@@ -151,6 +169,8 @@ impl Provider {
             .proxy(None)
             .http_status_as_error(false)
             .timeout_global(Some(self.patience))
+            // A host that answers nothing at all is not reached, rather than slow (summarising/v1).
+            .timeout_connect(Some(CONNECT.min(self.patience)))
             .build()
             .into();
         let mut call = agent.post(&self.uri);
@@ -160,31 +180,48 @@ impl Provider {
         let body = serde_json::json!({ "model": self.model, "stream": false, "messages": [{ "role": "user", "content": request }] });
         let mut response = match call.send_json(&body) {
             Ok(response) => response,
-            Err(ureq::Error::Timeout(_)) => {
-                return refused(format!("{host} did not answer within {} s", self.patience.as_secs()));
+            Err(ureq::Error::Timeout(ureq::Timeout::Resolve | ureq::Timeout::Connect)) => {
+                return refused(
+                    "provider.unreachable",
+                    format!("{host} could not be reached within {} s", CONNECT.as_secs()),
+                );
             }
-            Err(error) => return refused(format!("{host} could not be reached: {error}")),
+            Err(ureq::Error::Timeout(_)) => {
+                return refused(
+                    "provider.too_slow",
+                    format!("{host} did not answer within {} s", self.patience.as_secs()),
+                );
+            }
+            Err(error) => return refused("provider.unreachable", format!("{host} could not be reached: {error}")),
         };
         match response.status().as_u16() {
             200 => {}
-            status @ (401 | 403) => return refused(format!("{host} refused the key (HTTP {status})")),
+            status @ (401 | 403) => return refused("provider.refused_key", format!("{host} refused the key (HTTP {status})")),
             402 => {
-                return refused(format!(
-                    "{host} refused for lack of credit (HTTP 402): add credit, or raise the key's limit, with this provider"
-                ));
+                return refused(
+                    "provider.no_credit",
+                    format!("{host} refused for lack of credit (HTTP 402): add credit, or raise the key's limit, with this provider"),
+                );
             }
             404 => {
-                return refused(format!("{host} does not know this model or this address (HTTP 404)"));
+                return refused(
+                    "provider.unknown_model",
+                    format!("{host} does not know this model or this address (HTTP 404)"),
+                );
             }
-            status @ (301 | 302 | 303 | 307 | 308) => {
-                return refused(format!(
-                    "{host} sent the request elsewhere, and it was not followed (HTTP {status})"
-                ));
+            status @ (300 | 301 | 302 | 303 | 307 | 308) => {
+                return refused(
+                    "provider.redirected",
+                    format!("{host} sent the request elsewhere, and it was not followed (HTTP {status})"),
+                );
             }
-            status => return refused(format!("{host} failed (HTTP {status})")),
+            status => return refused("provider.failed", format!("{host} failed (HTTP {status})")),
         }
         let Ok(answer) = response.body_mut().read_json::<serde_json::Value>() else {
-            return refused(format!("{host} sent an answer that could not be read to its end"));
+            return refused(
+                "provider.failed",
+                format!("{host} sent an answer that could not be read to its end"),
+            );
         };
         let choice = &answer["choices"][0];
         // An answer is whole when the provider says it stopped by itself, or says nothing.
@@ -192,13 +229,16 @@ impl Provider {
             serde_json::Value::Null => {}
             reason if reason == "stop" => {}
             reason if reason == "length" => {
-                return refused(format!("{host} cut its answer short: the minutes would be incomplete"));
+                return refused(
+                    "answer.cut_short",
+                    format!("{host} cut its answer short: the minutes would be incomplete"),
+                );
             }
-            _ => return refused(format!("{host} stopped before the end of its answer")),
+            _ => return refused("provider.failed", format!("{host} stopped before the end of its answer")),
         }
         match choice["message"]["content"].as_str() {
             Some(text) if !text.trim().is_empty() => Ok(text.to_string()),
-            _ => refused(format!("{host} answered without any text")),
+            _ => refused("provider.failed", format!("{host} answered without any text")),
         }
     }
 }

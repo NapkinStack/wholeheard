@@ -146,7 +146,7 @@ fn a_provider_that_is_not_there_and_a_session_without_a_transcript_are_said() {
     let output = run(empty.path(), "http://127.0.0.1:9/v1", None);
     let (out, err) = said(&output);
     assert!(!output.status.success() && err.contains("has no transcript to read"), "{err}");
-    assert!(out.is_empty(), "something was said to be sent with no transcript: {out}");
+    assert!(!out.contains("sending"), "something was said to be sent with no transcript: {out}");
 }
 
 #[test]
@@ -172,7 +172,7 @@ fn what_cannot_be_sent_as_it_is_is_refused_before_anything_leaves() {
             !output.status.success() && err.contains(expected) && err.trim().lines().count() == 1,
             "{err}"
         );
-        assert!(out.is_empty(), "something was said to be sent: {out}");
+        assert!(!out.contains("sending"), "something was said to be sent: {out}");
     }
     fs::write(folder.path().join("context.txt"), [0xff, 0xfe, 0x00]).unwrap();
     let output = run(folder.path(), &address, None);
@@ -246,7 +246,7 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
             !output.status.success() && err.contains(expected) && err.trim().lines().count() == 1,
             "{expected}: {err}"
         );
-        assert!(out.is_empty(), "something was said to be sent: {out}");
+        assert!(!out.contains("sending"), "something was said to be sent: {out}");
     };
     refused(program().arg(not_text).output().unwrap(), "an argument is not text");
     refused(
@@ -556,4 +556,119 @@ fn a_log_turned_off_leaves_nothing() {
         .unwrap();
     assert!(output.status.success());
     assert_eq!(fs::read_dir(logs.path()).unwrap().count(), 0);
+}
+
+/// The last line of the output, as JSON.
+fn last(output: &Output) -> serde_json::Value {
+    let out = said(output).0;
+    serde_json::from_str(out.lines().last().unwrap_or("null")).unwrap()
+}
+
+#[test]
+fn a_failure_a_person_acts_on_differently_ends_the_output_with_its_code() {
+    let coded = |output: &Output| {
+        let line = last(output);
+        let (out, err) = said(output);
+        assert!(!output.status.success() && err.trim().lines().count() == 1, "{err}");
+        assert_eq!(line["event"], "failed", "{out}");
+        assert_eq!(out.matches(r#""failed""#).count(), 1, "said once: {out}");
+        line["code"].as_str().unwrap().to_string()
+    };
+    // No cause a person acts on differently: no failed line.
+    let uncoded = |output: &Output| {
+        assert!(!output.status.success() && !said(output).0.contains("failed"), "{}", said(output).0);
+    };
+    // The provider's answers, each with its gesture.
+    for (status, body, code) in [
+        ("401 Unauthorized", "{}".to_string(), "provider.refused_key"),
+        ("403 Forbidden", "{}".to_string(), "provider.refused_key"),
+        ("402 Payment Required", "{}".to_string(), "provider.no_credit"),
+        ("404 Not Found", "{}".to_string(), "provider.unknown_model"),
+        ("500 Internal Server Error", "oops".to_string(), "provider.failed"),
+        ("300 Multiple Choices", String::new(), "provider.redirected"),
+        // 304 and 305 send nowhere one can follow (RFC 9110 §15.4): another refusal.
+        ("304 Not Modified", String::new(), "provider.failed"),
+        ("305 Use Proxy", String::new(), "provider.failed"),
+        (
+            "200 OK",
+            r###"{"choices": [{"message": {"content": "## A"###.to_string(),
+            "provider.failed",
+        ),
+        ("200 OK", answering(MINUTES, "content_filter"), "provider.failed"),
+        ("200 OK", answering(MINUTES, "length"), "answer.cut_short"),
+        (
+            "302 Found\r\nLocation: http://127.0.0.1:9/elsewhere",
+            String::new(),
+            "provider.redirected",
+        ),
+        ("200 OK", r#"{"choices": []}"#.to_string(), "provider.failed"),
+        (
+            "200 OK",
+            answering("Bien sûr ! Voici le compte rendu.", "stop"),
+            "answer.not_minutes",
+        ),
+    ] {
+        let folder = session(None);
+        let (address, _received) = provider(status, body.clone());
+        assert_eq!(coded(&run(folder.path(), &address, None)), code, "{status} {body}");
+        // A test meets the provider's causes the same way.
+        if !status.starts_with("200") {
+            let (address, _received) = provider(status, body);
+            assert_eq!(coded(&tested(&address, None)), code, "test: {status}");
+        }
+    }
+    let folder = session(None);
+    assert_eq!(coded(&run(folder.path(), "http://127.0.0.1:9/v1", None)), "provider.unreachable");
+    // The session's own causes, before anything leaves.
+    let empty = tempfile::tempdir().unwrap();
+    assert_eq!(coded(&run(empty.path(), "http://127.0.0.1:9/v1", None)), "transcript.unusable");
+    let silent = tempfile::tempdir().unwrap();
+    fs::write(
+        silent.path().join("transcript.jsonl"),
+        TRANSCRIPT.lines().next().unwrap().to_string() + "\n",
+    )
+    .unwrap();
+    assert_eq!(coded(&run(silent.path(), "http://127.0.0.1:9/v1", None)), "transcript.no_speech");
+    // Settings that cannot be used as given.
+    let folder = session(None);
+    assert_eq!(coded(&run(folder.path(), "ftp://example.org/v1", None)), "settings.invalid");
+    assert_eq!(coded(&run(folder.path(), "http://local/v1", None)), "settings.invalid");
+    // A test meets them before anything leaves, too.
+    let output = tested("ftp://example.org/v1", None);
+    assert!(!said(&output).0.contains("sending"), "{}", said(&output).0);
+    assert_eq!(coded(&output), "settings.invalid");
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let output = program()
+            .arg(folder.path())
+            .args(["--provider", "http://127.0.0.1:9/v1", "--model", "a-model"])
+            .env("WHOLEHEARD_PROVIDER_KEY", std::ffi::OsStr::from_bytes(&[0xff, 0xfe]))
+            .output()
+            .unwrap();
+        assert_eq!(coded(&output), "settings.invalid");
+    }
+    assert_eq!(
+        coded(&run(folder.path(), "http://127.0.0.1:9/v1", Some("a key\nwith a line"))),
+        "settings.invalid"
+    );
+    // Minutes that cannot be written where they go.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let folder = session(None);
+        let (address, _received) = provider("200 OK", answering(MINUTES, "stop"));
+        fs::set_permissions(folder.path(), fs::Permissions::from_mode(0o555)).unwrap();
+        let output = run(folder.path(), &address, None);
+        fs::set_permissions(folder.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(coded(&output), "minutes.unwritable");
+    }
+    // A cause no person acts on differently is said by its sentence alone: no failed line.
+    uncoded(&program().arg("--provider").output().unwrap());
+    let folder = session(Some("context"));
+    fs::write(folder.path().join("context.txt"), [0xff, 0xfe]).unwrap();
+    uncoded(&run(folder.path(), "http://127.0.0.1:9/v1", None));
+    let folder = session(None);
+    let (address, _received) = provider("200 OK", answering(&format!("{MINUTES}\n- Bearer a-key-for-the-test\n"), "stop"));
+    uncoded(&run(folder.path(), &address, Some("a-key-for-the-test")));
 }
