@@ -228,3 +228,46 @@ fn a_user_who_never_had_summit_gets_nothing_written() {
     assert_eq!(carry_over(&here).unwrap(), Carried::default());
     assert!(!here.config.join("wholeheard").exists());
 }
+
+#[test]
+fn a_folder_the_user_took_out_of_their_settings_stays_out() {
+    let root = tempfile::tempdir().unwrap();
+    let here = places(root.path());
+    write(&here.config.join("summit/settings.toml"), "reminder = false\n");
+    a_meeting_in(&here.documents.join("Summit"));
+    carry_over(&here).unwrap();
+    // The user takes the folder out, on purpose: back to Wholeheard's own.
+    write(&here.config.join("wholeheard/settings.toml"), "reminder = false\n");
+
+    carry_over(&here).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(here.config.join("wholeheard/settings.toml")).unwrap(),
+        "reminder = false\n"
+    );
+}
+
+#[test]
+fn a_settings_file_kept_elsewhere_by_a_link_is_written_there_with_its_permissions() {
+    let root = tempfile::tempdir().unwrap();
+    let here = places(root.path());
+    let dotfiles = root.path().join("dotfiles/settings.toml");
+    write(&dotfiles, "reminder = false\n");
+    fs::set_permissions(&dotfiles, fs::Permissions::from_mode(0o600)).unwrap();
+    fs::create_dir_all(here.config.join("summit")).unwrap();
+    std::os::unix::fs::symlink(&dotfiles, here.config.join("summit/settings.toml")).unwrap();
+    a_meeting_in(&here.documents.join("Summit"));
+
+    carry_over(&here).unwrap();
+
+    let link = here.config.join("wholeheard/settings.toml");
+    assert!(
+        fs::symlink_metadata(&link).unwrap().file_type().is_symlink(),
+        "the link stays a link"
+    );
+    assert!(
+        fs::read_to_string(&dotfiles).unwrap().contains("sessions"),
+        "written where it leads"
+    );
+    assert_eq!(fs::metadata(&dotfiles).unwrap().permissions().mode() & 0o777, 0o600);
+}
