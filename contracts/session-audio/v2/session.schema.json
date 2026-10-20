@@ -44,7 +44,7 @@
   ],
   "$defs": {
     "instant": {
-      "description": "ISO 8601 with the local offset, as the page says: the page's promise, not this schema's — no reader reads its shape today.",
+      "description": "ISO 8601 with the local offset, as the page says: the page's promise, not this schema's \u2014 no reader reads its shape today.",
       "type": "string",
       "minLength": 1,
       "not": {
@@ -56,9 +56,31 @@
       "properties": {
         "device": {
           "type": "string"
+        },
+        "changed": {
+          "description": "Each device the source was recorded from after the first, in order: `at`, seconds on the session's clock, as clock.jsonl's; `device`, the name the system gave it.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/change"
+          }
         }
       },
       "required": [
+        "device"
+      ]
+    },
+    "change": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "device": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
         "device"
       ]
     }

@@ -39,6 +39,7 @@ order of the events, and what each means, are said here and nowhere else.
 | `silent` | `source` | This source has given no sound for ten seconds. Said once per silence |
 | `heard` | `source` | A source that was said `silent` gives sound again |
 | `level` | `source`; `level`: how loud it is now, from 0 (silence) to 1 (the loudest it can be), a number | About ten times a second for each source being recorded, after `started` and before `stopped`: for a meter that moves as sound comes (cycle 03, D22) |
+| `device` | `source`; `device`: the name the system gives the device, or `null` | This source is now recorded from another device: the user chose another default, or the one recorded was taken away and the system named another. Its track goes on, in the form it opened with (`session-audio`). `null`: the system names no device for it, and nothing comes from it until a `device` names one. Said at each change, after `started` and before `stopped` |
 | `stopped` | `folder`; `seconds`: the recording's length, a number | The session's files are whole and `session.json` says `stopped`. **Last**, and only when the recording was stopped as below |
 
 **Stopping**: the line `stop` on the program's input, an interrupt or a termination signal.
@@ -84,9 +85,12 @@ contract: it is read by people, never by a consumer.
   closed — stops nothing. **A consumer that keeps the output open reads it**: the system holds
   some 1,700 unread events, and the program waits on the next one.
 
-**Open before `stable`**: whether a source that becomes unavailable *during* the recording —
-a headset unplugged — is said by `silent` alone, as today, or by an event of its own (cycle
-01, D3's fifth criterion).
+**A source that becomes unavailable during the recording** — a headset unplugged — is said by
+`device` when the system names another default for it, which it records from then on, and by
+`device` with `null` when it names none: nothing comes from that source then, and its track
+holds zeros, as a silence of the capture (`session-audio`), until a `device` names one again
+(cycle 01, D3's fifth criterion; cycle 03, D31). `device` was added in cycle 03, as `level` was:
+a consumer of this version already ignores an `event` it does not know.
 
 ## Examples
 
@@ -97,6 +101,7 @@ Valid — a recording where nothing plays for a while, stopped by the line `stop
 {"event":"level","source":"me","level":0.42}
 {"event":"silent","source":"others"}
 {"event":"heard","source":"others"}
+{"event":"device","source":"me","device":"Headset Microphone"}
 {"event":"stopped","folder":"<sessions-folder>/2026-10-13_14-05","seconds":1912.4}
 ```
 

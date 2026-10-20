@@ -54,7 +54,7 @@ and nowhere else.
 | `contract` | string | `session-audio/v2` |
 | `started` | string | The instant 0 of the session's clock: ISO 8601 with the local offset |
 | `stopped` | string, absent while recording | When the recording was stopped. **Absent means: still recording, or ended by a crash** |
-| `tracks` | object | For each track the session holds — `local`, `remote` — `device`: the name the system gave the source. A source that could not be opened has **no entry and no file** |
+| `tracks` | object | For each track the session holds — `local`, `remote` — `device`: the name the system gave the source when the recording started; `changed`, when the source was recorded from another device after it: each, in order, as `at`, seconds on the session's clock as `clock.jsonl`'s, and `device`. A source that could not be opened has **no entry and no file** |
 
 **A track** is a WAV file, PCM, 24 bits, at the sample rate and with the channels its source
 delivered — read from the file's own header, never assumed: 48,000 samples a second in two
@@ -63,6 +63,11 @@ channels on one machine, 44,100 in one on another.
 - **As delivered.** Nothing in a track was resampled, mixed down, centred, faded, cleaned of
   an echo or brought to a level. A source that rests away from zero rests away from zero in
   its track.
+- **One form, whatever the device.** A track keeps the rate and channels it opened with. When
+  its source is recorded from another device during the meeting (`changed`), the sound server
+  converts that device's sound to the track's form — a microphone of one channel at 16,000
+  samples a second into a track of two at 48,000, measured on 2026-10-20 — and the capture
+  writes what it is delivered, as above.
 - **Within what 24 bits hold.** A sample the source delivered beyond full scale is written
   at full scale; one that was no number, as zero.
 - **Written once.** A sample a track holds never changes, and no program — the producer
@@ -123,8 +128,7 @@ it: it is not part of the session, and no reader reads it.
 of two tracks are from each other when their sources are two devices on two clocks — on one
 sound server with one device they moved by a ten-thousandth of a second, measured on
 2026-10-13; whether `device` can be the name the system shows the user rather than the one
-a sound library gives its default; what a session records when the user changes device
-during a meeting; whether a track is compressed without loss once the recording has stopped,
+a sound library gives its default; whether a track is compressed without loss once the recording has stopped,
 which would be a third version.
 
 ## Examples
