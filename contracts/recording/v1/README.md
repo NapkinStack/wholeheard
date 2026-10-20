@@ -5,7 +5,7 @@ text per event, for whoever started it.
 
 ```mermaid
 flowchart LR
-    S["shell — or a script,<br/>a terminal"]:::consumer -->|"starts: summit-capture record <sessions-folder>, or the same with --as v1"| C["capture"]:::producer
+    S["shell — or a script,<br/>a terminal"]:::consumer -->|"starts: wholeheard-capture record <sessions-folder>, or the same with --as v1"| C["capture"]:::producer
     C -->|"its output: one JSON object per line"| S
     S -->|"its input: the line stop"| C
     C -.->|"its error stream: one sentence, when it fails"| S

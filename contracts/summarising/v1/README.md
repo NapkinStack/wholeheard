@@ -5,9 +5,9 @@ it is asked whether a model answers: one line of text per event, for whoever sta
 
 ```mermaid
 flowchart LR
-    S["shell — or a script,<br/>a terminal"]:::consumer -->|"starts: summit-summary <session-folder> --provider <address> --model <name>"| M["summary"]:::producer
-    S -->|"or: summit-summary --test --provider <address> --model <name>"| M
-    S -.->|"its environment: SUMMIT_PROVIDER_KEY, when the provider wants a key"| M
+    S["shell — or a script,<br/>a terminal"]:::consumer -->|"starts: wholeheard-summary <session-folder> --provider <address> --model <name>"| M["summary"]:::producer
+    S -->|"or: wholeheard-summary --test --provider <address> --model <name>"| M
+    S -.->|"its environment: WHOLEHEARD_PROVIDER_KEY, when the provider wants a key"| M
     M -->|"its output: one JSON object per line"| S
     M -.->|"its error stream: one sentence, when it fails"| S
     M -->|"sends: the request, to the provider's host"| P["The provider<br/>(OpenAI's protocol)"]:::outside
@@ -29,12 +29,14 @@ order of the events, and what each means, are said here and nowhere else.
 
 ## How it is started
 
-- **Minutes**: `summit-summary <session-folder> --provider <address> --model <name>`, the two
+- **Minutes**: `wholeheard-summary <session-folder> --provider <address> --model <name>`, the two
   options in either order. It reads the folder's `transcript.jsonl` (`transcript/v1`) and its
   `context.txt`, when there is one, and writes the folder's `minutes.md` (`minutes/v1`).
-- **A test**: `summit-summary --test --provider <address> --model <name>`, the options in either
+- **A test**: `wholeheard-summary --test --provider <address> --model <name>`, the options in either
   order. It sends one sentence of its own — nothing of a meeting — and writes nothing.
-- **The key**, when the provider wants one, is in its environment as `SUMMIT_PROVIDER_KEY`,
+- **The key**, when the provider wants one, is in its environment as `WHOLEHEARD_PROVIDER_KEY`
+  (`SUMMIT_PROVIDER_KEY`, its name before the product was renamed in D28, is read too until every
+  module passes the new one),
   never in its arguments. It is sent to the provider's host and written nowhere: not on the
   output, not on the error stream, not in the minutes.
 - **The address** speaks OpenAI's protocol (`…/v1`); it is followed nowhere else — no
@@ -51,7 +53,7 @@ order of the events, and what each means, are said here and nowhere else.
 | `answered` | `host`; `model` | The model answered the test's sentence. **Last**, a test only |
 
 **Failing**: the program ends in failure with one sentence on its error stream, starting
-`summit-summary: `, and no `written` or `answered`. Whatever fails, the transcript is untouched
+`wholeheard-summary: `, and no `written` or `answered`. Whatever fails, the transcript is untouched
 and the minutes that were there are still there — nothing half-written is left behind. Before
 `sending`, nothing left the machine.
 
