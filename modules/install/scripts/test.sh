@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # The spec and the .deb's recipe, read: every file it installs is in %files and the other way round, the desktop entry
-# carries the application's id (GNOME's shortcut portal finds Summit by it), and nothing is
+# carries the application's id (GNOME's shortcut portal finds Wholeheard by it), and nothing is
 # installed outside /usr — so removing the package never touches a user's meetings or settings.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
-python3 - "$here/summit.spec" "$here/deb/build.sh" "$here/deb/control.in" <<'PY'
+python3 - "$here/wholeheard.spec" "$here/deb/build.sh" "$here/deb/control.in" <<'PY'
 import os, re, sys
 spec = open(sys.argv[1], encoding="utf-8").read()
 macros = {"%{_bindir}": "/usr/bin", "%{_datadir}": "/usr/share", "%{buildroot}": ""}
@@ -20,10 +20,10 @@ def check(what, held, got=""):
     print(f"  {'ok  ' if held else 'FAIL'}  {what}" + ("" if held else f"\n        got: {got}"))
     failed |= not held
 check("what is installed is what %files lists", installed == files, installed ^ files)
-for program in ("summit", "summit-capture", "summit-transcription", "summit-summary"):
+for program in ("wholeheard", "wholeheard-capture", "wholeheard-transcription", "wholeheard-summary"):
     check(f"{program} in /usr/bin, beside the others", f"/usr/bin/{program}" in files)
-check("the desktop entry is named as the application's id", "/usr/share/applications/dev.summit.Summit.desktop" in files)
-check("its icon, under the same name", "/usr/share/icons/hicolor/512x512/apps/dev.summit.Summit.png" in files)
+check("the desktop entry is named as the application's id", "/usr/share/applications/dev.wholeheard.Wholeheard.desktop" in files)
+check("its icon, under the same name", "/usr/share/icons/hicolor/512x512/apps/dev.wholeheard.Wholeheard.png" in files)
 check("nothing outside /usr: the user's meetings and settings are never the package's", all(f.startswith("/usr/") for f in files), files)
 check("pw-metadata required: capture runs it, no library names it", re.search(r"^Requires:\s+pipewire-utils$", spec, re.M) is not None)
 check("the tray's library required: the shell opens it at run time, no link names it",
@@ -39,11 +39,14 @@ control = open(sys.argv[3], encoding="utf-8").read()
 check("pw-metadata and the tray's library named in its dependencies: run and opened, never linked",
       re.search(r"pipewire-bin, libayatana-appindicator3-1 \| libappindicator3-1", build) is not None)
 check("its control names the package, its version and its dependencies as computed",
-      all(f"{field}: @" in control for field in ("Version", "Architecture", "Depends")) and "Package: summit" in control)
+      all(f"{field}: @" in control for field in ("Version", "Architecture", "Depends")) and "Package: wholeheard" in control)
 scripts = [f for f in os.listdir(os.path.dirname(sys.argv[3])) if f in ("preinst", "postinst", "prerm", "postrm", "triggers")]
 check("no maintainer script: installing and removing touch nothing but the package's files", not scripts, scripts)
 check("the graphics card's Vulkan driver recommended by both: the transcript is made there",
       re.search(r"^Recommends:\s+mesa-vulkan-drivers$", spec, re.M) is not None and "mesa-vulkan-drivers" in control)
+check("Wholeheard takes Summit's place: the rpm obsoletes it, the .deb breaks and replaces it (D28)",
+      re.search(r"^Obsoletes:\s+summit < 0\.2\.0$", spec, re.M) is not None
+      and "Breaks: summit (<< 0.2.0)" in control and "Replaces: summit (<< 0.2.0)" in control)
 print("test: passed" if not failed else "test: FAILED")
 sys.exit(failed)
 PY

@@ -7,7 +7,7 @@ module:
 
   # ONE sentence. If it needs an "and", the module probably does two things.
   responsibility: >
-    Makes the package a user installs Summit from, every program beside the shell.
+    Makes the package a user installs Wholeheard from, every program beside the shell.
 
   owner: "NapkinStack/maintainers"          # a GitHub team, organisation/team; a user only without an organisation
   contact: "@NapkinStack/maintainers"

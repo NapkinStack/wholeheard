@@ -1,12 +1,14 @@
-Package: summit
+Package: wholeheard
 Version: @VERSION@
 Architecture: @ARCH@
-Maintainer: Summit <Hello@c12c.com>
+Maintainer: Wholeheard <Hello@c12c.com>
 Installed-Size: @SIZE@
 Depends: @DEPENDS@
+Breaks: summit (<< 0.2.0)
+Replaces: summit (<< 0.2.0)
 Recommends: gnome-shell-extension-appindicator, mesa-vulkan-drivers
 Section: sound
 Priority: optional
 Description: Records a meeting, transcribes it and writes its minutes, on your machine
- Summit records both sides of a call from the system tray, transcribes it on the machine with
+ Wholeheard records both sides of a call from the system tray, transcribes it on the machine with
  Whisper, and writes its minutes with the model you choose. Your meetings stay in your folder.
