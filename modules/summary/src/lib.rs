@@ -22,12 +22,13 @@ pub struct Segment {
     pub text: String,
 }
 
-/// Why something a file or a provider gave was refused: one sentence, for the user.
+/// Why something a file or a provider gave was refused: one sentence, for the user — and,
+/// when a person acts on the cause differently, its code as `summarising/v1` lists it.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Refused(pub String);
+pub struct Refused(pub String, pub Option<&'static str>);
 
-fn refused<T>(why: impl Into<String>) -> Result<T, Refused> {
-    Err(Refused(why.into()))
+fn refused<T>(code: &'static str, why: impl Into<String>) -> Result<T, Refused> {
+    Err(Refused(why.into(), Some(code)))
 }
 
 /// The segments of a transcript, in the order of the meeting. A line still being written —
@@ -35,21 +36,25 @@ fn refused<T>(why: impl Into<String>) -> Result<T, Refused> {
 pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let Some(end) = text.rfind('\n') else {
-        return refused("the transcript holds no whole line yet: it is only being started, or it is empty");
+        return refused(
+            "transcript.unusable",
+            "the transcript holds no whole line yet: it is only being started, or it is empty",
+        );
     };
     let whole = &text[..end];
     let mut lines = whole.lines();
     let header: serde_json::Value = lines.next().and_then(|line| serde_json::from_str(line).ok()).unwrap_or_default();
     if header["type"] != "header" || header["contract"] != TRANSCRIPT {
-        return refused(format!(
-            "this file is not a transcript this version reads: its first line does not name {TRANSCRIPT}"
-        ));
+        return refused(
+            "transcript.unusable",
+            format!("this file is not a transcript this version reads: its first line does not name {TRANSCRIPT}"),
+        );
     }
     let mut segments = Vec::new();
     let mut known = std::collections::HashSet::new();
     for line in lines.filter(|line| !line.trim().is_empty()) {
         let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
-            return refused("the transcript holds a line that is not JSON");
+            return refused("transcript.unusable", "the transcript holds a line that is not JSON");
         };
         if value["type"] != "segment" {
             continue;
@@ -60,21 +65,29 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
             value["end"].as_f64(),
             value["text"].as_str(),
         ) else {
-            return refused("the transcript holds a segment without its speaker, its times or its text");
+            return refused(
+                "transcript.unusable",
+                "the transcript holds a segment without its speaker, its times or its text",
+            );
         };
         if text.contains(['\n', '\r']) {
-            return refused(format!(
-                "the transcript holds a segment whose text is on more than one line, at {start}"
-            ));
+            return refused(
+                "transcript.unusable",
+                format!("the transcript holds a segment whose text is on more than one line, at {start}"),
+            );
         }
         // What the transcript holds is never said back: a failure's sentence is logged (ADR-0007).
         if !matches!(speaker, "me" | "others") {
-            return refused(format!(
-                "the transcript holds a segment of a speaker other than me or others, at {start}"
-            ));
+            return refused(
+                "transcript.unusable",
+                format!("the transcript holds a segment of a speaker other than me or others, at {start}"),
+            );
         }
         if end < start || start < 0.0 {
-            return refused(format!("the transcript holds a segment this version refuses: {start} to {end}"));
+            return refused(
+                "transcript.unusable",
+                format!("the transcript holds a segment this version refuses: {start} to {end}"),
+            );
         }
         // A segment is known by its speaker and its start: said twice, it is read once.
         // Adding zero makes the two zeros one: -0.0 and 0.0 are the same start.
@@ -87,7 +100,10 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
         }
     }
     if segments.is_empty() {
-        return refused("the transcript holds no speech: there is nothing to write minutes of");
+        return refused(
+            "transcript.no_speech",
+            "the transcript holds no speech: there is nothing to write minutes of",
+        );
     }
     segments.sort_by(|a, b| a.start.total_cmp(&b.start));
     Ok(segments)
@@ -260,7 +276,7 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
     let unified = answer.replace("\r\n", "\n").replace('\r', "\n");
     let body = unified.trim().trim_start_matches('\u{feff}').trim();
     if let Some(why) = not_minutes(body) {
-        return refused(format!("the provider's answer is not minutes: {why}"));
+        return refused("answer.not_minutes", format!("the provider's answer is not minutes: {why}"));
     }
     let context = made
         .context

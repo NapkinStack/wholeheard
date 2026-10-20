@@ -69,7 +69,7 @@ fn each_failure_of_a_provider_has_its_own_sentence() {
         ("304 Not Modified", String::new(), "failed (HTTP 304)"),
     ] {
         let (address, _received) = provider(status, body);
-        let Err(Refused(why)) = asking(&address, None) else {
+        let Err(Refused(why, _)) = asking(&address, None) else {
             panic!("{status}: accepted")
         };
         assert!(
@@ -77,7 +77,7 @@ fn each_failure_of_a_provider_has_its_own_sentence() {
             "{status}: {why}"
         );
     }
-    let Err(Refused(why)) = asking("http://127.0.0.1:9/v1", None) else {
+    let Err(Refused(why, _)) = asking("http://127.0.0.1:9/v1", None) else {
         panic!("accepted")
     };
     assert!(why.contains("could not be reached"), "{why}");
@@ -94,7 +94,7 @@ fn a_redirection_is_refused_and_the_other_host_hears_nothing() {
         let (elsewhere, heard_elsewhere) = provider("200 OK", answering(MINUTES, "stop"));
         let moved: &'static str = Box::leak(format!("{status}\r\nLocation: {elsewhere}/chat/completions").into_boxed_str());
         let (address, received) = provider(moved, String::new());
-        let Err(Refused(why)) = asking(&address, Some("a-key-for-the-test")) else {
+        let Err(Refused(why, _)) = asking(&address, Some("a-key-for-the-test")) else {
             panic!("{status}: followed")
         };
         assert!(why.contains("was not followed"), "{why}");
