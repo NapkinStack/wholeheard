@@ -118,6 +118,10 @@ fn the_meeting_offered_is_served_as_one_sound_whole_or_by_range_to_the_token_alo
     assert_eq!(get(&url, "GET", None).0, 404);
     let alone = Mix::of(&[(remote.clone(), 0.0)]).unwrap();
     assert!(get(&again, "GET", None).2 == alone.read(0, alone.size()).unwrap());
+    // A track replaced by a link meanwhile is not followed.
+    fs::rename(&remote, folder.path().join("aside.wav")).unwrap();
+    std::os::unix::fs::symlink(folder.path().join("aside.wav"), &remote).unwrap();
+    assert_eq!(get(&again, "GET", None).0, 404);
     // A track gone meanwhile — freed to the trash — is not found, and the server goes on.
     fs::remove_file(&remote).unwrap();
     assert_eq!(get(&again, "GET", None).0, 404);
