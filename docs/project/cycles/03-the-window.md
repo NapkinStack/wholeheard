@@ -90,6 +90,14 @@ deliverables:
     acceptance:
       - "Given Summit installed and used — settings, meetings, the Whisper model, keys in the keyring —, when the user installs Wholeheard's package, then it replaces Summit's, and Wholeheard starts with the same settings, the same meetings where they were, the model not fetched again and the keys kept; the shortcut is asked once"
       - "Given the repository, when it is read, then the product, its programs, its packages, its application id and its folders are named Wholeheard; Summit is named only where history is told"
+  - id: D29
+    title: "What Wholeheard does is logged, never what was said; a failure reaches the user in plain words"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given each program run — by the window or by hand —, when it works or fails, then its steps and its failures are written, one JSON line each, in the user's state folder under the id of the making they belong to, a file a day kept fourteen days; and the logs of a run on a known meeting hold none of its words, its context, nor a key"
+      - "Given a making that fails, when the user is told, then the page and the notification say it in one plain sentence in their language, with what to do, and never the technical detail"
+      - "Given Settings → Advanced, when the user turns the developer mode on, then the detail is shown under the sentence, the level of the logs can be chosen, the logs' folder opens, and a diagnostic with nothing of a meeting is copied"
 ---
 
 # Cycle 03 — the window
@@ -397,6 +405,16 @@ the data's `wholeheard/` folders carried over, the Whisper model (834 MB) not fe
 Left, minor, for configurations met rarely: a settings file linked into a read-only place (Nix,
 home-manager) holds the whole carrying over back at each start; a broken link is replaced by a
 plain file; a temporary file left by a crash is never cleaned.
+
+### D29
+
+**Added on the decider's word** ("il faut qu'on logs de maniere expert les etapes et les erreur
+… les erreurs technique ne devrait pas remonté dans l'ihm de l'utilisateur (ou peut être prévoir
+un mode "developpeur", a toi de voir)"; then, 2026-10-20, "oui pour les 2"). Nothing is logged
+today; a program's technical sentence reaches the page as it is. Its design:
+[ADR-0007](../../adr/0007-each-program-logs-what-it-does-never-what-was-said.md). Built in two
+steps, one module a pull request: the logs (each program, then the shell passing the making's
+id), then the failures said in words and the developer mode (the shell).
 
 ## Out of scope
 
