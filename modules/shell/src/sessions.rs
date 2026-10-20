@@ -254,3 +254,12 @@ pub fn set_aside(file: &Path, moved: bool) -> std::io::Result<PathBuf> {
     }
     Err(std::io::Error::other("no name free to set the file aside"))
 }
+
+/// Makes the folder of sessions when it is not there, and tries writing in it — what a recording
+/// will do first —, leaving nothing: a folder that refuses is said before any recorder starts.
+pub fn writable(folder: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(folder)?;
+    let probe = folder.join(format!(".wholeheard-writable-{}", std::process::id()));
+    std::fs::write(&probe, b"")?;
+    std::fs::remove_file(&probe)
+}

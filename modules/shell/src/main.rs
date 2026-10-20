@@ -1570,7 +1570,7 @@ fn toggle_recording(app: &AppHandle) {
     // The settings as the file says them now: the user may have changed it by hand.
     let _ = shell.reread();
     let sessions = shell.settings().sessions;
-    if let Err(error) = std::fs::create_dir_all(&sessions) {
+    if let Err(error) = sessions::writable(&sessions) {
         tracing::error!(detail = %error, "shell.sessions_refused");
         return tell(
             app,
