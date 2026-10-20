@@ -98,6 +98,22 @@ deliverables:
       - "Given each program run — by the window or by hand —, when it works or fails, then its steps and its failures are written, one JSON line each, in the user's state folder under the id of the making they belong to, a file a day kept fourteen days; and the logs of a run on a known meeting hold none of its words, its context, nor a key"
       - "Given a making that fails, when the user is told, then the page and the notification say it in one plain sentence in their language, with what to do, and never the technical detail"
       - "Given Settings → Advanced, when the user turns the developer mode on, then the detail is shown under the sentence, the level of the logs can be chosen, the logs' folder opens, and a diagnostic with nothing of a meeting is copied"
+  - id: D30
+    title: "A call starts in another application, and Wholeheard offers to record it"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given Wholeheard running and not recording, with the setting at its default, when another application starts taking a microphone — a call in Discord, in WhatsApp Web or another browser tab, in any program —, then within a few seconds Wholeheard offers to record it, with Record and Not this time; nothing is recorded without that gesture, and the offer is made once per taking, never while recording, never for Wholeheard's own capture"
+      - "Given the offer, when the user chooses Record, then the recording starts as from the menu, the reminder included; when they choose Not this time, nothing is offered again until that application lets the microphone go and takes it again"
+      - "Given Settings, when the user chooses that nothing is offered — there, or from the offer itself —, then no offer is made until they choose it again; the choice is kept in the settings file"
+  - id: D31
+    title: "The recording follows the user's devices, and says which it records"
+    module: capture
+    state: ready
+    acceptance:
+      - "Given a recording, when the user switches the device the computer uses — a headset plugged or unplugged, a Bluetooth headset, the built-in microphone, the speakers, earphones with their microphone —, then the recording goes on with the new device, without a gap and without ending, whatever its channels and rate; and the user is told which microphone and which output are now recorded"
+      - "Given a recording, when a device is taken away with nothing to replace it, then the user is told that side is not recorded for now, and the recording goes on with the other; when a device comes back, it is recorded again"
+      - "Given a session recorded across several devices, when it is read later, then it says each device it recorded and from when"
 ---
 
 # Cycle 03 — the window
@@ -381,6 +397,34 @@ the meeting's length (D17, D18); the transcript has each line's time. Played in 
 two tracks of a session together; the drawing and the lines are the controls. Built to the
 boards' style (board 2, the meeting), no new board: the decider judges it in its trial.
 
+### D30 and D31
+
+**Added on the decider's word, 2026-10-20**: "si je démarre n'importe quel appel, discord,
+whatsapp web ou autre et que le micro est sollicité, on me propose automatiquement d'enregistrer
+via wholeheard ?", then "oui cadre-le dans ce cycle, il faut bien prendre en compte le switch du
+matériel utilisé (un user peut changer les sources audio : baffle, casque, micro intégré, micro
+écouteur etc.)". The end date does not move.
+
+- **D30, the offer.** Board 6's offer, not its recording by itself. On Linux, PipeWire tells of
+  each application that opens a microphone, through its PulseAudio interface (`pactl
+  subscribe`, present wherever `pipewire-pulse` is). The shell watches it and records nothing.
+  Board 4's setting holds "nothing" and "offer"; "record alone" stays out of scope. Windows and
+  macOS follow with the rest.
+- **D31, the devices.** Capture opens the defaults without pinning them, so PipeWire moves its
+  streams when the user switches devices. This was measured on virtual devices in #149: both
+  tracks followed with no gap. What is missing:
+  - the user is not told what is recorded now;
+  - `session.json` names only the first devices;
+  - a device taken away is said only as silence;
+  - a device with other channels could end the recording, because a track refuses a delivery
+    that is not whole frames. This is read in the code, not measured.
+
+  D31 measures each case on virtual devices first, then makes it hold. Telling the user is a
+  `recording/v1` event, an additive change, and a `session-audio` record of each device, both
+  through the contracts module first. The contracts' own open questions (`recording/v1`, a
+  source gone during the recording; `session-audio/v2`, a device changed during a meeting) are
+  answered there.
+
 ### D28
 
 **Added on the decider's word, 2026-10-20** ("tu connais le marché, tranche le nom et GO"), after
@@ -444,9 +488,9 @@ pull request per box, in this order.
 
 ## Out of scope
 
-- The offer to record when an application takes the microphone, and recording by itself:
-  drawn and accepted (board 6), not built here — it needs another application's use of the
-  microphone seen on each system, and it records other people. *Later*.
+- Recording by itself when an application takes the microphone, and stopping when it lets it
+  go: drawn (board 6), not built here — it records other people without a gesture. *Later*.
+  The offer to record is D30.
 - Windows and macOS.
 - `export`, and `all`.
 - Compressing the tracks.
