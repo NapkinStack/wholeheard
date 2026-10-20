@@ -24,7 +24,7 @@ use tauri::{
 };
 use tauri_plugin_notification::NotificationExt;
 use wholeheard_shell::{
-    desktop, keys,
+    desktop, keys, log,
     meeting::{self, Read, Transcript},
     migrate,
     minutes::{self, Minutes},
@@ -150,6 +150,9 @@ enum Shown {
 }
 
 fn main() {
+    // What the shell does is logged — never what was said — in the user's state folder (ADR-0007).
+    let _run = log::start("shell");
+    tracing::info!("shell.started");
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -192,6 +195,7 @@ fn main() {
                 Some(Ok(carried)) if carried.settings || carried.data => tell(app.handle(), &words::carried_over(language)),
                 Some(Err(error)) => {
                     eprintln!("wholeheard: Summit's folders could not all be carried over: {error}");
+                    tracing::error!(detail = %error, "shell.carry_failed");
                     tell(app.handle(), &words::carry_failed(language));
                 }
                 _ => {}
@@ -1024,13 +1028,31 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
     let summary = program("wholeheard-summary", "WHOLEHEARD_SUMMARY");
     let ran = tauri::async_runtime::spawn_blocking(move || {
         let key = providers::host(&provider).and_then(|host| keys::key(&host).ok().flatten());
+        let (trace, making) = log::making();
+        let _making = making.enter();
+        tracing::info!(
+            host = providers::host(&provider).unwrap_or_default(),
+            model,
+            key = key.is_some(),
+            "shell.testing"
+        );
         let mut command = std::process::Command::new(&summary);
-        command.args(["--test", "--provider", &provider, "--model", &model]);
+        command
+            .args(["--test", "--provider", &provider, "--model", &model])
+            .env("WHOLEHEARD_TRACE", &trace);
         command.env_remove("WHOLEHEARD_PROVIDER_KEY");
         if let Some(key) = key {
             command.env("WHOLEHEARD_PROVIDER_KEY", key);
         }
-        command.output()
+        let output = command.output();
+        match &output {
+            Ok(output) if output.status.success() => tracing::info!("shell.tested"),
+            Ok(output) => {
+                tracing::error!(detail = %String::from_utf8_lossy(&output.stderr).trim(), status = ?output.status, "shell.test_failed")
+            }
+            Err(error) => tracing::error!(detail = %error, "shell.test_failed"),
+        }
+        output
     })
     .await
     .map_err(|error| error.to_string())?;

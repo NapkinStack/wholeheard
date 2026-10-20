@@ -15,6 +15,7 @@ use std::{
     thread,
     time::Duration,
 };
+use tracing::{error, info};
 
 /// What a making says, in its order.
 #[derive(Debug, Clone, PartialEq)]
@@ -43,13 +44,25 @@ impl Summarising {
     /// Starts `wholeheard-summary` on a session's folder. The key goes to its environment only — a
     /// key in Wholeheard's own environment never does.
     pub fn start(program: &Path, folder: &Path, provider: &str, model: &str, key: Option<&str>) -> io::Result<(Self, Receiver<Event>)> {
+        let (trace, making) = crate::log::making();
+        let _making = making.enter();
         let mut command = Command::new(program);
-        command.arg(folder).args(["--provider", provider, "--model", model]);
+        command
+            .arg(folder)
+            .args(["--provider", provider, "--model", model])
+            .env("WHOLEHEARD_TRACE", &trace);
+        let host = crate::providers::host(provider).unwrap_or_default();
+        info!(session = %crate::transcription::named(folder), host, model, key = key.is_some(), "shell.minutes");
         command.env_remove("WHOLEHEARD_PROVIDER_KEY");
         if let Some(key) = key {
             command.env("WHOLEHEARD_PROVIDER_KEY", key);
         }
-        let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+        let mut child = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .inspect_err(|error| error!(detail = %error, "shell.minutes_failed"))?;
         let (Some(output), Some(errors)) = (child.stdout.take(), child.stderr.take()) else {
             return Err(io::Error::other("the program that writes the minutes could not be listened to"));
         };
@@ -76,7 +89,9 @@ impl Summarising {
             let _ = errors_read.send(());
         });
         let (waited, folder) = (Arc::clone(&program), folder.to_path_buf());
+        let (making, sessions) = (making.clone(), folder.parent().map(Path::to_path_buf));
         thread::spawn(move || {
+            let _making = making.enter();
             let status = loop {
                 match waited.lock().map(|mut child| child.try_wait()) {
                     Ok(Ok(None)) => thread::sleep(Duration::from_millis(100)),
@@ -101,6 +116,12 @@ impl Summarising {
                     (true, None) => "wholeheard-summary could not be waited for".into(),
                 })
             };
+            match &made {
+                Made::Written(_) => info!("shell.minutes_written"),
+                Made::Failed(why) => {
+                    error!(detail = %crate::log::without(why, sessions.as_deref()), status = ?status, "shell.minutes_failed")
+                }
+            }
             let _ = tell.send(Event::Ended(made));
         });
         Ok((Self { program }, events))

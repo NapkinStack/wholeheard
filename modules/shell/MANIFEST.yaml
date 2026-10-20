@@ -155,6 +155,20 @@ dependencies:
     purpose: Reads the language the user's system is set to, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One call in src/words.rs; the environment replaces it on Linux, a system call elsewhere.
+  - name: tracing
+    purpose: The steps and failures the shell logs, each making under its id (ADR-0007)
+    adr: docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md
+    exit_strategy: >
+      The info! and error! calls of src/main.rs, src/recording.rs, src/transcription.rs and
+      src/summarising.rs; any logging facade replaces them.
+  - name: tracing-subscriber
+    purpose: Writes those events as JSON lines, at the level asked
+    adr: docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md
+    exit_strategy: One function, start in src/log.rs.
+  - name: tracing-appender
+    purpose: A file a day
+    adr: docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md
+    exit_strategy: One function, start in src/log.rs.
 #  - name:
 #    purpose:
 #    adr:

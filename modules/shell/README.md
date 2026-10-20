@@ -93,6 +93,14 @@ on the user's word, or placed by hand. When Wholeheard writes the file it touche
 a line it changes keeps its comment, and every other line, comment and key stays as written; a
 file it cannot read as settings it never writes over.
 
+What it does is logged — its start, each recording, transcript, minutes and test of a model with
+how it ended, a failure with its detail; never a word of a meeting, a key, nor a session's path
+beyond its folder's name (ADR-0007): one JSON line per step in
+`$XDG_STATE_HOME/wholeheard/logs/shell.<date>.jsonl` (UTC), beside the programs' own; day files
+kept fourteen days and the folder under 50 MB. Each making has an id, logged here and passed to
+its program as `WHOLEHEARD_TRACE`: one id finds both sides. `WHOLEHEARD_LOG` and
+`WHOLEHEARD_LOG_DIR` (an absolute path) are passed on as they are set.
+
 ## Getting started
 
 The standard verbs — `bootstrap`, `check`, `test`, `run` — are declared in the `commands`
