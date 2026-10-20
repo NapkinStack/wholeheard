@@ -3,11 +3,20 @@
   "productName": "Wholeheard",
   "version": "0.2.0",
   "identifier": "dev.wholeheard.Wholeheard",
-  "build": { "frontendDist": "./ui" },
+  "build": {
+    "frontendDist": "./ui"
+  },
   "app": {
     "windows": [],
-    "security": { "csp": "default-src 'self'" },
+    "security": {
+      "csp": "default-src 'self'; media-src http://127.0.0.1:*"
+    },
     "withGlobalTauri": true
   },
-  "bundle": { "active": false, "icon": ["icons/icon.png"] }
+  "bundle": {
+    "active": false,
+    "icon": [
+      "icons/icon.png"
+    ]
+  }
 }

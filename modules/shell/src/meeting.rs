@@ -4,7 +4,10 @@
 //! What a file holds that its contract does not allow is never shown as something it is not:
 //! a transcript line that is not one is skipped and counted.
 
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use serde::Serialize;
 
@@ -132,4 +135,76 @@ pub fn shape(transcript: &Transcript, seconds: f64, parts: usize) -> [Vec<f32>; 
         }
     }
     shares
+}
+
+/// A track of a meeting, to be played: its name — `local` or `remote` —, its file, and where
+/// its first frame is on the session's clock, in seconds.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Track {
+    pub name: String,
+    pub path: PathBuf,
+    pub starts: f64,
+}
+
+/// The tracks a meeting's folder holds, as `session-audio` describes them, each where its first
+/// frame is: version 1's from the session's start; version 2's where `clock.jsonl`'s first point
+/// of the track puts its frame 0 — a track that opened on a silence starts later. A file that is
+/// not there, or is a link, is no track: freed audio leaves nothing to play.
+pub fn tracks(folder: &Path) -> Vec<Track> {
+    let Some(session) = fs::read_to_string(folder.join("session.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+    else {
+        return Vec::new();
+    };
+    let named: Vec<(&str, &str)> = match session["contract"].as_str() {
+        Some("session-audio/v1") => vec![("local", "me.wav"), ("remote", "others.wav")],
+        Some("session-audio/v2") => [("local", "local.wav"), ("remote", "remote.wav")]
+            .into_iter()
+            .filter(|(name, _)| session["tracks"].get(name).is_some())
+            .collect(),
+        _ => return Vec::new(),
+    };
+    let clock = fs::read_to_string(folder.join("clock.jsonl")).unwrap_or_default();
+    let points: Vec<serde_json::Value> = clock.lines().filter_map(|line| serde_json::from_str(line).ok()).collect();
+    named
+        .into_iter()
+        .filter_map(|(name, file)| {
+            let path = std::path::absolute(folder.join(file)).ok()?;
+            fs::symlink_metadata(&path).ok().filter(fs::Metadata::is_file)?;
+            let rate = rate(&path)?;
+            let starts = points
+                .iter()
+                .find(|point| point["track"] == name && point["sample"].is_u64() && point["at"].is_number())
+                .map_or(0.0, |point| {
+                    point["at"].as_f64().unwrap_or(0.0) - point["sample"].as_u64().unwrap_or(0) as f64 / rate
+                });
+            Some(Track {
+                name: name.into(),
+                path,
+                starts,
+            })
+        })
+        .collect()
+}
+
+/// A WAV file's sample rate, from its own `fmt ` chunk — never assumed.
+fn rate(path: &Path) -> Option<f64> {
+    use std::io::Read;
+    let mut head = [0u8; 4096];
+    let read = fs::File::open(path).ok()?.read(&mut head).ok()?;
+    let head = &head[..read];
+    if head.get(0..4)? != b"RIFF" || head.get(8..12)? != b"WAVE" {
+        return None;
+    }
+    let mut at = 12;
+    while at + 8 <= head.len() {
+        let size = u32::from_le_bytes(head[at + 4..at + 8].try_into().ok()?) as usize;
+        if &head[at..at + 4] == b"fmt " {
+            let rate = u32::from_le_bytes(head.get(at + 12..at + 16)?.try_into().ok()?);
+            return (rate > 0).then_some(f64::from(rate));
+        }
+        at += 8 + size + size % 2;
+    }
+    None
 }

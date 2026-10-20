@@ -9,6 +9,7 @@ pub mod meeting;
 pub mod migrate;
 pub mod minutes;
 pub mod model;
+pub mod player;
 pub mod providers;
 pub mod recording;
 pub mod sessions;

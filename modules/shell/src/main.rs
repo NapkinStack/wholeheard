@@ -29,6 +29,7 @@ use wholeheard_shell::{
     migrate,
     minutes::{self, Minutes},
     model::{self, Published},
+    player,
     providers::{self, Online},
     recording::{Recording, Said, Source},
     sessions::{self, Listed},
@@ -100,6 +101,8 @@ struct Shell {
     /// With their cause, when wholeheard-summary named one this version knows: one entry, so
     /// that a later failure never shows an earlier one's cause (D29).
     minutes_failed: Mutex<HashMap<PathBuf, (String, Option<summarising::Cause>)>>,
+    /// The loopback server the opened meeting is played from, started with the first (D26).
+    served: Mutex<Option<player::Served>>,
     /// How many times each meeting's minutes were written since the start: a page drawn with
     /// fewer is drawn again, however quickly they were made (D25).
     minutes_made: Mutex<HashMap<PathBuf, u64>>,
@@ -282,6 +285,7 @@ fn main() {
                 minutes_waiting: Mutex::new(VecDeque::new()),
                 awaiting: Mutex::new(Vec::new()),
                 minutes_failed: Mutex::new(HashMap::new()),
+                served: Mutex::new(None),
                 minutes_made: Mutex::new(HashMap::new()),
                 minutes_tried: Mutex::new(HashMap::new()),
                 asked_again: Mutex::new(HashMap::new()),
@@ -615,6 +619,17 @@ struct Opened {
     minutes: Read<Minutes>,
     /// The developer mode is on: the page offers a diagnostic of this meeting (D29).
     developer: bool,
+    /// Its tracks, to be played together where the session's clock puts them (D26); none when
+    /// its audio went to the trash.
+    tracks: Vec<Played>,
+}
+
+/// A track of the opened meeting as the page plays it: from the loopback server, never a path.
+#[derive(serde::Serialize)]
+struct Played {
+    name: String,
+    url: String,
+    starts: f64,
 }
 
 #[tauri::command]
@@ -630,7 +645,32 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
         transcript: meeting::transcript(&folder),
         minutes: minutes::minutes(&folder, words::window(shell.language).minutes_sections),
         developer: shell.settings().developer,
+        tracks: playable(&shell, &folder),
     })
+}
+
+/// A meeting's tracks, offered to the window's player by the loopback server — these files, read
+/// only, and no other: an earlier meeting's are no longer served (ADR-0008, D26).
+fn playable(shell: &Shell, folder: &Path) -> Vec<Played> {
+    let tracks = meeting::tracks(folder);
+    let mut served = shell.served.lock().unwrap();
+    if served.is_none() && !tracks.is_empty() {
+        match player::Served::start() {
+            Ok(started) => *served = Some(started),
+            Err(error) => tracing::error!(detail = %error, "shell.player_refused"),
+        }
+    }
+    let Some(served) = served.as_ref() else { return Vec::new() };
+    let urls = served.offer(tracks.iter().map(|track| track.path.clone()).collect());
+    tracks
+        .into_iter()
+        .zip(urls)
+        .map(|(track, url)| Played {
+            name: track.name,
+            url,
+            starts: track.starts,
+        })
+        .collect()
 }
 
 /// A meeting's diagnostic, for the page to copy: every program's log lines of its makings —
