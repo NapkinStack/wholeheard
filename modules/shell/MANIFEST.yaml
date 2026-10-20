@@ -157,13 +157,19 @@ dependencies:
     exit_strategy: One call in src/words.rs; the environment replaces it on Linux, a system call elsewhere.
   - name: hyper
     purpose: >
-      The loopback server the window plays an opened meeting's tracks from, those files alone
-      (D26), with hyper-util, http-body-util, bytes, futures-util, tokio and tokio-util — all
-      already among Tauri's own dependencies
+      The loopback server the window plays an opened meeting from, its tracks alone (D26), with
+      hyper-util, http-body-util, bytes, futures-util and tokio — all already among Tauri's own
+      dependencies
     adr: docs/adr/0008-the-window-plays-a-meeting-from-a-loopback-server.md
     exit_strategy: >
       src/player.rs alone: serve and answer; any HTTP server that bounds a request's headers,
       never reads a body and caps the connections held replaces them.
+  - name: rubato
+    purpose: >
+      Brings a track of a lower rate up to the mix's, for the window's player (ADR-0009) — the
+      resampler the transcription already uses, same version
+    adr: docs/adr/0009-the-window-plays-a-meeting-s-tracks-as-one-sound.md
+    exit_strategy: One function, mix::Track::raised; any resampler of fixed ratio replaces it.
   - name: getrandom
     purpose: The loopback server's token, 128 random bits from the system
     adr: docs/adr/0008-the-window-plays-a-meeting-from-a-loopback-server.md
