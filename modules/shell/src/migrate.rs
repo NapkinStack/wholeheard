@@ -68,9 +68,12 @@ pub fn carry_over(places: &Places) -> io::Result<Carried> {
         settings_before.join("settings.toml")
     };
 
-    // 1. The meetings: Summit's folder named, when the settings name none and it holds meetings.
+    // 1. The meetings: Summit's folder named, when the settings name none and it holds meetings —
+    // while something of Summit's is still to carry over, or no settings are written yet: a user
+    // who takes the folder out of their settings afterwards is not overruled.
     let meetings = places.documents.join(MEETINGS_BEFORE);
-    if holds_meetings(&meetings)? {
+    let still = settings_before.is_dir() || data_before.is_dir() || !settings_now.join("settings.toml").exists();
+    if still && holds_meetings(&meetings)? {
         let mut settings = read(&file)?;
         if let Some(settings) = settings.as_mut().filter(|settings| !settings.contains_key("sessions")) {
             settings["sessions"] = value(meetings.to_string_lossy().into_owned());
@@ -144,16 +147,21 @@ fn read(file: &Path) -> io::Result<Option<DocumentMut>> {
     }
 }
 
-/// Writes the settings whole or not at all: beside, then in place.
+/// Writes the settings whole or not at all: beside, then in place — through a link to where it
+/// leads (a file kept in the user's own dotfiles stays there), with the permissions it had.
 fn write(file: &Path, settings: &DocumentMut) -> io::Result<()> {
     if let Some(folder) = file.parent() {
         fs::create_dir_all(folder)?;
     }
+    let file = fs::canonicalize(file).unwrap_or_else(|_| file.to_path_buf());
     let mut text = settings.to_string();
     if !text.ends_with('\n') {
         text.push('\n');
     }
-    let beside = file.with_extension("toml.carrying");
+    let beside = file.with_extension(format!("toml.carrying.{}", std::process::id()));
     fs::write(&beside, text)?;
-    fs::rename(&beside, file)
+    if let Ok(had) = fs::metadata(&file) {
+        fs::set_permissions(&beside, had.permissions())?;
+    }
+    fs::rename(&beside, &file)
 }
