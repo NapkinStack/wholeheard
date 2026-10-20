@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Summit",
-  "version": "0.1.0",
-  "identifier": "dev.summit.Summit",
+  "productName": "Wholeheard",
+  "version": "0.2.0",
+  "identifier": "dev.wholeheard.Wholeheard",
   "build": { "frontendDist": "./ui" },
   "app": {
     "windows": [],

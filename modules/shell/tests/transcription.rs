@@ -1,17 +1,17 @@
 //! A transcript made, tried with a program played here: a script given the same arguments as
-//! `summit-transcription`. No sound, no model, nobody heard.
+//! `wholeheard-transcription`. No sound, no model, nobody heard.
 #![cfg(unix)]
 
 use std::{fs, os::unix::fs::PermissionsExt, path::Path, sync::Mutex, time::Duration};
 
-use summit_shell::transcription::{Made, Transcription};
+use wholeheard_shell::transcription::{Made, Transcription};
 
 /// The end of a transcript made by a script — a test that waits ten seconds has failed. One
 /// at a time: a script still open for writing while another starts cannot be run.
 fn made(folder: &Path, script: &str) -> (Transcription, std::sync::mpsc::Receiver<Made>) {
     static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
     let _held = ONE_AT_A_TIME.lock().unwrap();
-    let path = folder.join("summit-transcription");
+    let path = folder.join("wholeheard-transcription");
     fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     Transcription::start(&path, &folder.join("session"), Path::new("/models/ggml.bin")).unwrap()
@@ -42,9 +42,12 @@ fn a_transcript_that_failed_says_the_programs_last_sentence() {
     fs::create_dir(folder.path().join("session")).unwrap();
     let (_, said) = made(
         folder.path(),
-        "echo 'loading' >&2\necho 'summit-transcription: the model cannot be loaded' >&2\necho '' >&2\nexit 1",
+        "echo 'loading' >&2\necho 'wholeheard-transcription: the model cannot be loaded' >&2\necho '' >&2\nexit 1",
     );
-    assert_eq!(end(&said), Made::Failed("summit-transcription: the model cannot be loaded".into()));
+    assert_eq!(
+        end(&said),
+        Made::Failed("wholeheard-transcription: the model cannot be loaded".into())
+    );
     // A transcript only grows: one that failed halfway is there, and is not whole.
     let (_, said) = made(
         folder.path(),
@@ -67,7 +70,7 @@ fn alive(pid: &str) -> bool {
 }
 
 #[test]
-fn a_transcript_ended_by_summit_ends_with_what_it_started_and_is_not_written() {
+fn a_transcript_ended_by_wholeheard_ends_with_what_it_started_and_is_not_written() {
     let folder = tempfile::tempdir().unwrap();
     fs::create_dir(folder.path().join("session")).unwrap();
     let started = folder.path().join("started");
@@ -102,7 +105,7 @@ fn what_the_program_said_last_is_kept_when_what_it_started_holds_its_error_strea
 #[test]
 fn the_last_recording_is_the_latest_session_of_the_folder() {
     let sessions = tempfile::tempdir().unwrap();
-    assert_eq!(summit_shell::transcription::latest(sessions.path()), None);
+    assert_eq!(wholeheard_shell::transcription::latest(sessions.path()), None);
     for name in ["2026-10-13_14-05", "2026-10-16_09-30", "2026-10-14_11-00"] {
         fs::create_dir(sessions.path().join(name)).unwrap();
         fs::write(sessions.path().join(name).join("session.json"), "{}").unwrap();
@@ -111,8 +114,8 @@ fn the_last_recording_is_the_latest_session_of_the_folder() {
     fs::create_dir(sessions.path().join("2027-notes")).unwrap();
     fs::write(sessions.path().join("zz.txt"), "").unwrap();
     assert_eq!(
-        summit_shell::transcription::latest(sessions.path()),
+        wholeheard_shell::transcription::latest(sessions.path()),
         Some(sessions.path().join("2026-10-16_09-30"))
     );
-    assert_eq!(summit_shell::transcription::latest(Path::new("/nowhere")), None);
+    assert_eq!(wholeheard_shell::transcription::latest(Path::new("/nowhere")), None);
 }

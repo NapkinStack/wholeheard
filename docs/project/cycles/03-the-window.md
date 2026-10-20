@@ -86,7 +86,7 @@ deliverables:
   - id: D28
     title: "Summit becomes Wholeheard, and nothing of the user's is lost on the way"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given Summit installed and used — settings, meetings, the Whisper model, keys in the keyring —, when the user installs Wholeheard's package, then it replaces Summit's, and Wholeheard starts with the same settings, the same meetings where they were, the model not fetched again and the keys kept; the shortcut is asked once"
       - "Given the repository, when it is read, then the product, its programs, its packages, its application id and its folders are named Wholeheard; Summit is named only where history is told"

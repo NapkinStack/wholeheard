@@ -7,7 +7,7 @@ module:
 
   # ONE sentence. If it needs an "and", the module probably does two things.
   responsibility: >
-    Puts Summit's four steps in the user's hands: a tray, a global shortcut, notifications, one window.
+    Puts Wholeheard's four steps in the user's hands: a tray, a global shortcut, notifications, one window.
 
   owner: "NapkinStack/maintainers"          # a GitHub team, organisation/team; a user only without an organisation
   contact: "@NapkinStack/maintainers"
@@ -101,10 +101,10 @@ dependencies:
       One call, trash::delete_all, in src/main.rs; gio trash and the systems' own trash
       interfaces replace it.
   - name: http
-    purpose: Reads a provider's address as summit-summary does, to tell one of this machine
+    purpose: Reads a provider's address as wholeheard-summary does, to tell one of this machine
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: >
-      One parse, in providers::local; any reader of addresses summit-summary also uses replaces it.
+      One parse, in providers::local; any reader of addresses wholeheard-summary also uses replaces it.
   - name: tauri-plugin-dialog
     purpose: Opens the system's own dialog to choose the sessions' folder
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
@@ -146,7 +146,7 @@ dependencies:
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One function, fingerprint, in src/model.rs; any SHA-256.
   - name: pulldown-cmark
-    purpose: Renders a session's minutes from CommonMark, the reader summit-summary judged them with
+    purpose: Renders a session's minutes from CommonMark, the reader wholeheard-summary judged them with
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: >
       One function, parse_minutes, in src/minutes.rs; any CommonMark renderer whose events let
@@ -168,7 +168,7 @@ commands:
   bootstrap: bash scripts/bootstrap.sh
   check: bash -n scripts/release.sh && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
   test: cargo test --locked
-  run: cargo run --locked --release --bin summit
+  run: cargo run --locked --release --bin wholeheard
   release: bash scripts/release.sh
   e2e: bash scripts/e2e.sh
   clean: cargo clean

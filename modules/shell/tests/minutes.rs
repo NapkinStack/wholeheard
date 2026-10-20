@@ -2,7 +2,7 @@
 
 use std::fs;
 
-use summit_shell::{meeting::Read, minutes};
+use wholeheard_shell::{meeting::Read, minutes};
 
 const MINUTES: &str = "---
 contract: minutes/v1

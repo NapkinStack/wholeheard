@@ -1,4 +1,4 @@
-//! `summit` — Summit as the user meets it: an icon in the tray, a global shortcut,
+//! `wholeheard` — Wholeheard as the user meets it: an icon in the tray, a global shortcut,
 //! notifications, and a window opened from the tray's menu — or at once with `--window`, the
 //! user's gesture too. It starts the program that records and stops it, then the one that
 //! hears; it records and hears nothing itself, and a recording goes on if this process does
@@ -16,9 +16,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use summit_shell::{
+use tauri::{
+    AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, Wry,
+    image::Image,
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+};
+use tauri_plugin_notification::NotificationExt;
+use wholeheard_shell::{
     desktop, keys,
     meeting::{self, Read, Transcript},
+    migrate,
     minutes::{self, Minutes},
     model::{self, Published},
     providers::{self, Online},
@@ -29,15 +37,8 @@ use summit_shell::{
     transcription::{self, Made, Transcription},
     words::{self, Language, Notice, Refusal, Trouble},
 };
-use tauri::{
-    AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, Wry,
-    image::Image,
-    menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
-};
-use tauri_plugin_notification::NotificationExt;
 
-const TRAY: &str = "summit";
+const TRAY: &str = "wholeheard";
 
 /// What the shell holds while it runs.
 struct Shell {
@@ -55,7 +56,7 @@ struct Shell {
     recorded: Mutex<Option<PathBuf>>,
     /// The menu's entry that starts and stops, relabelled as the recording goes.
     toggle: MenuItem<Wry>,
-    /// The user asked to quit while a recording ran: it is stopped first, then Summit leaves.
+    /// The user asked to quit while a recording ran: it is stopped first, then Wholeheard leaves.
     leaving: Mutex<bool>,
     /// When the recording was last started or told to stop: a second press in the same
     /// half-second is the same gesture, not a second one.
@@ -71,7 +72,7 @@ struct Shell {
     /// The menu's entry that has the minutes of the last recording written.
     minutes: MenuItem<Wry>,
     /// A transcript made again: where it goes back, and where it was set aside — taken by the
-    /// run's end, or by Summit quitting, whichever comes first.
+    /// run's end, or by Wholeheard quitting, whichever comes first.
     redoing: Mutex<Option<(PathBuf, PathBuf)>>,
     /// The meeting whose transcript is being made, when one is: it cannot be freed meanwhile.
     hearing: Mutex<Option<PathBuf>>,
@@ -184,6 +185,17 @@ fn main() {
         .setup(|app| {
             let language = Language::system();
             let labels = words::menu(language);
+            // Summit became Wholeheard (D28): what the user held under the old name, carried over
+            // once, before anything is read; a failure leaves everything where it was, and says so.
+            let carried = migrate::Places::here().map(|places| migrate::carry_over(&places));
+            match &carried {
+                Some(Ok(carried)) if carried.settings || carried.data => tell(app.handle(), &words::carried_over(language)),
+                Some(Err(error)) => {
+                    eprintln!("wholeheard: Summit's folders could not all be carried over: {error}");
+                    tell(app.handle(), &words::carry_failed(language));
+                }
+                _ => {}
+            }
             let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
             let toggle = MenuItem::with_id(app, "toggle", labels.start, true, None::<&str>)?;
             let again = MenuItem::with_id(app, "transcribe", labels.transcribe, true, None::<&str>)?;
@@ -194,7 +206,7 @@ fn main() {
             let download = MenuItem::with_id(app, "download", "", true, None::<&str>)?;
             TrayIconBuilder::with_id(TRAY)
                 .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
-                .tooltip("Summit")
+                .tooltip("Wholeheard")
                 .menu(&menu.clone())
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => open_window(app),
@@ -286,8 +298,8 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("Summit could not start");
-    // No window is no reason to leave: Summit lives in the tray until the user quits it.
+        .expect("Wholeheard could not start");
+    // No window is no reason to leave: Wholeheard lives in the tray until the user quits it.
     app.run(|_, event| {
         if let RunEvent::ExitRequested { api, code: None, .. } = event {
             api.prevent_exit();
@@ -304,7 +316,7 @@ fn open_window(app: &AppHandle) {
         return;
     }
     let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-        .title("Summit")
+        .title("Wholeheard")
         .inner_size(1100.0, 800.0)
         .min_inner_size(420.0, 400.0)
         .build();
@@ -551,7 +563,7 @@ fn small_window(app: AppHandle, shell: State<'_, Shell>) {
         return;
     }
     let _ = WebviewWindowBuilder::new(&app, "small", WebviewUrl::App("index.html#/small".into()))
-        .title("Summit")
+        .title("Wholeheard")
         .inner_size(380.0, 260.0)
         .resizable(false)
         .always_on_top(true)
@@ -750,7 +762,7 @@ struct SettingsShown {
     unreadable: Option<String>,
 }
 
-/// The folder Summit keeps its models in: the default model's.
+/// The folder Wholeheard keeps its models in: the default model's.
 fn models_folder() -> PathBuf {
     Settings::default().model.parent().map(PathBuf::from).unwrap_or_default()
 }
@@ -763,7 +775,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
     let models = settings::whisper_models(&models_folder(), &settings)
         .into_iter()
         .map(|path| Model {
-            // One outside Summit's folder says where it is: two files may share a name.
+            // One outside Wholeheard's folder says where it is: two files may share a name.
             name: match path.parent() {
                 Some(parent) if parent != models_folder() => path.display().to_string(),
                 _ => path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -890,7 +902,7 @@ fn keyboard_settings() -> Option<PathBuf> {
 /// Opens the desktop's keyboard settings: the shortcut is the desktop's to change.
 #[tauri::command]
 fn shortcut_settings() -> Result<(), String> {
-    let program = keyboard_settings().ok_or("this desktop's keyboard settings cannot be opened from Summit")?;
+    let program = keyboard_settings().ok_or("this desktop's keyboard settings cannot be opened from Wholeheard")?;
     let mut started = std::process::Command::new(program)
         .arg("keyboard")
         .spawn()
@@ -910,9 +922,9 @@ async fn choose_folder(app: AppHandle) -> Option<PathBuf> {
     chosen.into_path().ok()
 }
 
-/// Ollama on this computer — or, for whoever tries Summit, where `SUMMIT_OLLAMA` says.
+/// Ollama on this computer — or, for whoever tries Wholeheard, where `WHOLEHEARD_OLLAMA` says.
 fn ollama() -> String {
-    std::env::var("SUMMIT_OLLAMA").unwrap_or_else(|_| providers::OLLAMA.to_string())
+    std::env::var("WHOLEHEARD_OLLAMA").unwrap_or_else(|_| providers::OLLAMA.to_string())
 }
 
 /// Who can write the minutes, and who does: the page never receives a key, only whether one is
@@ -1000,7 +1012,7 @@ async fn minutes_saved(
     Ok(not_kept)
 }
 
-/// *Tester*: asks `summit-summary` whether the model saved answers — one sentence of its own,
+/// *Tester*: asks `wholeheard-summary` whether the model saved answers — one sentence of its own,
 /// nothing of a meeting —, the key going from the keyring to its environment, never its
 /// arguments. Refused, the program's own sentence.
 #[tauri::command]
@@ -1009,14 +1021,14 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
     let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
         return Err("no model is chosen yet".into());
     };
-    let summary = program("summit-summary", "SUMMIT_SUMMARY");
+    let summary = program("wholeheard-summary", "WHOLEHEARD_SUMMARY");
     let ran = tauri::async_runtime::spawn_blocking(move || {
         let key = providers::host(&provider).and_then(|host| keys::key(&host).ok().flatten());
         let mut command = std::process::Command::new(&summary);
         command.args(["--test", "--provider", &provider, "--model", &model]);
-        command.env_remove("SUMMIT_PROVIDER_KEY");
+        command.env_remove("WHOLEHEARD_PROVIDER_KEY");
         if let Some(key) = key {
-            command.env("SUMMIT_PROVIDER_KEY", key);
+            command.env("WHOLEHEARD_PROVIDER_KEY", key);
         }
         command.output()
     })
@@ -1027,14 +1039,14 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
         Ok(output) => {
             let said = String::from_utf8_lossy(&output.stderr);
             let said = said.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
-            let said = said.strip_prefix("summit-summary: ").unwrap_or(said);
+            let said = said.strip_prefix("wholeheard-summary: ").unwrap_or(said);
             Err(if said.is_empty() {
-                format!("summit-summary stopped without saying why ({})", output.status)
+                format!("wholeheard-summary stopped without saying why ({})", output.status)
             } else {
                 said.to_string()
             })
         }
-        Err(error) => Err(format!("summit-summary could not be started ({error})")),
+        Err(error) => Err(format!("wholeheard-summary could not be started ({error})")),
     }
 }
 
@@ -1075,7 +1087,7 @@ fn minutes_ended(app: &AppHandle, folder: &Path, failed: Option<String>) {
     shell.minutes_by.lock().unwrap().take();
     if let Some(why) = failed {
         let why = if why.trim().is_empty() {
-            "summit-summary stopped without saying why".to_string()
+            "wholeheard-summary stopped without saying why".to_string()
         } else {
             why
         };
@@ -1366,7 +1378,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
             }
         };
         let started = Summarising::start(
-            &program("summit-summary", "SUMMIT_SUMMARY"),
+            &program("wholeheard-summary", "WHOLEHEARD_SUMMARY"),
             &folder,
             &provider,
             &model,
@@ -1447,7 +1459,7 @@ fn open_window_at(app: &AppHandle, page: &str) {
         return open_window(app);
     }
     let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(format!("index.html{page}").into()))
-        .title("Summit")
+        .title("Wholeheard")
         .inner_size(1100.0, 800.0)
         .min_inner_size(420.0, 400.0)
         .build();
@@ -1465,7 +1477,7 @@ fn show(app: &AppHandle, shown: Shown) {
         let shell = app.state::<Shell>();
         let labels = words::menu(shell.language);
         let (label, enabled, icon, tooltip) = match shown {
-            Shown::Idle => (labels.start, true, &include_bytes!("../icons/tray.png")[..], "Summit"),
+            Shown::Idle => (labels.start, true, &include_bytes!("../icons/tray.png")[..], "Wholeheard"),
             Shown::Recording => (
                 labels.stop,
                 true,
@@ -1492,7 +1504,7 @@ fn show(app: &AppHandle, shown: Shown) {
 }
 
 /// A step's program: beside this one, as an installation puts it — or, for whoever builds
-/// Summit, where its variable says (`SUMMIT_CAPTURE`, `SUMMIT_TRANSCRIPTION`), or on the path.
+/// Wholeheard, where its variable says (`WHOLEHEARD_CAPTURE`, `WHOLEHEARD_TRANSCRIPTION`), or on the path.
 fn program(name: &str, variable: &str) -> PathBuf {
     let name = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
     let beside = std::env::current_exe().ok().and_then(|own| Some(own.parent()?.join(&name)));
@@ -1524,7 +1536,7 @@ fn toggle_recording(app: &AppHandle) {
     // The settings as the file says them now: the user may have changed it by hand.
     let _ = shell.reread();
     let started = std::fs::create_dir_all(&shell.settings().sessions)
-        .and_then(|()| Recording::start(&program("summit-capture", "SUMMIT_CAPTURE"), &shell.settings().sessions));
+        .and_then(|()| Recording::start(&program("wholeheard-capture", "WHOLEHEARD_CAPTURE"), &shell.settings().sessions));
     match started {
         Ok((running, said)) => {
             *recording = Some(running);
@@ -1619,7 +1631,7 @@ fn heard(shell: &Shell, folder: &Path, made: &Made) {
         Made::Written(_) => *shell.transcripts_made.lock().unwrap().entry(folder.to_path_buf()).or_default() += 1,
         Made::Failed(why) => {
             let why = if why.trim().is_empty() {
-                "summit-transcription stopped without saying why"
+                "wholeheard-transcription stopped without saying why"
             } else {
                 why
             };
@@ -1673,7 +1685,7 @@ fn retranscribe_or_say(app: &AppHandle, folder: PathBuf, model: PathBuf) {
 /// *Refaire…* on a transcript: made again with the model picked, this time only. The transcript
 /// there stays in place until the new one is whole — set aside for the run, since the program
 /// goes on from a transcript it finds —, then goes to the system's trash; a run that fails, or
-/// that Summit ends as it quits, puts it back.
+/// that Wholeheard ends as it quits, puts it back.
 fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), String> {
     let shell = app.state::<Shell>();
     let mut running = shell.transcription.lock().unwrap();
@@ -1695,7 +1707,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(format!("the transcript there could not be set aside ({error}): nothing was made")),
     };
-    let started = Transcription::start(&program("summit-transcription", "SUMMIT_TRANSCRIPTION"), &folder, &model);
+    let started = Transcription::start(&program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"), &folder, &model);
     let (transcription, made) = match started {
         Ok(started) => started,
         Err(error) => {
@@ -1706,7 +1718,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         }
     };
     *running = Some(transcription);
-    // Who puts the earlier transcript back, or trashes it: this run's end, or Summit quitting —
+    // Who puts the earlier transcript back, or trashes it: this run's end, or Wholeheard quitting —
     // whichever comes first takes it, the other finds nothing.
     *shell.redoing.lock().unwrap() = previous.clone().map(|previous| (current.clone(), previous));
     hearing(&shell, &folder, &model);
@@ -1780,7 +1792,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         }
         return;
     }
-    let started = Transcription::start(&program("summit-transcription", "SUMMIT_TRANSCRIPTION"), &folder, model);
+    let started = Transcription::start(&program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"), &folder, model);
     let (transcription, made) = match started {
         Ok(started) => started,
         Err(error) => {
@@ -1802,7 +1814,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         heard(&shell, &heard_folder, &made);
         drop(running);
         transcribing(&app, false);
-        // Ended by Summit as it quits: nothing to tell, it goes on next time.
+        // Ended by Wholeheard as it quits: nothing to tell, it goes on next time.
         if *shell.leaving.lock().unwrap() {
             return;
         }
@@ -1821,10 +1833,10 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
     });
 }
 
-/// The default model as published — or, for whoever tries Summit, as `SUMMIT_MODEL_PUBLISHED`
+/// The default model as published — or, for whoever tries Wholeheard, as `WHOLEHEARD_MODEL_PUBLISHED`
 /// says: its address, its size in bytes and its SHA-256, separated by spaces.
 fn published() -> Published {
-    let named = std::env::var("SUMMIT_MODEL_PUBLISHED").ok().and_then(|named| {
+    let named = std::env::var("WHOLEHEARD_MODEL_PUBLISHED").ok().and_then(|named| {
         let [address, bytes, sha256] = named.split(' ').collect::<Vec<_>>()[..] else {
             return None;
         };
@@ -1930,7 +1942,7 @@ fn tell_opening(_: &AppHandle, notice: &Notice, folder: PathBuf) {
     let (title, body) = (notice.title.clone(), notice.body.clone());
     std::thread::spawn(move || {
         let shown = notify_rust::Notification::new()
-            .appname("Summit")
+            .appname("Wholeheard")
             .summary(&title)
             .body(&body)
             .action("default", &title)
@@ -1954,8 +1966,8 @@ fn tell_opening(app: &AppHandle, notice: &Notice, _: PathBuf) {
     tell(app, notice);
 }
 
-/// Quits Summit. A recording in progress is stopped first, as the user would stop it: its
-/// files are whole before Summit is gone. Asked a second time, Summit leaves at once: a
+/// Quits Wholeheard. A recording in progress is stopped first, as the user would stop it: its
+/// files are whole before Wholeheard is gone. Asked a second time, Wholeheard leaves at once: a
 /// recorder that does not end is not a reason to keep the user.
 fn leave(app: &AppHandle) {
     let shell = app.state::<Shell>();
@@ -1965,7 +1977,7 @@ fn leave(app: &AppHandle) {
     if let Some(transcription) = shell.transcription.lock().unwrap().as_ref() {
         transcription.end();
     }
-    // A transcript being made again is ended: the earlier one is put back now, before Summit goes.
+    // A transcript being made again is ended: the earlier one is put back now, before Wholeheard goes.
     if let Some((current, previous)) = shell.redoing.lock().unwrap().take() {
         let _ = std::fs::rename(&previous, &current);
     }
@@ -2009,8 +2021,8 @@ async fn bound(app: &AppHandle) -> Result<(), String> {
 
     let said = |error: ashpd::Error| error.to_string();
     // The desktop answers an application it knows: one whose desktop entry is installed
-    // under this very name (`linux/dev.summit.Summit.desktop`).
-    let id: ashpd::AppID = "dev.summit.Summit"
+    // under this very name (`linux/dev.wholeheard.Wholeheard.desktop`).
+    let id: ashpd::AppID = "dev.wholeheard.Wholeheard"
         .parse()
         .map_err(|_| "the application's name was refused".to_string())?;
     ashpd::register_host_app(id).await.map_err(said)?;

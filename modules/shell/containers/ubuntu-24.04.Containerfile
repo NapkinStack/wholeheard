@@ -1,4 +1,4 @@
-# What summit is built with for Ubuntu 24.04 (D27): that system's web view, GTK, tray and SVG
+# What wholeheard is built with for Ubuntu 24.04 (D27): that system's web view, GTK, tray and SVG
 # headers, Rust as this repository uses it. Read by scripts/release.sh.
 FROM docker.io/library/ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive

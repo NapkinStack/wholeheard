@@ -5,6 +5,7 @@
 pub mod desktop;
 pub mod keys;
 pub mod meeting;
+pub mod migrate;
 pub mod minutes;
 pub mod model;
 pub mod providers;

@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path};
 
-use summit_shell::settings::{After, KeepAudio, Settings, file, read, whisper_models, write};
+use wholeheard_shell::settings::{After, KeepAudio, Settings, file, read, whisper_models, write};
 
 fn written(text: &str) -> Result<Settings, String> {
     let folder = tempfile::tempdir().unwrap();
@@ -14,13 +14,13 @@ fn written(text: &str) -> Result<Settings, String> {
 #[test]
 fn no_file_and_an_empty_one_are_every_default() {
     let defaults = Settings::default();
-    // The reminder is shown unless the user says otherwise; sessions go to a folder named Summit.
-    assert!(defaults.reminder && defaults.sessions.is_absolute() && defaults.sessions.ends_with("Summit"));
+    // The reminder is shown unless the user says otherwise; sessions go to a folder named Wholeheard.
+    assert!(defaults.reminder && defaults.sessions.is_absolute() && defaults.sessions.ends_with("Wholeheard"));
     assert_eq!(read(Path::new("/nowhere/settings.toml")), Ok(defaults.clone()));
     for nothing in ["", "\n\n", "# only a comment\n"] {
         assert_eq!(written(nothing), Ok(defaults.clone()), "{nothing:?}");
     }
-    assert!(file().is_some_and(|path| path.ends_with("summit/settings.toml")));
+    assert!(file().is_some_and(|path| path.ends_with("wholeheard/settings.toml")));
 }
 
 #[test]
@@ -35,8 +35,8 @@ fn a_file_names_what_it_changes_and_leaves_the_rest() {
         Ok(Settings::default())
     );
     // A folder from the user's home, as people write it.
-    let home = written(&format!("sessions = \"{}/Réunions/Summit\"\n", '~')).unwrap().sessions;
-    assert!(home.is_absolute() && home.ends_with("Réunions/Summit") && !home.to_string_lossy().contains('~'));
+    let home = written(&format!("sessions = \"{}/Réunions/Wholeheard\"\n", '~')).unwrap().sessions;
+    assert!(home.is_absolute() && home.ends_with("Réunions/Wholeheard") && !home.to_string_lossy().contains('~'));
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn a_file_that_is_not_settings_is_said_in_one_sentence_and_not_used() {
         ("# é\r\nreminder = true\r\n\r\n[sessions]\r\nx = 1\r\n", "<file>, line 4: "),
         // A folder that is not a whole path is said where it is written.
         (
-            "reminder = false\nsessions = \"Summit\"\n",
+            "reminder = false\nsessions = \"Wholeheard\"\n",
             "<file>, line 2: sessions is the folder's whole path",
         ),
         ("sessions = \"\"\n", "<file>, line 1: sessions is the folder's whole path"),
@@ -68,10 +68,14 @@ fn a_file_that_is_not_settings_is_said_in_one_sentence_and_not_used() {
 
 #[test]
 fn the_transcript_follows_a_recording_with_the_model_the_settings_name() {
-    // Out of the box the transcript is made, with the default model in Summit's data folder.
+    // Out of the box the transcript is made, with the default model in Wholeheard's data folder.
     let defaults = Settings::default();
     assert!(defaults.after == After::Transcript && defaults.model.is_absolute());
-    assert!(defaults.model.ends_with(format!("summit/models/{}", summit_shell::settings::MODEL)));
+    assert!(
+        defaults
+            .model
+            .ends_with(format!("wholeheard/models/{}", wholeheard_shell::settings::MODEL))
+    );
     let chosen = written(&format!("transcript = false\nmodel = \"{}/models/ggml-small.bin\"\n", '~')).unwrap();
     // Written before `after`: `transcript = false` is "nothing follows".
     assert!(chosen.after == After::Nothing && chosen.model.is_absolute() && chosen.model.ends_with("models/ggml-small.bin"));
@@ -120,7 +124,7 @@ fn what_follows_a_recording_who_writes_the_minutes_and_how_long_audio_is_kept() 
 #[test]
 fn the_settings_written_read_back_as_they_were_the_user_s_lines_kept() {
     let folder = tempfile::tempdir().unwrap();
-    let path = folder.path().join("summit").join("settings.toml");
+    let path = folder.path().join("wholeheard").join("settings.toml");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         &path,
@@ -153,7 +157,7 @@ fn writing_touches_only_what_changed_and_keeps_each_line_s_comment() {
     let folder = tempfile::tempdir().unwrap();
     let path = folder.path().join("settings.toml");
     let mine = format!(
-        "sessions = \"{}/Summit\" # where they go\nreminder = true # said at each start\n",
+        "sessions = \"{}/Wholeheard\" # where they go\nreminder = true # said at each start\n",
         '~'
     );
     fs::write(&path, &mine).unwrap();
@@ -166,7 +170,10 @@ fn writing_touches_only_what_changed_and_keeps_each_line_s_comment() {
     write(&path, &settings).unwrap();
     let text = fs::read_to_string(&path).unwrap();
     assert!(text.contains("reminder = false # said at each start"), "{text}");
-    assert!(text.contains(&format!("sessions = \"{}/Summit\" # where they go", '~')), "{text}");
+    assert!(
+        text.contains(&format!("sessions = \"{}/Wholeheard\" # where they go", '~')),
+        "{text}"
+    );
     assert!(!text.contains("model") && !text.contains("keep_audio"), "{text}");
 }
 
@@ -174,7 +181,7 @@ fn writing_touches_only_what_changed_and_keeps_each_line_s_comment() {
 fn a_file_that_cannot_be_read_as_settings_is_never_written_over() {
     let folder = tempfile::tempdir().unwrap();
     let path = folder.path().join("settings.toml");
-    for refused in ["keep_audio = 0\n", "reminder = \"yes\"\n", "sessions = \"Summit\"\n"] {
+    for refused in ["keep_audio = 0\n", "reminder = \"yes\"\n", "sessions = \"Wholeheard\"\n"] {
         fs::write(&path, refused).unwrap();
         assert!(write(&path, &Settings::default()).is_err(), "{refused}");
         assert_eq!(fs::read_to_string(&path).unwrap(), refused);
@@ -248,7 +255,7 @@ fn the_old_key_stays_until_after_is_written() {
 fn the_models_on_this_computer_are_the_folder_s_and_the_one_named_each_once_by_name() {
     // A folder of the test's own: no model of the user's is read.
     let data = tempfile::tempdir().unwrap();
-    let models = data.path().join("summit").join("models");
+    let models = data.path().join("wholeheard").join("models");
     fs::create_dir_all(&models).unwrap();
     // Made in an order that is not their names'.
     for name in [

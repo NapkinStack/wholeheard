@@ -15,7 +15,7 @@ use serde::Serialize;
 pub enum State {
     /// Stopped: its files are whole.
     Done,
-    /// Being recorded now, by this Summit.
+    /// Being recorded now, by this Wholeheard.
     Recording,
     /// Started and never stopped, and nobody records it now: killed, or the machine went off.
     Interrupted,

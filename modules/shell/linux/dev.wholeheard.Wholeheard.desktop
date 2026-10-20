@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Summit
+Name=Wholeheard
 Comment=Records a meeting, transcribes it and writes its minutes, on your machine
 Comment[fr]=Enregistre une réunion, la transcrit et en rédige le compte rendu, sur votre machine
-Exec=summit
-Icon=dev.summit.Summit
+Exec=wholeheard
+Icon=dev.wholeheard.Wholeheard
 Terminal=false
 Categories=Office;AudioVideo;
 StartupNotify=false

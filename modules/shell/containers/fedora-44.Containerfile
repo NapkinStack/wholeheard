@@ -1,4 +1,4 @@
-# What summit is built with for Fedora 44 (D27): that system's web view, GTK, tray and SVG
+# What wholeheard is built with for Fedora 44 (D27): that system's web view, GTK, tray and SVG
 # headers, Rust as this repository uses it. Read by scripts/release.sh.
 FROM registry.fedoraproject.org/fedora:44
 RUN dnf install -y -q gcc pkgconf-pkg-config webkit2gtk4.1-devel gtk3-devel \

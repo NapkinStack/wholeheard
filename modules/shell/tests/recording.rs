@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use summit_shell::recording::{Recording, Said, Source, read};
+use wholeheard_shell::recording::{Recording, Said, Source, read};
 
 /// A recording by a program played here: a script given the same arguments, `record
 /// <sessions>`. One at a time: a script still open for writing in one thread while another
@@ -18,7 +18,7 @@ use summit_shell::recording::{Recording, Said, Source, read};
 fn played(folder: &Path, script: &str) -> (Recording, Receiver<Said>) {
     static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
     let _held = ONE_AT_A_TIME.lock().unwrap();
-    let path = folder.join("summit-capture");
+    let path = folder.join("wholeheard-capture");
     fs::write(&path, format!("#!/bin/sh\nsessions=\"$2\"\n{script}\n")).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     Recording::start(&path, folder).unwrap()
@@ -81,14 +81,14 @@ fn a_recording_that_ends_by_itself_is_said_to_have_failed_with_its_own_sentence(
         r#"echo '{"event":"unavailable","source":"me","reason":"the system names no default device"}'
 head -c 3000000 /dev/zero | tr '\0' x >&2
 printf '\nan earlier line, and one that is not text: caf\351\n' >&2
-echo 'summit-capture: no source could be opened: nothing to record' >&2
+echo 'wholeheard-capture: no source could be opened: nothing to record' >&2
 exit 1"#,
     );
     assert_eq!(
         all(&heard),
         [
             Said::Unavailable(Source::Me, "the system names no default device".into()),
-            Said::Failed("summit-capture: no source could be opened: nothing to record".into()),
+            Said::Failed("wholeheard-capture: no source could be opened: nothing to record".into()),
         ]
     );
 

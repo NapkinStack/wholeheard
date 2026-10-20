@@ -10,7 +10,7 @@ use std::{
 };
 
 use sha2::{Digest, Sha256};
-use summit_shell::model::{self, Published};
+use wholeheard_shell::model::{self, Published};
 
 /// How the played server answers.
 #[derive(Clone, Copy)]

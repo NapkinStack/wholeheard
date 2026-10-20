@@ -82,7 +82,7 @@ function holdings(session, words, where) {
   return holds;
 }
 
-// What Summit makes in the background (D25): read with the header, painted where it is shown.
+// What Wholeheard makes in the background (D25): read with the header, painted where it is shown.
 let makings = null;
 
 function minutesState(name) {
@@ -739,7 +739,7 @@ function minutesRow(minutes, words, locked) {
   });
   draw();
   box.append(row, where, fields, unsaved);
-  // Tester: the choice saved, asked whether it answers — one sentence of Summit's, said first.
+  // Tester: the choice saved, asked whether it answers — one sentence of Wholeheard's, said first.
   // One test at a time, the page drawn again meanwhile or not.
   if (minutes.provider && minutes.model) {
     const test = element("div", "row");
@@ -783,7 +783,7 @@ function minutesRow(minutes, words, locked) {
 }
 
 // A Whisper model's file named as people say it: `ggml-large-v3-turbo-q8_0.bin` is Whisper large
-// v3 turbo. A file of another kind, or outside Summit's folder, keeps its own name.
+// v3 turbo. A file of another kind, or outside Wholeheard's folder, keeps its own name.
 // A provider's model named as people say it: `anthropic/claude-sonnet` is Claude Sonnet; its
 // version and size stay as written (`mistral:7b` is Mistral 7b).
 function modelSaid(model) {
@@ -945,7 +945,7 @@ function showSettings(shown, minutes, words) {
   path.disabled = locked;
   path.spellcheck = false;
   path.hidden = true;
-  // Shown as the board says it — Dossier personnel / Summit —; a click makes it a path to type.
+  // Shown as the board says it — Dossier personnel / Wholeheard —; a click makes it a path to type.
   const said = shown.sessions_said.replace(/^~(?=\/|$)/, words.home).split("/").filter(Boolean).join(" / ");
   const folderShown = element("button", "path", shown.sessions_said.startsWith("/") ? `/ ${said}` : said);
   folderShown.type = "button";

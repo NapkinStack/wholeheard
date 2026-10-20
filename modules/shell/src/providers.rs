@@ -1,5 +1,5 @@
 //! Who can write the minutes: the models Ollama holds on this computer, and the online services
-//! offered with their address. Each is an address `summit-summary` speaks to — OpenAI's way of
+//! offered with their address. Each is an address `wholeheard-summary` speaks to — OpenAI's way of
 //! asking, which Ollama speaks too.
 
 use std::time::Duration;
@@ -30,7 +30,7 @@ pub const ONLINE: [Online; 3] = [
     },
 ];
 
-/// The address `summit-summary` is given for a model of Ollama at `base`.
+/// The address `wholeheard-summary` is given for a model of Ollama at `base`.
 pub fn ollama_address(base: &str) -> String {
     format!("{}/v1", base.trim_end_matches('/'))
 }
@@ -56,7 +56,7 @@ pub fn ollama_models(base: &str) -> Vec<String> {
         .into_iter()
         .flatten()
         .filter_map(|model| model.get("name").and_then(serde_json::Value::as_str).map(str::to_string))
-        // A name `summit-summary` would refuse is not offered.
+        // A name `wholeheard-summary` would refuse is not offered.
         .filter(|name| !name.trim().is_empty() && !name.chars().any(char::is_control))
         .collect();
     names.sort();
@@ -82,7 +82,7 @@ pub fn host(address: &str) -> Option<String> {
 }
 
 /// Whether a provider's address is this machine — what is sent there never leaves it. Read as
-/// `summit-summary` reads it (its provider's reading of an address):
+/// `wholeheard-summary` reads it (its provider's reading of an address):
 /// the same parser, the same rules, so that an address it refuses, or sends elsewhere, is never
 /// judged local here — the agreement is never skipped on a reading of the shell's own.
 pub fn local(address: &str) -> bool {
