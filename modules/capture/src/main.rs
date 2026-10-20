@@ -10,6 +10,8 @@
 //!
 //! The sound is on disk as it is heard: killed, it leaves two files that read, and a
 //! `session.json` without `stopped`.
+//!
+//! What it does is logged — never a sound, nor a session's path — in the user's state folder (`log`).
 
 use std::{
     io::{BufRead, Write},
@@ -28,7 +30,8 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use serde_json::json;
-use wholeheard_capture::{Event, Heard, RATE, SOURCES, Track, Watch, new_folder, v2, write_session};
+use tracing::{error, info, warn};
+use wholeheard_capture::{Event, Heard, RATE, SOURCES, Track, Watch, log, new_folder, v2, write_session};
 
 /// A source is told silent after this long without a sound.
 const SILENT_AFTER: f64 = 10.0;
@@ -55,9 +58,28 @@ type Sound = (usize, f64, Vec<f32>);
 /// listening any more — a shell that crashed, a pipe that closed: the recording goes on.
 fn say(event: Event) {
     let _ = writeln!(std::io::stdout().lock(), "{}", event.line());
+    // Logged too, but the levels: ten a second say nothing a reader after needs.
+    let session = |folder: &Path| {
+        folder
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    };
+    match event {
+        Event::Unavailable { source, reason } => warn!(source = SOURCES[source], reason, "capture.unavailable"),
+        Event::Started {
+            folder,
+            sources: [me, others],
+        } => info!(session = %session(folder), me, others, "capture.started"),
+        Event::Silent { source } => info!(source = SOURCES[source], "capture.silent"),
+        Event::Heard { source } => info!(source = SOURCES[source], "capture.heard"),
+        Event::Stopped { folder, seconds } => info!(session = %session(folder), seconds, "capture.stopped"),
+        Event::Level { .. } => {}
+    }
 }
 
 fn main() -> ExitCode {
+    let _run = log::start("capture");
     let args: Vec<String> = std::env::args().skip(1).collect();
     let outcome = match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
         ["record", sessions] | ["record", sessions, "--as", "v2"] => record_v2(Path::new(sessions)),
@@ -68,6 +90,7 @@ fn main() -> ExitCode {
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(reason) => {
+            error!(detail = %reason, "capture.failed");
             eprintln!("wholeheard-capture: {reason}");
             ExitCode::FAILURE
         }
@@ -176,7 +199,10 @@ fn record(sessions: &Path) -> Result<(), String> {
                     .map(|(stream, rate, channels)| (named_as_used(&host, &device), stream, rate, channels))
             });
         let (name, stream, rate, channels) = match opened {
-            Ok((name, stream, rate, channels)) => (name, Some(stream), rate, channels),
+            Ok((name, stream, rate, channels)) => {
+                info!(source = SOURCES[index], device = %name, rate, channels, "capture.opened");
+                (name, Some(stream), rate, channels)
+            }
             Err(reason) => {
                 say(Event::Unavailable {
                     source: index,
@@ -187,7 +213,8 @@ fn record(sessions: &Path) -> Result<(), String> {
         };
         names.push(name);
         sources.push(Source {
-            track: Track::create(&path, rate, channels).map_err(|e| format!("{}: {e}", path.display()))?,
+            // The file's name, never the session's path: a sentence that fails is logged (ADR-0007).
+            track: Track::create(&path, rate, channels).map_err(|e| format!("{}.wav: {e}", SOURCES[index]))?,
             watch: Watch::new(SILENT_AFTER),
             _stream: stream,
         });
@@ -346,10 +373,11 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
             });
         match opened {
             Ok((name, stream, rate, channels)) => {
+                info!(source = SOURCES[index], device = %name, rate, channels, "capture.opened");
                 let path = folder.join(format!("{}.wav", TRACKS[index]));
                 names.push(name);
                 sources.push(Some(Delivered {
-                    track: v2::Track::create(&path, rate, channels).map_err(|e| format!("{}: {e}", path.display()))?,
+                    track: v2::Track::create(&path, rate, channels).map_err(|e| format!("{}.wav: {e}", TRACKS[index]))?,
                     watch: Watch::new(SILENT_AFTER),
                     point: None,
                     owed: true,
@@ -421,6 +449,10 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
                     // Said before it is written: killed between the two, the clock names zeros
                     // the track does not hold yet — never the track zeros nobody named.
                     let zeros = (source.track.frames(), (due - LATE / 3.0 * rate) as u64);
+                    // Once a gap: zeros follow each second while the source stays mute.
+                    if !source.owed {
+                        warn!(source = SOURCES[index], at = zeros.0 as f64 / rate, "capture.zeros");
+                    }
                     clock.silence(TRACKS[index], zeros).map_err(|e| e.to_string())?;
                     source.track.silence_to(zeros.1).map_err(|e| e.to_string())?;
                     source.owed = true;
@@ -489,6 +521,8 @@ where
     // scheduled. The delay the system says a device adds is left out: measured here, it
     // moved by whole periods from one piece to the next, and was not known for the first.
     let mut tied: Option<(cpal::StreamInstant, f64)> = None;
+    // The system's thread logs under this run.
+    let run = tracing::Span::current();
     device
         .build_input_stream(
             config,
@@ -498,7 +532,10 @@ where
                 let since = (stamp.callback.as_nanos() as i128 - first.as_nanos() as i128) as f64 / 1e9;
                 let _ = sound.send((index, then + since, data.iter().map(|&sample| f32::from_sample(sample)).collect()));
             },
-            move |error: cpal::Error| drop(writeln!(std::io::stderr(), "wholeheard-capture: [{name}] {error}")),
+            move |error: cpal::Error| {
+                run.in_scope(|| warn!(source = name, detail = %error, "capture.stream_error"));
+                drop(writeln!(std::io::stderr(), "wholeheard-capture: [{name}] {error}"));
+            },
             None,
         )
         .map_err(|error| format!("the stream could not be opened ({error})"))

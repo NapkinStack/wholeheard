@@ -63,6 +63,13 @@ One JSON object per line on its output; errors go to the error stream.
 
 A source is named for the device the system's default stands for when the recording starts — read from PipeWire's metadata — so that a microphone other than the call's shows at once; `wholeheard-capture devices` prints it as `stands_for`. Unread, the default's own name.
 
+What it does is logged too — each event but the levels, each source opened with its device,
+rate and channels, a gap of zeros written for a mute source, a stream's error, a failure with its
+detail; never a sound, nor a session's path (ADR-0007): one JSON line per step in
+`$XDG_STATE_HOME/wholeheard/logs/capture.<date>.jsonl` (UTC), fourteen days kept and the folder
+under 50 MB. `WHOLEHEARD_LOG_DIR`, an absolute path, puts them elsewhere; `WHOLEHEARD_LOG=debug`
+asks for more; `WHOLEHEARD_TRACE` is the id of the making the shell passes.
+
 These lines are a contract: [`recording/v1`](../../contracts/recording/v1/README.md), which the shell reads. They are the same lines in both forms, and still name the sources `me` and `others` where the second form's files are `local` and `remote`.
 
 ## Contracts

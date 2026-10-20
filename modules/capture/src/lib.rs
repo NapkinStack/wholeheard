@@ -5,6 +5,7 @@
 //! wherever the hardware rests — and appends it to a file that is one channel, 16-bit,
 //! 16,000 samples a second, centred, and on disk as soon as it is heard.
 
+pub mod log;
 pub mod v2;
 
 use std::{
