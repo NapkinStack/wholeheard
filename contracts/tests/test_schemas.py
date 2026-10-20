@@ -246,6 +246,8 @@ EXAMPLES = {
             {"event": "silent", "source": "others"},
             {"event": "heard", "source": "others"},
             {"event": "level", "source": "me", "level": 0.42},
+            {"event": "device", "source": "me", "device": "Headset Microphone"},
+            {"event": "device", "source": "others", "device": None},
             {"event": "stopped", "folder": "<sessions-folder>/2026-10-13_14-05", "seconds": 1912.4},
             {"event": "an event of a later version"},
         ],
@@ -265,6 +267,10 @@ EXAMPLES = {
             {"event": "level", "source": "me", "level": -0.1},
             {"event": "level", "source": "room", "level": 0.5},
             {"event": "level", "level": 0.5},
+            {"event": "device", "source": "me"},
+            {"event": "device", "device": "Headset Microphone"},
+            {"event": "device", "source": "room", "device": "Headset Microphone"},
+            {"event": "device", "source": "me", "device": 7},
             {"source": "me"},
         ],
     ),
@@ -375,6 +381,21 @@ EXAMPLES = {
                 "stopped": "2026-10-14T15:05:12+02:00",
                 "tracks": {"remote": {"device": "Speaker"}},
             },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {
+                    "local": {
+                        "device": "Digital Microphone",
+                        "changed": [
+                            {"at": 312.5, "device": "Headset Microphone"},
+                            {"at": 1290.0, "device": None},
+                            {"at": 1302.5, "device": "Digital Microphone"},
+                        ],
+                    },
+                    "remote": {"device": "Speaker", "changed": []},
+                },
+            },
         ],
         [
             {
@@ -418,6 +439,31 @@ EXAMPLES = {
                 "contract": "session-audio/v2",
                 "started": "2026-10-14T14:05:12+02:00",
                 "tracks": {"remote": {"device": None}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"device": "a", "changed": {"at": 1.0, "device": "b"}}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"device": "a", "changed": [{"device": "b"}]}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"device": "a", "changed": [{"at": "1.0", "device": "b"}]}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"device": "a", "changed": [{"at": 1.0}]}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"device": "a", "changed": [{"at": 1.0, "device": 7}]}},
             },
             "a record that is no object",
         ],

@@ -125,6 +125,29 @@
       ]
     },
     {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "device"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "device": {
+          "description": "null when the system names no device for this source: nothing comes from it until it names one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "event",
+        "source",
+        "device"
+      ]
+    },
+    {
       "description": "An event this version does not name: a consumer ignores it.",
       "type": "object",
       "properties": {
@@ -137,7 +160,8 @@
               "silent",
               "heard",
               "stopped",
-              "level"
+              "level",
+              "device"
             ]
           }
         }

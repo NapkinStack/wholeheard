@@ -40,7 +40,7 @@ and nowhere else.
 
 | File | Written by | Holds |
 |---|---|---|
-| `session.json` | `capture`, at the start, and once more at the stop | The fields below |
+| `session.json` | `capture`, at the start, at each change of device, and once more at the stop | The fields below |
 | `local.wav` | `capture`, while recording | What the microphone delivered: one person, or a room — and the loudspeakers, when there is no headset |
 | `remote.wav` | `capture`, while recording | What the machine played: one person, or several |
 | `clock.jsonl` | `capture`, while recording | Where each track's samples are on the session's clock |
@@ -54,15 +54,25 @@ and nowhere else.
 | `contract` | string | `session-audio/v2` |
 | `started` | string | The instant 0 of the session's clock: ISO 8601 with the local offset |
 | `stopped` | string, absent while recording | When the recording was stopped. **Absent means: still recording, or ended by a crash** |
-| `tracks` | object | For each track the session holds — `local`, `remote` — `device`: the name the system gave the source. A source that could not be opened has **no entry and no file** |
+| `tracks` | object | For each track the session holds — `local`, `remote` — `device`: the name the system gave the source when the recording started; `changed`, when the source was recorded from another device after it: each change, in order, as `at`, seconds on the session's clock as `clock.jsonl`'s, and `device`, the name of the device from then on — `null` when the system named none, and the track holds zeros of the capture there (`clock.jsonl`'s silences) until the next. A source that could not be opened has **no entry and no file** |
 
 **A track** is a WAV file, PCM, 24 bits, at the sample rate and with the channels its source
 delivered — read from the file's own header, never assumed: 48,000 samples a second in two
-channels on one machine, 44,100 in one on another.
+channels on one machine, 44,100 in one on another. Its **source** is the stream the system
+opened for it when the recording started: the sound the system delivers, which is the
+device's own as far as the system leaves it so.
 
 - **As delivered.** Nothing in a track was resampled, mixed down, centred, faded, cleaned of
-  an echo or brought to a level. A source that rests away from zero rests away from zero in
-  its track.
+  an echo or brought to a level by the capture. A source that rests away from zero rests away
+  from zero in its track. What the system does before it delivers is the system's: this was
+  true before a change of device was named, and is said here since one is.
+- **One form, whatever the device.** A track keeps the rate and channels its source opened
+  with, from its first frame to its last. Recorded from another device during the meeting
+  (`changed`), the source delivers that device's sound converted by the system to its form. On
+  Linux, PipeWire did, measured on 2026-10-20 on virtual devices: a microphone of one channel
+  at 16,000 samples a second, and an output of six channels at 44,100, each into a track of two
+  channels at 48,000, with no gap. A reader who needs a device's own form reads which device
+  it was in `changed`.
 - **Within what 24 bits hold.** A sample the source delivered beyond full scale is written
   at full scale; one that was no number, as zero.
 - **Written once.** A sample a track holds never changes, and no program — the producer
@@ -123,9 +133,10 @@ it: it is not part of the session, and no reader reads it.
 of two tracks are from each other when their sources are two devices on two clocks — on one
 sound server with one device they moved by a ten-thousandth of a second, measured on
 2026-10-13; whether `device` can be the name the system shows the user rather than the one
-a sound library gives its default; what a session records when the user changes device
-during a meeting; whether a track is compressed without loss once the recording has stopped,
-which would be a third version.
+a sound library gives its default; whether real devices — a Bluetooth headset among them — are
+converted as the virtual ones were, and what macOS and Windows do when the device changes;
+whether a track is compressed without loss once the recording has stopped, which would be a
+third version.
 
 ## Examples
 
