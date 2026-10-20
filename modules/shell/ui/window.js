@@ -540,9 +540,20 @@ function transcriptCard(read, words, session) {
       player.play();
     };
     line.addEventListener("click", from);
+    // By the keyboard: one line in the order of Tab, the arrows to the others, Enter plays.
     if (player?.name === nameOf(session)) {
-      line.tabIndex = 0;
+      line.setAttribute("role", "button");
+      line.tabIndex = lines.children.length === 0 ? 0 : -1;
       line.addEventListener("keydown", (event) => {
+        // The next line shown: one a search hides is passed over.
+        let next = { ArrowDown: line.nextElementSibling, ArrowUp: line.previousElementSibling }[event.key];
+        while (next?.hidden) next = event.key === "ArrowDown" ? next.nextElementSibling : next.previousElementSibling;
+        if (next) {
+          event.preventDefault();
+          line.tabIndex = -1;
+          next.tabIndex = 0;
+          next.focus();
+        }
         if (event.key !== "Enter") return;
         event.preventDefault();
         from();
@@ -574,10 +585,12 @@ function transcriptCard(read, words, session) {
 // a window coming forward never stops what plays. Paused when another page is shown.
 let player = null;
 
-// Plays a meeting's tracks together where the session's clock puts them. The session's time is
-// the first track sounding — between tracks, before one starts, the time since the last tick —
-// and each track is put back where that time puts it when it drifts. The meeting ends at the
-// last track's end. Ticks of a timer, never of animation frames: a hidden window keeps playing.
+// Plays a meeting's tracks together where the session's clock puts them. One master clock, the
+// system's, as players keep audio and video in step: the session's time is where it was last
+// put plus the time since, and each track is put back to it when it drifts. No track is the
+// clock, so none can pull it back; a track at its end is never played again, which would start
+// it over. The meeting ends at the last track's end. Ticks of a timer, never of animation
+// frames: a hidden window keeps playing.
 function listen(name, tracks) {
   if (player?.name === name) return player;
   player?.stop();
@@ -590,32 +603,28 @@ function listen(name, tracks) {
     return audio;
   });
   const starts = (audio) => Number(audio.dataset.starts);
-  const shown = { name, audios, listeners: new Set(), failures: new Set(), on: false, base: 0, since: 0, timer: 0, moved: false };
+  const shown = { name, audios, listeners: new Set(), failures: new Set(), on: false, base: 0, since: 0, timer: 0 };
   // Unknown until every track has said its length.
   const end = () => Math.max(...audios.map((audio) => starts(audio) + audio.duration));
-  const now = () => {
-    // Just moved: the tracks are not there yet.
-    if (!shown.on || shown.moved) return shown.base;
-    const sounding = audios.find((audio) => !audio.paused && !audio.ended && !audio.seeking);
-    return sounding ? sounding.currentTime + starts(sounding) : shown.base + (performance.now() - shown.since) / 1000;
-  };
-  const failed = () => {
+  const now = () => (shown.on ? shown.base + (performance.now() - shown.since) / 1000 : shown.base);
+  const failed = (error) => {
+    // A play cut short by a pause is no failure.
+    if (error?.name === "AbortError") return;
     shown.pause();
     for (const failure of shown.failures) failure();
   };
   const follow = () => {
     let at = now();
-    shown.moved = false;
     if (shown.on && at >= end()) {
+      shown.base = end();
       shown.on = false;
       clearInterval(shown.timer);
-      at = end();
+      at = shown.base;
     }
-    shown.base = at;
-    shown.since = performance.now();
     for (const audio of audios) {
       const wanted = at - starts(audio);
-      if (!shown.on || wanted < 0 || wanted >= (audio.duration || Infinity)) {
+      const length = audio.duration || Infinity;
+      if (!shown.on || wanted < 0 || wanted >= length - 0.05) {
         if (!audio.paused) audio.pause();
         // Paused where the next play starts it, or at its start until its time comes.
         const still = Math.min(Math.max(0, wanted), audio.duration || 0);
@@ -627,7 +636,7 @@ function listen(name, tracks) {
     }
     for (const listener of shown.listeners) listener(at);
   };
-  shown.time = () => shown.base;
+  shown.time = now;
   shown.playing = () => shown.on;
   shown.play = () => {
     if (shown.on) return;
@@ -648,7 +657,6 @@ function listen(name, tracks) {
   shown.seek = (at) => {
     shown.base = Math.max(0, Math.min(at, Number.isFinite(end()) ? end() : at));
     shown.since = performance.now();
-    shown.moved = true;
     follow();
   };
   shown.stop = () => {
@@ -709,14 +717,21 @@ function playerBar(session, tracks, total, words, drawing) {
   shown.listeners.add(paint);
   shown.failures.clear();
   shown.failures.add(() => (says.textContent = words.not_played));
-  toggle.addEventListener("click", () => (shown.playing() ? shown.pause() : shown.play()));
+  toggle.addEventListener("click", () => {
+    if (shown.playing()) return shown.pause();
+    says.textContent = "";
+    shown.play();
+  });
   drawing.addEventListener("click", (event) => {
     const box = drawing.getBoundingClientRect();
     shown.seek(((event.clientX - box.left) / box.width) * total);
   });
   // A slider's keys: five seconds back or on, the start, the end.
   drawing.addEventListener("keydown", (event) => {
-    const to = { ArrowLeft: shown.time() - 5, ArrowRight: shown.time() + 5, Home: 0, End: total }[event.key];
+    const at = shown.time();
+    const to = { ArrowLeft: at - 5, ArrowDown: at - 5, ArrowRight: at + 5, ArrowUp: at + 5, PageDown: at - 30, PageUp: at + 30, Home: 0, End: total }[
+      event.key
+    ];
     if (to === undefined) return;
     event.preventDefault();
     shown.seek(to);

@@ -1354,26 +1354,70 @@ def main() -> int:
         check("the space bar pauses", paused and browser.find_element(By.ID, "play").text == "Écouter", browser.find_element(By.ID, "play").text)
         # By the keyboard alone: the drawing is a slider, a line plays from it on Enter.
         drawing = browser.find_element(By.CSS_SELECTOR, ".drawing")
+        slider = lambda b: b.find_element(By.CSS_SELECTOR, ".drawing").get_attribute("aria-valuenow")
         drawing.send_keys(Keys.HOME)
         drawing.send_keys(Keys.ARROW_RIGHT)
-        moved = wait_for(browser, lambda b: b.find_element(By.CSS_SELECTOR, ".drawing").get_attribute("aria-valuenow") == "5", 5)
+        moved = wait_for(browser, lambda b: slider(b) == "5", 5)
         check("the arrows move the playback on the drawing, a slider", moved and drawing.get_attribute("role") == "slider"
-              and drawing.get_attribute("tabindex") == "0", drawing.get_attribute("aria-valuenow"))
+              and drawing.get_attribute("tabindex") == "0", slider(browser))
+        drawing.send_keys(Keys.ARROW_LEFT)
+        back = wait_for(browser, lambda b: slider(b) == "0", 5)
+        drawing.send_keys(Keys.END)
+        ended_at = wait_for(browser, lambda b: slider(b) == "6", 5)
+        check("back, and to the end", back and ended_at and len(set(drawing.get_attribute("aria-valuetext").split(" / "))) == 1,
+              drawing.get_attribute("aria-valuetext"))
+        stops = browser.execute_script("return [...document.querySelectorAll('.lines li')].map(li => li.tabIndex)")
+        check("one line in the order of Tab, the others by the arrows", stops == [0, -1, -1], stops)
+        first = browser.find_elements(By.CSS_SELECTOR, ".lines li")[0]
+        first.send_keys(Keys.ARROW_DOWN)
         line = browser.find_elements(By.CSS_SELECTOR, ".lines li")[1]
+        focused = browser.execute_script("return document.activeElement === arguments[0]", line)
         line.send_keys(Keys.ENTER)
         entered = wait_for(browser, lambda b: abs(at(b) - 2.5) < 0.6, 5)
-        check("Enter on a line plays from it", entered and line.get_attribute("tabindex") == "0", at(browser))
-        # The local track ends at 6 s, the remote one at 7.5: the meeting plays on to the last.
-        line = browser.find_elements(By.CSS_SELECTOR, ".lines li")[2]
-        line.send_keys(Keys.ENTER)
-        past = wait_for(browser, lambda b: at(b) > 6.3, 10)
+        check("down to a line, Enter plays from it", focused and entered and line.get_attribute("role") == "button", at(browser))
+        # Space held down: the first press alone counts.
+        browser.execute_script("document.body.dispatchEvent(new KeyboardEvent('keydown', {key: ' ', repeat: true, bubbles: true}))")
+        check("Space held does not toggle again", not browser.execute_script("return document.querySelector('audio.track').paused"))
+        # The page drawn again while it plays: the same player goes on.
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        time.sleep(1)
         state = browser.execute_script(tracks)
-        check("past the end of one track, the other plays on", past and state["local"][0] and not state["remote"][0], state)
+        check("drawn again, it plays on", len(state) == 2 and not all(paused for paused, _ in state.values()) and at(browser) > 2.5, state)
+        # From the start, through the end of the shorter track, to the end of the last.
+        press(browser, "play")
+        wait_for(browser, lambda b: browser.find_element(By.ID, "play").text == "Écouter", 5)
+        browser.find_element(By.CSS_SELECTOR, ".drawing").send_keys(Keys.HOME)
+        press(browser, "play")
+        past = wait_for(browser, lambda b: at(b) > 6.3, 12)
+        state = browser.execute_script(tracks)
+        check("from the start, past the end of one track, the other plays on", past and state["local"][0] and not state["remote"][0], state)
         ended = wait_for(browser, lambda b: browser.find_element(By.ID, "play").text == "Écouter", 5)
         check("at the end of the last, the meeting stops", ended and browser.execute_script("return [...document.querySelectorAll('audio.track')].every(a => a.paused)"))
         press(browser, "play")
         anew = wait_for(browser, lambda b: 0 < at(b) < 1.4, 5)
         check("played again, it starts over", anew, at(browser))
+        # Paused at once: no failure is said.
+        press(browser, "play")
+        press(browser, "play")
+        press(browser, "play")
+        time.sleep(0.5)
+        check("a play paused at once is no failure", not browser.find_element(By.ID, "not-played").text)
+        # Its audio freed while it plays: it stops, and says so.
+        for name in ("local", "remote"):
+            (played / f"{name}.wav").rename(listening / f"aside-{name}.wav")
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        freed = wait_for(browser, lambda b: not b.execute_script("return document.querySelectorAll('audio.track').length")
+                         and b.find_elements(By.ID, "no-player"), 10)
+        check("its audio freed while it plays, it stops", freed)
+        for name in ("local", "remote"):
+            (listening / f"aside-{name}.wav").rename(played / f"{name}.wav")
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
+        browser.execute_script("document.querySelectorAll('audio.track').forEach(a => { a.muted = true; a.volume = 0; })")
+        press(browser, "play")
+        wait_for(browser, lambda b: at(b) > 0.3, 5)
         browser.execute_script("location.hash = '#/'")
         stopped = wait_for(browser, lambda b: not b.execute_script("return document.querySelectorAll('audio.track').length"), 10)
         check("the list shown, nothing plays", stopped)
