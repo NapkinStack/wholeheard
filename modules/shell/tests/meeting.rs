@@ -164,3 +164,90 @@ fn a_meeting_s_shape_is_how_much_each_side_spoke_in_each_part() {
     assert_eq!(here, [1.0, 0.0, 0.0, 0.0]);
     assert_eq!(remote, [0.0, 0.5, 0.0, 0.0]);
 }
+
+/// A WAV file's header and `frames` silent frames: PCM, `bits`, `channels`, `rate`.
+fn wav(path: &std::path::Path, rate: u32, channels: u16, bits: u16, frames: u32) {
+    let block = u32::from(channels) * u32::from(bits / 8);
+    let data = block * frames;
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&(36 + data).to_le_bytes());
+    bytes.extend_from_slice(b"WAVEfmt ");
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&channels.to_le_bytes());
+    bytes.extend_from_slice(&rate.to_le_bytes());
+    bytes.extend_from_slice(&(rate * block).to_le_bytes());
+    bytes.extend_from_slice(&(block as u16).to_le_bytes());
+    bytes.extend_from_slice(&bits.to_le_bytes());
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&data.to_le_bytes());
+    bytes.resize(bytes.len() + data as usize, 0);
+    fs::write(path, bytes).unwrap();
+}
+
+#[test]
+fn a_meeting_s_tracks_are_played_where_the_session_s_clock_puts_them() {
+    // Version 2: each track where its first point says its frame 0 was — the remote one opened
+    // on a silence of 24,000 frames, heard at 1.5 s: its frame 0 is at 1.0 s.
+    let v2 = tempfile::tempdir().unwrap();
+    fs::write(
+        v2.path().join("session.json"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-13T14:05:12+02:00","tracks":{"local":{"device":"Mic"},"remote":{"device":"Speaker"}}}"#,
+    )
+    .unwrap();
+    wav(&v2.path().join("local.wav"), 48_000, 2, 24, 10);
+    wav(&v2.path().join("remote.wav"), 48_000, 2, 24, 10);
+    fs::write(
+        v2.path().join("clock.jsonl"),
+        [
+            r#"{"track":"local","sample":0,"at":0.25}"#,
+            r#"{"track":"remote","silence":[0,24000]}"#,
+            r#"{"track":"remote","sample":24000,"at":1.5}"#,
+            r#"{"track":"local","sample":480000,"at":10.26}"#,
+            r#"{"track":"remote","sample":"cut"#,
+        ]
+        .join("\n"),
+    )
+    .unwrap();
+    let tracks = meeting::tracks(v2.path());
+    let said: Vec<(&str, f64)> = tracks.iter().map(|track| (track.name.as_str(), track.starts)).collect();
+    assert_eq!(said, [("local", 0.25), ("remote", 1.0)]);
+    assert!(tracks.iter().all(|track| track.path.is_absolute() && track.path.is_file()));
+
+    // Version 1: its two files from the session's start, as local and remote.
+    let v1 = tempfile::tempdir().unwrap();
+    fs::write(
+        v1.path().join("session.json"),
+        r#"{"contract":"session-audio/v1","started":"2026-10-13T14:05:12+02:00","sources":{"me":{"device":"Mic"},"others":{"device":"Speaker"}}}"#,
+    )
+    .unwrap();
+    wav(&v1.path().join("me.wav"), 16_000, 1, 16, 10);
+    wav(&v1.path().join("others.wav"), 16_000, 1, 16, 10);
+    let said: Vec<(String, f64, String)> = meeting::tracks(v1.path())
+        .into_iter()
+        .map(|track| {
+            (
+                track.name,
+                track.starts,
+                track.path.file_name().unwrap().to_string_lossy().into_owned(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        said,
+        [("local".into(), 0.0, "me.wav".into()), ("remote".into(), 0.0, "others.wav".into())]
+    );
+
+    // Its audio in the trash: nothing to play. A track named and not there: left out.
+    fs::remove_file(v2.path().join("remote.wav")).unwrap();
+    assert_eq!(meeting::tracks(v2.path()).len(), 1);
+    fs::remove_file(v2.path().join("local.wav")).unwrap();
+    assert!(meeting::tracks(v2.path()).is_empty());
+    // A track no clock places starts with the session; one that is a link is never followed.
+    wav(&v2.path().join("elsewhere.wav"), 48_000, 2, 24, 10);
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(v2.path().join("elsewhere.wav"), v2.path().join("local.wav")).unwrap();
+    assert!(meeting::tracks(v2.path()).is_empty());
+    assert!(meeting::tracks(&v2.path().join("absent")).is_empty());
+}
