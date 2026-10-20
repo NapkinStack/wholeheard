@@ -1,7 +1,7 @@
 //! What a desktop's default device stands for, read from PipeWire's metadata as
 //! `pw-metadata` prints it.
 
-use summit_capture::standing_for;
+use wholeheard_capture::standing_for;
 
 /// What `pw-metadata -n default 0` prints, whole: the configured defaults, spaced, come first.
 const PRINTED: &str = r#"Found "default" metadata 40

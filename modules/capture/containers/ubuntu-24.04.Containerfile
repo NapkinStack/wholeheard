@@ -1,4 +1,4 @@
-# What summit-capture is built with for Ubuntu 24.04 (D27): that system's PipeWire and ALSA
+# What wholeheard-capture is built with for Ubuntu 24.04 (D27): that system's PipeWire and ALSA
 # headers and clang, Rust as this repository uses it. Read by scripts/release.sh.
 FROM docker.io/library/ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive

@@ -25,16 +25,16 @@ for tool in ffmpeg ffprobe pw-play pw-dump pw-cli python3; do
 done
 
 cargo build --release --locked 2>&1 | tail -3 >> .evidence/e2e.txt
-bin=${CARGO_TARGET_DIR:-$PWD/target}/release/summit-capture   # where cargo built it
+bin=${CARGO_TARGET_DIR:-$PWD/target}/release/wholeheard-capture   # where cargo built it
 work=$(mktemp -d)
 # A run that was killed outright could not put anything back: its devices are removed first,
 # and the system falls back on its own.
-for stale in $(pactl list short modules | awk '/summit_e2e_/ {print $1}'); do
+for stale in $(pactl list short modules | awk '/wholeheard_e2e_/ {print $1}'); do
   say "e2e: a device of an earlier run that was killed is removed"; pactl unload-module "$stale" || true
 done
 old_sink=$(pactl get-default-sink); old_source=$(pactl get-default-source)
-out=$(pactl load-module module-null-sink sink_name=summit_e2e_out)
-mic=$(pactl load-module module-null-sink sink_name=summit_e2e_mic)
+out=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_out)
+mic=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_mic)
 restore() {
   pkill -P $$ 2>/dev/null || true
   pactl set-default-sink "$old_sink" 2>/dev/null || true
@@ -44,8 +44,8 @@ restore() {
   rm -rf "$work"
 }
 trap restore EXIT
-pactl set-default-sink summit_e2e_out
-pactl set-default-source summit_e2e_mic.monitor
+pactl set-default-sink wholeheard_e2e_out
+pactl set-default-source wholeheard_e2e_mic.monitor
 
 # "me" is a 440 Hz note; "others" is an 880 Hz one, with fourteen seconds of nothing in it.
 tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -af volume=0.5 -ar 48000 -ac 2 "$3"; }
@@ -56,7 +56,7 @@ failed=0
 check() { if "$@"; then say "  ok    $*"; else say "  FAIL  $*"; failed=1; fi; }
 
 say "A. a recording stopped as a user stops it"
-pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
+pw-play --target wholeheard_e2e_mic "$work/me.wav" & mic_player=$!
 sleep 0.5
 "$bin" record "$work/sessions" --as v1 > "$work/a.events" 2> "$work/a.errors" &
 recorder=$!
@@ -72,12 +72,12 @@ check measure events "$work/a.events"
 check measure stopped "$folder" 440 880
 check measure read-while-written "$work/copy.wav" "$folder/session.json" "$copied_at" 5
 # Each default is named for the device it stands for, not as "default_input" or "default_output".
-check grep -q '"me":"summit_e2e_mic' "$work/a.events"
-check grep -q '"others":"summit_e2e_out' "$work/a.events"
+check grep -q '"me":"wholeheard_e2e_mic' "$work/a.events"
+check grep -q '"others":"wholeheard_e2e_out' "$work/a.events"
 
 say "B. a recording killed"
 kill "$mic_player" 2>/dev/null || true
-pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
+pw-play --target wholeheard_e2e_mic "$work/me.wav" & mic_player=$!
 sleep 0.5
 "$bin" record "$work/killed" --as v1 > "$work/b.events" 2>/dev/null &
 recorder=$!
@@ -91,7 +91,7 @@ check measure killed "$folder" "$killed_at" 5
 
 say "C. the two files on one clock"
 # The same sound into both sources: what differs between the two files is the program's doing.
-pactl set-default-source summit_e2e_out.monitor
+pactl set-default-source wholeheard_e2e_out.monitor
 "$bin" record "$work/clock" --as v1 > "$work/c.events" 2>/dev/null &
 recorder=$!
 sleep 2; pw-play "$work/others-a.wav"; sleep 1
@@ -118,10 +118,10 @@ check grep -q '"stopped"' "$(ls -d "$work"/alone/*/ | head -1)session.json"
 tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -af "volume=0.5,pan=stereo|c0=c0|c1=0.5*c0,dcshift=0.02" -ar 48000 -c:a pcm_s24le "$3"; }
 tone 440 40 "$work/me.wav"; tone 880 8 "$work/others-a.wav"; tone 880 8 "$work/others-b.wav"
 measure2() { python3 scripts/e2e_measure_v2.py "$@" 2>&1 | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
-pactl set-default-source summit_e2e_mic.monitor
+pactl set-default-source wholeheard_e2e_mic.monitor
 
 say "E. each source as delivered: a recording stopped as a user stops it"
-pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
+pw-play --target wholeheard_e2e_mic "$work/me.wav" & mic_player=$!
 sleep 0.5
 "$bin" record "$work/v2" > "$work/e.events" 2> "$work/e.errors" &
 recorder=$!
@@ -140,7 +140,7 @@ for name in local remote; do
 done
 
 say "F. each source as delivered: a recording killed"
-pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
+pw-play --target wholeheard_e2e_mic "$work/me.wav" & mic_player=$!
 sleep 0.5
 "$bin" record "$work/v2-killed" --as v2 > /dev/null 2>&1 &
 recorder=$!
@@ -151,7 +151,7 @@ kill "$mic_player" "$others_player" 2>/dev/null || true
 check measure2 killed "$(ls -d "$work"/v2-killed/*/ | head -1)" "$killed_at" 5
 
 say "G. each source as delivered: the clock places the same sound at the same instant"
-pactl set-default-source summit_e2e_out.monitor
+pactl set-default-source wholeheard_e2e_out.monitor
 "$bin" record "$work/v2-clock" --as v2 > /dev/null 2>&1 &
 recorder=$!
 sleep 2; pw-play "$work/others-a.wav"; sleep 1
@@ -159,9 +159,9 @@ kill -INT "$recorder"; wait "$recorder" || true
 check measure2 same-instant "$(ls -d "$work"/v2-clock/*/ | head -1)" 0.005
 
 say "H. each source as delivered: a source that stops, and comes back"
-pactl set-default-source summit_e2e_mic.monitor
+pactl set-default-source wholeheard_e2e_mic.monitor
 tone 880 30 "$work/others-long.wav"
-pw-play --target summit_e2e_mic "$work/me.wav" & mic_player=$!
+pw-play --target wholeheard_e2e_mic "$work/me.wav" & mic_player=$!
 pw-play "$work/others-long.wav" & others_player=$!
 sleep 0.5
 "$bin" record "$work/v2-stops" --as v2 > /dev/null 2>&1 &

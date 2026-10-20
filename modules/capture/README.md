@@ -8,7 +8,7 @@ Records the audio sources of a conversation into a session.
 
 ```mermaid
 flowchart LR
-    M["The microphone"]:::src --> P["summit-capture<br/>a program, no window"]:::mod
+    M["The microphone"]:::src --> P["wholeheard-capture<br/>a program, no window"]:::mod
     O["What the system plays"]:::src --> P
     P -->|"session-audio/v2"| F["The session's folder<br/>session.json · local.wav · remote.wav · clock.jsonl"]:::file
     P -.->|"one line per event"| W["Whoever started it:<br/>the shell, a terminal"]:::user
@@ -61,7 +61,7 @@ One JSON object per line on its output; errors go to the error stream.
 | `heard` | A source told silent gives sound again | `source` |
 | `stopped` | The files are finished and `session.json` says so | `folder`, `seconds` |
 
-A source is named for the device the system's default stands for when the recording starts — read from PipeWire's metadata — so that a microphone other than the call's shows at once; `summit-capture devices` prints it as `stands_for`. Unread, the default's own name.
+A source is named for the device the system's default stands for when the recording starts — read from PipeWire's metadata — so that a microphone other than the call's shows at once; `wholeheard-capture devices` prints it as `stands_for`. Unread, the default's own name.
 
 These lines are a contract: [`recording/v1`](../../contracts/recording/v1/README.md), which the shell reads. They are the same lines in both forms, and still name the sources `me` and `others` where the second form's files are `local` and `remote`.
 
