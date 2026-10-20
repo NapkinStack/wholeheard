@@ -48,6 +48,7 @@ fn a_sessions_folder_that_cannot_hold_one_is_logged_without_its_path() {
 }
 
 /// A log folder whose day file cannot take a byte: every write to it fails.
+#[cfg(unix)]
 fn full_logs(program: &str) -> tempfile::TempDir {
     let logs = tempfile::tempdir().unwrap();
     let today = std::process::Command::new("date").args(["-u", "+%F"]).output().unwrap();
@@ -56,6 +57,7 @@ fn full_logs(program: &str) -> tempfile::TempDir {
     logs
 }
 
+#[cfg(unix)]
 #[test]
 fn a_log_that_cannot_be_written_says_nothing_on_the_error_stream() {
     let logs = full_logs("capture");

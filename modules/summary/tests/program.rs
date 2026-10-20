@@ -517,6 +517,7 @@ fn a_run_removes_the_day_files_of_more_than_fourteen_days() {
 }
 
 /// A log folder whose day file cannot take a byte: every write to it fails.
+#[cfg(unix)]
 fn full_logs(program: &str) -> tempfile::TempDir {
     let logs = tempfile::tempdir().unwrap();
     let today = std::process::Command::new("date").args(["-u", "+%F"]).output().unwrap();
@@ -525,6 +526,7 @@ fn full_logs(program: &str) -> tempfile::TempDir {
     logs
 }
 
+#[cfg(unix)]
 #[test]
 fn a_log_that_cannot_be_written_says_nothing_on_the_error_stream() {
     let folder = session(None);
@@ -540,4 +542,18 @@ fn a_log_that_cannot_be_written_says_nothing_on_the_error_stream() {
     assert!(!output.status.success());
     assert_eq!(err.lines().collect::<Vec<_>>().len(), 1, "{err}");
     assert!(err.starts_with("wholeheard-summary: ") && err.contains("refused the key"), "{err}");
+}
+
+#[test]
+fn a_log_turned_off_leaves_nothing() {
+    let logs = tempfile::tempdir().unwrap();
+    let (address, _received) = provider("200 OK", answering("Bonjour.", "stop"));
+    let output = program()
+        .args(["--test", "--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .env("WHOLEHEARD_LOG", "off")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(fs::read_dir(logs.path()).unwrap().count(), 0);
 }

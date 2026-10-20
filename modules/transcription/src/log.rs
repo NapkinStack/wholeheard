@@ -107,7 +107,9 @@ pub fn prune(folder: &Path, now: SystemTime) {
 /// Starts the log of `program`; what is logged until the value returned is dropped belongs
 /// to this run, its version and its making's id — at every level, a failure's line included.
 pub fn start(program: &'static str) -> EnteredSpan {
-    let appender = folder().and_then(|folder| {
+    // Turned off, the log leaves nothing: no file, nothing removed.
+    let off = std::env::var("WHOLEHEARD_LOG").is_ok_and(|level| level.trim() == "off");
+    let appender = folder().filter(|_| !off).and_then(|folder| {
         std::fs::create_dir_all(&folder).ok()?;
         prune(&folder, SystemTime::now());
         RollingFileAppender::builder()

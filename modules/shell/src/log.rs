@@ -64,7 +64,7 @@ pub fn making() -> (String, tracing::Span) {
 /// A program's sentence as the log may hold it: the folder of sessions it may name taken out —
 /// a version of a program that says a path must not put whose meetings, and where, in a log.
 /// Only the folder itself is taken out, never the start of another name: `/srv/Meet` leaves
-/// `/srv/Meetings` and `/srv/Meet.bak` as they are.
+/// `/srv/Meetings`, `/srv/Meet.bak` and `/data/srv/Meet` as they are.
 pub fn without(said: &str, sessions: Option<&Path>) -> String {
     let separator = std::path::MAIN_SEPARATOR;
     let sessions = sessions.map(Path::to_string_lossy).unwrap_or_default();
@@ -72,13 +72,16 @@ pub fn without(said: &str, sessions: Option<&Path>) -> String {
     if sessions.is_empty() {
         return said.to_string();
     }
+    let name = |c: char| c.is_alphanumeric() || "._-".contains(c);
     let (mut kept, mut rest) = (String::new(), said);
     while let Some(at) = rest.find(sessions) {
-        let after = &rest[at + sessions.len()..];
-        kept.push_str(&rest[..at]);
-        // Followed by what goes on with a name — `ings`, `.bak` —, it is another folder's name.
-        let goes_on = after.starts_with(|c: char| c.is_alphanumeric() || "._-".contains(c));
-        kept.push_str(if goes_on { sessions } else { "<sessions>" });
+        let (before, after) = (&rest[..at], &rest[at + sessions.len()..]);
+        kept.push_str(before);
+        // Inside another path — `/data/srv/Meet` —, or going on with a name — `ings`, `.bak` —, it
+        // is another folder; a sentence's last `.` is no name going on.
+        let inside = kept.ends_with(name);
+        let goes_on = after.trim_start_matches(['.', '_', '-']).starts_with(char::is_alphanumeric);
+        kept.push_str(if inside || goes_on { sessions } else { "<sessions>" });
         rest = after;
     }
     kept.push_str(rest);
@@ -145,7 +148,9 @@ pub fn prune(folder: &Path, now: SystemTime) {
 /// Starts the log of `program`; what is logged until the value returned is dropped belongs
 /// to this run, its version and its making's id — at every level, a failure's line included.
 pub fn start(program: &'static str) -> EnteredSpan {
-    let appender = folder().and_then(|folder| {
+    // Turned off, the log leaves nothing: no file, nothing removed.
+    let off = std::env::var("WHOLEHEARD_LOG").is_ok_and(|level| level.trim() == "off");
+    let appender = folder().filter(|_| !off).and_then(|folder| {
         std::fs::create_dir_all(&folder).ok()?;
         prune(&folder, SystemTime::now());
         RollingFileAppender::builder()
