@@ -155,6 +155,19 @@ dependencies:
     purpose: Reads the language the user's system is set to, on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
     exit_strategy: One call in src/words.rs; the environment replaces it on Linux, a system call elsewhere.
+  - name: hyper
+    purpose: >
+      The loopback server the window plays an opened meeting's tracks from, those files alone
+      (D26), with hyper-util, http-body-util, bytes, futures-util, tokio and tokio-util — all
+      already among Tauri's own dependencies
+    adr: docs/adr/0008-the-window-plays-a-meeting-from-a-loopback-server.md
+    exit_strategy: >
+      src/player.rs alone: serve and answer; any HTTP server that bounds a request's headers,
+      never reads a body and caps the connections held replaces them.
+  - name: getrandom
+    purpose: The loopback server's token, 128 random bits from the system
+    adr: docs/adr/0008-the-window-plays-a-meeting-from-a-loopback-server.md
+    exit_strategy: One call in player::Served::start; the system's own source (/dev/urandom) replaces it.
   - name: tracing
     purpose: The steps and failures the shell logs, each making under its id (ADR-0007)
     adr: docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md

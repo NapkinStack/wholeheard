@@ -72,7 +72,7 @@ loopback interface, is what this record decides.
 
 ## Options considered
 
-### Option 1 — A loopback HTTP server in the shell, on `tiny_http`
+### Option 1 — A loopback HTTP server in the shell
 
 `127.0.0.1` and a random port. Each URL carries a random token of the run and an offer's
 number; a track is named by its index, never by a path; only the tracks offered last are
@@ -100,8 +100,21 @@ Option 1.
   after its page is left, until another meeting is opened or the shell quits.
 - **Read only:** a file is opened for reading, at the moment it is asked for. Nothing is
   written, and nothing else is listed.
-- **Who is turned away first:** a request without the token, or of another offer, is answered
-  where it arrives. Only a request for an offered track gets a thread of its own to stream it.
+- **What no reader does is bounded:** a request's headers are read for 5 seconds at most and
+  never past 16 KiB; a body is never read; a connection serves one request; at most 256
+  connections are held at once, and one more is closed as it comes. Each is a task of one
+  thread's runtime, not a thread.
+- **As built (2026-10-20, after #299's verification):** on `hyper`, not `tiny_http`. Tauri
+  already depends on `hyper`, so it adds no crate but its `httpdate`. The verifier of #299 found
+  three faults in `tiny_http` 0.12, beneath the shell's code:
+  - a request announcing a body of a petabyte, never sent, aborted the process, because the
+    library allocates the body to drain it;
+  - a client that sends half a request held every other reader;
+  - each connection held a thread of its own, without bound.
+
+  `tests/player.rs` reproduces them. On `tiny_http` its run aborts on the first (`memory
+  allocation of 1000000000000000 bytes failed`); the verifier measured the other two with probes
+  of their own.
 - **The page:** its CSP allows media from `http://127.0.0.1:*`, and nothing more.
 - **Threats, and what is accepted:**
   - *Another machine:* refused, since nothing listens beyond the loopback interface.
@@ -112,7 +125,9 @@ Option 1.
   - *A process of the same user that reads the shell's memory:* it can find the token, and gets
     the tracks the user can already read. Accepted.
   - *The URL in a log:* it is never logged.
-  - *Many requests at once:* each without the token is answered at once and holds no thread.
+  - *Many requests at once, or slow ones:* bounded as above. A user of this machine who holds
+    the 256 connections, each for 5 seconds at a time, keeps the meeting from playing. Accepted:
+    that is all it can do.
   - *A path, `..`, an encoded path:* nothing in a URL is a path, so each answers 404.
 
 **Criticality: standard.** A failure is a meeting that does not play, never a file read
@@ -144,16 +159,19 @@ the server in the way, this record is superseded by native playback (Option 2).
 pausing, with no clock of the shell's.
 
 **Negative and accepted debt:**
-- The shell gains a direct dependency on `tiny_http`, and on `getrandom`, which it reached only
-  through other crates until now.
+- The shell gains direct dependencies on `hyper` and its companions (`hyper-util`,
+  `http-body-util`, `bytes`, `futures-util`, `tokio`, `tokio-util`) and on `getrandom`. It
+  reached all of them through Tauri until now; the one new crate is `httpdate`.
 - A port stays open on the loopback interface while the shell runs.
 
 **Impacts on other modules or contracts:** none. It reads `session-audio`'s tracks as any
 consumer does.
 
 **Rule to automate:** `tests/player.rs`. It refuses a URL without the token, of another offer,
-out of the offer, or naming a path, and it checks what a Range answers. It runs with the
-module's tests on every pull request.
+out of the offer, or naming a path or a file beside the track, and it checks what a Range
+answers. It also checks that a body announced and never sent, and clients that hold half a
+request, neither stop the server nor keep a reader waiting. It runs with the module's tests on
+every pull request.
 
 ---
 

@@ -1682,6 +1682,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
+name = "httpdate"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
+
+[[package]]
 name = "hybrid-array"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1702,6 +1708,7 @@ dependencies = [
  "http",
  "http-body",
  "httparse",
+ "httpdate",
  "itoa",
  "pin-project-lite",
  "smallvec",
@@ -5058,9 +5065,14 @@ version = "0.2.0"
 dependencies = [
  "apple-native-keyring-store",
  "ashpd",
+ "bytes",
  "dirs 6.0.0",
  "futures-util",
+ "getrandom 0.3.4",
  "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "keyring-core",
  "libc",
  "notify-rust",
@@ -5075,6 +5087,8 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-notification",
  "tempfile",
+ "tokio",
+ "tokio-util",
  "toml 0.9.12+spec-1.1.0",
  "toml_edit 0.25.17+spec-1.1.0",
  "tracing",
