@@ -201,3 +201,18 @@ fn whether_there_is_an_echo_is_decided_once_a_transcript_has_begun_and_kept() {
     transcribe(folder.path(), &mut Loudness::default(), Some("fr"), 300).unwrap();
     assert_eq!(made(folder.path())["local"]["echo"]["taken_out"], true);
 }
+
+#[test]
+fn a_place_for_what_was_heard_that_cannot_be_written_is_said_by_its_name() {
+    use std::os::unix::fs::PermissionsExt;
+    let folder = session(false);
+    fs::create_dir(folder.path().join(DERIVED)).unwrap();
+    fs::set_permissions(folder.path().join(DERIVED), fs::Permissions::from_mode(0o555)).unwrap();
+    let refused = transcribe(folder.path(), &mut Loudness::default(), None, 30)
+        .unwrap_err()
+        .to_string();
+    fs::set_permissions(folder.path().join(DERIVED), fs::Permissions::from_mode(0o755)).unwrap();
+    // The sentence is logged: the session's path is not in it (ADR-0007).
+    assert!(refused.starts_with("derived/ cannot be written"), "{refused}");
+    assert!(!refused.contains(&*folder.path().to_string_lossy()), "{refused}");
+}

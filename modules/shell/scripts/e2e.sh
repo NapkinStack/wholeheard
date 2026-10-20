@@ -47,7 +47,7 @@ titles() {
 start() { # the language, the settings file's text, the recorder
   mkdir -p "$work/config/wholeheard" "$work/sessions"; rm -f "$work/sessions/given" "$work/sessions/told"
   printf 'sessions = "%s"\n%b\n' "$work/sessions" "$2" > "$work/config/wholeheard/settings.toml"
-  LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" WHOLEHEARD_CAPTURE="$3" \
+  LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" XDG_STATE_HOME="$work/state" WHOLEHEARD_CAPTURE="$3" \
     WHOLEHEARD_TRANSCRIPTION="$work/wholeheard-transcription" WHOLEHEARD_MODEL_PUBLISHED="$published" WHOLEHEARD_SUMMARY="$work/wholeheard-summary" WHOLEHEARD_KEYRING=memory "$bin" 2>> "$work/errors" &
   app=$!
   # Its own tray item, found by its program's number: a Wholeheard the user runs has one too.
@@ -341,6 +341,11 @@ else
   fi
 fi
 
+# Its log (ADR-0007): each recording and making under an id, never a path of the run's folder.
+shell_log=$(cat "$work"/state/wholeheard/logs/shell.*.jsonl 2>/dev/null || true)
+check grep -q '"message":"shell.recording_started"' <<< "$shell_log"
+check grep -q '"message":"shell.minutes_written"' <<< "$shell_log"
+check test -z "$(grep -F "$work" <<< "$shell_log")"
 check test ! -s "$work/errors"
 [ -s "$work/errors" ] && sed 's/^/    /' "$work/errors" >> .evidence/e2e.txt
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"

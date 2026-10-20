@@ -8,6 +8,9 @@ publish = false
 rubato = "5.0.1"
 serde_json = "1.0.154"
 sonora = "0.2.0"
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "json", "env-filter", "std"] }
 whisper-rs = "0.16.0"
 
 # The graphics card, where the system has Vulkan and its headers: a tenth of the meeting's

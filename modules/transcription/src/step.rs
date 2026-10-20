@@ -2,7 +2,9 @@
 //! `contracts/session-audio/v1` or `v2` describes it, hands an engine one span at a time, and
 //! writes what was heard. Stopped anywhere, it is run again and goes on from where it was.
 
-use std::{fs, io, path::Path};
+use std::{fs, io, path::Path, time::Instant};
+
+use tracing::info;
 
 use crate::{Making, Segment, Speaker, Transcript, echo, tracks};
 
@@ -143,7 +145,8 @@ pub const MADE: &str = "made.json";
 pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: bool, begun: bool) -> io::Result<[(Speaker, Vec<f32>); 2]> {
     let [(_, local), (_, remote)] = sounds;
     let place = folder.join(DERIVED);
-    let said = |error: io::Error| io::Error::new(error.kind(), format!("{} cannot be written ({error})", place.display()));
+    // The folder's own name, never its path: a sentence that fails is logged (ADR-0007).
+    let said = |error: io::Error| io::Error::new(error.kind(), format!("{DERIVED}/ cannot be written ({error})"));
     let decided = begun
         .then(|| fs::read(place.join(MADE)).ok())
         .flatten()
@@ -165,6 +168,12 @@ pub fn derive(folder: &Path, sounds: [(Speaker, Vec<f32>); 2], as_delivered: boo
             (if found.is_measured() { cleaned } else { local }, echo)
         }
     };
+    info!(
+        taken_out = echo["taken_out"].as_bool(),
+        measured_db = echo["measured_db"].as_f64(),
+        delay_ms = echo["delay_ms"].as_i64(),
+        "transcription.echo"
+    );
     let (from_local, from_remote) = if as_delivered {
         ("local.wav", "remote.wav")
     } else {
@@ -240,6 +249,15 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
         }
         return Ok(());
     }
+    let seconds_of = |sound: &[f32]| (sound.len() / (RATE / 100)) as f64 / 100.0;
+    info!(
+        me = seconds_of(&sounds[0].1),
+        others = seconds_of(&sounds[1].1),
+        stopped,
+        begun,
+        as_delivered,
+        "transcription.tracks"
+    );
     let sounds = derive(folder, sounds, as_delivered, begun)?;
     // Every place in the session is counted in whole hundredths of a second, as the transcript
     // writes them: a run taken up starts exactly where the run before decided to stop.
@@ -259,11 +277,21 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
                 Some(sounding) => !sounding[from.min(sounding.len())..until.min(sounding.len())].contains(&true),
                 None => sound.iter().all(|sample| sample.abs() < SILENCE),
             };
+            let heard_in = Instant::now();
             let answer = if silent {
                 None
             } else {
                 Some(engine.hear(sound, language, making.context.as_deref())?)
             };
+            info!(
+                speaker = speaker.name(),
+                from = from as f64 / 100.0,
+                until = until as f64 / 100.0,
+                silent,
+                segments = answer.as_ref().map_or(0, Vec::len),
+                milliseconds = heard_in.elapsed().as_millis() as u64,
+                "transcription.span"
+            );
             // A time is the hundredth it falls on, or the next; one that is no time is the span's edge.
             let within = |seconds: f64| from + (seconds * 100.0 - 1e-6).ceil().clamp(0.0, (until - from) as f64) as usize;
             let mut segments: Vec<(usize, usize, String)> = answer
@@ -295,6 +323,7 @@ pub fn hear(folder: &Path, session: Session, engine: &mut dyn Engine, language: 
     }
     // A recording still going on, or ended by a crash, has no last word yet: the step is run again.
     if !stopped {
+        info!("transcription.waiting");
         return Ok(());
     }
     let longest = sounds.iter().map(|(_, heard)| heard.len()).max().unwrap_or(0);

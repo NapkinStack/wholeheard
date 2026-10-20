@@ -46,6 +46,8 @@ Turns the audio of a session into a timestamped transcript.
 - A transcript another engine, model, language or context made is never continued.
 - Whatever is refused, the engine is asked nothing and no transcript is created or changed.
 - `complete` is written only when the session's record says `stopped`.
+- A log line holds lengths, counts, durations, the echo and failures — never a word heard, the
+  context, nor a session's path beyond its folder's name (`tests/log.rs`, `tests/program.rs`).
 
 ## Known traps
 

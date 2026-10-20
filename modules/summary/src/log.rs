@@ -48,13 +48,13 @@ fn trace() -> String {
     }
 }
 
-/// `info` unless `WHOLEHEARD_LOG` names a level — or, for whoever knows them, a filter.
+/// `info` unless `WHOLEHEARD_LOG` names a level, `off` included — or, for whoever knows them, a filter.
 /// A level reaches this program's own lines only: a library's are never asked for by it.
 fn filter() -> EnvFilter {
     let own = env!("CARGO_CRATE_NAME");
     let asked = std::env::var("WHOLEHEARD_LOG").unwrap_or_default();
     let directives = match asked.trim() {
-        level @ ("error" | "warn" | "info" | "debug" | "trace") => format!("off,{own}={level}"),
+        level @ ("off" | "error" | "warn" | "info" | "debug" | "trace") => format!("off,{own}={level}"),
         filter if filter.contains('=') => filter.to_string(),
         _ => format!("off,{own}=info"),
     };
@@ -107,7 +107,9 @@ pub fn prune(folder: &Path, now: SystemTime) {
 /// Starts the log of `program`; what is logged until the value returned is dropped belongs
 /// to this run, its version and its making's id — at every level, a failure's line included.
 pub fn start(program: &'static str) -> EnteredSpan {
-    let appender = folder().and_then(|folder| {
+    // Turned off, the log leaves nothing: no file, nothing removed.
+    let off = std::env::var("WHOLEHEARD_LOG").is_ok_and(|level| level.trim() == "off");
+    let appender = folder().filter(|_| !off).and_then(|folder| {
         std::fs::create_dir_all(&folder).ok()?;
         prune(&folder, SystemTime::now());
         RollingFileAppender::builder()
@@ -127,6 +129,9 @@ pub fn start(program: &'static str) -> EnteredSpan {
             .with_ansi(false)
             .with_env_filter(filter())
             .with_writer(appender)
+            // A log that cannot be written says nothing on the error stream: what is said there
+            // is the program's one sentence (its contract).
+            .log_internal_errors(false)
             .try_init();
     }
     tracing::span!(Level::ERROR, "run", program, version = env!("CARGO_PKG_VERSION"), trace = %trace()).entered()

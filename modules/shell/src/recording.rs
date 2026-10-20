@@ -11,6 +11,7 @@ use std::{
 };
 
 use serde_json::Value;
+use tracing::{error, info, warn};
 
 /// One of a session's two sources.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,13 +102,18 @@ impl Recording {
     /// it says comes apart from the hold on it, so that one may listen while another stops
     /// it: it ends on `Stopped` or `Failed`, then closes.
     pub fn start(program: &Path, sessions: &Path) -> io::Result<(Self, Receiver<Said>)> {
+        let (trace, making) = crate::log::making();
+        let _making = making.enter();
+        info!("shell.recording");
         let mut program = Command::new(program)
             .arg("record")
             .arg(sessions)
+            .env("WHOLEHEARD_TRACE", &trace)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()?;
+            .spawn()
+            .inspect_err(|error| error!(detail = %error, "shell.recording_failed"))?;
         let (input, output, errors) = (program.stdin.take(), program.stdout.take(), program.stderr.take());
         let (Some(input), Some(output), Some(errors)) = (input, output, errors) else {
             return Err(io::Error::other("the program that records could not be listened to"));
@@ -116,12 +122,20 @@ impl Recording {
         // what it says of a failure.
         let complaint = thread::spawn(move || lines(errors).filter(|line| !line.trim().is_empty()).last().unwrap_or_default());
         let (tell, said) = mpsc::channel();
+        let (making, sessions) = (making.clone(), sessions.to_path_buf());
         thread::spawn(move || {
+            let _making = making.enter();
             // Read to its end, so that the program is never held up. "stopped" is the last word:
             // whoever listens hears the end there, though the program may take its time to go.
             let mut tell = Some(tell);
             for event in lines(output).filter_map(|line| read(&line)) {
                 let last = matches!(event, Said::Stopped(..));
+                match &event {
+                    Said::Started(folder, _) => info!(session = %crate::transcription::named(folder), "shell.recording_started"),
+                    Said::Unavailable(source, why) => warn!(source = ?source, detail = %why, "shell.recording_unavailable"),
+                    Said::Stopped(_, seconds) => info!(seconds, "shell.recording_stopped"),
+                    _ => {}
+                }
                 if let Some(listener) = if last { tell.take() } else { tell.clone() } {
                     let _ = listener.send(event);
                 }
@@ -129,7 +143,9 @@ impl Recording {
             let Some(tell) = tell else { return };
             // Its output is closed and it never said "stopped": it failed, and its error stream
             // holds why once it has ended.
-            let _ = tell.send(Said::Failed(complaint.join().unwrap_or_default().trim().to_string()));
+            let why = complaint.join().unwrap_or_default().trim().to_string();
+            error!(detail = %crate::log::without(&why, Some(&sessions)), "shell.recording_failed");
+            let _ = tell.send(Said::Failed(why));
         });
         Ok((Self { program, input }, said))
     }

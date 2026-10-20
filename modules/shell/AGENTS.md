@@ -25,6 +25,8 @@ Puts Wholeheard's four steps in the user's hands: a tray, a global shortcut, not
 - No window opens without a gesture of the user.
 - A recording never stops because the shell did.
 - Nothing crosses the network before the user was shown what and where, and agreed.
+- A log line holds steps, ids, hosts, models and failures — never a word of a meeting, a key, nor
+  a session's path beyond its folder's name (`tests/log.rs`, the e2e).
 
 ## Known traps
 
