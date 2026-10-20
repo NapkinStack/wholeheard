@@ -3,7 +3,7 @@ module:
   responsibility: >
     Defines and versions the interface contracts between modules.
   owner: "NapkinStack/maintainers"
-  contact: "https://github.com/NapkinStack/summit/discussions"
+  contact: "https://github.com/NapkinStack/wholeheard/discussions"
   lifecycle: active
   criticality: high
   user_facing: false
