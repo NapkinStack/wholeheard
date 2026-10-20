@@ -991,6 +991,8 @@ fn ollama() -> String {
 struct MinutesShown {
     ollama: Vec<String>,
     ollama_address: String,
+    /// The local model recommended for the minutes, said so when Ollama holds it (#261).
+    recommended: &'static str,
     online: [Online; 3],
     provider: Option<String>,
     model: Option<String>,
@@ -1017,6 +1019,7 @@ async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, String> 
         provider_local,
         ollama: models.unwrap_or_default(),
         ollama_address: providers::ollama_address(&ollama()),
+        recommended: providers::RECOMMENDED,
         online: providers::ONLINE,
         provider: settings.minutes_provider,
         model: settings.minutes_model,

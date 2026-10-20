@@ -30,6 +30,10 @@ pub const ONLINE: [Online; 3] = [
     },
 ];
 
+/// The local model recommended for the minutes: tried on real meetings, it holds `minutes/v1`'s
+/// form, where Mistral 7B and models for code do not (#261). Offered first when Ollama holds it.
+pub const RECOMMENDED: &str = "qwen3:8b";
+
 /// The address `wholeheard-summary` is given for a model of Ollama at `base`.
 pub fn ollama_address(base: &str) -> String {
     format!("{}/v1", base.trim_end_matches('/'))
@@ -59,7 +63,8 @@ pub fn ollama_models(base: &str) -> Vec<String> {
         // A name `wholeheard-summary` would refuse is not offered.
         .filter(|name| !name.trim().is_empty() && !name.chars().any(char::is_control))
         .collect();
-    names.sort();
+    // The recommended first, the others by name.
+    names.sort_by(|a, b| (a != RECOMMENDED).cmp(&(b != RECOMMENDED)).then(a.cmp(b)));
     names.dedup();
     names
 }

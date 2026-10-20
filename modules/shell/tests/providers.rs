@@ -46,6 +46,20 @@ fn the_models_ollama_holds_are_offered_by_name_and_none_when_it_does_not_answer(
 }
 
 #[test]
+fn the_model_that_holds_the_minutes_form_is_offered_first() {
+    // Qwen3 8B wrote the minutes on this laptop; Mistral 7B and models for code did not (#261).
+    let ollama = answering(
+        r#"{"models":[{"name":"codellama:latest"},{"name":"deepseek-coder:latest"},{"name":"mistral:latest"},{"name":"qwen3:8b"}]}"#,
+        1,
+    );
+    assert_eq!(
+        ollama_models(&ollama),
+        ["qwen3:8b", "codellama:latest", "deepseek-coder:latest", "mistral:latest"]
+    );
+    assert_eq!(providers::RECOMMENDED, "qwen3:8b");
+}
+
+#[test]
 fn an_ollama_that_takes_the_question_and_never_answers_holds_nothing_up() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = format!("http://{}", listener.local_addr().unwrap());
