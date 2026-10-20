@@ -1,4 +1,4 @@
-# What summit-transcription is built with for Ubuntu 24.04 (D27): that system's C++ compiler,
+# What wholeheard-transcription is built with for Ubuntu 24.04 (D27): that system's C++ compiler,
 # CMake and clang for whisper.cpp, Vulkan's headers and shader compiler for the graphics card,
 # Rust as this repository uses it. Read by scripts/release.sh.
 FROM docker.io/library/ubuntu:24.04

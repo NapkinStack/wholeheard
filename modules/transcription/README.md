@@ -8,7 +8,7 @@ Turns the audio of a session into a timestamped transcript.
 
 ```mermaid
 flowchart LR
-    A["The session's sound, in either form<br/>session.json · context.txt"]:::file --> P["summit-transcription<br/>a program, no window"]:::mod
+    A["The session's sound, in either form<br/>session.json · context.txt"]:::file --> P["wholeheard-transcription<br/>a program, no window"]:::mod
     P -->|"one span of sound at a time"| E["The engine:<br/>Whisper, on this machine"]:::ext
     E -->|"segments"| P
     P -->|"transcript/v1, a file that only grows"| T["transcript.jsonl"]:::file
@@ -26,7 +26,7 @@ Nothing leaves the machine: the program contacts no host.
 
 ```bash
 # The model is a Whisper model in whisper.cpp's format, already on the machine: nothing is fetched.
-summit-transcription <session-folder> --model ggml-large-v3-turbo-q8_0.bin --language fr
+wholeheard-transcription <session-folder> --model ggml-large-v3-turbo-q8_0.bin --language fr
 ```
 
 | Tried on a public meeting of five minutes, four speakers, in French | Words that differ from a person's transcript | Time |

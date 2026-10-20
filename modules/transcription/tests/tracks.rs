@@ -3,7 +3,7 @@
 
 use std::{fs, path::Path};
 
-use summit_transcription::{
+use wholeheard_transcription::{
     step::RATE,
     tracks::{Clock, clock, heard},
 };

@@ -3,7 +3,7 @@
 
 use std::{fs, path::Path};
 
-use summit_transcription::{Making, Segment, Speaker, Transcript};
+use wholeheard_transcription::{Making, Segment, Speaker, Transcript};
 
 fn making() -> Making {
     Making {

@@ -3,7 +3,7 @@
 
 use std::{fs, io, path::Path};
 
-use summit_transcription::{
+use wholeheard_transcription::{
     Segment,
     step::{Engine, RATE, read, transcribe},
 };

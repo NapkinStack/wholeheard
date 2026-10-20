@@ -1,7 +1,7 @@
 //! Sound made for the tests of the echo: voiced turns, and a room that returns them. No
 //! voice of anyone.
 
-use summit_transcription::step::RATE;
+use wholeheard_transcription::step::RATE;
 
 /// A voice in turns of 1.5 s every 4 s from `offset`, at `level`: a side that speaks, then
 /// listens. Voiced as speech is — a pitch that moves, its harmonics up to 7 kHz, four

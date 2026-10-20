@@ -1,4 +1,4 @@
-# What summit-transcription is built with for Fedora 44 (D27): that system's C++ compiler, CMake
+# What wholeheard-transcription is built with for Fedora 44 (D27): that system's C++ compiler, CMake
 # and clang for whisper.cpp, Vulkan's headers and shader compiler for the graphics card, Rust as
 # this repository uses it. Read by scripts/release.sh.
 FROM registry.fedoraproject.org/fedora:44
