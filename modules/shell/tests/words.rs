@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use summit_shell::{
+use wholeheard_shell::{
     recording::{Said, Source},
     words::{self, Language, Notice, Refusal},
 };
@@ -176,20 +176,23 @@ fn a_failure_says_what_the_program_said_of_it_and_nothing_else_of_the_program() 
     let said = |sentence: &str, language| told(&Said::Failed(sentence.into()), false, language).1;
     // The program that records names itself before its sentence: the name is not the user's to read.
     assert_eq!(
-        said("summit-capture: no source could be opened: nothing to record", Language::English),
+        said(
+            "wholeheard-capture: no source could be opened: nothing to record",
+            Language::English
+        ),
         "What was recorded is in the session’s folder. (no source could be opened: nothing to record)"
     );
-    assert!(said("summit-capture: the disk is full", Language::French).ends_with("dossier de la session. (the disk is full)"));
+    assert!(said("wholeheard-capture: the disk is full", Language::French).ends_with("dossier de la session. (the disk is full)"));
     // Any other sentence is kept whole, whatever stands before its colon.
     for whole in [
         "Timeout: no sound for 30 s",
         "Error: the disk is full",
-        "Summit Capture: the disk is full",
+        "Wholeheard Capture: the disk is full",
     ] {
         assert!(said(whole, Language::English).ends_with(&format!("({whole})")), "{whole}");
     }
     // A program that said nothing — or its name and nothing — is said to have said nothing.
-    for nothing in ["", "   ", "summit-capture:", " summit-capture: \t", "()"] {
+    for nothing in ["", "   ", "wholeheard-capture:", " wholeheard-capture: \t", "()"] {
         for language in BOTH {
             let body = said(nothing, language);
             assert!(
@@ -199,7 +202,7 @@ fn a_failure_says_what_the_program_said_of_it_and_nothing_else_of_the_program() 
         }
     }
     // A sentence over several lines, or with a tab, is said on one.
-    assert!(said("summit-capture: line one\nline two\n\tthree", Language::English).ends_with("(line one line two three)"));
+    assert!(said("wholeheard-capture: line one\nline two\n\tthree", Language::English).ends_with("(line one line two three)"));
     // Brackets of its own are not doubled, and a very long sentence is cut short.
     assert!(said("(os error 28)", Language::English).ends_with("folder. (os error 28)"));
     let long = said(&"é".repeat(5000), Language::English);
@@ -216,7 +219,7 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
     let (english, french) = (words::menu(Language::English), words::menu(Language::French));
     assert_eq!(
         (english.start, english.stop, english.quit),
-        ("Start recording", "Stop recording", "Quit Summit")
+        ("Start recording", "Stop recording", "Quit Wholeheard")
     );
     assert_eq!(
         (french.start, french.stop),
@@ -242,7 +245,7 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
         Trouble::NoRecorder("No such file or directory (os error 2)".into()),
         Trouble::Settings("settings.toml, line 3: invalid boolean".into()),
         Trouble::Shortcut("the dialog was dismissed".into()),
-        Trouble::NoModel("<data>/summit/models/ggml.bin".into()),
+        Trouble::NoModel("<data>/wholeheard/models/ggml.bin".into()),
         Trouble::NoTranscriber("No such file or directory (os error 2)".into()),
     ] {
         let detail = match &trouble {
@@ -268,8 +271,8 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
     );
     // Each says what still works, or what to do — not the trouble a second time.
     let body = |trouble, language| words::trouble(&trouble, language).body;
-    assert!(body(Trouble::NoRecorder(String::new()), Language::English).ends_with("Installing Summit again puts it back."));
-    assert!(body(Trouble::NoRecorder(String::new()), Language::French).ends_with("Réinstaller Summit le remet en place."));
+    assert!(body(Trouble::NoRecorder(String::new()), Language::English).ends_with("Installing Wholeheard again puts it back."));
+    assert!(body(Trouble::NoRecorder(String::new()), Language::French).ends_with("Réinstaller Wholeheard le remet en place."));
     assert!(body(Trouble::Settings(String::new()), Language::English).contains("runs with its defaults"));
     assert!(body(Trouble::Shortcut(String::new()), Language::French).contains("permet toujours de démarrer"));
     // What the system said comes out on one line.
@@ -278,13 +281,13 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
 
 #[test]
 fn a_transcript_is_said_ready_or_not_with_how_to_have_it_again() {
-    use summit_shell::{transcription::Made, words::Trouble};
+    use wholeheard_shell::{transcription::Made, words::Trouble};
     let ready = |language| words::made(&Made::Written("/s/2026-10-16_09-30".into()), language);
     assert_eq!(ready(Language::English).title, "Transcript ready");
     assert!(ready(Language::French).body.contains("ouvrir le dossier"));
     // Failed: what the program said, without its name; the recording untouched; the menu's entry.
     let failed = words::made(
-        &Made::Failed("summit-transcription: the model cannot be loaded".into()),
+        &Made::Failed("wholeheard-transcription: the model cannot be loaded".into()),
         Language::English,
     );
     assert!(
@@ -390,7 +393,7 @@ fn audio_sent_to_the_trash_is_said_with_its_counts_and_a_refusal_never_claims_to
 
 #[test]
 fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
-    use summit_shell::words::Minutes;
+    use wholeheard_shell::words::Minutes;
     for language in BOTH {
         let entry = words::menu(language).minutes;
         let ready = words::minutes(&Minutes::Ready, language);
@@ -458,6 +461,6 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
     );
     assert_eq!(
         words::minutes(&Minutes::Waiting("openrouter.ai".into()), Language::French).body,
-        "Rien n’est envoyé à openrouter.ai avant votre accord, dans la fenêtre de Summit."
+        "Rien n’est envoyé à openrouter.ai avant votre accord, dans la fenêtre de Wholeheard."
     );
 }

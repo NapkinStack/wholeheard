@@ -1,4 +1,4 @@
-//! Minutes, made: `summit-summary` is started on a session's folder with a provider, a model and,
+//! Minutes, made: `wholeheard-summary` is started on a session's folder with a provider, a model and,
 //! when one is kept, its key — and what it says is read as `contracts/summarising/v1` describes
 //! it: where the request goes before it leaves, then whether the minutes are written. The
 //! shell reads none of the minutes here; the program writes `minutes.md` (`minutes/v1`).
@@ -40,14 +40,14 @@ pub struct Summarising {
 }
 
 impl Summarising {
-    /// Starts `summit-summary` on a session's folder. The key goes to its environment only — a
-    /// key in Summit's own environment never does.
+    /// Starts `wholeheard-summary` on a session's folder. The key goes to its environment only — a
+    /// key in Wholeheard's own environment never does.
     pub fn start(program: &Path, folder: &Path, provider: &str, model: &str, key: Option<&str>) -> io::Result<(Self, Receiver<Event>)> {
         let mut command = Command::new(program);
         command.arg(folder).args(["--provider", provider, "--model", model]);
-        command.env_remove("SUMMIT_PROVIDER_KEY");
+        command.env_remove("WHOLEHEARD_PROVIDER_KEY");
         if let Some(key) = key {
-            command.env("SUMMIT_PROVIDER_KEY", key);
+            command.env("WHOLEHEARD_PROVIDER_KEY", key);
         }
         let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
         let (Some(output), Some(errors)) = (child.stdout.take(), child.stderr.take()) else {
@@ -94,11 +94,11 @@ impl Summarising {
                 Made::Written(folder)
             } else {
                 let said = last.lock().map(|said| said.clone()).unwrap_or_default();
-                let said = said.strip_prefix("summit-summary: ").unwrap_or(&said).to_string();
+                let said = said.strip_prefix("wholeheard-summary: ").unwrap_or(&said).to_string();
                 Made::Failed(match (said.is_empty(), status) {
                     (false, _) => said,
-                    (true, Some(status)) => format!("summit-summary stopped without saying why ({status})"),
-                    (true, None) => "summit-summary could not be waited for".into(),
+                    (true, Some(status)) => format!("wholeheard-summary stopped without saying why ({status})"),
+                    (true, None) => "wholeheard-summary could not be waited for".into(),
                 })
             };
             let _ = tell.send(Event::Ended(made));
@@ -106,7 +106,7 @@ impl Summarising {
         Ok((Self { program }, events))
     }
 
-    /// Stops the program now: Summit is quitting. Nothing half-written is left by it.
+    /// Stops the program now: Wholeheard is quitting. Nothing half-written is left by it.
     pub fn end(&self) {
         if let Ok(mut child) = self.program.lock() {
             let _ = child.kill();

@@ -1,4 +1,4 @@
-//! The settings, as one file the user can read and write without Summit: a few lines of TOML
+//! The settings, as one file the user can read and write without Wholeheard: a few lines of TOML
 //! in the system's place for an application's configuration. A file that is not there is
 //! every default; a key this version does not know is left alone, for the version that does —
 //! also when the window writes the file again, with the user's comments.
@@ -38,7 +38,7 @@ pub struct Settings {
     pub after: After,
     /// The Whisper model the transcript is heard with: a file in whisper.cpp's format.
     pub model: PathBuf,
-    /// Who writes the minutes: a provider's address, as `summit-summary` takes it — Ollama on this
+    /// Who writes the minutes: a provider's address, as `wholeheard-summary` takes it — Ollama on this
     /// computer is `http://localhost:11434/v1` —, and the model's name as it knows it. None: not
     /// chosen yet.
     pub minutes_provider: Option<String>,
@@ -58,9 +58,9 @@ impl Default for Settings {
         let data = dirs::data_dir().unwrap_or_default();
         Self {
             reminder: true,
-            sessions: documents.join("Summit"),
+            sessions: documents.join("Wholeheard"),
             after: After::Transcript,
-            model: data.join("summit").join("models").join(MODEL),
+            model: data.join("wholeheard").join("models").join(MODEL),
             minutes_provider: None,
             minutes_model: None,
             minutes_agreed: None,
@@ -69,7 +69,7 @@ impl Default for Settings {
     }
 }
 
-/// The Whisper models on this computer: the `.bin` files in `folder` — Summit's, where the
+/// The Whisper models on this computer: the `.bin` files in `folder` — Wholeheard's, where the
 /// default model goes — and the one the settings name wherever it is. Each file once, however it
 /// is reached — by a link, by another path —, the folder's entry kept; by name, whatever its case.
 pub fn whisper_models(folder: &Path, settings: &Settings) -> Vec<PathBuf> {
@@ -88,9 +88,9 @@ pub fn whisper_models(folder: &Path, settings: &Settings) -> Vec<PathBuf> {
     found
 }
 
-/// Where the settings are on this system: `summit/settings.toml` in the user's configuration.
+/// Where the settings are on this system: `wholeheard/settings.toml` in the user's configuration.
 pub fn file() -> Option<PathBuf> {
-    dirs::config_dir().map(|folder| folder.join("summit").join("settings.toml"))
+    dirs::config_dir().map(|folder| folder.join("wholeheard").join("settings.toml"))
 }
 
 /// The file as it is written: what it names, and where it names each path.

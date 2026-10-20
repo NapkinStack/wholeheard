@@ -56,7 +56,7 @@ pub fn length(seconds: f64) -> String {
 /// gives nothing.
 fn detail(said: &str) -> String {
     let said = said.trim();
-    let said = ["summit-capture:", "summit-transcription:"]
+    let said = ["wholeheard-capture:", "wholeheard-transcription:"]
         .iter()
         .find_map(|name| said.strip_prefix(name))
         .unwrap_or(said)
@@ -209,9 +209,9 @@ pub fn menu(language: Language) -> Menu {
             start: "Start recording",
             stop: "Stop recording",
             stopping: "Stopping…",
-            quit: "Quit Summit",
-            open: "Open Summit",
-            recording: "Summit — recording",
+            quit: "Quit Wholeheard",
+            open: "Open Wholeheard",
+            recording: "Wholeheard — recording",
             transcribe: "Transcribe the last recording",
             transcribing: "Transcribing…",
             minutes: "Write the minutes of the last recording",
@@ -221,9 +221,9 @@ pub fn menu(language: Language) -> Menu {
             start: "Démarrer l’enregistrement",
             stop: "Arrêter l’enregistrement",
             stopping: "Arrêt en cours…",
-            quit: "Quitter Summit",
-            open: "Ouvrir Summit",
-            recording: "Summit — enregistrement en cours",
+            quit: "Quitter Wholeheard",
+            open: "Ouvrir Wholeheard",
+            recording: "Wholeheard — enregistrement en cours",
             transcribe: "Transcrire le dernier enregistrement",
             transcribing: "Transcription en cours…",
             minutes: "Faire le compte rendu du dernier enregistrement",
@@ -312,7 +312,7 @@ pub struct Window {
     /// Another number of days, typed; and what is said of one that is none.
     pub keep_other: &'static str,
     pub keep_not_days: &'static str,
-    /// The engine that hears, shipped with Summit; and the user's home, as a folder is said.
+    /// The engine that hears, shipped with Wholeheard; and the user's home, as a folder is said.
     pub builtin: &'static str,
     pub home: &'static str,
     pub transcription: &'static str,
@@ -478,7 +478,7 @@ pub fn window(language: Language) -> Window {
             no_transcript: "No transcript yet.",
             no_minutes: "No minutes yet.",
             being_made: "Being written — what is here is true all the same.",
-            unreadable: "This file cannot be read by this version of Summit.",
+            unreadable: "This file cannot be read by this version of Wholeheard.",
             unread: "{} line(s) of the file could not be read and are left out.",
             no_match: "Nothing said matches.",
             settings: "Settings",
@@ -491,7 +491,7 @@ pub fn window(language: Language) -> Window {
             ],
             models_title: "Models",
             models_intro: "For each step, you choose who works: a model on this computer, an online service, or your own address.",
-            models_note: "The models “on this computer” are those Summit finds installed. A key is kept in your system’s keyring, never in a file. The audio never leaves this computer: only the transcript’s text goes to an online service, after your agreement.",
+            models_note: "The models “on this computer” are those Wholeheard finds installed. A key is kept in your system’s keyring, never in a file. The audio never leaves this computer: only the transcript’s text goes to an online service, after your agreement.",
             model_state: "Transcription model",
             model_ready: "Ready",
             model_here: "Installed · {} · runs on this computer, with no network",
@@ -499,7 +499,7 @@ pub fn window(language: Language) -> Window {
             installed: "installed, {}",
             keep_other: "Another number of days…",
             keep_not_days: "{} is no number of days: from 1 to 36,500",
-            builtin: "built into Summit",
+            builtin: "built into Wholeheard",
             home: "Home folder",
             transcription: "Transcription",
             on_this_computer: "On this computer — nothing leaves it",
@@ -564,7 +564,7 @@ pub fn window(language: Language) -> Window {
             chip_transcript_failed: "Transcript not written",
             minutes_unsaved: "Not saved yet — the minutes are still written by {}.",
             minutes_unsaved_none: "Not saved yet — no minutes are written until it is.",
-            transcript_model_needed: "Waiting for the Whisper model — download it from Summit's menu, in the tray.",
+            transcript_model_needed: "Waiting for the Whisper model — download it from Wholeheard's menu, in the tray.",
             transcript_model_coming: "Waiting for the Whisper model, being downloaded.",
             ran_online: "online",
             ran_here: "on this machine",
@@ -572,7 +572,7 @@ pub fn window(language: Language) -> Window {
             record_stop: "Stop the recording",
             agree_eyebrow: "Before the first minutes online",
             agree_title: "This meeting’s text is about to leave your computer",
-            agree_lead: "To write the minutes, Summit sends the transcript to the service you chose. Here is exactly what leaves.",
+            agree_lead: "To write the minutes, Wholeheard sends the transcript to the service you chose. Here is exactly what leaves.",
             agree_leaves: [
                 "Leaves: the transcript",
                 "The words spoken, on your side and remote — {} minutes, about {} words.",
@@ -591,7 +591,7 @@ pub fn window(language: Language) -> Window {
             shortcut_where: "The desktop grants it: it changes in the desktop's keyboard settings.",
             shortcut_open: "Keyboard settings",
             test: "Test",
-            test_sends: "Test sends {} one sentence of Summit's, nothing of a meeting.",
+            test_sends: "Test sends {} one sentence of Wholeheard's, nothing of a meeting.",
             testing: "Testing…",
             test_answered: "The model answers.",
             test_failed: "The model does not answer: {}",
@@ -601,7 +601,7 @@ pub fn window(language: Language) -> Window {
             ],
             keep_always: "Always",
             keep_days: "{} days",
-            settings_unreadable: "The settings file cannot be read ({}): Summit does not write over it until it is corrected.",
+            settings_unreadable: "The settings file cannot be read ({}): Wholeheard does not write over it until it is corrected.",
             not_saved: "The setting was not saved: {}",
             key_not_kept: "The choice is saved, but the key was not kept in the system's keyring: {}",
             minutes_step: "Minutes",
@@ -657,7 +657,7 @@ pub fn window(language: Language) -> Window {
             no_transcript: "Pas encore de transcript.",
             no_minutes: "Pas encore de compte rendu.",
             being_made: "En cours d’écriture — ce qui est là est vrai quand même.",
-            unreadable: "Ce fichier ne peut pas être lu par cette version de Summit.",
+            unreadable: "Ce fichier ne peut pas être lu par cette version de Wholeheard.",
             unread: "{} ligne(s) du fichier n’ont pas pu être lues et sont laissées de côté.",
             no_match: "Rien de ce qui a été dit ne correspond.",
             settings: "Réglages",
@@ -670,7 +670,7 @@ pub fn window(language: Language) -> Window {
             ],
             models_title: "Modèles",
             models_intro: "Pour chaque étape, vous choisissez qui travaille : un modèle sur cet ordinateur, un service en ligne, ou votre propre adresse.",
-            models_note: "Les modèles « sur cet ordinateur » sont ceux que Summit trouve installés. Une clé est gardée dans le trousseau de votre système, jamais dans un fichier. L’audio ne quitte jamais cet ordinateur : seul le texte du transcript part vers un service en ligne, après votre accord.",
+            models_note: "Les modèles « sur cet ordinateur » sont ceux que Wholeheard trouve installés. Une clé est gardée dans le trousseau de votre système, jamais dans un fichier. L’audio ne quitte jamais cet ordinateur : seul le texte du transcript part vers un service en ligne, après votre accord.",
             model_state: "Modèle de transcription",
             model_ready: "Prêt",
             model_here: "Installé · {} · tourne sur cet ordinateur, sans réseau",
@@ -678,7 +678,7 @@ pub fn window(language: Language) -> Window {
             installed: "installé, {}",
             keep_other: "Autre nombre de jours…",
             keep_not_days: "{} n’est pas un nombre de jours : de 1 à 36 500",
-            builtin: "intégré à Summit",
+            builtin: "intégré à Wholeheard",
             home: "Dossier personnel",
             transcription: "Transcription",
             on_this_computer: "Sur cet ordinateur — rien ne sort",
@@ -743,7 +743,7 @@ pub fn window(language: Language) -> Window {
             chip_transcript_failed: "Transcript non fait",
             minutes_unsaved: "Pas encore enregistré — le compte rendu reste fait par {}.",
             minutes_unsaved_none: "Pas encore enregistré — aucun compte rendu n’est fait tant que ce n’est pas le cas.",
-            transcript_model_needed: "En attente du modèle Whisper — téléchargez-le depuis le menu de Summit, dans la barre système.",
+            transcript_model_needed: "En attente du modèle Whisper — téléchargez-le depuis le menu de Wholeheard, dans la barre système.",
             transcript_model_coming: "En attente du modèle Whisper, en cours de téléchargement.",
             ran_online: "en ligne",
             ran_here: "sur cette machine",
@@ -751,7 +751,7 @@ pub fn window(language: Language) -> Window {
             record_stop: "Arrêter l’enregistrement",
             agree_eyebrow: "Avant le premier compte rendu en ligne",
             agree_title: "Le texte de cette réunion va quitter votre ordinateur",
-            agree_lead: "Pour écrire le compte rendu, Summit envoie le transcript au service que vous avez choisi. Voici exactement ce qui part.",
+            agree_lead: "Pour écrire le compte rendu, Wholeheard envoie le transcript au service que vous avez choisi. Voici exactement ce qui part.",
             agree_leaves: [
                 "Part : le transcript",
                 "Les mots prononcés, de votre côté et à distance — {} minutes, environ {} mots.",
@@ -770,7 +770,7 @@ pub fn window(language: Language) -> Window {
             shortcut_where: "Le bureau l’accorde : il se change dans les réglages du clavier du bureau.",
             shortcut_open: "Réglages du clavier",
             test: "Tester",
-            test_sends: "Tester envoie à {} une phrase de Summit, rien d’une réunion.",
+            test_sends: "Tester envoie à {} une phrase de Wholeheard, rien d’une réunion.",
             testing: "Test en cours…",
             test_answered: "Le modèle répond.",
             test_failed: "Le modèle ne répond pas : {}",
@@ -780,7 +780,7 @@ pub fn window(language: Language) -> Window {
             ],
             keep_always: "Toujours",
             keep_days: "{} jours",
-            settings_unreadable: "Le fichier des réglages ne peut pas être lu ({}) : Summit ne l’écrit pas tant qu’il n’est pas corrigé.",
+            settings_unreadable: "Le fichier des réglages ne peut pas être lu ({}) : Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé.",
             not_saved: "Le réglage n’a pas été enregistré : {}",
             key_not_kept: "Le choix est enregistré, mais la clé n’a pas été gardée dans le trousseau du système : {}",
             minutes_step: "Compte rendu",
@@ -824,33 +824,33 @@ pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
     let nothing = String::new();
     let (title, body, why) = match (trouble, language) {
         (Trouble::NoRecorder(why), English) => (
-            "Summit cannot record",
-            "Its recording program could not be started. Installing Summit again puts it back.",
+            "Wholeheard cannot record",
+            "Its recording program could not be started. Installing Wholeheard again puts it back.",
             why,
         ),
         (Trouble::NoRecorder(why), French) => (
-            "Summit ne peut pas enregistrer",
-            "Son programme d’enregistrement n’a pas pu démarrer. Réinstaller Summit le remet en place.",
+            "Wholeheard ne peut pas enregistrer",
+            "Son programme d’enregistrement n’a pas pu démarrer. Réinstaller Wholeheard le remet en place.",
             why,
         ),
         (Trouble::Settings(why), English) => (
             "Your settings were not read",
-            "Summit runs with its defaults until the file is corrected.",
+            "Wholeheard runs with its defaults until the file is corrected.",
             why,
         ),
         (Trouble::Settings(why), French) => (
             "Vos réglages n’ont pas été lus",
-            "Summit fonctionne avec ses réglages par défaut tant que le fichier n’est pas corrigé.",
+            "Wholeheard fonctionne avec ses réglages par défaut tant que le fichier n’est pas corrigé.",
             why,
         ),
         (Trouble::Shortcut(why), English) => (
             "The keyboard shortcut is not set",
-            "The menu of Summit’s icon still starts and stops a recording.",
+            "The menu of Wholeheard’s icon still starts and stops a recording.",
             why,
         ),
         (Trouble::Shortcut(why), French) => (
             "Le raccourci clavier n’est pas actif",
-            "Le menu de l’icône Summit permet toujours de démarrer et d’arrêter un enregistrement.",
+            "Le menu de l’icône Wholeheard permet toujours de démarrer et d’arrêter un enregistrement.",
             why,
         ),
         (Trouble::NoModel(at), English) => (
@@ -864,8 +864,8 @@ pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
             at,
         ),
         (Trouble::NoTranscriber(why), English) => (
-            "Summit cannot transcribe",
-            "Its transcription program could not be started. The recording is kept; installing Summit again puts the program back.",
+            "Wholeheard cannot transcribe",
+            "Its transcription program could not be started. The recording is kept; installing Wholeheard again puts the program back.",
             why,
         ),
         (Trouble::NoSession, English) => (
@@ -879,8 +879,8 @@ pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
             &nothing,
         ),
         (Trouble::NoTranscriber(why), French) => (
-            "Summit ne peut pas transcrire",
-            "Son programme de transcription n’a pas pu démarrer. L’enregistrement est conservé\u{a0}; réinstaller Summit remet le programme en place.",
+            "Wholeheard ne peut pas transcrire",
+            "Son programme de transcription n’a pas pu démarrer. L’enregistrement est conservé\u{a0}; réinstaller Wholeheard remet le programme en place.",
             why,
         ),
     };
@@ -896,12 +896,12 @@ pub fn made(made: &Made, language: Language) -> Notice {
         (Made::Written(_), French) => ("Transcription prête", "Cliquez pour ouvrir le dossier de la session.", ""),
         (Made::Failed(why), English) => (
             "The transcript was not made",
-            "The recording is untouched. “Transcribe the last recording” in Summit’s menu tries again from where it stopped.",
+            "The recording is untouched. “Transcribe the last recording” in Wholeheard’s menu tries again from where it stopped.",
             why.as_str(),
         ),
         (Made::Failed(why), French) => (
             "La transcription n’a pas été faite",
-            "L’enregistrement est intact. «\u{a0}Transcrire le dernier enregistrement\u{a0}», dans le menu de Summit, reprend là où elle s’est arrêtée.",
+            "L’enregistrement est intact. «\u{a0}Transcrire le dernier enregistrement\u{a0}», dans le menu de Wholeheard, reprend là où elle s’est arrêtée.",
             why.as_str(),
         ),
     };
@@ -914,9 +914,9 @@ pub enum Minutes {
     Ready,
     /// Ready, and the minutes they replace could not go to the trash: kept beside them, by this name.
     ReadyKeptBeside(String),
-    /// Not made: summit-summary's sentence.
+    /// Not made: wholeheard-summary's sentence.
     Failed(String),
-    /// Made again (*Refaire…*) and not made: the ones there stayed; summit-summary's sentence.
+    /// Made again (*Refaire…*) and not made: the ones there stayed; wholeheard-summary's sentence.
     RedoFailed(String),
     /// Online, and the user has not agreed to send this meeting to this host yet.
     Waiting(String),
@@ -939,7 +939,7 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
     let (title, body, why) = match (said, language) {
         (Minutes::Ready, English) => (
             "Minutes ready",
-            "They are in Summit’s window, beside the transcript.".to_string(),
+            "They are in Wholeheard’s window, beside the transcript.".to_string(),
             "",
         ),
         (Minutes::ReadyKeptBeside(name), English) => (
@@ -954,17 +954,17 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         ),
         (Minutes::Ready, French) => (
             "Compte rendu prêt",
-            "Il est dans la fenêtre de Summit, à côté du transcript.".to_string(),
+            "Il est dans la fenêtre de Wholeheard, à côté du transcript.".to_string(),
             "",
         ),
         (Minutes::Failed(why), English) => (
             "The minutes were not written",
-            format!("The transcript is untouched. “{entry}”, in Summit’s menu, tries again."),
+            format!("The transcript is untouched. “{entry}”, in Wholeheard’s menu, tries again."),
             why.as_str(),
         ),
         (Minutes::Failed(why), French) => (
             "Le compte rendu n’a pas été fait",
-            format!("Le transcript est intact. «\u{a0}{entry}\u{a0}», dans le menu de Summit, le refait."),
+            format!("Le transcript est intact. «\u{a0}{entry}\u{a0}», dans le menu de Wholeheard, le refait."),
             why.as_str(),
         ),
         (Minutes::RedoFailed(why), English) => (
@@ -979,22 +979,22 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         ),
         (Minutes::Waiting(host), English) => (
             "The minutes wait for your agreement",
-            format!("Nothing is sent to {host} before you agree, in Summit’s window."),
+            format!("Nothing is sent to {host} before you agree, in Wholeheard’s window."),
             "",
         ),
         (Minutes::Waiting(host), French) => (
             "Le compte rendu attend votre accord",
-            format!("Rien n’est envoyé à {host} avant votre accord, dans la fenêtre de Summit."),
+            format!("Rien n’est envoyé à {host} avant votre accord, dans la fenêtre de Wholeheard."),
             "",
         ),
         (Minutes::Unchosen, English) => (
             "No one is chosen to write the minutes",
-            "Choose in Summit’s settings.".to_string(),
+            "Choose in Wholeheard’s settings.".to_string(),
             "",
         ),
         (Minutes::Unchosen, French) => (
             "Personne n’est choisi pour écrire le compte rendu",
-            "Choisissez-le dans les réglages de Summit.".to_string(),
+            "Choisissez-le dans les réglages de Wholeheard.".to_string(),
             "",
         ),
         (Minutes::NoTranscript, English) => (
@@ -1157,17 +1157,35 @@ fn french_days(days: u32) -> String {
 
 /// Said when a transcript needs the default model and it is not on the machine: nothing is
 /// fetched until the user chooses the menu's entry.
+/// Summit became Wholeheard (D28): said once, at the first start, when something was carried over.
+pub fn carried_over(language: Language) -> Notice {
+    let (title, body) = match language {
+        Language::English => (
+            "Summit is now Wholeheard",
+            "Your settings, your meetings and the transcription model are carried over; the keyboard shortcut may be asked once more.",
+        ),
+        Language::French => (
+            "Summit s’appelle maintenant Wholeheard",
+            "Vos réglages, vos réunions et le modèle de transcription sont repris\u{a0}; le raccourci clavier peut être redemandé une fois.",
+        ),
+    };
+    Notice {
+        title: title.into(),
+        body: body.into(),
+    }
+}
+
 pub fn model_needed(language: Language, size: &str, host: &str) -> Notice {
     let entry = download(language, size, host);
     let (title, body) = match language {
         Language::English => (
             "The transcription model is needed",
-            format!("It is fetched once, on your word: choose “{entry}” in Summit’s menu. The recording is kept."),
+            format!("It is fetched once, on your word: choose “{entry}” in Wholeheard’s menu. The recording is kept."),
         ),
         Language::French => (
             "Le modèle de transcription est nécessaire",
             format!(
-                "Il est téléchargé une fois, sur votre accord\u{a0}: choisissez «\u{a0}{entry}\u{a0}» dans le menu de Summit. L’enregistrement est conservé."
+                "Il est téléchargé une fois, sur votre accord\u{a0}: choisissez «\u{a0}{entry}\u{a0}» dans le menu de Wholeheard. L’enregistrement est conservé."
             ),
         ),
     };

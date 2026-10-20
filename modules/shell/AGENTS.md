@@ -8,7 +8,7 @@
 
 ## Responsibility
 
-Puts Summit's four steps in the user's hands: a tray, a global shortcut, notifications, one window.
+Puts Wholeheard's four steps in the user's hands: a tray, a global shortcut, notifications, one window.
 
 ## What this module does not do
 

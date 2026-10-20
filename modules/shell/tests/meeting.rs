@@ -2,7 +2,7 @@
 
 use std::fs;
 
-use summit_shell::meeting::{self, Read};
+use wholeheard_shell::meeting::{self, Read};
 
 #[test]
 fn the_transcript_is_read_in_the_meeting_s_order_with_each_segment_s_track_and_voice() {

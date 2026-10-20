@@ -29,7 +29,7 @@ pub fn minutes(folder: &Path) -> Read<Minutes> {
     }
 }
 
-/// A front matter value as `summit-summary` writes it: `null`, a plain value, or a string in
+/// A front matter value as `wholeheard-summary` writes it: `null`, a plain value, or a string in
 /// double quotes whose escapes — `\"`, `\\`, `\n`, `\t`, `\uXXXX` — are JSON's too.
 fn value(written: &str) -> Option<String> {
     let written = written.trim();

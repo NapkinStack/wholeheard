@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path};
 
-use summit_shell::sessions::{self, State, instant};
+use wholeheard_shell::sessions::{self, State, instant};
 
 fn session(folder: &Path, json: &str, files: &[(&str, usize)]) {
     fs::create_dir_all(folder).unwrap();

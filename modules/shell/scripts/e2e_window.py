@@ -1,7 +1,7 @@
-"""The window's end-to-end scenario: Summit started with `--window` by tauri-driver, the page
+"""The window's end-to-end scenario: Wholeheard started with `--window` by tauri-driver, the page
 read as WebKitGTK shows it, over WebDriver. Sessions are made here; nothing is recorded.
 
-    python3 scripts/e2e_window.py <summit-binary> <work-folder>
+    python3 scripts/e2e_window.py <wholeheard-binary> <work-folder>
 
 Prints one line per check, `ok` or `FAIL`, and exits 1 on any failure.
 """
@@ -31,43 +31,43 @@ from selenium.webdriver.support.wait import WebDriverWait
 from urllib3.exceptions import HTTPError
 
 BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
-# summit-summary played here: it says what it was given — its arguments, the key in its
+# wholeheard-summary played here: it says what it was given — its arguments, the key in its
 # environment. A test refuses a key at openrouter.ai and answers elsewhere; minutes are written,
 # the way it was called kept beside them. Nothing leaves the machine.
-SUMMARY = WORK / "summit-summary"
+SUMMARY = WORK / "wholeheard-summary"
 SUMMARY.write_text(
     """#!/bin/sh
 here=$(dirname "$0")
 printf '%s\\n' "$*" > "$here/summary-args"
-printf '%s' "${SUMMIT_PROVIDER_KEY:-none}" > "$here/summary-key"
+printf '%s' "${WHOLEHEARD_PROVIDER_KEY:-none}" > "$here/summary-key"
 if [ "$1" != --test ]; then
   [ -e "$here/slow-minutes" ] && sleep 3
-  [ -e "$here/fail-minutes" ] && { echo "summit-summary: the provider's answer is not minutes" >&2; exit 1; }
+  [ -e "$here/fail-minutes" ] && { echo "wholeheard-summary: the provider's answer is not minutes" >&2; exit 1; }
   echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
   printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" > "$1/minutes.md"
   echo '{"event": "written", "file": "x"}'
   exit 0
 fi
-case "$*" in *openrouter.ai*) echo "summit-summary: the provider at openrouter.ai refused the key" >&2; exit 1;; esac
+case "$*" in *openrouter.ai*) echo "wholeheard-summary: the provider at openrouter.ai refused the key" >&2; exit 1;; esac
 echo '{"event": "sending"}'
 echo '{"event": "answered"}'
 """
 )
 SUMMARY.chmod(0o755)
-# summit-transcription played here: a whole transcript, naming the model it was given.
-HEARING = WORK / "summit-transcription"
+# wholeheard-transcription played here: a whole transcript, naming the model it was given.
+HEARING = WORK / "wholeheard-transcription"
 HEARING.write_text(
     """#!/bin/sh
-[ -e "$(dirname "$0")/fail-hearing" ] && { echo "summit-transcription: the engine stopped" >&2; exit 1; }
+[ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
 [ -e "$(dirname "$0")/slow-hearing" ] && sleep 3
 model=$(basename "$3" .bin)
 printf '{"type":"header","contract":"transcript/v1","engine":"e","model":"%s","language":null,"context":null}\\n{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Refait avec %s."}\\n{"type":"complete","duration":1.0}\\n' "$model" "$model" > "$1/transcript.jsonl"
 """
 )
 HEARING.chmod(0o755)
-# summit-capture played here: it says it started, then each source's level ten times a second,
+# wholeheard-capture played here: it says it started, then each source's level ten times a second,
 # until it is told to stop. No device, nobody recorded.
-RECORDER = WORK / "summit-capture"
+RECORDER = WORK / "wholeheard-capture"
 RECORDER.write_text(
     """#!/bin/bash
 folder="$2/2026-10-18_12-00"; mkdir -p "$folder"
@@ -95,8 +95,8 @@ def check(what: str, held: bool, got: object = "") -> None:
 
 
 def shot(browser, name: str) -> None:
-    """The page as it is, saved where SUMMIT_SCREENSHOTS says: for an eye against D11's boards."""
-    folder = os.environ.get("SUMMIT_SCREENSHOTS")
+    """The page as it is, saved where WHOLEHEARD_SCREENSHOTS says: for an eye against D11's boards."""
+    folder = os.environ.get("WHOLEHEARD_SCREENSHOTS")
     if folder:
         Path(folder).mkdir(parents=True, exist_ok=True)
         browser.save_screenshot(str(Path(folder) / f"{name}.png"))
@@ -155,16 +155,16 @@ def session(folder: Path, started: dt.datetime, minutes: float | None, files: di
 
 
 class Window:
-    """Summit with its window, for as long as the `with` lasts."""
+    """Wholeheard with its window, for as long as the `with` lasts."""
 
     def __init__(self, sessions: Path, language: str, more: str = "", ollama: str = "http://127.0.0.1:9") -> None:
         config = WORK / f"config-{language}-{sessions.name}"
-        (config / "summit").mkdir(parents=True, exist_ok=True)
-        self.file = config / "summit" / "settings.toml"
+        (config / "wholeheard").mkdir(parents=True, exist_ok=True)
+        self.file = config / "wholeheard" / "settings.toml"
         self.file.write_text(f'sessions = "{sessions}"\n{more}')
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), LANGUAGE="")
         # An Ollama and a keyring of the scenario's, never the user's own.
-        self.env.update(LANG=language, LC_ALL=language, SUMMIT_OLLAMA=ollama, SUMMIT_KEYRING="memory", SUMMIT_SUMMARY=str(SUMMARY), SUMMIT_TRANSCRIPTION=str(HEARING), SUMMIT_CAPTURE=str(RECORDER))
+        self.env.update(LANG=language, LC_ALL=language, WHOLEHEARD_OLLAMA=ollama, WHOLEHEARD_KEYRING="memory", WHOLEHEARD_SUMMARY=str(SUMMARY), WHOLEHEARD_TRANSCRIPTION=str(HEARING), WHOLEHEARD_CAPTURE=str(RECORDER))
 
     def __enter__(self) -> webdriver.Remote:
         port, native = free_port(), free_port()
@@ -424,7 +424,7 @@ def main() -> int:
         kept = browser.execute_script("return document.getElementById('search') && document.getElementById('search').value")
         check("another meeting opens without the last one's search", not kept, kept)
         notes = [p.text for p in browser.find_elements(By.CSS_SELECTOR, "#meeting .none") if p.is_displayed()]
-        check("minutes that cannot be read are said so", notes == ["Ce fichier ne peut pas être lu par cette version de Summit."], notes)
+        check("minutes that cannot be read are said so", notes == ["Ce fichier ne peut pas être lu par cette version de Wholeheard."], notes)
         chips = browser.find_element(By.CSS_SELECTOR, "#meeting .holds").text
         check("minutes that cannot be read claim no place", "Compte rendu" in chips and "Compte rendu ·" not in chips, chips)
         being = [p.text for p in browser.find_elements(By.CSS_SELECTOR, ".transcript .note")]
@@ -435,7 +435,7 @@ def main() -> int:
         check("a meeting that is not there goes back to the list", listed and not browser.find_element(By.ID, "meeting").is_displayed())
 
     print("K. the settings: each choice saved at once, the user's file kept")
-    models = WORK / "data" / "summit" / "models"
+    models = WORK / "data" / "wholeheard" / "models"
     models.mkdir(parents=True, exist_ok=True)
     for name in ("ggml-large-v3-turbo-q8_0.bin", "ggml-small.bin"):
         (models / name).write_bytes(b"x" * 1000)
@@ -467,7 +467,7 @@ def main() -> int:
         changed(lambda: Select(browser.find_element(By.ID, "model")).select_by_visible_text(
             next(o.text for o in browser.find_elements(By.CSS_SELECTOR, "#model option") if o.text.startswith("Whisper small"))
         ))
-        # The user changes the file by hand while Summit runs: the next save keeps it.
+        # The user changes the file by hand while Wholeheard runs: the next save keeps it.
         window.file.write_text(window.file.read_text().replace("keep_audio = 30", "keep_audio = 90 # by hand"))
         changed(lambda: browser.find_element(By.ID, "reminder").click())
         text = window.file.read_text()
@@ -511,7 +511,7 @@ def main() -> int:
             f"{keys!r}, settings offered: {offered}",
         )
         # The sessions' folder: typed, made when it is not there, and what the list reads.
-        elsewhere = WORK / "elsewhere" / "Summit"
+        elsewhere = WORK / "elsewhere" / "Wholeheard"
         spoken = browser.find_element(By.ID, "sessions-shown").get_attribute("textContent")
         # Outside the home folder, from the root: / tmp / … / chosen.
         check("the sessions' folder is shown as people say it", spoken == "/ " + " / ".join(chosen.parts[1:]), spoken)
@@ -528,7 +528,7 @@ def main() -> int:
         text = window.file.read_text()
         check("a folder typed is made, and in the settings file", elsewhere.is_dir() and f'sessions = "{elsewhere}"' in text, text)
         folder = folder_field()
-        changed(lambda: typed(folder, "Summit"))
+        changed(lambda: typed(folder, "Wholeheard"))
         said = browser.find_element(By.ID, "not-saved").text
         check("a folder that is not a whole path is said, and nothing changes", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == text, said)
         browser.find_element(By.ID, "meetings").click()
@@ -621,11 +621,11 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/settings'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-test"), 5)
-        # Tester asks summit-summary about the choice saved: no key for Ollama here.
-        browser.find_element(By.ID, "minutes-test").click()
+        # Tester asks wholeheard-summary about the choice saved: no key for Ollama here.
+        press(browser, "minutes-test")
         answered = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").text == "Le modèle répond.", 10)
         check(
-            "Tester says the model answers, asking summit-summary with the choice saved",
+            "Tester says the model answers, asking wholeheard-summary with the choice saved",
             answered
             and (WORK / "summary-args").read_text().split() == ["--test", "--provider", f"{ollama}/v1", "--model", "mistral:7b"]
             and (WORK / "summary-key").read_text() == "none",
@@ -655,7 +655,7 @@ def main() -> int:
             kept.get_attribute("value") == "" and kept.get_attribute("placeholder").startswith("Une clé est gardée") and "sk-scenario" not in text,
             kept.get_attribute("placeholder"),
         )
-        browser.find_element(By.ID, "minutes-test").click()
+        press(browser, "minutes-test")
         refused = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").text.startswith("Le modèle ne répond pas"), 10)
         said = browser.find_element(By.ID, "minutes-tested").text
         check(

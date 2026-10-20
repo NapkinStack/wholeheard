@@ -3743,37 +3743,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
-name = "summit-shell"
-version = "0.1.0"
-dependencies = [
- "apple-native-keyring-store",
- "ashpd",
- "dirs 6.0.0",
- "futures-util",
- "http",
- "keyring-core",
- "libc",
- "notify-rust",
- "pulldown-cmark",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sys-locale",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-notification",
- "tempfile",
- "toml 0.9.12+spec-1.1.0",
- "toml_edit 0.25.17+spec-1.1.0",
- "trash",
- "ureq",
- "windows-native-keyring-store",
- "zbus-secret-service-keyring-store",
-]
-
-[[package]]
 name = "swift-rs"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4994,6 +4963,37 @@ dependencies = [
  "thiserror 2.0.21",
  "windows",
  "windows-core",
+]
+
+[[package]]
+name = "wholeheard-shell"
+version = "0.2.0"
+dependencies = [
+ "apple-native-keyring-store",
+ "ashpd",
+ "dirs 6.0.0",
+ "futures-util",
+ "http",
+ "keyring-core",
+ "libc",
+ "notify-rust",
+ "pulldown-cmark",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sys-locale",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-notification",
+ "tempfile",
+ "toml 0.9.12+spec-1.1.0",
+ "toml_edit 0.25.17+spec-1.1.0",
+ "trash",
+ "ureq",
+ "windows-native-keyring-store",
+ "zbus-secret-service-keyring-store",
 ]
 
 [[package]]

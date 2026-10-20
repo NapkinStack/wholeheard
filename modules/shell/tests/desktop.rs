@@ -1,6 +1,6 @@
 //! What the desktop says of the shortcut, read as the window shows it.
 
-use summit_shell::desktop::{gnome, keys};
+use wholeheard_shell::desktop::{gnome, keys};
 
 #[test]
 fn keys_said_empty_are_no_keys() {

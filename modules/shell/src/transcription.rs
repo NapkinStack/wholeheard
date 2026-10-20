@@ -74,7 +74,7 @@ impl Transcription {
         Ok((Self { program }, made))
     }
 
-    /// Stops the program now: Summit is quitting. What it had heard stays written.
+    /// Stops the program now: Wholeheard is quitting. What it had heard stays written.
     pub fn end(&self) {
         if let Ok(mut child) = self.program.lock() {
             // Only while it runs: once it is waited for, its group's number may be another's.

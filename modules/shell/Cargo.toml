@@ -1,11 +1,11 @@
 [package]
-name = "summit-shell"
-version = "0.1.0"
+name = "wholeheard-shell"
+version = "0.2.0"
 edition = "2024"
 publish = false
 
 [[bin]]
-name = "summit"
+name = "wholeheard"
 path = "src/main.rs"
 
 [dependencies]
