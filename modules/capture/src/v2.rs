@@ -239,10 +239,39 @@ impl Clock {
 
 /// Writes `session.json`, whole or not at all: each track the session holds, and the name
 /// the system gave its source. `stopped` absent means: still recording, or ended by a crash.
-pub fn write_session(folder: &Path, started: &str, stopped: Option<&str>, tracks: &[(&str, &str)]) -> io::Result<()> {
+/// A track the session holds: the device it opened on, and each it was recorded from after,
+/// with when on the session's clock.
+pub struct Held {
+    pub track: String,
+    pub device: String,
+    /// No name: the system named no device for it from then on.
+    pub changed: Vec<(f64, Option<String>)>,
+}
+
+impl Held {
+    pub fn new(track: &str, device: &str) -> Self {
+        Held {
+            track: track.into(),
+            device: device.into(),
+            changed: Vec::new(),
+        }
+    }
+}
+
+pub fn write_session(folder: &Path, started: &str, stopped: Option<&str>, tracks: &[Held]) -> io::Result<()> {
     let tracks: serde_json::Map<String, serde_json::Value> = tracks
         .iter()
-        .map(|(track, device)| (track.to_string(), serde_json::json!({ "device": device })))
+        .map(|held| {
+            let mut track = serde_json::json!({ "device": held.device });
+            if !held.changed.is_empty() {
+                let changed = held
+                    .changed
+                    .iter()
+                    .map(|(at, device)| serde_json::json!({ "at": at, "device": device }));
+                track["changed"] = changed.collect();
+            }
+            (held.track.clone(), track)
+        })
         .collect();
     let mut session = serde_json::json!({ "contract": CONTRACT, "started": started, "tracks": tracks });
     if let Some(stopped) = stopped {

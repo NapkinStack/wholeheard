@@ -20,7 +20,7 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, RecvTimeoutError, Sender},
+        mpsc::{self, Receiver, RecvTimeoutError, Sender},
     },
     time::{Duration, Instant},
 };
@@ -53,6 +53,9 @@ const TRACKS: [&str; 2] = ["local", "remote"];
 /// What a source just delivered: which source, when it was heard — in seconds since the
 /// program took its clock — and the sound, interleaved.
 type Sound = (usize, f64, Vec<f32>);
+/// A source recorded from another device now: when, on the session's clock, and its name — none
+/// when the system names none.
+type Moved = (usize, f64, Option<String>);
 
 /// Says an event to whoever started the program (`contracts/recording/v1`). Nobody may be
 /// listening any more — a shell that crashed, a pipe that closed: the recording goes on.
@@ -74,6 +77,7 @@ fn say(event: Event) {
         Event::Silent { source } => info!(source = SOURCES[source], "capture.silent"),
         Event::Heard { source } => info!(source = SOURCES[source], "capture.heard"),
         Event::Stopped { folder, seconds } => info!(session = %session(folder), seconds, "capture.stopped"),
+        Event::Device { source, device } => info!(source = SOURCES[source], device, "capture.device"),
         Event::Level { .. } => {}
     }
 }
@@ -145,6 +149,37 @@ fn named_as_used(host: &Host, device: &Device) -> String {
     standing().map_or_else(|| named(device), |stood_for| named(&stood_for))
 }
 
+/// The device the system records a source from now, by the name it gives it.
+fn now_named(index: usize) -> Option<String> {
+    let host = host();
+    let device = if index == 0 {
+        host.default_input_device()
+    } else {
+        host.default_output_device()
+    }?;
+    Some(named_as_used(&host, &device))
+}
+
+/// Says each source moved to a device other than the one it was last said on.
+fn said_moved(
+    moved: &Receiver<Moved>,
+    last: &mut [Option<String>; 2],
+    mut kept: impl FnMut(usize, f64, Option<&str>) -> Result<(), String>,
+) -> Result<(), String> {
+    while let Ok((index, at, name)) = moved.try_recv() {
+        if name == last[index] {
+            continue;
+        }
+        say(Event::Device {
+            source: index,
+            device: name.as_deref(),
+        });
+        kept(index, at, name.as_deref())?;
+        last[index] = name;
+    }
+    Ok(())
+}
+
 /// What `pw-metadata` prints of one key of PipeWire's default metadata — or nothing, if it is
 /// not there or has not answered within a second: a recording does not wait on a name.
 fn metadata(key: &str) -> Option<String> {
@@ -180,6 +215,7 @@ struct Source {
 fn record(sessions: &Path) -> Result<(), String> {
     let host = host();
     let (sound, heard) = mpsc::channel::<Sound>();
+    let (moved, moves) = mpsc::channel::<Moved>();
     let started = chrono::Local::now();
     let zero = Instant::now();
     let folder = new_folder(sessions, &started.format("%Y-%m-%d_%H-%M").to_string()).map_err(|e| e.to_string())?;
@@ -195,7 +231,7 @@ fn record(sessions: &Path) -> Result<(), String> {
         let opened = device
             .ok_or_else(|| "the system names no default device".to_string())
             .and_then(|device| {
-                open(&device, playback, index, zero, sound.clone())
+                open(&device, playback, index, zero, sound.clone(), moved.clone())
                     .map(|(stream, rate, channels)| (named_as_used(&host, &device), stream, rate, channels))
             });
         let (name, stream, rate, channels) = match opened {
@@ -219,7 +255,7 @@ fn record(sessions: &Path) -> Result<(), String> {
             _stream: stream,
         });
     }
-    drop(sound);
+    drop((sound, moved));
     if sources.iter().all(|source| source._stream.is_none()) {
         return Err("no source could be opened: nothing to record".into());
     }
@@ -235,7 +271,9 @@ fn record(sessions: &Path) -> Result<(), String> {
     let clock = Instant::now();
     let mut checked = clock;
     let mut metered = clock;
+    let mut last = [Some(names[0].clone()), Some(names[1].clone())];
     while !stop.load(Ordering::SeqCst) {
+        said_moved(&moves, &mut last, |_, _, _| Ok(()))?;
         match heard.recv_timeout(Duration::from_millis(50)) {
             Ok((index, _, samples)) => sources[index].track.push(&samples).map_err(|e| e.to_string())?,
             Err(RecvTimeoutError::Timeout) => {}
@@ -359,6 +397,7 @@ impl Delivered {
 fn record_v2(sessions: &Path) -> Result<(), String> {
     let host = host();
     let (sound, heard) = mpsc::channel::<Sound>();
+    let (moved, moves) = mpsc::channel::<Moved>();
     let started = chrono::Local::now();
     let zero = Instant::now();
     let folder = new_folder(sessions, &started.format("%Y-%m-%d_%H-%M").to_string()).map_err(|e| e.to_string())?;
@@ -371,7 +410,7 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
         let opened = device
             .ok_or_else(|| "the system names no default device".to_string())
             .and_then(|device| {
-                open(&device, playback, index, zero, sound.clone())
+                open(&device, playback, index, zero, sound.clone(), moved.clone())
                     .map(|(stream, rate, channels)| (named_as_used(&host, &device), stream, rate, channels))
             });
         match opened {
@@ -398,14 +437,14 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
             }
         }
     }
-    drop(sound);
+    drop((sound, moved));
     if sources.iter().all(Option::is_none) {
         return Err("no source could be opened: nothing to record".into());
     }
     let mut clock = v2::Clock::create(&folder.join("clock.jsonl")).map_err(|e| e.to_string())?;
-    let held: Vec<(&str, &str)> = (0..2)
+    let mut held: Vec<v2::Held> = (0..2)
         .filter(|&index| sources[index].is_some())
-        .map(|index| (TRACKS[index], names[index].as_str()))
+        .map(|index| v2::Held::new(TRACKS[index], &names[index]))
         .collect();
     let stamp = |time: chrono::DateTime<chrono::Local>| time.to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
     v2::write_session(&folder, &stamp(started), None, &held).map_err(|e| e.to_string())?;
@@ -417,7 +456,16 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
     let stop = stop_asked()?;
     let mut checked = Instant::now();
     let mut metered = checked;
+    let mut last = [Some(names[0].clone()), Some(names[1].clone())];
     while !stop.load(Ordering::SeqCst) {
+        // The session keeps each device a track was recorded from after its first.
+        said_moved(&moves, &mut last, |index, at, name| {
+            let Some(track) = held.iter_mut().find(|held| held.track == TRACKS[index]) else {
+                return Ok(());
+            };
+            track.changed.push((at, name.map(str::to_string)));
+            v2::write_session(&folder, &stamp(started), None, &held).map_err(|e| e.to_string())
+        })?;
         match heard.recv_timeout(Duration::from_millis(50)) {
             Ok((index, at, samples)) => {
                 if let Some(source) = &mut sources[index] {
@@ -493,7 +541,14 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
 
 /// Opens a source and hands what it delivers to `sound`, each piece with when it was heard,
 /// counted from `zero`. An output is opened as an input: what it delivers is what it plays.
-fn open(device: &Device, playback: bool, index: usize, zero: Instant, sound: Sender<Sound>) -> Result<(Stream, u32, u16), String> {
+fn open(
+    device: &Device,
+    playback: bool,
+    index: usize,
+    zero: Instant,
+    sound: Sender<Sound>,
+    moved: Sender<Moved>,
+) -> Result<(Stream, u32, u16), String> {
     let config = if playback {
         device.default_output_config()
     } else {
@@ -502,20 +557,27 @@ fn open(device: &Device, playback: bool, index: usize, zero: Instant, sound: Sen
     .map_err(|error| format!("no default configuration ({error})"))?;
     let (rate, channels) = (config.sample_rate(), config.channels());
     let stream = match config.sample_format() {
-        SampleFormat::I8 => listen::<i8>(device, config.into(), index, zero, sound),
-        SampleFormat::I16 => listen::<i16>(device, config.into(), index, zero, sound),
-        SampleFormat::I32 => listen::<i32>(device, config.into(), index, zero, sound),
-        SampleFormat::U8 => listen::<u8>(device, config.into(), index, zero, sound),
-        SampleFormat::U16 => listen::<u16>(device, config.into(), index, zero, sound),
-        SampleFormat::F32 => listen::<f32>(device, config.into(), index, zero, sound),
-        SampleFormat::F64 => listen::<f64>(device, config.into(), index, zero, sound),
+        SampleFormat::I8 => listen::<i8>(device, config.into(), index, zero, sound, moved),
+        SampleFormat::I16 => listen::<i16>(device, config.into(), index, zero, sound, moved),
+        SampleFormat::I32 => listen::<i32>(device, config.into(), index, zero, sound, moved),
+        SampleFormat::U8 => listen::<u8>(device, config.into(), index, zero, sound, moved),
+        SampleFormat::U16 => listen::<u16>(device, config.into(), index, zero, sound, moved),
+        SampleFormat::F32 => listen::<f32>(device, config.into(), index, zero, sound, moved),
+        SampleFormat::F64 => listen::<f64>(device, config.into(), index, zero, sound, moved),
         other => Err(format!("sample format {other} not handled")),
     }?;
     stream.play().map_err(|error| format!("the stream could not start ({error})"))?;
     Ok((stream, rate, channels))
 }
 
-fn listen<T>(device: &Device, config: cpal::StreamConfig, index: usize, zero: Instant, sound: Sender<Sound>) -> Result<Stream, String>
+fn listen<T>(
+    device: &Device,
+    config: cpal::StreamConfig,
+    index: usize,
+    zero: Instant,
+    sound: Sender<Sound>,
+    moved: Sender<Moved>,
+) -> Result<Stream, String>
 where
     T: SizedSample,
     f32: FromSample<T>,
@@ -538,8 +600,20 @@ where
                 let _ = sound.send((index, then + since, data.iter().map(|&sample| f32::from_sample(sample)).collect()));
             },
             move |error: cpal::Error| {
-                run.in_scope(|| warn!(source = name, detail = %error, "capture.stream_error"));
-                drop(writeln!(std::io::stderr(), "wholeheard-capture: [{name}] {error}"));
+                // The system moved the stream to another device, or has none for it now: the
+                // track goes on, and the device is named — off this thread, which the system's
+                // sound waits on.
+                let present = match error.kind() {
+                    cpal::ErrorKind::DeviceChanged => true,
+                    cpal::ErrorKind::DeviceNotAvailable => false,
+                    _ => {
+                        run.in_scope(|| warn!(source = name, detail = %error, "capture.stream_error"));
+                        drop(writeln!(std::io::stderr(), "wholeheard-capture: [{name}] {error}"));
+                        return;
+                    }
+                };
+                let (at, moved) = (zero.elapsed().as_secs_f64(), moved.clone());
+                std::thread::spawn(move || drop(moved.send((index, at, present.then(|| now_named(index)).flatten()))));
             },
             None,
         )

@@ -50,6 +50,8 @@ restore() {
   pactl set-default-source "$old_source" 2>/dev/null || true
   pactl unload-module "$out" 2>/dev/null || true
   pactl unload-module "$mic" 2>/dev/null || true
+  # Scenario J's own, when it was stopped before it took them away.
+  for module in ${mic_b:-} ${out_b:-}; do pactl unload-module "$module" 2>/dev/null || true; done
   rm -rf "$work"
 }
 trap restore EXIT
@@ -222,6 +224,34 @@ sleep 3
 kill -INT "$recorder"; wait "$recorder" || true
 kill "$mic_player" "$others_player" 2>/dev/null || true
 check zeros e2e-i 1 0
+
+say "J. a recording that follows the devices (D31): switched to others of their own form, and one taken away"
+# A microphone of one channel at 16 kHz and an output of six at 44.1 kHz: the tracks keep the
+# form they opened with. Every note is played on a device of the run, never on the system's.
+mic_b=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_mic_b rate=16000 channels=1)
+out_b=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_out_b rate=44100 channels=6 channel_map=surround-51)
+tone 660 4 "$work/660.wav"; tone 1320 4 "$work/1320.wav"; tone 440 4 "$work/440.wav"; tone 880 4 "$work/880.wav"
+both() { pw-play --target "$1" "$work/$2.wav" & local p=$!; pw-play --target "$3" "$work/$4.wav"; wait "$p"; }
+WHOLEHEARD_TRACE=e2e-j "$bin" record "$work/v2-moved" --as v2 > "$work/j.events" 2> "$work/j.errors" &
+recorder=$!
+sleep 1; both wholeheard_e2e_mic 440 wholeheard_e2e_out 880
+pactl set-default-source wholeheard_e2e_mic_b.monitor; pactl set-default-sink wholeheard_e2e_out_b
+sleep 1; both wholeheard_e2e_mic_b 660 wholeheard_e2e_out_b 1320
+# The microphone chosen back; the output recorded taken away: the system names the next.
+pactl set-default-source wholeheard_e2e_mic.monitor
+pactl unload-module "$mic_b"
+pactl unload-module "$out_b"
+sleep 1; pactl set-default-sink wholeheard_e2e_out
+sleep 1; both wholeheard_e2e_mic 440 wholeheard_e2e_out 880
+sleep 1
+kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
+grep -v '"level"' "$work/j.events" | sed 's/^/    /' >> .evidence/e2e.txt
+sed 's/^/    /' "$work/j.errors" >> .evidence/e2e.txt
+check test "$stopped_as" = 0 -a ! -s "$work/j.errors"
+check measure events "$work/j.events"
+check measure2 followed "$(ls -d "$work"/v2-moved/*/ | head -1)" "$work/j.events" \
+  "wholeheard_e2e_mic_b:660,wholeheard_e2e_mic:440" "wholeheard_e2e_out_b:1320,wholeheard_e2e_out:880"
+check logged e2e-j capture.started capture.device capture.device capture.stopped
 
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"
 exit "$failed"

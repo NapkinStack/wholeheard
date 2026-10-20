@@ -9,7 +9,7 @@ use wholeheard_capture::Event;
 const SCHEMA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../contracts/recording/v1/event.schema.json");
 
 #[test]
-fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are_six() {
+fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are_seven() {
     let schema: serde_json::Value = serde_json::from_str(&fs::read_to_string(SCHEMA).unwrap()).unwrap();
     let allows = jsonschema::validator_for(&schema).unwrap();
     let folder = Path::new("sessions/2026-10-14_14-05");
@@ -35,6 +35,11 @@ fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are
         Event::Level { source: 0, level: 0.0 },
         Event::Level { source: 1, level: 0.4251 },
         Event::Level { source: 0, level: 1.0 },
+        Event::Device {
+            source: 0,
+            device: Some("Headset Microphone"),
+        },
+        Event::Device { source: 1, device: None },
         Event::Stopped { folder, seconds: 0.0 },
         Event::Stopped { folder, seconds: 1912.4 },
     ];
@@ -46,11 +51,11 @@ fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are
         assert!(!line.to_string().contains('\n'), "{line}");
         said.insert(line["event"].as_str().unwrap().to_string());
     }
-    // The six the contract names, and no other: an event renamed would still be a line the
+    // The seven the contract names, and no other: an event renamed would still be a line the
     // schema allows — one of a name it does not know, which a consumer ignores.
     assert_eq!(
         said,
-        ["heard", "level", "silent", "started", "stopped", "unavailable"]
+        ["device", "heard", "level", "silent", "started", "stopped", "unavailable"]
             .map(String::from)
             .into()
     );

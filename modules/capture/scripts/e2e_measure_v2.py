@@ -159,6 +159,46 @@ def stream(pid, name):
     raise AssertionError(f"the recorder has no stream for {name}")
 
 
+def notes(one):
+    """The note each whole second of a track holds, in Hz — 0 for a second of silence."""
+    rate, first, found = one["rate"], one["first"], []
+    for second in range(one["frames"] // rate):
+        piece = first[second * rate:(second + 1) * rate]
+        rest = sum(piece) / rate
+        if max(abs(value - rest) for value in piece) < 30_000:
+            found.append(0)
+            continue
+        found.append(sum(a - rest < 0 <= b - rest for a, b in zip(piece, piece[1:])))
+    return found
+
+
+def followed(folder, events, local, remote):
+    """A recording whose devices were switched while it ran (D31): each track goes on in the form
+    it opened with, holds each device's note in turn with no zeros of ours, and the events and
+    the session name each device it moved to, in order. `local` and `remote`: the devices it
+    moved to, comma-separated, and each one's note after a colon."""
+    read = session(folder)
+    said = [json.loads(line) for line in open(events) if line.strip()]
+    for name, source, wanted in (("local", "me", local), ("remote", "others", remote)):
+        moves = [move.split(":") for move in wanted.split(",")]
+        one = track(folder, name)  # its form is the one it opened with, or this fails
+        lines = [line for line in clock(folder) if line["track"] == name]
+        silences = [line["silence"] for line in lines if "silence" in line]
+        assert not silences, f"{name}: zeros of ours at {silences}: a switch of device lost its sound"
+        devices = [event["device"] for event in said if event["event"] == "device" and event["source"] == source]
+        changed = [change["device"] for change in read["tracks"][name].get("changed", [])]
+        print(f"    {name}: {one['channels']} channel(s) at {one['rate']} Hz; moved to {devices}; the session keeps {changed}")
+        assert all(device and device.startswith(move) for device, (move, _) in zip(devices, moves)) and len(devices) == len(moves), (
+            f"{name}: its device events say {devices}, for {[move for move, _ in moves]}")
+        assert changed == devices, f"{name}: the session keeps {changed}, where the events said {devices}"
+        heard = notes(one)
+        print(f"    {name}: its notes, second by second: {heard}")
+        for move, note in moves:
+            assert any(abs(hertz - int(note)) < 15 for hertz in heard), f"{name}: {move}'s note, {note} Hz, is not in its track"
+    ats = [change["at"] for track_ in read["tracks"].values() for change in track_.get("changed", [])]
+    assert all(0 < at < 120 for at in ats), f"changes put at {ats} s on the session's clock"
+
+
 def main(what, folder, *args):
     if what == "pause":
         # Not a measure: stops the recorder's own stream for a track, then starts it again.
@@ -167,6 +207,8 @@ def main(what, folder, *args):
         time.sleep(seconds)
         subprocess.run(["pw-cli", "send-command", str(node), "Start", "{}"], capture_output=True, check=True)
         return
+    if what == "followed":
+        return followed(folder, *args)
     read = session(folder)
     tracks = {name: track(folder, name) for name in read["tracks"]}
     start = datetime.datetime.fromisoformat(read["started"]).timestamp()

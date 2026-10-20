@@ -50,6 +50,12 @@ pub enum Event<'a> {
         source: usize,
         level: f32,
     },
+    /// A source is recorded from another device now: its name, or none when the system names
+    /// none.
+    Device {
+        source: usize,
+        device: Option<&'a str>,
+    },
     /// The recording is whole: its folder, and its length in seconds.
     Stopped {
         folder: &'a Path,
@@ -69,6 +75,7 @@ impl Event<'_> {
                 json!({ "event": "started", "folder": folder, "sources": { "me": me, "others": others } })
             }
             Event::Silent { source } => json!({ "event": "silent", "source": SOURCES[source] }),
+            Event::Device { source, device } => json!({ "event": "device", "source": SOURCES[source], "device": device }),
             Event::Heard { source } => json!({ "event": "heard", "source": SOURCES[source] }),
             // Rounded to a hundredth: a meter shows no more, and a line stays short.
             Event::Level { source, level } => {
