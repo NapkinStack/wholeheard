@@ -656,7 +656,8 @@ function minutesRow(minutes, words, locked) {
   if (minutes.ollama.length > 0) {
     const group = element("optgroup");
     group.label = words.ollama_group;
-    for (const name of minutes.ollama) add(group, `ollama:${name}`, name);
+    // The one that holds the minutes' form, said so (#261): first, as the shell lists it.
+    for (const name of minutes.ollama) add(group, `ollama:${name}`, name === minutes.recommended ? fill(words.model_recommended, name) : name);
     pick.append(group);
   }
   const groupOnline = element("optgroup");

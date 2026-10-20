@@ -301,6 +301,8 @@ pub struct Window {
     /// A meeting's minutes, their three sections as the page names them (D11's second board),
     /// whatever titles the model wrote: `minutes/v1` holds them in this order.
     pub minutes_sections: [&'static str; 3],
+    /// A model of this computer that holds the minutes' form, as Settings offer it ({}).
+    pub model_recommended: &'static str,
     /// In developer mode: the logs' level, the logs' folder, a meeting's diagnostic copied.
     pub log_level: [&'static str; 2],
     pub log_info: &'static str,
@@ -507,6 +509,7 @@ pub fn window(language: Language) -> Window {
             ],
             program_said: "What the program said: {}",
             minutes_sections: ["Highlights", "Actions", "Key points"],
+            model_recommended: "{} — recommended",
             log_level: ["Logs’ level", "Read at Wholeheard’s next start, by it and its programs."],
             log_info: "Usual",
             log_debug: "Detailed",
@@ -706,6 +709,7 @@ pub fn window(language: Language) -> Window {
             ],
             program_said: "Ce qu’a dit le programme\u{a0}: {}",
             minutes_sections: ["Points saillants", "Actions", "Points clés"],
+            model_recommended: "{} — recommandé",
             log_level: [
                 "Niveau des journaux",
                 "Pris en compte au prochain démarrage de Wholeheard, par lui et ses programmes.",

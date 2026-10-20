@@ -85,7 +85,8 @@ where sessions go; `after = "nothing"`, `"transcript"` or `"minutes"` for what f
 recording (`transcript = false`, from before, still means nothing); `model = "…"` for the
 Whisper model; `minutes_provider` — a provider's address, `"http://localhost:11434/v1"` for Ollama
 on this computer — and `minutes_model`
-for who writes the minutes; `minutes_agreed = "…"`, the host the user agreed to send a meeting to
+for who writes the minutes (of this computer's models, Settings offer `qwen3:8b` first, as
+recommended: it holds the minutes' form where Mistral 7B and models for code do not, #261); `minutes_agreed = "…"`, the host the user agreed to send a meeting to
 the first time — another host asks again, one on this computer never asks; `keep_audio = "always"` or a number of days; `developer = true` for the developer mode (*Settings → Advanced*); `log = "debug"` for detailed logs from the next start, the shell's and its programs' (`WHOLEHEARD_LOG`, when set, wins). Out of the box,
 sessions go to a folder `Wholeheard` in the user's documents, the transcript follows alone, and the
 model is `wholeheard/models/ggml-large-v3-turbo-q8_0.bin` in the user's data folder — fetched there
