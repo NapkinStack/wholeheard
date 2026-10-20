@@ -586,3 +586,16 @@ fn minutes_not_made_say_their_cause_and_its_gesture_when_the_program_named_one()
         );
     }
 }
+
+#[test]
+fn the_minutes_sections_are_named_as_the_contract_and_d11_name_them() {
+    // minutes/v1's own names in English; D11's second board's in French.
+    assert_eq!(
+        words::window(Language::English).minutes_sections,
+        ["Highlights", "Actions", "Key points"]
+    );
+    assert_eq!(
+        words::window(Language::French).minutes_sections,
+        ["Points saillants", "Actions", "Points clés"]
+    );
+}

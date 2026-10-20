@@ -30,8 +30,11 @@ avec le 10 en seconde date.
 fn read(text: &str) -> Read<minutes::Minutes> {
     let folder = tempfile::tempdir().unwrap();
     fs::write(folder.path().join("minutes.md"), text).unwrap();
-    minutes::minutes(folder.path())
+    minutes::minutes(folder.path(), NAMES)
 }
+
+/// The sections as the page names them (D11's second board), whatever the model wrote.
+const NAMES: [&str; 3] = ["Points saillants", "Actions", "Points clés"];
 
 #[test]
 fn the_minutes_are_shown_as_written_with_who_made_them() {
@@ -44,7 +47,7 @@ fn the_minutes_are_shown_as_written_with_who_made_them() {
     );
     assert_eq!(minutes.made.as_deref(), Some("2026-10-13T15:12:40+02:00"));
     for shown in [
-        "<h2>Points forts</h2>",
+        "<h2>Points saillants</h2>",
         "<li>Contacter les trois intervenants et le comité scientifique — Alexandre — 26 avril</li>",
         "<li>Pré-réserver les salles — non précisé — non précisé</li>",
         "<h2>Points clés</h2>",
@@ -92,7 +95,7 @@ Reste ouvert : la salle.
     assert_eq!(minutes.provider.as_deref(), Some("api.example.org"));
     assert_eq!(minutes.model.as_deref(), Some("mod\"el\nname"));
     for shown in [
-        "<h2>Faits marquants</h2>",
+        "<h2>Points saillants</h2>",
         "La date est fixée.",
         "<h2>Actions</h2>",
         "Appeler les intervenants",
@@ -136,7 +139,7 @@ fn the_minutes_never_drive_the_page_that_shows_them() {
 #[test]
 fn minutes_that_are_not_of_this_version_are_said_unreadable_and_none_are_absent() {
     let folder = tempfile::tempdir().unwrap();
-    assert_eq!(minutes::minutes(folder.path()), Read::Absent);
+    assert_eq!(minutes::minutes(folder.path(), NAMES), Read::Absent);
     for wrong in [
         MINUTES.replacen("---\ncontract", "contract", 1),
         MINUTES.replace("minutes/v1", "minutes/v2"),
@@ -155,4 +158,25 @@ fn minutes_that_are_not_of_this_version_are_said_unreadable_and_none_are_absent(
         panic!("not read")
     };
     assert_eq!(minutes.model, None);
+}
+
+#[test]
+fn the_three_sections_are_named_by_the_page_whatever_titles_the_model_wrote() {
+    // A small local model numbers them (#261); another dresses them up.
+    for titles in [["1.", "2.", "3."], ["**Résumé** _bref_", "Actions à mener", "`Points`"]] {
+        let written = MINUTES
+            .replace("## Points forts", &format!("## {}", titles[0]))
+            .replace("## Actions", &format!("## {}", titles[1]))
+            .replace("## Points clés", &format!("## {}", titles[2]));
+        let Read::Present(minutes) = read(&written) else {
+            panic!("not read: {written}")
+        };
+        let named: Vec<&str> = minutes.body.match_indices("<h2>").map(|(at, _)| &minutes.body[at..]).collect();
+        assert_eq!(named.len(), 3, "{}", minutes.body);
+        for (shown, name) in named.iter().zip(NAMES) {
+            assert!(shown.starts_with(&format!("<h2>{name}</h2>")), "{name}: {}", minutes.body);
+        }
+        // What the sections hold is shown as written.
+        assert!(minutes.body.contains("Pré-réserver les salles"), "{}", minutes.body);
+    }
 }

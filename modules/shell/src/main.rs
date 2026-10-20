@@ -628,7 +628,7 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
     Ok(Opened {
         session,
         transcript: meeting::transcript(&folder),
-        minutes: minutes::minutes(&folder),
+        minutes: minutes::minutes(&folder, words::window(shell.language).minutes_sections),
         developer: shell.settings().developer,
     })
 }
