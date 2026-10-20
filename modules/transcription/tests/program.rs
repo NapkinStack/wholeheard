@@ -6,6 +6,8 @@ use std::{fs, process::Command};
 fn run(args: &[&str]) -> (bool, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
         .args(args)
+        // Its logs in the tests' own folder, never in the user's.
+        .env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"))
         .output()
         .unwrap();
     (
@@ -84,4 +86,36 @@ fn what_cannot_be_heard_is_refused_in_one_sentence_before_anything_is_written() 
         !session.path().join("transcript.jsonl").exists(),
         "a transcript was started with nothing to hear it"
     );
+}
+
+#[test]
+fn a_refusal_is_logged_with_its_detail_and_never_the_sessions_path() {
+    let session = tempfile::tempdir().unwrap();
+    let logs = tempfile::tempdir().unwrap();
+    fs::write(session.path().join("session.json"), r#"{"contract":"session-audio/v0"}"#).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+        .args([session.path().to_str().unwrap(), "--model", "/nowhere/a-model.bin"])
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .env("WHOLEHEARD_TRACE", "making-7")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let files: Vec<_> = fs::read_dir(logs.path()).unwrap().map(|entry| entry.unwrap().path()).collect();
+    assert_eq!(files.len(), 1, "{files:?}");
+    let name = files[0].file_name().unwrap().to_string_lossy().into_owned();
+    assert!(name.starts_with("transcription.") && name.ends_with(".jsonl"), "{name}");
+    let text = fs::read_to_string(&files[0]).unwrap();
+    let lines: Vec<serde_json::Value> = text.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    let steps: Vec<_> = lines.iter().map(|line| line["message"].as_str().unwrap()).collect();
+    assert_eq!(steps, ["transcription.started", "transcription.failed"]);
+    assert!(
+        lines
+            .iter()
+            .all(|line| line["span"]["trace"] == "making-7" && line["span"]["program"] == "transcription")
+    );
+    assert!(
+        lines[1]["detail"].as_str().unwrap().contains("names neither session-audio/v1"),
+        "{text}"
+    );
+    assert!(!text.contains(&*session.path().to_string_lossy()), "{text}");
 }

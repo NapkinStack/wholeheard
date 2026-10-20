@@ -91,6 +91,13 @@ loaded — is one sentence on the error stream, before anything is said to be he
 transcript is created or changed. What only shows once the model is there — a transcript
 another language or model made, a folder that cannot be written to — is said after `hearing`. Leave `--language` out to have the language detected.
 
+What it does is logged — the tracks' lengths, the echo found, each span heard with how long it
+took and how many segments it gave, each failure with its detail; never a word heard, the
+context, nor the session's path (ADR-0007): one JSON line per step in
+`$XDG_STATE_HOME/wholeheard/logs/transcription.<date>.jsonl`, fourteen days kept.
+`WHOLEHEARD_LOG_DIR` puts them elsewhere, `WHOLEHEARD_LOG=debug` asks for more, and
+`WHOLEHEARD_TRACE` is the id of the making the shell passes.
+
 ## Getting started
 
 The standard verbs — `bootstrap`, `check`, `test`, `run` — are declared in the `commands`
