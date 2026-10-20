@@ -613,8 +613,18 @@ function listen(name, tracks) {
     shown.pause();
     for (const failure of shown.failures) failure();
   };
+  // A track that should sound and is not ready yet — loading, or seeking where it was put.
+  const due = (audio, at) => at - starts(audio) >= 0 && at - starts(audio) < (audio.duration || Infinity) - 0.05;
+  const loading = (audio) => audio.seeking || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
   const follow = () => {
     let at = now();
+    // While one loads, the clock waits for it, as a player waits while it buffers: put back
+    // again and again, a slow track would never catch up.
+    // The others wait with it, paused where they are.
+    const waiting = shown.on && audios.some((audio) => due(audio, shown.base) && loading(audio));
+    if (waiting) at = shown.base;
+    shown.base = at;
+    shown.since = performance.now();
     if (shown.on && at >= end()) {
       shown.base = end();
       shown.on = false;
@@ -624,13 +634,13 @@ function listen(name, tracks) {
     for (const audio of audios) {
       const wanted = at - starts(audio);
       const length = audio.duration || Infinity;
-      if (!shown.on || wanted < 0 || wanted >= length - 0.05) {
+      if (!shown.on || wanted < 0 || wanted >= length - 0.05 || (waiting && !loading(audio))) {
         if (!audio.paused) audio.pause();
         // Paused where the next play starts it, or at its start until its time comes.
         const still = Math.min(Math.max(0, wanted), audio.duration || 0);
-        if (Math.abs(audio.currentTime - still) > 0.15) audio.currentTime = still;
+        if (!audio.seeking && Math.abs(audio.currentTime - still) > 0.15) audio.currentTime = still;
       } else {
-        if (Math.abs(audio.currentTime - wanted) > 0.15) audio.currentTime = wanted;
+        if (!audio.seeking && Math.abs(audio.currentTime - wanted) > 0.15) audio.currentTime = wanted;
         if (audio.paused) audio.play().catch(failed);
       }
     }
@@ -657,6 +667,11 @@ function listen(name, tracks) {
   shown.seek = (at) => {
     shown.base = Math.max(0, Math.min(at, Number.isFinite(end()) ? end() : at));
     shown.since = performance.now();
+    // Put where it is asked, a track seeking already is sought again.
+    for (const audio of audios) {
+      const still = Math.min(Math.max(0, shown.base - starts(audio)), audio.duration || 0);
+      if (Math.abs(audio.currentTime - still) > 0.15) audio.currentTime = still;
+    }
     follow();
   };
   shown.stop = () => {
