@@ -40,6 +40,8 @@ Records the audio sources of a conversation into a session.
 - Second form (`record … --as v2`, `src/v2.rs`): a track is what its source delivered, to the
   sample — nothing taken out, no channel mixed, no length made equal; the rest is taken out
   of the *measure* only. Zeros written here are named on the clock before they are written.
+- A log line holds events, devices, rates and failures — never a sound, nor a session's path
+  beyond its folder's name (`tests/program.rs`, `scripts/e2e.sh`).
 
 ## Known traps
 

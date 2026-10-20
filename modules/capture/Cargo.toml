@@ -9,6 +9,9 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 cpal = "0.18.2"
 ctrlc = { version = "3.5.2", features = ["termination"] }
 serde_json = "1.0.154"
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "json", "env-filter", "std"] }
 
 # PipeWire is how a Linux desktop exposes what plays; the other systems need no feature.
 [target.'cfg(target_os = "linux")'.dependencies]

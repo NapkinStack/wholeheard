@@ -27,6 +27,8 @@ done
 cargo build --release --locked 2>&1 | tail -3 >> .evidence/e2e.txt
 bin=${CARGO_TARGET_DIR:-$PWD/target}/release/wholeheard-capture   # where cargo built it
 work=$(mktemp -d)
+# Its logs in the run's folder, never the user's (ADR-0007).
+export WHOLEHEARD_LOG_DIR="$work/logs"
 # A run that was killed outright could not put anything back: its devices are removed first,
 # and the system falls back on its own.
 for stale in $(pactl list short modules | awk '/wholeheard_e2e_/ {print $1}'); do
@@ -52,6 +54,17 @@ tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -
 tone 440 40 "$work/me.wav"; tone 880 8 "$work/others-a.wav"; tone 880 8 "$work/others-b.wav"
 
 measure() { python3 scripts/e2e_measure.py "$@" 2>&1 | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
+# Whether the run of an id logged these steps, in this order among its own, and never a path of the run's folder.
+logged() {
+  python3 - "$work" "$@" <<'PY'
+import json, pathlib, sys
+work, trace, wanted = sys.argv[1], sys.argv[2], sys.argv[3:]
+text = "".join(path.read_text() for path in sorted(pathlib.Path(work, "logs").glob("capture.*.jsonl")))
+steps = [line["message"] for line in map(json.loads, text.splitlines()) if line.get("span", {}).get("trace") == trace]
+mine = iter(steps)
+sys.exit(0 if all(step in mine for step in wanted) and work not in text else f"{trace}: {steps}")
+PY
+}
 failed=0
 check() { if "$@"; then say "  ok    $*"; else say "  FAIL  $*"; failed=1; fi; }
 
@@ -123,7 +136,7 @@ pactl set-default-source wholeheard_e2e_mic.monitor
 say "E. each source as delivered: a recording stopped as a user stops it"
 pw-play --target wholeheard_e2e_mic "$work/me.wav" & mic_player=$!
 sleep 0.5
-"$bin" record "$work/v2" > "$work/e.events" 2> "$work/e.errors" &
+WHOLEHEARD_TRACE=e2e-e "$bin" record "$work/v2" > "$work/e.events" 2> "$work/e.errors" &
 recorder=$!
 sleep 1; pw-play "$work/others-a.wav"
 sleep 14                                                 # nothing plays: "silent" is owed
@@ -135,6 +148,7 @@ sed 's/^/    /' "$work/e.events" "$work/e.errors" >> .evidence/e2e.txt
 check test "$stopped_as" = 0 -a ! -s "$work/e.errors"
 check measure events "$work/e.events"
 check measure2 stopped "$folder" 440 880
+check logged e2e-e capture.opened capture.opened capture.started capture.silent capture.heard capture.stopped
 for name in local remote; do
   check test "$(ffprobe -v error -show_entries stream=codec_name -of csv=p=0 "$folder/$name.wav")" = pcm_s24le
 done
@@ -164,13 +178,14 @@ tone 880 30 "$work/others-long.wav"
 pw-play --target wholeheard_e2e_mic "$work/me.wav" & mic_player=$!
 pw-play "$work/others-long.wav" & others_player=$!
 sleep 0.5
-"$bin" record "$work/v2-stops" --as v2 > /dev/null 2>&1 &
+WHOLEHEARD_TRACE=e2e-h "$bin" record "$work/v2-stops" --as v2 > /dev/null 2>&1 &
 recorder=$!
 sleep 4; python3 scripts/e2e_measure_v2.py pause "$recorder" remote 6   # six seconds without the remote source
 sleep 6
 kill -INT "$recorder"; wait "$recorder" || true
 kill "$mic_player" "$others_player" 2>/dev/null || true
 check measure2 stopped-source "$(ls -d "$work"/v2-stops/*/ | head -1)"
+check logged e2e-h capture.started capture.zeros capture.stopped
 
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"
 exit "$failed"
