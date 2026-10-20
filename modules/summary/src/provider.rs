@@ -11,6 +11,9 @@ use ureq::http::Uri;
 
 use crate::Refused;
 
+/// How long reaching the provider may take, before any answer is awaited.
+const CONNECT: Duration = Duration::from_secs(15);
+
 fn refused<T>(code: &'static str, why: impl Into<String>) -> Result<T, Refused> {
     Err(Refused(why.into(), Some(code)))
 }
@@ -166,6 +169,8 @@ impl Provider {
             .proxy(None)
             .http_status_as_error(false)
             .timeout_global(Some(self.patience))
+            // A host that answers nothing at all is not reached, rather than slow (summarising/v1).
+            .timeout_connect(Some(CONNECT.min(self.patience)))
             .build()
             .into();
         let mut call = agent.post(&self.uri);
@@ -175,6 +180,12 @@ impl Provider {
         let body = serde_json::json!({ "model": self.model, "stream": false, "messages": [{ "role": "user", "content": request }] });
         let mut response = match call.send_json(&body) {
             Ok(response) => response,
+            Err(ureq::Error::Timeout(ureq::Timeout::Resolve | ureq::Timeout::Connect)) => {
+                return refused(
+                    "provider.unreachable",
+                    format!("{host} could not be reached within {} s", CONNECT.as_secs()),
+                );
+            }
             Err(ureq::Error::Timeout(_)) => {
                 return refused(
                     "provider.too_slow",
