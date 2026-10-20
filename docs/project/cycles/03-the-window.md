@@ -83,6 +83,13 @@ deliverables:
     state: ready
     acceptance:
       - "Given a meeting with its audio and its transcript, when the user plays it, then both sides are heard together, the line being said is marked and kept in view, and who spoke shows where the playback is; a click on a line or on who spoke moves the playback there; the space bar plays and pauses; a meeting whose audio went to the trash offers no player and says why"
+  - id: D28
+    title: "Summit becomes Wholeheard, and nothing of the user's is lost on the way"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given Summit installed and used — settings, meetings, the Whisper model, keys in the keyring —, when the user installs Wholeheard's package, then it replaces Summit's, and Wholeheard starts with the same settings, the same meetings where they were, the model not fetched again and the keys kept; the shortcut is asked once"
+      - "Given the repository, when it is read, then the product, its programs, its packages, its application id and its folders are named Wholeheard; Summit is named only where history is told"
 ---
 
 # Cycle 03 — the window
@@ -365,6 +372,14 @@ song with its lyrics; navigate with the graph and in the text". The window draws
 the meeting's length (D17, D18); the transcript has each line's time. Played in the window, the
 two tracks of a session together; the drawing and the lines are the controls. Built to the
 boards' style (board 2, the meeting), no new board: the decider judges it in its trial.
+
+### D28
+
+**Added on the decider's word, 2026-10-20** ("tu connais le marché, tranche le nom et GO"), after
+PDR-0001 named the product Wholeheard: *Summit AI Notes* sells a local macOS meeting note-taker
+under the old name. Before the repository opens and before any package reaches a tester. The
+user's settings, meetings, model and keys carried over, never asked for again; the meetings
+stay in the folder they are in. The repository's own name on GitHub is the decider's gesture.
 
 ## Out of scope
 
