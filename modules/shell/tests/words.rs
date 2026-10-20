@@ -523,13 +523,31 @@ fn minutes_not_made_say_their_cause_and_its_gesture_when_the_program_named_one()
         Cause::Unwritable,
     ];
     // Where the gesture is a setting, the sentence says the settings, not the menu's entry.
-    const SETTINGS: [Cause; 5] = [
+    const SETTINGS: [Cause; 7] = [
         Cause::RefusedKey,
         Cause::UnknownModel,
         Cause::Redirected,
         Cause::Settings,
         Cause::CutShort,
+        Cause::TooSlow,
+        Cause::NotMinutes,
     ];
+    // What each sentence is about, in each language: a sentence said for another cause fails.
+    let about = |cause: Cause| match cause {
+        Cause::Unreachable => ("could not be reached", "pas pu être joint"),
+        Cause::TooSlow => ("in time", "à temps"),
+        Cause::RefusedKey => ("refused the key", "refusé la clé"),
+        Cause::NoCredit => ("credit", "crédit"),
+        Cause::UnknownModel => ("does not know", "ne connaît pas"),
+        Cause::Redirected => ("another address", "autre adresse"),
+        Cause::ProviderFailed => ("failed to answer", "pas su répondre"),
+        Cause::CutShort => ("before the end", "avant la fin"),
+        Cause::NotMinutes => ("did not write minutes", "pas écrit de compte rendu"),
+        Cause::TranscriptUnusable => ("cannot be read", "ne peut pas être lu"),
+        Cause::NoSpeech => ("no speech", "aucune parole"),
+        Cause::Settings => ("cannot be used as given", "tels quels"),
+        Cause::Unwritable => ("could not be written", "pas pu être écrit"),
+    };
     for language in BOTH {
         let mut said = std::collections::HashSet::new();
         for cause in ALL {
@@ -538,8 +556,15 @@ fn minutes_not_made_say_their_cause_and_its_gesture_when_the_program_named_one()
                 !sentence.is_empty() && !sentence.contains('\'') && said.insert(sentence),
                 "{cause:?}: {sentence}"
             );
+            let (english, french) = about(cause);
+            let topic = if language == Language::French { french } else { english };
+            assert!(sentence.contains(topic), "{cause:?}: {sentence}");
             if language == Language::French {
-                assert!(!sentence.contains(" :") && !sentence.contains(" ;"), "{sentence}");
+                // Every colon after a space that does not break, as French is printed.
+                assert!(
+                    sentence.match_indices(':').all(|(at, _)| sentence[..at].ends_with('\u{a0}')),
+                    "{sentence}"
+                );
             }
             for failed in [Minutes::failed(Some(cause), false), Minutes::failed(Some(cause), true)] {
                 let body = words::minutes(&failed, language).body;

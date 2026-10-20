@@ -863,9 +863,11 @@ pub fn cause(cause: Cause, language: Language) -> &'static str {
     match (cause, language) {
         (Cause::Unreachable, English) => "The provider could not be reached: check that it runs, or the network, then try again.",
         (Cause::Unreachable, French) => "Le fournisseur n’a pas pu être joint\u{a0}: vérifiez qu’il tourne, ou le réseau, puis réessayez.",
-        (Cause::TooSlow, English) => "The provider did not answer in time: try again later, or choose a faster model.",
+        (Cause::TooSlow, English) => {
+            "The provider did not answer in time: try again later, or choose a faster model in Wholeheard’s settings."
+        }
         (Cause::TooSlow, French) => {
-            "Le fournisseur n’a pas répondu à temps\u{a0}: réessayez plus tard, ou choisissez un modèle plus rapide."
+            "Le fournisseur n’a pas répondu à temps\u{a0}: réessayez plus tard, ou choisissez un modèle plus rapide dans les réglages de Wholeheard."
         }
         (Cause::RefusedKey, English) => "The provider refused the key: give it again in Wholeheard’s settings.",
         (Cause::RefusedKey, French) => "Le fournisseur a refusé la clé\u{a0}: saisissez-la de nouveau dans les réglages de Wholeheard.",
@@ -887,15 +889,19 @@ pub fn cause(cause: Cause, language: Language) -> &'static str {
         (Cause::CutShort, French) => {
             "Le modèle s’est arrêté avant la fin\u{a0}: choisissez-en un qui écrit plus long dans les réglages de Wholeheard."
         }
-        (Cause::NotMinutes, English) => "The model did not write minutes: try again, or choose another model.",
-        (Cause::NotMinutes, French) => "Le modèle n’a pas écrit de compte rendu\u{a0}: réessayez, ou choisissez un autre modèle.",
+        (Cause::NotMinutes, English) => "The model did not write minutes: try again, or choose another model in Wholeheard’s settings.",
+        (Cause::NotMinutes, French) => {
+            "Le modèle n’a pas écrit de compte rendu\u{a0}: réessayez, ou choisissez un autre modèle dans les réglages de Wholeheard."
+        }
         (Cause::TranscriptUnusable, English) => "The transcript cannot be read: make it again first.",
         (Cause::TranscriptUnusable, French) => "Le transcript ne peut pas être lu\u{a0}: refaites-le d’abord.",
         (Cause::NoSpeech, English) => "The transcript holds no speech: there is nothing to write minutes of. Check the recording.",
         (Cause::NoSpeech, French) => "Le transcript ne contient aucune parole\u{a0}: il n’y a rien à résumer. Vérifiez l’enregistrement.",
-        (Cause::Settings, English) => "Who writes the minutes cannot be used as chosen: correct it in Wholeheard’s settings.",
+        (Cause::Settings, English) => {
+            "The provider’s address, model or key cannot be used as given: correct them in Wholeheard’s settings."
+        }
         (Cause::Settings, French) => {
-            "Le service choisi pour le compte rendu ne peut pas être utilisé tel quel\u{a0}: corrigez-le dans les réglages de Wholeheard."
+            "L’adresse, le modèle ou la clé du fournisseur ne peuvent pas être utilisés tels quels\u{a0}: corrigez-les dans les réglages de Wholeheard."
         }
         (Cause::Unwritable, English) => "The minutes could not be written in the meeting’s folder: free space, or check the folder.",
         (Cause::Unwritable, French) => {
