@@ -134,6 +134,12 @@ fn french_is_written_as_french_is_printed() {
         Said::Silent(Source::Me),
         Said::Silent(Source::Others),
         Said::Stopped("/s".into(), 60.0),
+        Said::Moved(Source::Me, Some("Mic".into())),
+        Said::Moved(Source::Me, None),
+        Said::Moved(Source::Others, Some("Speaker".into())),
+        Said::Moved(Source::Others, None),
+        Said::Lost(Source::Me),
+        Said::Lost(Source::Others),
         Said::Failed(String::new()),
         Said::Failed("x".into()),
     ];
@@ -597,5 +603,31 @@ fn the_minutes_sections_are_named_as_the_contract_and_d11_name_them() {
     assert_eq!(
         words::window(Language::French).minutes_sections,
         ["Points saillants", "Actions", "Points clés"]
+    );
+}
+
+#[test]
+fn a_device_changed_says_what_is_recorded_now_and_one_gone_says_the_other_goes_on() {
+    // D31: the microphone and the output the recording follows are named when they change.
+    let (title, body) = told(&Said::Moved(Source::Me, Some("Headset Mic".into())), false, Language::English);
+    assert!(title == "Microphone changed" && body.contains("Headset Mic"), "{title} — {body}");
+    let (title, body) = told(&Said::Moved(Source::Others, Some("Speaker".into())), false, Language::French);
+    assert!(title == "Sortie audio changée" && body.contains("Speaker"), "{title} — {body}");
+    // Unnamed, still said: what is recorded changed.
+    for language in BOTH {
+        let (_, body) = told(&Said::Moved(Source::Me, None), false, language);
+        assert!(!body.is_empty() && !body.contains("{}"), "{body}");
+    }
+    // None left: that side is not recorded for now, the other goes on, and one plugged in is
+    // recorded again — said, as the criterion has it.
+    let (title, body) = told(&Said::Lost(Source::Me), false, Language::English);
+    assert!(
+        title.contains("not recorded") && body.contains("meeting’s sound is still recorded") && body.contains("plugged in"),
+        "{title} — {body}"
+    );
+    let (title, body) = told(&Said::Lost(Source::Others), false, Language::French);
+    assert!(
+        title.contains("n’est plus enregistré") && body.contains("micro est toujours enregistré") && body.contains("branchée"),
+        "{title} — {body}"
     );
 }

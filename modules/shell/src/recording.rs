@@ -34,6 +34,10 @@ pub enum Said {
     Heard(Source),
     /// How loud a source is now, from 0 to 1, for a meter.
     Level(Source, f32),
+    /// A source is recorded from another device now: its name, as `Started` names one (D31).
+    Moved(Source, Option<String>),
+    /// The system names no device for a source: nothing of it is recorded until one comes.
+    Lost(Source),
     /// The recording was stopped: its folder, and its length in seconds.
     Stopped(PathBuf, f64),
     /// The program ended without having said it stopped: its own sentence, when it gave one.
@@ -58,6 +62,12 @@ pub fn read(line: &str) -> Option<Said> {
         "started" => Some(Said::Started(folder()?, event["sources"]["me"].as_str().and_then(device))),
         "silent" => Some(Said::Silent(source()?)),
         "heard" => Some(Said::Heard(source()?)),
+        // Another device, or none: a name, or null — anything else is no event (recording/v1).
+        "device" => match &event["device"] {
+            serde_json::Value::Null if event.get("device").is_some() => Some(Said::Lost(source()?)),
+            serde_json::Value::String(name) => Some(Said::Moved(source()?, device(name))),
+            _ => None,
+        },
         "level" => Some(Said::Level(source()?, event["level"].as_f64()?.clamp(0.0, 1.0) as f32)),
         "stopped" => Some(Said::Stopped(folder()?, event["seconds"].as_f64().unwrap_or(0.0))),
         _ => None,
@@ -133,6 +143,8 @@ impl Recording {
                 match &event {
                     Said::Started(folder, _) => info!(session = %crate::transcription::named(folder), "shell.recording_started"),
                     Said::Unavailable(source, why) => warn!(source = ?source, detail = %why, "shell.recording_unavailable"),
+                    Said::Moved(source, _) => info!(source = ?source, "shell.recording_moved"),
+                    Said::Lost(source) => warn!(source = ?source, "shell.recording_lost"),
                     Said::Stopped(_, seconds) => info!(seconds, "shell.recording_stopped"),
                     _ => {}
                 }

@@ -111,6 +111,50 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         (Said::Unavailable(Source::Others, _), French) => {
             ("Le son de la réunion n’est pas enregistré", "Votre micro est toujours enregistré.")
         }
+        // The device recorded changed (D31): what is recorded now is named.
+        (Said::Moved(Source::Me, Some(name)), English) => return notice("Microphone changed", format!("Now recorded: {name}.")),
+        (Said::Moved(Source::Me, Some(name)), French) => return notice("Micro changé", format!("Enregistré maintenant\u{a0}: {name}.")),
+        (Said::Moved(Source::Others, Some(name)), English) => {
+            return notice("Sound output changed", format!("The meeting’s sound is now recorded from {name}."));
+        }
+        (Said::Moved(Source::Others, Some(name)), French) => {
+            return notice(
+                "Sortie audio changée",
+                format!("Le son de la réunion est maintenant enregistré depuis {name}."),
+            );
+        }
+        (Said::Moved(Source::Me, None), English) => (
+            "Microphone changed",
+            "Your microphone is still recorded, from the one your computer uses now.",
+        ),
+        (Said::Moved(Source::Me, None), French) => (
+            "Micro changé",
+            "Votre micro est toujours enregistré, depuis celui qu’utilise maintenant votre ordinateur.",
+        ),
+        (Said::Moved(Source::Others, None), English) => (
+            "Sound output changed",
+            "The meeting’s sound is still recorded, from the output your computer uses now.",
+        ),
+        (Said::Moved(Source::Others, None), French) => (
+            "Sortie audio changée",
+            "Le son de la réunion est toujours enregistré, depuis la sortie qu’utilise maintenant votre ordinateur.",
+        ),
+        (Said::Lost(Source::Me), English) => (
+            "Your microphone is not recorded for now",
+            "Your computer has no microphone left. The meeting’s sound is still recorded, and a microphone plugged in is recorded at once.",
+        ),
+        (Said::Lost(Source::Me), French) => (
+            "Votre micro n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de micro. Le son de la réunion est toujours enregistré, et un micro branché est enregistré aussitôt.",
+        ),
+        (Said::Lost(Source::Others), English) => (
+            "The meeting’s sound is not recorded for now",
+            "Your computer has no sound output left. Your microphone is still recorded, and an output plugged in is recorded at once.",
+        ),
+        (Said::Lost(Source::Others), French) => (
+            "Le son de la réunion n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de sortie audio. Votre micro est toujours enregistré, et une sortie branchée est enregistrée aussitôt.",
+        ),
         (Said::Silent(Source::Me), English) => (
             "No sound from your microphone",
             "Nothing was heard for ten seconds. The recording goes on.",
