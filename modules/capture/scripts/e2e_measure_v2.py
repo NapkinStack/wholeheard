@@ -172,7 +172,18 @@ def notes(one):
     return found
 
 
-def followed(folder, events, local, remote):
+def moves_said(events, local, remote):
+    """The `device` events of a recording, against the devices it moved to, in order: each named
+    exactly, never by a name it had before."""
+    said = [json.loads(line) for line in open(events) if line.strip()]
+    for source, wanted in (("me", local), ("others", remote)):
+        devices = [event["device"] for event in said if event["event"] == "device" and event["source"] == source]
+        moves = [move.split(":")[0] for move in wanted.split(",")]
+        assert [device.split(" ")[0] if device else device for device in devices] == moves, f"{source}: its device events say {devices}, for {moves}"
+    print(f"    the device events, in order: {[(event['source'], event['device']) for event in said if event['event'] == 'device']}")
+
+
+def followed(folder, events, local, remote, during):
     """A recording whose devices were switched while it ran (D31): each track goes on in the form
     it opened with, holds each device's note in turn with no zeros of ours, and the events and
     the session name each device it moved to, in order. `local` and `remote`: the devices it
@@ -190,15 +201,23 @@ def followed(folder, events, local, remote):
         devices = [event["device"] for event in said if event["event"] == "device" and event["source"] == source]
         changed = [change["device"] for change in read["tracks"][name].get("changed", [])]
         print(f"    {name}: {one['channels']} channel(s) at {one['rate']} Hz; moved to {devices}; the session keeps {changed}")
-        assert all(device and device.startswith(move) for device, (move, _) in zip(devices, moves)) and len(devices) == len(moves), (
+        assert [device.split(" ")[0] if device else device for device in devices] == [move for move, _ in moves], (
             f"{name}: its device events say {devices}, for {[move for move, _ in moves]}")
         assert changed == devices, f"{name}: the session keeps {changed}, where the events said {devices}"
         heard = notes(one)
         print(f"    {name}: its notes, second by second: {heard}")
         for move, note in moves:
             assert any(abs(hertz - int(note)) < 15 for hertz in heard), f"{name}: {move}'s note, {note} Hz, is not in its track"
-    ats = [change["at"] for track_ in read["tracks"].values() for change in track_.get("changed", [])]
-    assert all(0 < at < 120 for at in ats), f"changes put at {ats} s on the session's clock"
+        # Each change where it was made: the first after the run's first notes, about five seconds
+        # in, the next after it.
+        ats = [change["at"] for change in read["tracks"][name].get("changed", [])]
+        assert ats == sorted(ats) and 3 < ats[0] < 9, f"{name}: changes put at {ats} s on the session's clock"
+    # Kept while it records, not at the stop alone.
+    kept = json.load(open(during))["tracks"]
+    for name, wanted in (("local", local), ("remote", remote)):
+        first = wanted.split(",")[0].split(":")[0]
+        changed = [change["device"].split(" ")[0] for change in kept[name].get("changed", [])]
+        assert changed[:1] == [first], f"{name}: while it recorded, session.json kept {changed}, not {first}"
 
 
 def main(what, folder, *args):
@@ -211,6 +230,8 @@ def main(what, folder, *args):
         return
     if what == "followed":
         return followed(folder, *args)
+    if what == "moves-said":
+        return moves_said(folder, *args)
     read = session(folder)
     tracks = {name: track(folder, name) for name in read["tracks"]}
     start = datetime.datetime.fromisoformat(read["started"]).timestamp()

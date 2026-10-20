@@ -56,6 +56,8 @@ type Sound = (usize, f64, Vec<f32>);
 /// A source recorded from another device now: when, on the session's clock, and its name — none
 /// when the system names none.
 type Moved = (usize, f64, Option<String>);
+/// The same, as the stream's callback tells it: whether a device is left, not yet its name.
+type Move = (usize, f64, bool);
 
 /// Says an event to whoever started the program (`contracts/recording/v1`). Nobody may be
 /// listening any more — a shell that crashed, a pipe that closed: the recording goes on.
@@ -160,13 +162,33 @@ fn now_named(index: usize) -> Option<String> {
     Some(named_as_used(&host, &device))
 }
 
-/// Says each source moved to a device other than the one it was last said on.
+/// Names each move, one after the other on a thread of its own, so that they are said in the
+/// order the system made them — a name may take `pw-metadata` up to a second. It ends when no
+/// stream is left to tell one.
+fn naming(moves: Receiver<Move>) -> Receiver<Moved> {
+    let (tell, told) = mpsc::channel();
+    let run = tracing::Span::current();
+    std::thread::spawn(move || {
+        let _run = run.enter();
+        for (index, at, left) in moves {
+            if tell.send((index, at, left.then(|| now_named(index)).flatten())).is_err() {
+                break;
+            }
+        }
+    });
+    told
+}
+
+/// Says each source moved to a device other than the one it was last said on. `closing`: the
+/// streams are gone, and every move still being named is waited for, so none is lost at the stop.
 fn said_moved(
     moved: &Receiver<Moved>,
+    closing: bool,
     last: &mut [Option<String>; 2],
     mut kept: impl FnMut(usize, f64, Option<&str>) -> Result<(), String>,
 ) -> Result<(), String> {
-    while let Ok((index, at, name)) = moved.try_recv() {
+    let next = || if closing { moved.recv().ok() } else { moved.try_recv().ok() };
+    while let Some((index, at, name)) = next() {
         if name == last[index] {
             continue;
         }
@@ -215,7 +237,8 @@ struct Source {
 fn record(sessions: &Path) -> Result<(), String> {
     let host = host();
     let (sound, heard) = mpsc::channel::<Sound>();
-    let (moved, moves) = mpsc::channel::<Moved>();
+    let (moved, moves) = mpsc::channel::<Move>();
+    let moves = naming(moves);
     let started = chrono::Local::now();
     let zero = Instant::now();
     let folder = new_folder(sessions, &started.format("%Y-%m-%d_%H-%M").to_string()).map_err(|e| e.to_string())?;
@@ -273,7 +296,7 @@ fn record(sessions: &Path) -> Result<(), String> {
     let mut metered = clock;
     let mut last = [Some(names[0].clone()), Some(names[1].clone())];
     while !stop.load(Ordering::SeqCst) {
-        said_moved(&moves, &mut last, |_, _, _| Ok(()))?;
+        said_moved(&moves, false, &mut last, |_, _, _| Ok(()))?;
         match heard.recv_timeout(Duration::from_millis(50)) {
             Ok((index, _, samples)) => sources[index].track.push(&samples).map_err(|e| e.to_string())?,
             Err(RecvTimeoutError::Timeout) => {}
@@ -320,6 +343,8 @@ fn record(sessions: &Path) -> Result<(), String> {
     for source in &mut sources {
         source._stream = None;
     }
+    // A move the system made in the last moment is said too.
+    said_moved(&moves, true, &mut last, |_, _, _| Ok(()))?;
     while let Ok((index, _, samples)) = heard.try_recv() {
         sources[index].track.push(&samples).map_err(|e| e.to_string())?;
     }
@@ -397,7 +422,8 @@ impl Delivered {
 fn record_v2(sessions: &Path) -> Result<(), String> {
     let host = host();
     let (sound, heard) = mpsc::channel::<Sound>();
-    let (moved, moves) = mpsc::channel::<Moved>();
+    let (moved, moves) = mpsc::channel::<Move>();
+    let moves = naming(moves);
     let started = chrono::Local::now();
     let zero = Instant::now();
     let folder = new_folder(sessions, &started.format("%Y-%m-%d_%H-%M").to_string()).map_err(|e| e.to_string())?;
@@ -459,7 +485,7 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
     let mut last = [Some(names[0].clone()), Some(names[1].clone())];
     while !stop.load(Ordering::SeqCst) {
         // The session keeps each device a track was recorded from after its first.
-        said_moved(&moves, &mut last, |index, at, name| {
+        said_moved(&moves, false, &mut last, |index, at, name| {
             let Some(track) = held.iter_mut().find(|held| held.track == TRACKS[index]) else {
                 return Ok(());
             };
@@ -524,6 +550,13 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
     for source in sources.iter_mut().flatten() {
         source.stream = None;
     }
+    // A move the system made in the last moment is said, and kept, too.
+    said_moved(&moves, true, &mut last, |index, at, name| {
+        if let Some(track) = held.iter_mut().find(|held| held.track == TRACKS[index]) {
+            track.changed.push((at, name.map(str::to_string)));
+        }
+        Ok(())
+    })?;
     while let Ok((index, at, samples)) = heard.try_recv() {
         if let Some(source) = &mut sources[index] {
             source.take(TRACKS[index], at, &samples, &mut clock).map_err(|e| e.to_string())?;
@@ -547,7 +580,7 @@ fn open(
     index: usize,
     zero: Instant,
     sound: Sender<Sound>,
-    moved: Sender<Moved>,
+    moved: Sender<Move>,
 ) -> Result<(Stream, u32, u16), String> {
     let config = if playback {
         device.default_output_config()
@@ -576,7 +609,7 @@ fn listen<T>(
     index: usize,
     zero: Instant,
     sound: Sender<Sound>,
-    moved: Sender<Moved>,
+    moved: Sender<Move>,
 ) -> Result<Stream, String>
 where
     T: SizedSample,
@@ -603,17 +636,12 @@ where
                 // The system moved the stream to another device, or has none for it now: the
                 // track goes on, and the device is named — off this thread, which the system's
                 // sound waits on.
-                let present = match error.kind() {
-                    cpal::ErrorKind::DeviceChanged => true,
-                    cpal::ErrorKind::DeviceNotAvailable => false,
-                    _ => {
-                        run.in_scope(|| warn!(source = name, detail = %error, "capture.stream_error"));
-                        drop(writeln!(std::io::stderr(), "wholeheard-capture: [{name}] {error}"));
-                        return;
-                    }
+                let Some(left) = wholeheard_capture::moved(error.kind()) else {
+                    run.in_scope(|| warn!(source = name, detail = %error, "capture.stream_error"));
+                    drop(writeln!(std::io::stderr(), "wholeheard-capture: [{name}] {error}"));
+                    return;
                 };
-                let (at, moved) = (zero.elapsed().as_secs_f64(), moved.clone());
-                std::thread::spawn(move || drop(moved.send((index, at, present.then(|| now_named(index)).flatten()))));
+                let _ = moved.send((index, zero.elapsed().as_secs_f64(), left));
             },
             None,
         )

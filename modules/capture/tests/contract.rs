@@ -71,3 +71,15 @@ fn a_level_is_the_peak_on_a_meter_s_scale_rounded_to_a_hundredth() {
     assert_eq!(Event::Level { source: 1, level: 0.4251 }.line()["level"], 0.43);
     assert_eq!(Event::Level { source: 0, level: 1.7 }.line()["level"], 1.0);
 }
+
+#[test]
+fn a_device_changed_is_another_recorded_and_one_gone_is_none_left() {
+    use cpal::ErrorKind;
+    // D31: what the system says of a stream's device is a move — to another, or to none.
+    assert_eq!(wholeheard_capture::moved(ErrorKind::DeviceChanged), Some(true));
+    assert_eq!(wholeheard_capture::moved(ErrorKind::DeviceNotAvailable), Some(false));
+    // Any other trouble of the stream is no move.
+    for other in [ErrorKind::DeviceBusy, ErrorKind::BackendError] {
+        assert_eq!(wholeheard_capture::moved(other), None, "{other:?}");
+    }
+}

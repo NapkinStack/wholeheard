@@ -234,9 +234,13 @@ tone 660 4 "$work/660.wav"; tone 1320 4 "$work/1320.wav"; tone 440 4 "$work/440.
 both() { pw-play --target "$1" "$work/$2.wav" & local p=$!; pw-play --target "$3" "$work/$4.wav"; wait "$p"; }
 WHOLEHEARD_TRACE=e2e-j "$bin" record "$work/v2-moved" --as v2 > "$work/j.events" 2> "$work/j.errors" &
 recorder=$!
+# The first form, beside it: its lines are the same.
+"$bin" record "$work/v1-moved" --as v1 > "$work/j1.events" 2> /dev/null &
+recorder_v1=$!
 sleep 1; both wholeheard_e2e_mic 440 wholeheard_e2e_out 880
 pactl set-default-source wholeheard_e2e_mic_b.monitor; pactl set-default-sink wholeheard_e2e_out_b
 sleep 1; both wholeheard_e2e_mic_b 660 wholeheard_e2e_out_b 1320
+cp "$(ls -d "$work"/v2-moved/*/ | head -1)session.json" "$work/j-during.json"   # read while it records
 # The microphone chosen back; the output recorded taken away: the system names the next.
 pactl set-default-source wholeheard_e2e_mic.monitor
 pactl unload-module "$mic_b"
@@ -244,12 +248,13 @@ pactl unload-module "$out_b"
 sleep 1; pactl set-default-sink wholeheard_e2e_out
 sleep 1; both wholeheard_e2e_mic 440 wholeheard_e2e_out 880
 sleep 1
-kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
+kill -INT "$recorder" "$recorder_v1"; stopped_as=0; wait "$recorder" || stopped_as=$?; wait "$recorder_v1" || true
 grep -v '"level"' "$work/j.events" | sed 's/^/    /' >> .evidence/e2e.txt
 sed 's/^/    /' "$work/j.errors" >> .evidence/e2e.txt
 check test "$stopped_as" = 0 -a ! -s "$work/j.errors"
 check measure2 followed "$(ls -d "$work"/v2-moved/*/ | head -1)" "$work/j.events" \
-  "wholeheard_e2e_mic_b:660,wholeheard_e2e_mic:440" "wholeheard_e2e_out_b:1320,wholeheard_e2e_out:880"
+  "wholeheard_e2e_mic_b:660,wholeheard_e2e_mic:440" "wholeheard_e2e_out_b:1320,wholeheard_e2e_out:880" "$work/j-during.json"
+check measure2 moves-said "$work/j1.events" "wholeheard_e2e_mic_b,wholeheard_e2e_mic" "wholeheard_e2e_out_b,wholeheard_e2e_out"
 check logged e2e-j capture.started capture.device capture.device capture.stopped
 
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"

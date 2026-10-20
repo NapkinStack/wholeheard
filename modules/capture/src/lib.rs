@@ -357,3 +357,13 @@ pub fn standing_for(metadata: &str, key: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(value).ok()?;
     Some(value["name"].as_str()?.to_string())
 }
+
+/// What the system said of a recorded source's device: `Some(true)` another device is recorded
+/// now, `Some(false)` none is left, `None` neither — another trouble of the stream (D31).
+pub fn moved(kind: cpal::ErrorKind) -> Option<bool> {
+    match kind {
+        cpal::ErrorKind::DeviceChanged => Some(true),
+        cpal::ErrorKind::DeviceNotAvailable => Some(false),
+        _ => None,
+    }
+}
