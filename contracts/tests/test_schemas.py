@@ -274,6 +274,9 @@ EXAMPLES = {
             {"event": "sending", "host": "local", "model": "mistral", "characters": 31},
             {"event": "written", "file": "<session-folder>/minutes.md"},
             {"event": "answered", "host": "local", "model": "mistral"},
+            {"event": "failed", "code": "provider.refused_key"},
+            {"event": "failed", "code": "settings.invalid"},
+            {"event": "failed", "code": "a code of a later version"},
             {"event": "an event of a later version"},
         ],
         [
@@ -289,6 +292,10 @@ EXAMPLES = {
             {"event": "written", "file": ""},
             {"event": "answered", "host": "h"},
             {"event": "answered", "model": "m"},
+            {"event": "failed"},
+            {"event": "failed", "code": ""},
+            {"event": "failed", "code": "provider.refused_key\n"},
+            {"event": "failed", "code": 401},
         ],
     ),
     "session-audio/v1/session.schema.json": (
