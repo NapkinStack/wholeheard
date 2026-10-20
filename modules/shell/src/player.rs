@@ -1,7 +1,7 @@
-//! Plays a meeting's tracks to the window (ADR-0008): a server on the loopback interface, a
-//! port the system gives, that answers only URLs carrying the run's token and the number of the
-//! last offer, a track named by its place in that offer — never a path. Read only; nothing else
-//! of the disk is ever served.
+//! Plays a meeting to the window (ADR-0008, ADR-0009): a server on the loopback interface, a
+//! port the system gives, that answers only the URL carrying the run's token and the number of
+//! the last offer — never a path — with that meeting's tracks mixed into one sound as they are
+//! read. Read only; nothing else of the disk is ever served.
 //!
 //! What no reader of the window does is bounded: a request's headers are read for a few seconds
 //! at most and never past a few kilobytes, a body is never read, a connection serves one request,
@@ -17,23 +17,26 @@ use std::{
 };
 
 use bytes::Bytes;
-use futures_util::StreamExt;
 use http_body_util::{BodyExt, Empty, StreamBody, combinators::BoxBody};
 use hyper::{Method, Request, Response, StatusCode, body::Frame, header, server::conn::http1, service::service_fn};
 use hyper_util::rt::{TokioIo, TokioTimer};
-use tokio::{io::AsyncReadExt, io::AsyncSeekExt, net::TcpListener, sync::Semaphore};
-use tokio_util::io::ReaderStream;
+use tokio::{net::TcpListener, sync::Semaphore};
+
+use crate::mix::Mix;
 
 /// How long a request's headers may take to arrive.
 const HEADERS: Duration = Duration::from_secs(5);
 /// How many connections are held at once; one more is closed as it comes.
 const AT_ONCE: usize = 256;
+/// The bytes of the mix made at once: a second of it, at 48 kHz.
+const PIECE: u64 = 96_000;
 
-/// The tracks served now, and the number of their offer.
+/// The meeting served now, as its mix, and the number of its offer.
 #[derive(Default)]
 struct Offered {
     number: u64,
-    tracks: Vec<PathBuf>,
+    mix: Option<Arc<Mix>>,
+    tracks: Vec<(PathBuf, f64)>,
 }
 
 /// The loopback server, for as long as the shell runs.
@@ -63,14 +66,24 @@ impl Served {
         })
     }
 
-    /// Serves these tracks, and no longer those offered before: their URLs, in the same order.
-    pub fn offer(&self, tracks: Vec<PathBuf>) -> Vec<String> {
+    /// Serves these tracks, each with where its first frame is on the session's clock, as one
+    /// sound — and no longer what was offered before: its URL, or none when no track reads as one.
+    /// The same tracks offered again as they were — the page drawn again — keep their URL,
+    /// which a player may still be reading; grown since, a meeting still recording, they do not.
+    pub fn offer(&self, tracks: Vec<(PathBuf, f64)>) -> Option<String> {
+        let mix = Mix::of(&tracks).map(Arc::new);
         let mut offered = self.offered.lock().unwrap();
-        offered.number += 1;
-        offered.tracks = tracks;
-        (0..offered.tracks.len())
-            .map(|place| format!("{}/{}/{}/{place}", self.base, self.token, offered.number))
-            .collect()
+        let same = |old: &Option<Arc<Mix>>| match (old, &mix) {
+            (Some(old), Some(new)) => old.same(new),
+            _ => false,
+        };
+        if !same(&offered.mix) {
+            offered.number += 1;
+            offered.mix = mix;
+            offered.tracks = tracks;
+        }
+        offered.mix.as_ref()?;
+        Some(format!("{}/{}/{}/mix", self.base, self.token, offered.number))
     }
 }
 
@@ -105,14 +118,17 @@ async fn serve(listener: Listener, token: String, offered: Arc<Mutex<Offered>>) 
     }
 }
 
-/// The track a URL's path names, if it names one of the last offer, with the token.
-fn named(url: &str, token: &str, offered: &Offered) -> Option<PathBuf> {
+/// The mix a URL's path names, if it is the last offer's, with the token — while every one of
+/// its tracks is still there: a meeting freed meanwhile is not found.
+fn named(url: &str, token: &str, offered: &Offered) -> Option<Arc<Mix>> {
     let mut parts = url.strip_prefix('/')?.split('/');
-    let (given, number, place) = (parts.next()?, parts.next()?, parts.next()?);
-    if parts.next().is_some() || given != token || number.parse::<u64>().ok()? != offered.number {
+    let (given, number, what) = (parts.next()?, parts.next()?, parts.next()?);
+    if parts.next().is_some() || given != token || number.parse::<u64>().ok()? != offered.number || what != "mix" {
         return None;
     }
-    offered.tracks.get(place.parse::<usize>().ok()?).cloned()
+    // A track replaced by a link meanwhile is not followed.
+    let there = |path: &PathBuf| std::fs::symlink_metadata(path).is_ok_and(|data| data.is_file());
+    offered.tracks.iter().all(|(path, _)| there(path)).then(|| offered.mix.clone())?
 }
 
 type Body = BoxBody<Bytes, io::Error>;
@@ -123,18 +139,13 @@ fn empty(code: StatusCode) -> Response<Body> {
     response
 }
 
-/// An offered track, whole or by one range; anything else refused, its body never read.
-async fn answer(method: Method, range: Option<header::HeaderValue>, path: Option<PathBuf>) -> Response<Body> {
+/// The offered mix, whole or by one range; anything else refused, its body never read.
+async fn answer(method: Method, range: Option<header::HeaderValue>, mix: Option<Arc<Mix>>) -> Response<Body> {
     if method != Method::GET && method != Method::HEAD {
         return empty(StatusCode::METHOD_NOT_ALLOWED);
     }
-    let Some(path) = path else { return empty(StatusCode::NOT_FOUND) };
-    let Ok(mut file) = tokio::fs::File::open(path).await else {
-        return empty(StatusCode::NOT_FOUND);
-    };
-    let Ok(size) = file.metadata().await.map(|data| data.len()) else {
-        return empty(StatusCode::NOT_FOUND);
-    };
+    let Some(mix) = mix else { return empty(StatusCode::NOT_FOUND) };
+    let size = mix.size();
     let (from, length, code) = match range
         .as_ref()
         .and_then(|range| range.to_str().ok())
@@ -150,15 +161,23 @@ async fn answer(method: Method, range: Option<header::HeaderValue>, path: Option
             return refused;
         }
     };
-    if file.seek(io::SeekFrom::Start(from)).await.is_err() {
-        return empty(StatusCode::NOT_FOUND);
-    }
     let body: Body = if method == Method::HEAD {
         Empty::new().map_err(|never| match never {}).boxed()
     } else {
-        BodyExt::boxed(StreamBody::new(
-            ReaderStream::new(file.take(length)).map(|read| read.map(Frame::data)),
-        ))
+        // Made a piece at a time, off the server's thread, as the player reads it.
+        let end = from + length;
+        let pieces = futures_util::stream::unfold((mix, from), move |(mix, start)| async move {
+            if start >= end {
+                return None;
+            }
+            let length = PIECE.min(end - start);
+            let reading = Arc::clone(&mix);
+            let made = tokio::task::spawn_blocking(move || reading.read(start, length))
+                .await
+                .unwrap_or_else(|failed| Err(io::Error::other(failed)));
+            Some((made.map(|bytes| Frame::data(Bytes::from(bytes))), (mix, start + length)))
+        });
+        BodyExt::boxed(StreamBody::new(pieces))
     };
     let mut response = Response::new(body);
     *response.status_mut() = code;

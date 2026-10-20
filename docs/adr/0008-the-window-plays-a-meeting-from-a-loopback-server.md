@@ -5,6 +5,8 @@
 - **Date**: 2026-10-20
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: module `shell`
+- **Amended by**: [ADR-0009](./0009-the-window-plays-a-meeting-s-tracks-as-one-sound.md), 2026-10-21 — the
+  server serves the opened meeting's tracks as one sound, no longer one by one
 - **Reversibility**: easy — the page plays a URL; another way of giving it one changes the shell
   alone
 

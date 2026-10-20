@@ -8,6 +8,7 @@ pub mod log;
 pub mod meeting;
 pub mod migrate;
 pub mod minutes;
+pub mod mix;
 pub mod model;
 pub mod player;
 pub mod providers;

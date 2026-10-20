@@ -619,17 +619,9 @@ struct Opened {
     minutes: Read<Minutes>,
     /// The developer mode is on: the page offers a diagnostic of this meeting (D29).
     developer: bool,
-    /// Its tracks, to be played together where the session's clock puts them (D26); none when
-    /// its audio went to the trash.
-    tracks: Vec<Played>,
-}
-
-/// A track of the opened meeting as the page plays it: from the loopback server, never a path.
-#[derive(serde::Serialize)]
-struct Played {
-    name: String,
-    url: String,
-    starts: f64,
+    /// Where the page plays it from: its tracks as one sound, from the loopback server — never
+    /// a path (D26, ADR-0009); none when its audio went to the trash or holds no track.
+    listen: Option<String>,
 }
 
 #[tauri::command]
@@ -645,13 +637,13 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
         transcript: meeting::transcript(&folder),
         minutes: minutes::minutes(&folder, words::window(shell.language).minutes_sections),
         developer: shell.settings().developer,
-        tracks: playable(&shell, &folder),
+        listen: playable(&shell, &folder),
     })
 }
 
-/// A meeting's tracks, offered to the window's player by the loopback server — these files, read
-/// only, and no other: an earlier meeting's are no longer served (ADR-0008, D26).
-fn playable(shell: &Shell, folder: &Path) -> Vec<Played> {
+/// A meeting's tracks, offered to the window's player by the loopback server as one sound — these
+/// files, read only, and no other: an earlier meeting's are no longer served (ADR-0008, ADR-0009).
+fn playable(shell: &Shell, folder: &Path) -> Option<String> {
     let tracks = meeting::tracks(folder);
     let mut served = shell.served.lock().unwrap();
     if served.is_none() && !tracks.is_empty() {
@@ -660,17 +652,9 @@ fn playable(shell: &Shell, folder: &Path) -> Vec<Played> {
             Err(error) => tracing::error!(detail = %error, "shell.player_refused"),
         }
     }
-    let Some(served) = served.as_ref() else { return Vec::new() };
-    let urls = served.offer(tracks.iter().map(|track| track.path.clone()).collect());
-    tracks
-        .into_iter()
-        .zip(urls)
-        .map(|(track, url)| Played {
-            name: track.name,
-            url,
-            starts: track.starts,
-        })
-        .collect()
+    served
+        .as_ref()?
+        .offer(tracks.into_iter().map(|track| (track.path, track.starts)).collect())
 }
 
 /// A meeting's diagnostic, for the page to copy: every program's log lines of its makings —
