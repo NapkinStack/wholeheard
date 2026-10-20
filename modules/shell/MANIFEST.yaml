@@ -77,9 +77,9 @@ data:
 # Each one declares its exit strategy (.nstack/handbook/06-decisions.md §3).
 dependencies:
   - name: serde_json
-    purpose: Reads the lines a step's program prints
+    purpose: Reads the lines a step's program prints, and the logs' lines a meeting's diagnostic gathers
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
-    exit_strategy: One reader of lines in src/recording.rs; any JSON library replaces it.
+    exit_strategy: One reader of lines in src/recording.rs and one in log::diagnostic; any JSON library replaces it.
   - name: toml
     purpose: Reads the settings file, a few lines the user can write by hand
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md

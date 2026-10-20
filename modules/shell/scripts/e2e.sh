@@ -89,7 +89,7 @@ is() { [ "$1" = "$2" ] || { say "        got: $1"; return 1; }; }
 # The program that hears, played: it notes what it was given, fails, is slow or stuck when told.
 cat > "$work/wholeheard-transcription" <<'PLAYED'
 #!/bin/sh
-here=$(dirname "$1"); echo "$*" >> "$here/heard"
+here=$(dirname "$1"); echo "$*" >> "$here/heard"; echo "${WHOLEHEARD_LOG:-unset}" >> "$here/log-level"
 if [ -e "$here/fail-once" ]; then rm "$here/fail-once"; echo "wholeheard-transcription: the engine stopped" >&2; exit 1; fi
 if [ -e "$here/slow" ]; then rm "$here/slow"; sleep 3; fi
 if [ -e "$here/stuck" ]; then echo $$ > "$here/hearing"; sleep 30; fi
@@ -167,8 +167,10 @@ click 6
 check is "$(kill -0 "$app" 2>/dev/null && echo waiting || echo gone)" "gone"
 
 say "F. the transcript follows the stop; a failed one is made again from the menu; no model is said"
-start en_GB.UTF-8 "reminder = false\nmodel = \"$work/model.bin\"" "$work/wholeheard-capture"
+# The logs' level chosen in the developer mode reaches the programs Wholeheard starts (D29).
+start en_GB.UTF-8 "reminder = false\nmodel = \"$work/model.bin\"\nlog = \"debug\"" "$work/wholeheard-capture"
 click 3; click 3; sleep 1
+check is "$(head -1 "$work/sessions/log-level")" "debug"
 check grep -q '32 min recorded. The transcript follows.' "$work/notified"
 check is "$(cat "$work/sessions/heard")" "$work/sessions/2026-10-13_14-05 --model $work/model.bin"
 check is "$(titles 'Transcript ready')" 1
@@ -249,6 +251,8 @@ check is "$(titles 'Model ready')" 1
 check is "$(titles 'The transcription model is needed')" 2    # nor later in the fetch
 check cmp -s "$work/right.bin" "$work/data/wholeheard/models/ggml-large-v3-turbo-q8_0.bin"
 check is "$(wc -l < "$work/sessions/heard")" "$((before + 3))"
+# No level chosen, none is named: the programs log at their usual one.
+check is "$(tail -3 "$work/sessions/log-level" | sort -u)" "unset"
 check is "$(tail -3 "$work/sessions/heard" | grep -o '2026-10-17_09-0[0-9]' | paste -sd' ')" "2026-10-17_09-01 2026-10-17_09-02 2026-10-17_09-03"   # in the order stopped
 check is "$(labels)" "Open Wholeheard|Start recording|Transcribe the last recording|Write the minutes of the last recording|Quit Wholeheard"
 click 6

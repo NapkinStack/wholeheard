@@ -552,7 +552,7 @@ function transcriptCard(read, words, session) {
   return card;
 }
 
-function showMeeting({ session, transcript, minutes }, words) {
+function showMeeting({ session, transcript, minutes, developer }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
   const back = element("a", "back", `‹ ${words.back}`);
@@ -560,7 +560,26 @@ function showMeeting({ session, transcript, minutes }, words) {
   const open = element("button", "open", words.open_folder);
   open.type = "button";
   open.addEventListener("click", () => window.__TAURI__.core.invoke("open_folder", { name: nameOf(session) }));
-  top.append(back, open);
+  const actions = element("div", "actions");
+  // In developer mode: this meeting's logs, to send to whoever looks into it — nothing of the
+  // meeting is in them (D29).
+  if (developer) {
+    const copy = element("button", "open", words.copy_diagnostic);
+    copy.type = "button";
+    copy.id = "copy-diagnostic";
+    copy.addEventListener("click", async () => {
+      try {
+        const lines = await window.__TAURI__.core.invoke("diagnostic", { name: nameOf(session) });
+        await navigator.clipboard.writeText(lines);
+        copy.textContent = lines ? words.diagnostic_copied : words.diagnostic_empty;
+      } catch {
+        copy.textContent = words.diagnostic_not_copied;
+      }
+    });
+    actions.append(copy);
+  }
+  actions.append(open);
+  top.append(back, actions);
   const title = element("section", "meeting-title");
   const named = element("div", "named");
   named.append(element("h1", "", heading(session, words)));
@@ -1024,6 +1043,37 @@ function showSettings(shown, minutes, words) {
   developerSaid.append(element("span", "name", words.developer[0]), element("span", "says", words.developer[1]));
   developer.append(developerSaid, developerBox);
   advanced.append(developer);
+  if (shown.developer) {
+    // The logs' level, read at Wholeheard's next start by the shell and its programs.
+    const level = element("div", "row");
+    const levelSaid = element("label", "said");
+    levelSaid.htmlFor = "log-level";
+    levelSaid.append(element("span", "name", words.log_level[0]), element("span", "says", words.log_level[1]));
+    const levelPick = element("select");
+    levelPick.id = "log-level";
+    levelPick.disabled = locked;
+    for (const [value, text] of [["info", words.log_info], ["debug", words.log_debug]]) {
+      const option = element("option", "", text);
+      option.value = value;
+      option.selected = shown.log === value;
+      levelPick.append(option);
+    }
+    levelPick.addEventListener("change", () => save({ log: levelPick.value }));
+    level.append(levelSaid, levelPick);
+    const logs = element("div", "row");
+    const logsSaid = element("span", "said");
+    logsSaid.append(element("span", "name", words.logs[0]), element("span", "says", words.logs[1]));
+    const openLogs = element("button", "open", words.open_logs);
+    openLogs.type = "button";
+    openLogs.id = "open-logs";
+    openLogs.addEventListener("click", () =>
+      window.__TAURI__.core.invoke("open_logs").catch(() => {
+        logsSaid.lastChild.textContent = words.logs_not_opened;
+      }),
+    );
+    logs.append(logsSaid, openLogs);
+    advanced.append(level, logs);
+  }
   parts.push(advanced);
   page.replaceChildren(...parts);
 }

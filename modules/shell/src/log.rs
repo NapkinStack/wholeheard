@@ -23,7 +23,7 @@ const WEIGHT: u64 = 50 * 1024 * 1024;
 
 /// Where the logs go: `WHOLEHEARD_LOG_DIR` when given, else the system's place for them. A
 /// path that is not absolute is not taken: it would depend on where the program was started.
-fn folder() -> Option<PathBuf> {
+pub fn folder() -> Option<PathBuf> {
     let given = |name| std::env::var_os(name).map(PathBuf::from).filter(|path| path.is_absolute());
     if let Some(folder) = given("WHOLEHEARD_LOG_DIR") {
         return Some(folder);
@@ -176,4 +176,39 @@ pub fn start(program: &'static str) -> EnteredSpan {
             .try_init();
     }
     tracing::span!(Level::ERROR, "run", program, version = env!("CARGO_PKG_VERSION"), trace = %trace()).entered()
+}
+
+/// What is sent to whoever looks into a meeting's failure: every program's lines of that
+/// meeting's makings — the ids the shell logged with its folder's name —, in the order they
+/// were written, from the days kept. Nothing of another meeting; nothing of the meeting itself,
+/// which no line holds.
+pub fn diagnostic(folder: &Path, session: &str) -> String {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return String::new();
+    };
+    let lines: Vec<(serde_json::Value, String)> = entries
+        .flatten()
+        .filter(|entry| {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            let parts: Vec<&str> = name.split('.').collect();
+            matches!(parts[..], [program, date, "jsonl"] if is_program(program) && is_date(date))
+        })
+        .filter_map(|entry| std::fs::read_to_string(entry.path()).ok())
+        .flat_map(|text| text.lines().map(str::to_string).collect::<Vec<_>>())
+        .filter_map(|line| Some((serde_json::from_str(&line).ok()?, line)))
+        .collect();
+    let trace = |line: &serde_json::Value| line["span"]["trace"].as_str().map(str::to_string);
+    let ids: std::collections::HashSet<String> = lines
+        .iter()
+        .filter(|(line, _)| line["session"].as_str() == Some(session))
+        .filter_map(|(line, _)| trace(line))
+        .collect();
+    let mut kept: Vec<(String, String)> = lines
+        .into_iter()
+        .filter(|(line, _)| trace(line).is_some_and(|id| ids.contains(&id)))
+        .map(|(line, text)| (line["timestamp"].as_str().unwrap_or_default().to_string(), text))
+        .collect();
+    kept.sort_by(|a, b| a.0.cmp(&b.0));
+    kept.into_iter().map(|(_, text)| text).collect::<Vec<_>>().join("\n")
 }

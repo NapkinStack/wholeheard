@@ -32,7 +32,7 @@ use wholeheard_shell::{
     providers::{self, Online},
     recording::{Recording, Said, Source},
     sessions::{self, Listed},
-    settings::{self, After, KeepAudio, Settings},
+    settings::{self, After, KeepAudio, Log, Settings},
     summarising::{self, Summarising},
     transcription::{self, Made, Transcription},
     words::{self, Language, Notice, Refusal, Trouble},
@@ -150,6 +150,17 @@ enum Shown {
 }
 
 fn main() {
+    // The logs' level the user chose in the developer mode, unless the environment names one:
+    // set before anything runs beside it, so that the shell and every program it starts read it.
+    if std::env::var_os("WHOLEHEARD_LOG").is_none()
+        && let Some(level) = settings::file()
+            .and_then(|file| settings::read(&file).ok())
+            .map(|chosen| chosen.log)
+            .filter(|level| *level != Log::Info)
+    {
+        // SAFETY: the program's first step, before any thread of it exists.
+        unsafe { std::env::set_var("WHOLEHEARD_LOG", level.as_str()) };
+    }
     // What the shell does is logged — never what was said — in the user's state folder (ADR-0007).
     let _run = log::start("shell");
     tracing::info!("shell.started");
@@ -174,6 +185,8 @@ fn main() {
             transcript_again,
             opened,
             open_folder,
+            open_logs,
+            diagnostic,
             settings_shown,
             settings_saved,
             minutes_shown,
@@ -598,6 +611,8 @@ struct Opened {
     session: Listed,
     transcript: Read<Transcript>,
     minutes: Read<Minutes>,
+    /// The developer mode is on: the page offers a diagnostic of this meeting (D29).
+    developer: bool,
 }
 
 #[tauri::command]
@@ -612,7 +627,25 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
         session,
         transcript: meeting::transcript(&folder),
         minutes: minutes::minutes(&folder),
+        developer: shell.settings().developer,
     })
+}
+
+/// A meeting's diagnostic, for the page to copy: every program's log lines of its makings —
+/// nothing of the meeting, which no line holds (D29).
+#[tauri::command]
+fn diagnostic(shell: State<'_, Shell>, name: String) -> Result<String, String> {
+    session_folder(&shell, &name)?;
+    let folder = log::folder().ok_or("this system names no folder for logs")?;
+    Ok(log::diagnostic(&folder, &name))
+}
+
+/// Opens the logs' folder in the system's file manager, made when nothing was logged yet.
+#[tauri::command]
+fn open_logs() -> Result<(), String> {
+    let folder = log::folder().ok_or("this system names no folder for logs")?;
+    std::fs::create_dir_all(&folder).map_err(|error| error.to_string())?;
+    opening(&folder)
 }
 
 /// What the agreement page shows before a meeting first leaves for a host (D11's fifth board):
@@ -722,7 +755,11 @@ fn local_instead(app: AppHandle, shell: State<'_, Shell>, name: String, model: S
 /// Opens a session's folder in the system's file manager.
 #[tauri::command]
 fn open_folder(shell: State<'_, Shell>, name: String) -> Result<(), String> {
-    let folder = session_folder(&shell, &name)?;
+    opening(&session_folder(&shell, &name)?)
+}
+
+/// Opens a folder in the system's file manager.
+fn opening(folder: &Path) -> Result<(), String> {
     let opener = if cfg!(target_os = "macos") {
         "open"
     } else if cfg!(windows) {
@@ -732,7 +769,7 @@ fn open_folder(shell: State<'_, Shell>, name: String) -> Result<(), String> {
     };
     // Waited for on a thread of its own, so that nothing of it is left in the system's table.
     let mut started = std::process::Command::new(opener)
-        .arg(&folder)
+        .arg(folder)
         .spawn()
         .map_err(|error| error.to_string())?;
     std::thread::spawn(move || started.wait());
@@ -764,6 +801,7 @@ struct SettingsShown {
     model: PathBuf,
     models: Vec<Model>,
     developer: bool,
+    log: Log,
     unreadable: Option<String>,
 }
 
@@ -804,6 +842,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         model: settings.model,
         models,
         developer: settings.developer,
+        log: settings.log,
         unreadable,
     }
 }
@@ -817,6 +856,7 @@ struct Change {
     keep_audio: Option<KeepAudio>,
     model: Option<PathBuf>,
     developer: Option<bool>,
+    log: Option<Log>,
 }
 
 /// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
@@ -846,6 +886,9 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
     }
     if let Some(developer) = change.developer {
         settings.developer = developer;
+    }
+    if let Some(log) = change.log {
+        settings.log = log;
     }
     // The same bounds as the file's: a value read refuses is never written.
     if let Some(KeepAudio::Days(days)) = change.keep_audio
