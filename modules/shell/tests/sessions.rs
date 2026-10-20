@@ -360,3 +360,24 @@ fn a_meeting_s_audio_is_every_sound_in_its_folder_and_nothing_else() {
         ]
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn a_folder_of_sessions_is_writable_or_said_not_to_be_and_nothing_is_left_in_it() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    // Not there yet: made, written, left empty.
+    let new = root.path().join("Wholeheard");
+    assert!(wholeheard_shell::sessions::writable(&new).is_ok());
+    assert_eq!(std::fs::read_dir(&new).unwrap().count(), 0);
+    // There, and refusing to be written: said, before any recorder is started.
+    let locked = root.path().join("locked");
+    std::fs::create_dir(&locked).unwrap();
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let refused = wholeheard_shell::sessions::writable(&locked);
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(refused.is_err());
+    // Under a file: not made.
+    std::fs::write(root.path().join("a-file"), "").unwrap();
+    assert!(wholeheard_shell::sessions::writable(&root.path().join("a-file").join("Wholeheard")).is_err());
+}

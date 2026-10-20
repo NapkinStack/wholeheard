@@ -86,7 +86,7 @@ recording (`transcript = false`, from before, still means nothing); `model = "�
 Whisper model; `minutes_provider` — a provider's address, `"http://localhost:11434/v1"` for Ollama
 on this computer — and `minutes_model`
 for who writes the minutes; `minutes_agreed = "…"`, the host the user agreed to send a meeting to
-the first time — another host asks again, one on this computer never asks; `keep_audio = "always"` or a number of days. Out of the box,
+the first time — another host asks again, one on this computer never asks; `keep_audio = "always"` or a number of days; `developer = true` for the developer mode (*Settings → Advanced*). Out of the box,
 sessions go to a folder `Wholeheard` in the user's documents, the transcript follows alone, and the
 model is `wholeheard/models/ggml-large-v3-turbo-q8_0.bin` in the user's data folder — fetched there
 on the user's word, or placed by hand. When Wholeheard writes the file it touches only what changed:
@@ -100,6 +100,11 @@ beyond its folder's name (ADR-0007): one JSON line per step in
 kept fourteen days and the folder under 50 MB. Each making has an id, logged here and passed to
 its program as `WHOLEHEARD_TRACE`: one id finds both sides. `WHOLEHEARD_LOG` and
 `WHOLEHEARD_LOG_DIR` (an absolute path) are passed on as they are set.
+
+A failure reaches the user in plain words — what failed, what still holds, what to do — in a
+notification and on the window's page; what its program or the system said of it is never there
+but in the log. With the developer mode on, the page shows it under the sentence; a notification
+never does (D29).
 
 ## Getting started
 

@@ -470,17 +470,21 @@ def main() -> int:
         # The user changes the file by hand while Wholeheard runs: the next save keeps it.
         window.file.write_text(window.file.read_text().replace("keep_audio = 30", "keep_audio = 90 # by hand"))
         changed(lambda: browser.find_element(By.ID, "reminder").click())
+        changed(lambda: browser.find_element(By.ID, "developer").click())
         text = window.file.read_text()
         check(
             "each choice is in the settings file, the user's lines kept, a change by hand too",
             'after = "nothing"' in text
             and "reminder = false" in text
+            and "developer = true" in text
             and "keep_audio = 90 # by hand" in text
             and f'model = "{models / "ggml-small.bin"}"' in text
             and text.startswith(f'sessions = "{chosen}"\n')
             and "# mine" in text,
             text,
         )
+        changed(lambda: browser.find_element(By.ID, "developer").click())
+        check("the developer mode turned off again is said so in the file", "developer = false" in window.file.read_text(), window.file.read_text())
         failed = browser.find_element(By.ID, "not-saved").is_displayed()
         check("nothing said failed", not failed)
         # Any number of days, when the list has not the one wanted.
@@ -936,9 +940,21 @@ def main() -> int:
         browser.find_element(By.ID, "redo-do").click()
         told = wait_for(browser, lambda b: "pas été refait" in heard.read_text(), 10)
         check("minutes made again that fail: the ones there stay, and the notice says a redo", told and (asked / "minutes.md").read_text() == before, heard.read_text()[-400:])
-        failed = wait_for(browser, lambda b: "the provider's answer is not minutes" in state(b), 5)
-        check("the failure said on the meeting's page too, with its reason, and a way to try again",
-              failed and "n’a pas été fait" in state(browser) and browser.find_elements(By.ID, "minutes-again"), state(browser))
+        failed = wait_for(browser, lambda b: "n’a pas été fait" in state(b) and b.find_elements(By.ID, "minutes-again"), 5)
+        check("the failure said on the meeting's page too, in plain words, with a way to try again — never what the program said",
+              failed and "not minutes" not in state(browser) and "not minutes" not in heard.read_text(), (state(browser), heard.read_text()[-400:]))
+        # The developer mode shows what the program said, under the sentence; never in a notice (D29).
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "developer"))
+        press(browser, "developer")
+        wait_for(browser, lambda b: "developer = true" in window.file.read_text(), 5)
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        detailed = wait_for(browser, lambda b: "the provider's answer is not minutes" in state(b) and "n’a pas été fait" in state(b), 5)
+        check("in developer mode, what the program said is under the sentence", detailed, state(browser))
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "developer"))
+        press(browser, "developer")
+        wait_for(browser, lambda b: "developer = false" in window.file.read_text(), 5)
         settled = window.file.read_text()
         window.file.write_text(
             "\n".join(line for line in settled.splitlines() if not line.startswith(("minutes_provider", "minutes_model", "minutes_agreed")))
@@ -1050,9 +1066,9 @@ def main() -> int:
             (asked / "transcript.jsonl").read_text(),
         )
         heard_state = lambda b: b.find_element(By.ID, "transcript-state").text if b.find_elements(By.ID, "transcript-state") else ""
-        unmade = wait_for(browser, lambda b: "Le transcript n’a pas été fait : " in heard_state(b) and b.find_elements(By.ID, "transcript-again"), 5)
+        unmade = wait_for(browser, lambda b: "Le transcript n’a pas été fait" in heard_state(b) and b.find_elements(By.ID, "transcript-again"), 5)
         shot(browser, "9-transcript-failed")
-        check("a transcript not made says why on its card, with a way to try again", unmade, heard_state(browser))
+        check("a transcript not made says so on its card in plain words, with a way to try again", unmade and "engine stopped" not in heard_state(browser), heard_state(browser))
         # Tried again as it was asked: made again with the model the Refaire… picked, not resumed.
         # Made again — the one there set aside, then in the trash —, never resumed from it.
         trashed_before = len(sorted(trash_files.glob("transcript-before-*.jsonl")))

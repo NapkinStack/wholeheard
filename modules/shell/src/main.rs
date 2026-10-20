@@ -763,6 +763,7 @@ struct SettingsShown {
     keep_audio: KeepAudio,
     model: PathBuf,
     models: Vec<Model>,
+    developer: bool,
     unreadable: Option<String>,
 }
 
@@ -802,6 +803,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
+        developer: settings.developer,
         unreadable,
     }
 }
@@ -814,6 +816,7 @@ struct Change {
     reminder: Option<bool>,
     keep_audio: Option<KeepAudio>,
     model: Option<PathBuf>,
+    developer: Option<bool>,
 }
 
 /// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
@@ -840,6 +843,9 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
     }
     if let Some(reminder) = change.reminder {
         settings.reminder = reminder;
+    }
+    if let Some(developer) = change.developer {
+        settings.developer = developer;
     }
     // The same bounds as the file's: a value read refuses is never written.
     if let Some(KeepAudio::Days(days)) = change.keep_audio
@@ -1146,6 +1152,8 @@ struct Makings {
     /// The line waits for the default Whisper model, offered in the menu, or coming.
     model_needed: bool,
     model_coming: bool,
+    /// A making not made, by its meeting's name: what its program said of it in developer mode,
+    /// else nothing — the page says it in plain words (D29).
     transcripts_failed: HashMap<String, String>,
     transcripts_made: HashMap<String, u64>,
     failed: HashMap<String, String>,
@@ -1177,6 +1185,8 @@ fn named(folder: &Path) -> String {
 
 #[tauri::command]
 fn makings(shell: State<'_, Shell>) -> Makings {
+    let developer = shell.settings().developer;
+    let said = |why: &String| words::shown_detail(why, developer);
     let writing = shell.writing_minutes.lock().unwrap().clone();
     let by = shell.minutes_by.lock().unwrap().clone();
     Makings {
@@ -1215,7 +1225,7 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .lock()
             .unwrap()
             .iter()
-            .map(|(folder, why)| (named(folder), why.clone()))
+            .map(|(folder, why)| (named(folder), said(why)))
             .collect(),
         transcripts_made: shell
             .transcripts_made
@@ -1229,7 +1239,7 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .lock()
             .unwrap()
             .iter()
-            .map(|(folder, why)| (named(folder), why.clone()))
+            .map(|(folder, why)| (named(folder), said(why)))
             .collect(),
         made: shell
             .minutes_made
@@ -1342,8 +1352,9 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
     }
     let Some(host) = providers::host(&provider) else {
         let why = format!("{provider} is no provider's address");
-        refused(why.clone());
-        return tell(app, &words::minutes(&words::Minutes::Failed(why), shell.language));
+        tracing::warn!(detail = %why, "shell.minutes_refused");
+        refused(why);
+        return tell(app, &words::minutes(&words::Minutes::NoProvider(provider), shell.language));
     };
     if agreed_now != Some(host.as_str()) && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
         let mut awaiting = shell.awaiting.lock().unwrap();
@@ -1395,6 +1406,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => {
                 let why = format!("the minutes there could not be set aside ({error}): nothing was made");
+                tracing::error!(detail = %why, "shell.minutes_failed");
                 minutes_ended(&app, &folder, Some(why.clone()));
                 return tell(&app, &words::minutes(&words::Minutes::failed(why, again), shell.language));
             }
@@ -1557,8 +1569,15 @@ fn toggle_recording(app: &AppHandle) {
     }
     // The settings as the file says them now: the user may have changed it by hand.
     let _ = shell.reread();
-    let started = std::fs::create_dir_all(&shell.settings().sessions)
-        .and_then(|()| Recording::start(&program("wholeheard-capture", "WHOLEHEARD_CAPTURE"), &shell.settings().sessions));
+    let sessions = shell.settings().sessions;
+    if let Err(error) = sessions::writable(&sessions) {
+        tracing::error!(detail = %error, "shell.sessions_refused");
+        return tell(
+            app,
+            &words::trouble(&Trouble::NoFolder(sessions.display().to_string()), shell.language),
+        );
+    }
+    let started = Recording::start(&program("wholeheard-capture", "WHOLEHEARD_CAPTURE"), &sessions);
     match started {
         Ok((running, said)) => {
             *recording = Some(running);
@@ -1927,6 +1946,9 @@ fn fetch(app: &AppHandle) {
         });
         let shell = app.state::<Shell>();
         *shell.fetching.lock().unwrap() = false;
+        if let Err(why) = &outcome {
+            tracing::error!(detail = %why, "shell.model_fetch_failed");
+        }
         tell(&app, &words::fetched(&outcome, language));
         if outcome.is_err() {
             return label(&app, words::download(language, &model::size(wanted.bytes), wanted.host), true);
@@ -2025,6 +2047,7 @@ fn shortcut(app: &AppHandle) {
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(why) = bound(&handle).await {
+            tracing::warn!(detail = %why, "shell.shortcut_refused");
             // Said from the main thread: a notification waits on the desktop, which a task of
             // this runtime may not do.
             let app = handle.clone();

@@ -339,3 +339,26 @@ fn the_host_agreed_to_is_one_line_of_the_file_read_back_and_taken_back() {
     write(&path, &settings).unwrap();
     assert!(!fs::read_to_string(&path).unwrap().contains("minutes_agreed"));
 }
+
+#[test]
+fn the_developer_mode_is_off_until_the_user_turns_it_on() {
+    assert!(!Settings::default().developer);
+    assert!(written("developer = true\n").unwrap().developer);
+    assert!(!written("developer = false\n").unwrap().developer);
+    assert_eq!(
+        written("# mine\ndeveloper = \"yes\"\n").map(|_| ()),
+        Err("<file>, line 2: invalid type: string \"yes\", expected a boolean".into())
+    );
+    // Turned on, it is written; turned off again, the line says so — the rest untouched.
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "reminder = false # mine\n").unwrap();
+    let mut settings = read(&path).unwrap();
+    settings.developer = true;
+    write(&path, &settings).unwrap();
+    assert_eq!(read(&path).unwrap(), settings);
+    assert!(fs::read_to_string(&path).unwrap().contains("reminder = false # mine"));
+    settings.developer = false;
+    write(&path, &settings).unwrap();
+    assert!(!read(&path).unwrap().developer);
+}
