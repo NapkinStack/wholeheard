@@ -1175,6 +1175,25 @@ pub fn carried_over(language: Language) -> Notice {
     }
 }
 
+/// Summit's things could not all be carried over: left where they were, tried again next start.
+/// Said in plain words: the technical reason goes to what Wholeheard writes for whoever debugs it.
+pub fn carry_failed(language: Language) -> Notice {
+    let (title, body) = match language {
+        Language::English => (
+            "Summit’s settings were not all carried over",
+            "Nothing is lost: they stay where they were, and it is tried again at the next start.",
+        ),
+        Language::French => (
+            "Les réglages de Summit n’ont pas tous été repris",
+            "Rien n’est perdu\u{a0}: ils restent où ils étaient, et la reprise est tentée de nouveau au prochain démarrage.",
+        ),
+    };
+    Notice {
+        title: title.into(),
+        body: body.into(),
+    }
+}
+
 pub fn model_needed(language: Language, size: &str, host: &str) -> Notice {
     let entry = download(language, size, host);
     let (title, body) = match language {

@@ -190,7 +190,10 @@ fn main() {
             let carried = migrate::Places::here().map(|places| migrate::carry_over(&places));
             match &carried {
                 Some(Ok(carried)) if carried.settings || carried.data => tell(app.handle(), &words::carried_over(language)),
-                Some(Err(error)) => eprintln!("wholeheard: Summit's folders could not be carried over: {error}"),
+                Some(Err(error)) => {
+                    eprintln!("wholeheard: Summit's folders could not all be carried over: {error}");
+                    tell(app.handle(), &words::carry_failed(language));
+                }
                 _ => {}
             }
             let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));

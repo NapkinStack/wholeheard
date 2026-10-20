@@ -6,7 +6,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 dist=${NSTACK_DIST:?run through nstack release, which names this module\'s artefacts folder}
-target=${WHOLEHEARD_TARGET:-}
+target=${WHOLEHEARD_TARGET:-${SUMMIT_TARGET:-}}   # SUMMIT_TARGET: its name before D28, until every module reads the new one
 if [ -z "$target" ]; then
   (cd "$here" && cargo build --locked --release)
   built=${CARGO_TARGET_DIR:-$here/target}/release

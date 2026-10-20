@@ -47,9 +47,11 @@ pub fn key(host: &str) -> Result<Option<String>, String> {
     }
     let before = Entry::new(SERVICE_BEFORE, host).map_err(|error| error.to_string())?;
     match before.get_password() {
+        // Kept anew, then forgotten there; kept or not, the key read is the key.
         Ok(key) => {
-            keep(host, &key)?;
-            let _ = before.delete_credential();
+            if keep(host, &key).is_ok() {
+                let _ = before.delete_credential();
+            }
             Ok(Some(key))
         }
         Err(Error::NoEntry) => Ok(None),
@@ -57,8 +59,12 @@ pub fn key(host: &str) -> Result<Option<String>, String> {
     }
 }
 
-/// Forgets the key kept for a provider's host; nothing kept is nothing to forget.
+/// Forgets the key kept for a provider's host — under Summit's name too, so that it never comes
+/// back; nothing kept is nothing to forget.
 pub fn forget(host: &str) -> Result<(), String> {
+    if let Ok(before) = Entry::new(SERVICE_BEFORE, host) {
+        let _ = before.delete_credential();
+    }
     match entry(host)?.delete_credential() {
         Ok(()) | Err(Error::NoEntry) => Ok(()),
         Err(error) => Err(error.to_string()),
