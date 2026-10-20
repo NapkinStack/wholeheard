@@ -749,8 +749,16 @@ def main() -> int:
     online = 'minutes_provider = "https://openrouter.ai/api/v1"\nminutes_model = "a-model"\n'
     window = Window(agreeing, "fr_FR.UTF-8", online, ollama=ollama)
     with window as browser:
-        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
+        # To the agreement page: its last drawing stays in the hidden page until the new one
+        # replaces it — waited for, so that nothing is clicked on the old one (as #302 found).
+        def to_agree(ready):
+            old = browser.find_elements(By.CSS_SELECTOR, "#agree > *")
+            browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
+            if old:
+                WebDriverWait(browser, 5).until(staleness_of(old[0]))
+            wait_for(browser, lambda b: b.find_elements(By.ID, ready))
+
+        to_agree("agree-send")
         shot(browser, "agreement")
         page = browser.find_element(By.ID, "agree").text
         check(
@@ -773,8 +781,7 @@ def main() -> int:
         )
         window.file.write_text(window.file.read_text().replace("https://api.mistral.ai/v1", "https://openrouter.ai/api/v1"))
         browser.execute_script("location.hash = '#/'")
-        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
+        to_agree("agree-send")
         press(browser, "agree-send")
         sent = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         check(
@@ -786,8 +793,7 @@ def main() -> int:
         check("then the meeting is shown", wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/meeting/2026-10-18_11-00", 5))
         # Ticked: this meeting and the next ones go to that service without asking.
         (asked / "minutes.md").unlink()
-        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-remember"))
+        to_agree("agree-remember")
         press(browser, "agree-remember")
         press(browser, "agree-send")
         kept = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
@@ -796,8 +802,7 @@ def main() -> int:
         (asked / "minutes.md").unlink()
         (WORK / "summary-args").unlink()
         window.file.write_text(window.file.read_text().replace('minutes_agreed = "openrouter.ai"\n', ""))
-        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-local-open"))
+        to_agree("agree-local-open")
         browser.find_element(By.ID, "agree-local-open").click()
         Select(browser.find_element(By.ID, "agree-local")).select_by_visible_text("qwen3:14b")
         browser.find_element(By.ID, "agree-local-write").click()
