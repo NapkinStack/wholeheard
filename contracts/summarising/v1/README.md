@@ -7,7 +7,7 @@ it is asked whether a model answers: one line of text per event, for whoever sta
 flowchart LR
     S["shell — or a script,<br/>a terminal"]:::consumer -->|"starts: wholeheard-summary <session-folder> --provider <address> --model <name>"| M["summary"]:::producer
     S -->|"or: wholeheard-summary --test --provider <address> --model <name>"| M
-    S -.->|"its environment: WHOLEHEARD_PROVIDER_KEY, when the provider wants a key"| M
+    S -.->|"its environment: WHOLEHEARD_PROVIDER_KEY, when the provider wants a key; WHOLEHEARD_TRACE, its log's id"| M
     M -->|"its output: one JSON object per line"| S
     M -.->|"its error stream: one sentence, when it fails"| S
     M -->|"sends: the request, to the provider's host"| P["The provider<br/>(OpenAI's protocol)"]:::outside
@@ -54,6 +54,27 @@ order of the events, and what each means, are said here and nowhere else.
 `wholeheard-summary: `, and no `written` or `answered`. Whatever fails, the transcript is untouched
 and the minutes that were there are still there — nothing half-written is left behind. Before
 `sending`, nothing left the machine.
+
+**Its log**: the program logs what it does ([ADR-0007](../../../docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md)),
+at `info`, under an id of its own, in the user's folder for logs — on Linux
+`$XDG_STATE_HOME/wholeheard/logs`, or `~/.local/state/wholeheard/logs`; on macOS
+`~/Library/Logs/Wholeheard`; on Windows `%LOCALAPPDATA%\Wholeheard\logs`. There it also removes
+the day files written more than fourteen days ago, then the oldest until the folder weighs
+under 50 MB — every program's day files, nothing else.
+Whoever starts it may set, in its environment:
+
+- `WHOLEHEARD_TRACE` — the making's id: ASCII letters, digits and dashes, 64 at most. Any other value
+  is replaced by an id of the run's own, without a word;
+- `WHOLEHEARD_LOG` — `off`, `error`, `warn`, `info`, `debug` or `trace`, in lower case; a value
+  holding `=` is read as a `tracing` filter, for whoever knows them; any other value is `info`. Turned `off`, the log leaves nothing: no file, no day file removed;
+- `WHOLEHEARD_LOG_DIR` — an absolute folder; a relative one is ignored. A folder that cannot be
+  made or written leaves no log, and changes nothing else.
+
+None is required. None, and no state of the log, changes a line of the output, the error stream
+or what the program leaves — with one exception: a run that crosses midnight UTC while the
+next day's file cannot be created has the logging library say so once on the error stream.
+The log is not what the program leaves. What the log holds is not this
+contract: it is read by people, never by a consumer.
 
 ## What it never does
 
