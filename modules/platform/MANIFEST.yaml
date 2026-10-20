@@ -7,7 +7,7 @@ module:
 
   # ONE sentence. If it needs an "and", the module probably does two things.
   responsibility: >
-    Measures what Summit's steps produce against a meeting whose every word is known.
+    Measures what Wholeheard's steps produce against a meeting whose every word is known.
 
   owner: "NapkinStack/maintainers"          # a GitHub team, organisation/team; a user only without an organisation
   contact: "@NapkinStack/maintainers"

@@ -25,6 +25,7 @@ or without a context the user attaches, on a transcript already made:
 
 ```bash
 read -rs SUMMIT_PROVIDER_KEY && export SUMMIT_PROVIDER_KEY     # paste the key; it is written nowhere
+# (this spike, from before D28, reads SUMMIT_PROVIDER_KEY; the product's programs read WHOLEHEARD_PROVIDER_KEY)
 uv run python3 spikes/d2-local-minutes/d2.py path/to/meeting.wav \
     --transcript path/to/transcript.txt --provider https://openrouter.ai/api/v1 \
     --model mistralai/mistral-medium-3.1 --context path/to/context.txt
