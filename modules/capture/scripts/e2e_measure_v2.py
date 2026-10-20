@@ -179,6 +179,8 @@ def followed(folder, events, local, remote):
     moved to, comma-separated, and each one's note after a colon."""
     read = session(folder)
     said = [json.loads(line) for line in open(events) if line.strip()]
+    kinds = [event["event"] for event in said if event["event"] != "level"]
+    assert kinds[0] == "started" and kinds[-1] == "stopped" and kinds.count("started") == 1, f"the events in this order: {kinds}"
     for name, source, wanted in (("local", "me", local), ("remote", "others", remote)):
         moves = [move.split(":") for move in wanted.split(",")]
         one = track(folder, name)  # its form is the one it opened with, or this fails

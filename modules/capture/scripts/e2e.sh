@@ -248,7 +248,6 @@ kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
 grep -v '"level"' "$work/j.events" | sed 's/^/    /' >> .evidence/e2e.txt
 sed 's/^/    /' "$work/j.errors" >> .evidence/e2e.txt
 check test "$stopped_as" = 0 -a ! -s "$work/j.errors"
-check measure events "$work/j.events"
 check measure2 followed "$(ls -d "$work"/v2-moved/*/ | head -1)" "$work/j.events" \
   "wholeheard_e2e_mic_b:660,wholeheard_e2e_mic:440" "wholeheard_e2e_out_b:1320,wholeheard_e2e_out:880"
 check logged e2e-j capture.started capture.device capture.device capture.stopped
