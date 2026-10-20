@@ -3,7 +3,7 @@
 
 use std::{f32::consts::TAU, fs, path::Path};
 
-use summit_capture::v2::{CONTRACT, Clock, Track, write_session};
+use wholeheard_capture::v2::{CONTRACT, Clock, Track, write_session};
 
 /// A tone at `level` of full scale, resting at `rest`, each channel a little weaker than the
 /// one before: channels that differ show a mix.

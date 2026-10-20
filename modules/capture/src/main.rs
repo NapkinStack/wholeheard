@@ -1,9 +1,9 @@
-//! `summit-capture` — records a conversation into a session's folder, with no window.
+//! `wholeheard-capture` — records a conversation into a session's folder, with no window.
 //!
-//!     summit-capture record <sessions-folder>     each source as delivered, until Ctrl-C, a TERM
+//!     wholeheard-capture record <sessions-folder>     each source as delivered, until Ctrl-C, a TERM
 //!                                                 signal, or "stop" on its input
-//!     summit-capture record <sessions-folder> --as v1     the same, in the first form
-//!     summit-capture devices                      what the system offers
+//!     wholeheard-capture record <sessions-folder> --as v1     the same, in the first form
+//!     wholeheard-capture devices                      what the system offers
 //!
 //! It says what happens as one JSON object per line on its output: `started`, `unavailable`,
 //! `silent`, `heard`, `stopped`. Whoever started it reads them; nothing else is printed there.
@@ -28,7 +28,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use serde_json::json;
-use summit_capture::{Event, Heard, RATE, SOURCES, Track, Watch, new_folder, v2, write_session};
+use wholeheard_capture::{Event, Heard, RATE, SOURCES, Track, Watch, new_folder, v2, write_session};
 
 /// A source is told silent after this long without a sound.
 const SILENT_AFTER: f64 = 10.0;
@@ -63,12 +63,12 @@ fn main() -> ExitCode {
         ["record", sessions] | ["record", sessions, "--as", "v2"] => record_v2(Path::new(sessions)),
         ["record", sessions, "--as", "v1"] => record(Path::new(sessions)),
         ["devices"] => devices(),
-        _ => Err("usage: summit-capture record <sessions-folder> [--as v1|v2] | summit-capture devices".into()),
+        _ => Err("usage: wholeheard-capture record <sessions-folder> [--as v1|v2] | wholeheard-capture devices".into()),
     };
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(reason) => {
-            eprintln!("summit-capture: {reason}");
+            eprintln!("wholeheard-capture: {reason}");
             ExitCode::FAILURE
         }
     }
@@ -116,7 +116,7 @@ fn named_as_used(host: &Host, device: &Device) -> String {
         _ => return named(device),
     };
     let standing = || {
-        let node = summit_capture::standing_for(&metadata(key)?, key)?;
+        let node = wholeheard_capture::standing_for(&metadata(key)?, key)?;
         host.devices().ok()?.find(|other| other.id().is_ok_and(|id| id.id() == node))
     };
     standing().map_or_else(|| named(device), |stood_for| named(&stood_for))
@@ -498,7 +498,7 @@ where
                 let since = (stamp.callback.as_nanos() as i128 - first.as_nanos() as i128) as f64 / 1e9;
                 let _ = sound.send((index, then + since, data.iter().map(|&sample| f32::from_sample(sample)).collect()));
             },
-            move |error: cpal::Error| drop(writeln!(std::io::stderr(), "summit-capture: [{name}] {error}")),
+            move |error: cpal::Error| drop(writeln!(std::io::stderr(), "wholeheard-capture: [{name}] {error}")),
             None,
         )
         .map_err(|error| format!("the stream could not be opened ({error})"))

@@ -1,4 +1,4 @@
-# What summit-capture is built with for Fedora 44 (D27): that system's PipeWire and ALSA headers
+# What wholeheard-capture is built with for Fedora 44 (D27): that system's PipeWire and ALSA headers
 # and clang, Rust as this repository uses it. Read by scripts/release.sh.
 FROM registry.fedoraproject.org/fedora:44
 RUN dnf install -y -q gcc pkgconf-pkg-config clang clang-devel pipewire-devel alsa-lib-devel && dnf clean all

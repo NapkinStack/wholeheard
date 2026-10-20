@@ -1,5 +1,5 @@
 [package]
-name = "summit-capture"
+name = "wholeheard-capture"
 version = "0.1.0"
 edition = "2024"
 publish = false

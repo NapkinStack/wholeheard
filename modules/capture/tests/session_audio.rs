@@ -3,7 +3,7 @@
 
 use std::{f32::consts::TAU, fs, path::Path};
 
-use summit_capture::{Heard, RATE, SILENCE, Track, Watch, new_folder, write_session};
+use wholeheard_capture::{Heard, RATE, SILENCE, Track, Watch, new_folder, write_session};
 
 /// A tone of `hertz` at `level` of full scale, resting at `rest`, as a source would deliver it.
 fn tone(rate: u32, channels: usize, seconds: f32, hertz: f32, level: f32, rest: f32) -> Vec<f32> {

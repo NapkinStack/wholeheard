@@ -1356,18 +1356,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "summit-capture"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "cpal",
- "ctrlc",
- "jsonschema",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1630,6 +1618,18 @@ checksum = "88261b9deccee56594c11a3460c462c41f58d148598fe70ad77070126a68aba4"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "wholeheard-capture"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "cpal",
+ "ctrlc",
+ "jsonschema",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
