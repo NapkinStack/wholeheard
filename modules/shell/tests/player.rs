@@ -113,6 +113,40 @@ fn the_meeting_offered_is_served_as_one_sound_whole_or_by_range_to_the_token_alo
     // The same meeting drawn again: the same URL, still served — a player may be reading it.
     assert_eq!(served.offer(offered.clone()).as_deref(), Some(url.as_str()));
     assert_eq!(get(&url, "GET", Some("bytes=44-45")).0, 206);
+    // The same tracks grown since — a meeting opened while it records, then again: a new offer,
+    // as long as they are now; the same tracks placed elsewhere, too.
+    let growing = folder.path().join("growing.wav");
+    track(&growing, 48_000, 3);
+    let short = served.offer(vec![(growing.clone(), 0.0)]).unwrap();
+    track(&growing, 480_000, 3);
+    let grown = served.offer(vec![(growing.clone(), 0.0)]).unwrap();
+    assert_ne!(grown, short);
+    assert_eq!(header(&get(&grown, "HEAD", None).1, "content-length"), Some("960044"));
+    assert_ne!(served.offer(vec![(growing.clone(), 1.0)]).unwrap(), grown);
+    // Beside a longer track, the mix the same size: a short track grown, or moved, still makes
+    // another mix.
+    let long = folder.path().join("long.wav");
+    track(&long, 480_000, 2);
+    track(&growing, 48_000, 3);
+    let beside = served.offer(vec![(long.clone(), 0.0), (growing.clone(), 0.0)]).unwrap();
+    track(&growing, 96_000, 3);
+    let grown_beside = served.offer(vec![(long.clone(), 0.0), (growing.clone(), 0.0)]).unwrap();
+    assert_ne!(grown_beside, beside);
+    assert_ne!(
+        served.offer(vec![(long.clone(), 0.0), (growing.clone(), 1.0)]).unwrap(),
+        grown_beside
+    );
+    // Another meeting of the very same form — same place, length and rate: another offer, and
+    // its own sound, never the one before.
+    let twin = folder.path().join("twin.wav");
+    track(&twin, 96_000, 5);
+    let first = served.offer(vec![(growing.clone(), 0.0)]).unwrap();
+    let other = served.offer(vec![(twin.clone(), 0.0)]).unwrap();
+    assert_ne!(other, first);
+    let twin_mix = Mix::of(&[(twin.clone(), 0.0)]).unwrap();
+    assert!(get(&other, "GET", None).2 == twin_mix.read(0, twin_mix.size()).unwrap());
+    served.offer(offered.clone()).unwrap();
+    let url = served.offer(offered.clone()).unwrap();
     // Another meeting opened: the earlier offer is gone.
     let again = served.offer(vec![(remote.clone(), 0.0)]).unwrap();
     assert_eq!(get(&url, "GET", None).0, 404);
