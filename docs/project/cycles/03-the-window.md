@@ -80,7 +80,7 @@ deliverables:
   - id: D26
     title: "A user listens to a meeting, its words following"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a meeting with its audio and its transcript, when the user plays it, then both sides are heard together, the line being said is marked and kept in view, and who spoke shows where the playback is; a click on a line or on who spoke moves the playback there; the space bar plays and pauses; a meeting whose audio went to the trash offers no player and says why"
   - id: D28
@@ -404,7 +404,7 @@ boards' style (board 2, the meeting), no new board: the decider judges it in its
 whatsapp web ou autre et que le micro est sollicité, on me propose automatiquement d'enregistrer
 via wholeheard ?", then "oui cadre-le dans ce cycle, il faut bien prendre en compte le switch du
 matériel utilisé (un user peut changer les sources audio : baffle, casque, micro intégré, micro
-écouteur etc.)". The end date does not move.
+écouteur etc.), continue en autonomie". The end date does not move.
 
 - **D30, the offer.** Board 6's offer, not its recording by itself. Board 6 draws it as a card
   apart from the small window, naming the application ("Firefox utilise votre micro"). It is
@@ -431,15 +431,14 @@ matériel utilisé (un user peut changer les sources audio : baffle, casque, mic
   device of other channels and rate. If it does not hold, the track's form is a new contract
   version, decided then. Telling the user is a `recording/v1` event, an additive change, which
   the shell turns into a notice, so the shell is touched too. Each device recorded is a
-  `session-audio` record. Both go through the contracts module first.
+  `session-audio` record. Both go through the contracts module first, which answers its own
+  open questions there (`recording/v1`, a
+  source gone during the recording; `session-audio/v2`, a device changed during a meeting).
   - A limit stays, as #149 found: a microphone chosen inside the call's own application is not
-    the system's default, so Wholeheard does not record it. D30 makes that visible, since it
-    knows which application took a microphone.
-  - Bluetooth and real devices are the decider's trial (D23); the e2e uses virtual devices. The contracts' own open questions (`recording/v1`, a
-  source gone during the recording; `session-audio/v2`, a device changed during a meeting) are
-  answered there.
+    the system's default, so Wholeheard does not record it. No criterion here changes that.
+  - Bluetooth and real devices are the decider's trial (D23); the e2e uses virtual devices.
 
-**Appetite.** D30 and D31 enter with 18 days left, beside D26 (in progress), D27 (a
+**Appetite.** D30 and D31 enter with 18 days left, beside D26 and D29 (in progress), D27 (a
 colleague's trial) and D23. Each is meant to take about a week. If they do not fit, D31's
 third criterion (the session's record of each device) is cut first, then D30's choice of
 nothing from the offer itself (Settings keep it). The end date does not move.
