@@ -32,6 +32,8 @@ Writes the minutes of a transcript.
 - The minutes name the host that answered, or `local` — never a key, a path or a full address.
 - A key the provider sends back in its answer is never written; nothing leaves before `sending`.
 - What the meeting did not settle is asked to be said, never guessed.
+- A log line holds steps, counts, durations, hosts and failures — never a text of the meeting,
+  its context, a key, nor a session's path beyond its folder's name (`tests/program.rs`).
 
 ## Known traps
 

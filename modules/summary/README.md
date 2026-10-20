@@ -69,6 +69,12 @@ Whatever fails — no network, a refused key, no credit left with the provider, 
 model, an answer cut short or that is not minutes — the reason is one sentence on the error
 stream, the transcript is untouched and the minutes that were there are still there.
 
+What it does is logged — each step and each failure with its detail, never a word of the
+meeting, its context or a key (ADR-0007): one JSON line per step in
+`$XDG_STATE_HOME/wholeheard/logs/summary.<date>.jsonl` (UTC), fourteen days kept and the folder
+under 50 MB. `WHOLEHEARD_LOG_DIR`, an absolute path, puts them elsewhere, `WHOLEHEARD_LOG=debug` asks for more, and `WHOLEHEARD_TRACE` is the id of
+the making the shell passes, so that its lines and the shell's read together.
+
 ## Getting started
 
 The standard verbs — `bootstrap`, `check`, `test`, `run` — are declared in the `commands`

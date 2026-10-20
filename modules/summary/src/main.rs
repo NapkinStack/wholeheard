@@ -12,13 +12,23 @@
 //! It says what happens as one JSON object per line on its output — `sending`, then
 //! `written` — and what failed in one sentence on the error stream. Whatever fails, the
 //! transcript is untouched and the minutes that were there are still there.
+//!
+//! What it does is logged — never what was said — in the user's state folder (`log`).
 
-use std::{fs, io::Write, path::Path, process::ExitCode, time::Duration};
+use std::{
+    fs,
+    io::Write,
+    path::Path,
+    process::ExitCode,
+    time::{Duration, Instant},
+};
 
 use serde_json::json;
-use wholeheard_summary::{Made, Refused, TEST, minutes, provider::Provider, read_transcript, request, write_minutes};
+use tracing::{error, info};
+use wholeheard_summary::{Made, Refused, TEST, log, minutes, provider::Provider, read_transcript, request, write_minutes};
 
 fn main() -> ExitCode {
+    let _run = log::start("summary");
     // Arguments that are not text are refused like any other mistake, not with a crash.
     let args: Vec<String> = std::env::args_os().skip(1).filter_map(|arg| arg.into_string().ok()).collect();
     let all_text = args.len() + 1 == std::env::args_os().count();
@@ -37,6 +47,7 @@ fn main() -> ExitCode {
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(Refused(why)) => {
+            error!(detail = %why, "summary.failed");
             eprintln!("wholeheard-summary: {why}");
             ExitCode::FAILURE
         }
@@ -48,11 +59,14 @@ fn main() -> ExitCode {
 fn test(address: &str, model: &str) -> Result<(), Refused> {
     let key = key()?;
     let provider = Provider::new(address, model, key.as_deref(), Duration::from_secs(60))?;
+    info!(host = %provider.host(), model, key = key.is_some(), "summary.testing");
     let sending = json!({ "event": "sending", "host": provider.host(), "model": provider.model(), "characters": TEST.chars().count() });
     if writeln!(std::io::stdout(), "{sending}").is_err() {
         return Err(Refused("nothing was sent: what is sent could not be said first".into()));
     }
+    let asked = Instant::now();
     provider.ask(TEST)?;
+    info!(milliseconds = asked.elapsed().as_millis() as u64, "summary.answered");
     let _ = writeln!(
         std::io::stdout(),
         "{}",
@@ -71,6 +85,12 @@ fn key() -> Result<Option<String>, Refused> {
 }
 
 fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
+    // The folder's name, never its path: the path says whose meetings and where.
+    let named = folder
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    info!(session = %named, "summary.started");
     let transcript = fs::read_to_string(folder.join("transcript.jsonl"))
         .map_err(|error| Refused(format!("this session has no transcript to read ({error})")))?;
     let segments = read_transcript(&transcript)?;
@@ -91,6 +111,7 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
         }
     };
     let asked = request(&segments, context.as_deref());
+    info!(segments = segments.len(), context = context.is_some(), "summary.read");
 
     let key = key()?;
     let provider = Provider::new(address, model, key.as_deref(), Duration::from_secs(600))?;
@@ -99,7 +120,14 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     if writeln!(std::io::stdout(), "{sending}").is_err() {
         return Err(Refused("nothing was sent: what is sent could not be said first".into()));
     }
+    info!(host = %provider.host(), model, key = key.is_some(), characters = asked.chars().count(), "summary.sending");
+    let sent = Instant::now();
     let answer = provider.ask(&asked)?;
+    info!(
+        milliseconds = sent.elapsed().as_millis() as u64,
+        characters = answer.chars().count(),
+        "summary.answered"
+    );
     // A provider that sends the key back in its answer does not get it written in a file.
     if key.as_deref().is_some_and(|key| !key.is_empty() && answer.contains(key)) {
         return Err(Refused(format!(
@@ -119,6 +147,7 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
         },
     )?;
     write_minutes(folder, &written).map_err(|error| Refused(format!("the minutes could not be written ({error})")))?;
+    info!("summary.written");
     let _ = writeln!(
         std::io::stdout(),
         "{}",

@@ -5,9 +5,17 @@
 use std::{
     io::{BufRead, BufReader, Read, Write},
     net::TcpListener,
+    process::Command,
     sync::mpsc::{self, Receiver},
     thread,
 };
+
+/// The program, its logs kept in the tests' own folder, never in the user's.
+pub fn program() -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
+    command.env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"));
+    command
+}
 
 pub const MINUTES: &str = "## Points forts\n\nLa date est fixée au 3 juin.\n\n## Actions\n\n- Aucune.\n\n## Points clés\n\n- Le 3 juin.\n";
 
