@@ -175,6 +175,13 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 
 /* One meeting (D11's second board): where each step ran, the relief's span, makers in monospace. */
 .drawn .legend .range { margin-left: auto; font: 12.5px ui-monospace, monospace; color: var(--soft); }
+/* The player (D26): the drawing is its control, a line marks where the playback is. */
+.drawn .drawing { position: relative; cursor: pointer; }
+.drawn .playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); opacity: 0.7; pointer-events: none; }
+.drawn .player { display: flex; align-items: center; gap: 12px; }
+.drawn .player .at { font: 12.5px ui-monospace, monospace; color: var(--soft); font-variant-numeric: tabular-nums; }
+.lines li { cursor: pointer; border-radius: 8px; }
+.lines li.now { background: var(--raised); box-shadow: 0 0 0 6px var(--raised); }
 .maker { font: 12.5px ui-monospace, monospace; color: var(--soft); }
 .minutes > .primary, .transcript > .primary { align-self: flex-start; }
 

@@ -11,17 +11,21 @@ from __future__ import annotations
 import datetime as dt
 import http.server
 import json
+import math
 import os
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import threading
 import time
+import wave
 from pathlib import Path
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchWindowException, StaleElementReferenceException, WebDriverException
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.options import ArgOptions
@@ -1250,6 +1254,81 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_element(By.ID, "weight").is_displayed())
         one = browser.find_element(By.ID, "taken").text
         check("one meeting is said in the singular", one == "taken by 1 meeting · 10 min of audio", one)
+
+    print("J. a meeting listened to, its words following (D26) — muted: nothing reaches the speakers")
+    listening = WORK / "listening"
+    played = listening / "2026-10-19_10-00"
+    session(played, now - dt.timedelta(hours=1), 0.1, {})
+    record = json.loads((played / "session.json").read_text())
+    record["tracks"] = {"local": {"device": "Mic"}, "remote": {"device": "Speaker"}}
+    (played / "session.json").write_text(json.dumps(record))
+    for name, hertz in (("local", 440), ("remote", 880)):
+        with wave.open(str(played / f"{name}.wav"), "wb") as made:
+            made.setnchannels(2)
+            made.setsampwidth(3)
+            made.setframerate(48000)
+            frames = bytearray()
+            for n in range(48000 * 6):
+                sample = int(0.2 * 8388607 * math.sin(2 * math.pi * hertz * n / 48000))
+                frames += struct.pack("<i", sample)[:3] * 2
+            made.writeframes(bytes(frames))
+    # The remote track's frame 0 is half a second into the session.
+    (played / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n{"track":"remote","sample":0,"at":0.5}\n')
+    heard = [(0.4, "local", "Bonjour à tous."), (2.5, "remote", "Bonjour, je vous entends."), (4.2, "local", "Commençons.")]
+    (played / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":"fr","context":null}\n'
+        + "".join(json.dumps({"type": "segment", "speaker": "me" if track == "local" else "others", "track": track, "voice": None,
+                              "start": start, "end": start + 1.5, "text": text}, ensure_ascii=False) + "\n" for start, track, text in heard)
+        + '{"type":"complete","duration":6.0}\n'
+    )
+    freed = listening / "2026-10-19_09-00"
+    session(freed, now - dt.timedelta(hours=2), 0.1, {})
+    shutil.copy(played / "transcript.jsonl", freed / "transcript.jsonl")
+    # Audio there, and no track this version plays: not said freed.
+    unplayable = listening / "2026-10-19_08-00"
+    session(unplayable, now - dt.timedelta(hours=3), 0.1, {"local.wav": 4000})
+    shutil.copy(played / "transcript.jsonl", unplayable / "transcript.jsonl")
+    with Window(listening, "fr_FR.UTF-8") as browser:
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
+        ready = wait_for(browser, lambda b: b.find_elements(By.ID, "play") and len(b.execute_script("return document.querySelectorAll('audio.track')")) == 2, 10)
+        check("a meeting with its audio has a player, its two tracks", ready)
+        browser.execute_script("document.querySelectorAll('audio.track').forEach(a => { a.muted = true; a.volume = 0; })")
+        lead = "const a = document.querySelector('audio.track'); return a.currentTime + Number(a.dataset.starts)"
+        press(browser, "play")
+        moving = wait_for(browser, lambda b: b.execute_script(lead) > 0.8, 10)
+        both = browser.execute_script("return [...document.querySelectorAll('audio.track')].map(a => [a.dataset.track, a.paused, a.currentTime])")
+        check("Écouter plays both tracks together", moving and all(not paused for _, paused, _ in both), both)
+        marked = wait_for(browser, lambda b: b.execute_script("return document.querySelector('.lines li.now')?.dataset.start") == "0.4", 5)
+        check("the line being said is marked", marked, browser.execute_script("return document.querySelector('.lines li.now')?.textContent"))
+        shot(browser, "10-playing")
+        apart = browser.execute_script(
+            "const [l, r] = document.querySelectorAll('audio.track'); return Math.abs((l.currentTime + Number(l.dataset.starts)) - (r.currentTime + Number(r.dataset.starts)))")
+        check("the remote track plays where the clock puts it: half a second later in its file", apart < 0.3, apart)
+        browser.find_elements(By.CSS_SELECTOR, ".lines li")[2].click()
+        jumped = wait_for(browser, lambda b: abs(b.execute_script(lead) - 4.2) < 0.6
+                          and b.execute_script("return document.querySelector('.lines li.now')?.dataset.start") == "4.2", 5)
+        check("a click on a line plays from it, and marks it", jumped, browser.execute_script(lead))
+        width = browser.execute_script("return document.querySelector('.drawing').getBoundingClientRect().width")
+        ActionChains(browser).move_to_element_with_offset(browser.find_element(By.CSS_SELECTOR, ".drawing"), int(-width / 2 + width * 0.4), 0).click().perform()
+        sought = wait_for(browser, lambda b: abs(b.execute_script(lead) - 2.4) < 0.6, 5)
+        check("a click on who spoke moves the playback there", sought, browser.execute_script(lead))
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.SPACE)
+        paused = wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('audio.track')].every(a => a.paused)"), 5)
+        check("the space bar pauses", paused and browser.find_element(By.ID, "play").text == "Écouter", browser.find_element(By.ID, "play").text)
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.SPACE)
+        again = wait_for(browser, lambda b: not b.execute_script("return document.querySelector('audio.track').paused"), 5)
+        check("and plays again", again)
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_09-00'")
+        none = wait_for(browser, lambda b: b.find_elements(By.ID, "no-player"), 10)
+        check("a meeting whose audio was freed has no player, and says why",
+              none and not browser.find_elements(By.ID, "play") and "libéré" in browser.find_element(By.ID, "no-player").text
+              and not browser.execute_script("return document.querySelectorAll('audio.track').length"),
+              browser.find_element(By.ID, "no-player").text if none else "")
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_08-00'")
+        there = wait_for(browser, lambda b: b.find_elements(By.ID, "no-player") and "libéré" not in b.find_element(By.ID, "no-player").text, 10)
+        check("a meeting whose audio is there but not playable is not said freed",
+              there and "ne s’écoute pas ici" in browser.find_element(By.ID, "no-player").text,
+              browser.find_element(By.ID, "no-player").text if there else "")
     return 1 if FAILED else 0
 
 

@@ -303,6 +303,12 @@ pub struct Window {
     pub minutes_sections: [&'static str; 3],
     /// A model of this computer that holds the minutes' form, as Settings offer it ({}).
     pub model_recommended: &'static str,
+    /// A meeting's player (D26): its button, both ways, and why a meeting has none.
+    pub play: &'static str,
+    pub pause: &'static str,
+    pub no_player: &'static str,
+    /// Its audio is there, and no track of it is one this version plays.
+    pub not_playable: &'static str,
     /// In developer mode: the logs' level, the logs' folder, a meeting's diagnostic copied.
     pub log_level: [&'static str; 2],
     pub log_info: &'static str,
@@ -510,6 +516,10 @@ pub fn window(language: Language) -> Window {
             program_said: "What the program said: {}",
             minutes_sections: ["Highlights", "Actions", "Key points"],
             model_recommended: "{} — recommended",
+            play: "Listen",
+            pause: "Pause",
+            not_playable: "Its audio cannot be listened to here: it holds no track this version plays.",
+            no_player: "Its audio was freed: the meeting can no longer be listened to. Its transcript and minutes stay.",
             log_level: ["Logs’ level", "Read at Wholeheard’s next start, by it and its programs."],
             log_info: "Usual",
             log_debug: "Detailed",
@@ -710,6 +720,10 @@ pub fn window(language: Language) -> Window {
             program_said: "Ce qu’a dit le programme\u{a0}: {}",
             minutes_sections: ["Points saillants", "Actions", "Points clés"],
             model_recommended: "{} — recommandé",
+            play: "Écouter",
+            pause: "Pause",
+            not_playable: "Son audio ne s’écoute pas ici\u{a0}: il ne contient aucune piste que cette version lit.",
+            no_player: "Son audio a été libéré\u{a0}: la réunion ne s’écoute plus. Son transcript et son compte rendu restent.",
             log_level: [
                 "Niveau des journaux",
                 "Pris en compte au prochain démarrage de Wholeheard, par lui et ses programmes.",

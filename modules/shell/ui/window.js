@@ -532,6 +532,13 @@ function transcriptCard(read, words, session) {
   for (const segment of read.segments) {
     const line = element("li");
     line.dataset.track = segment.track;
+    line.dataset.start = String(segment.start);
+    // A click on a line plays the meeting from it (D26).
+    line.addEventListener("click", () => {
+      if (!player || player.name !== nameOf(session)) return;
+      player.seek(segment.start);
+      player.play();
+    });
     const side = segment.track === "local" ? words.here : words.remote;
     const who = segment.voice === null ? side : `${side} · ${fill(words.voice, segment.voice)}`;
     const said = element("div", "said");
@@ -554,7 +561,112 @@ function transcriptCard(read, words, session) {
   return card;
 }
 
-function showMeeting({ session, transcript, minutes, developer }, words) {
+// The meeting being listened to (D26): its tracks, kept while its page is drawn again, so that
+// a window coming forward never stops what plays. Paused when another page is shown.
+let player = null;
+
+// Plays a meeting's tracks together where the session's clock puts them: the one starting first
+// leads, the others follow it, put back in place when they drift. `onTime` is told the session's
+// time as it moves.
+function listen(name, tracks) {
+  if (player?.name === name) return player;
+  player?.stop();
+  const audios = [...tracks]
+    .sort((a, b) => a.starts - b.starts)
+    .map((track) => {
+      const audio = new Audio(track.url);
+      audio.preload = "metadata";
+      audio.className = "track";
+      audio.dataset.track = track.name;
+      audio.dataset.starts = String(track.starts);
+      return audio;
+    });
+  const lead = audios[0];
+  const shown = { name, audios, listeners: new Set(), frame: 0 };
+  const now = () => lead.currentTime + Number(lead.dataset.starts);
+  const follow = () => {
+    const at = now();
+    for (const audio of audios.slice(1)) {
+      const wanted = at - Number(audio.dataset.starts);
+      if (wanted < 0 || wanted >= (audio.duration || Infinity)) {
+        if (!audio.paused) audio.pause();
+      } else {
+        if (Math.abs(audio.currentTime - wanted) > 0.15) audio.currentTime = wanted;
+        if (audio.paused && !lead.paused) audio.play().catch(() => {});
+      }
+    }
+    for (const listener of shown.listeners) listener(at);
+    if (!lead.paused) shown.frame = requestAnimationFrame(follow);
+  };
+  shown.time = now;
+  shown.playing = () => !lead.paused;
+  shown.play = () => lead.play().then(() => { cancelAnimationFrame(shown.frame); follow(); }).catch(() => {});
+  shown.pause = () => {
+    for (const audio of audios) audio.pause();
+    cancelAnimationFrame(shown.frame);
+    follow();
+  };
+  shown.seek = (at) => {
+    lead.currentTime = Math.max(0, at - Number(lead.dataset.starts));
+    follow();
+  };
+  shown.stop = () => {
+    shown.pause();
+    for (const audio of audios) audio.remove();
+  };
+  lead.addEventListener("ended", () => shown.pause());
+  lead.addEventListener("pause", () => follow());
+  // Kept in the page, never shown: the browser plays an element it holds.
+  document.body.append(...audios);
+  player = shown;
+  return shown;
+}
+
+// The player of a meeting's page: Écouter / Pause, where the playback is, and the drawing of who
+// spoke as its control — a click puts the playback there (D26).
+function playerBar(session, tracks, total, words, drawing) {
+  if (tracks.length === 0) {
+    // Freed, said so; there and not playable, said so too — never one for the other.
+    const freed = element("p", "note", session.audio > 0 ? words.not_playable : words.no_player);
+    freed.id = "no-player";
+    return freed;
+  }
+  const shown = listen(nameOf(session), tracks);
+  const bar = element("div", "player");
+  const toggle = element("button", "open", "");
+  toggle.type = "button";
+  toggle.id = "play";
+  const at = element("span", "at", "");
+  at.id = "played";
+  const head = element("span", "playhead");
+  drawing.append(head);
+  const paint = (time) => {
+    toggle.textContent = shown.playing() ? words.pause : words.play;
+    toggle.setAttribute("aria-pressed", String(shown.playing()));
+    at.textContent = `${clock(time)} / ${clock(total)}`;
+    head.style.left = `${Math.min(100, (time / total) * 100)}%`;
+  };
+  shown.listeners.clear();
+  shown.listeners.add(paint);
+  toggle.addEventListener("click", () => (shown.playing() ? shown.pause() : shown.play()));
+  drawing.addEventListener("click", (event) => {
+    const box = drawing.getBoundingClientRect();
+    shown.seek(((event.clientX - box.left) / box.width) * total);
+  });
+  paint(shown.time());
+  bar.append(toggle, at);
+  return bar;
+}
+
+// The space bar plays and pauses the meeting shown, wherever the focus is but in a field.
+document.addEventListener("keydown", (event) => {
+  if (event.key !== " " || !player || document.getElementById("meeting")?.hidden) return;
+  if (event.target.closest("input, textarea, select, button, a")) return;
+  event.preventDefault();
+  player.playing() ? player.pause() : player.play();
+});
+
+function showMeeting({ session, transcript, minutes, developer, tracks }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
   const back = element("a", "back", `‹ ${words.back}`);
@@ -601,13 +713,29 @@ function showMeeting({ session, transcript, minutes, developer }, words) {
     element("span", "remote", words.remote_described),
     element("span", "range", `${clock(0)} – ${clock(total)}`),
   );
-  drawn.append(relief(said, total, words), legend);
+  const drawing = element("div", "drawing");
+  drawing.append(relief(said, total, words));
+  drawn.append(drawing, legend, playerBar(session, tracks, total, words, drawing));
   const columns = element("div", "columns");
   columns.append(minutesCard(minutes, words, session, transcript), transcriptCard(transcript, words, session));
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
   page.dataset.name = nameOf(session);
   page.replaceChildren(top, title, drawn, columns);
+  // The line being said, marked and kept in view while it plays (D26).
+  if (player?.name === nameOf(session)) {
+    const lines = [...page.querySelectorAll(".lines li")];
+    let marked = null;
+    player.listeners.add((at) => {
+      const now = lines.findLast((line) => Number(line.dataset.start) <= at) ?? null;
+      if (now === marked) return;
+      marked?.classList.remove("now");
+      now?.classList.add("now");
+      if (now && player.playing()) now.scrollIntoView({ block: "nearest" });
+      marked = now;
+    });
+    player.listeners.forEach((listener) => listener(player.time()));
+  }
   const search = document.getElementById("search");
   if (search && searching) {
     search.value = searching;
@@ -1353,6 +1481,11 @@ async function refresh() {
   words = listing.words;
   show(listing);
   const wanted = location.hash.match(/^#\/meeting\/(.+)$/);
+  // Another page, or another meeting: what was played stops.
+  if (player && player.name !== (wanted && decodeURIComponent(wanted[1]))) {
+    player.stop();
+    player = null;
+  }
   const settings = location.hash === "#/settings";
   const freeing = location.hash === "#/free";
   document.getElementById("free").hidden = !freeing;
