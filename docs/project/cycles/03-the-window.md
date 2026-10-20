@@ -86,7 +86,7 @@ deliverables:
   - id: D28
     title: "Summit becomes Wholeheard, and nothing of the user's is lost on the way"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given Summit installed and used — settings, meetings, the Whisper model, keys in the keyring —, when the user installs Wholeheard's package, then it replaces Summit's, and Wholeheard starts with the same settings, the same meetings where they were, the model not fetched again and the keys kept; the shortcut is asked once"
       - "Given the repository, when it is read, then the product, its programs, its packages, its application id and its folders are named Wholeheard; Summit is named only where history is told"
@@ -380,6 +380,23 @@ PDR-0001 named the product Wholeheard: *Summit AI Notes* sells a local macOS mee
 under the old name. Before the repository opens and before any package reaches a tester. The
 user's settings, meetings, model and keys carried over, never asked for again; the meetings
 stay in the folder they are in. The repository's own name on GitHub is the decider's gesture.
+
+Built, each verified by an independent session: the programs (#264 capture, #265 transcription,
+#266 summary), the shell and the carrying over of what the user held (#267, #271), the package
+`wholeheard` taking Summit's place (#268), the contracts' prose (#269), the repository's pages
+(#270, #273), the names of the transition taken out (#272). The carrying over was failed once
+by its verifier — a settings file with no line end made unreadable, a move half-done leaving the
+meetings' folder unnamed — and redone so that each step does what is left of it at every start.
+The repository renamed `NapkinStack/wholeheard` by the decider, 2026-10-20.
+
+**Accepted on the decider's delegation, 2026-10-20**, on their own laptop: `wholeheard-0.2.0`
+installed over `summit-0.1.0` — Summit removed by dnf; the configuration's and
+the data's `wholeheard/` folders carried over, the Whisper model (834 MB) not fetched again;
+`sessions = "<documents>/Summit"` written in the settings, the meetings read where they are.
+
+Left, minor, for configurations met rarely: a settings file linked into a read-only place (Nix,
+home-manager) holds the whole carrying over back at each start; a broken link is replaced by a
+plain file; a temporary file left by a crash is never cleaned.
 
 ## Out of scope
 
