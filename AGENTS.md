@@ -28,6 +28,9 @@ and you never approve a pull request (`.nstack/handbook/07-governance.md` §7). 
 carries the trailer `Agent-Session: <an identifier of this session>`; as a verifier, you
 sign the sheet `Verifier: session <that identifier>`, and CI refuses one among the authors.
 
+**Words.** Facing a person, use the framework's words as `.nstack/handbook/glossary.md` defines
+them, and explain a term or a rule's code (`.nstack/handbook/RULES.md`) the first time you use it.
+
 ---
 
 ## 1. The five laws
