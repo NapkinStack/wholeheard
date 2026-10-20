@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path};
 
-use wholeheard_shell::settings::{After, KeepAudio, Settings, file, read, whisper_models, write};
+use wholeheard_shell::settings::{After, KeepAudio, Log, Settings, file, read, whisper_models, write};
 
 fn written(text: &str) -> Result<Settings, String> {
     let folder = tempfile::tempdir().unwrap();
@@ -361,4 +361,22 @@ fn the_developer_mode_is_off_until_the_user_turns_it_on() {
     settings.developer = false;
     write(&path, &settings).unwrap();
     assert!(!read(&path).unwrap().developer);
+}
+
+#[test]
+fn the_logs_level_is_the_usual_one_until_the_user_asks_for_more() {
+    assert_eq!(Settings::default().log, Log::Info);
+    assert_eq!(written("log = \"debug\"\n").unwrap().log, Log::Debug);
+    assert!(written("log = \"loud\"\n").unwrap_err().starts_with("<file>, line 1: "));
+    // As the programs read it in WHOLEHEARD_LOG.
+    assert_eq!((Log::Info.as_str(), Log::Debug.as_str()), ("info", "debug"));
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    let settings = Settings {
+        log: Log::Debug,
+        ..Settings::default()
+    };
+    write(&path, &settings).unwrap();
+    assert_eq!(fs::read_to_string(&path).unwrap(), "log = \"debug\"\n");
+    assert_eq!(read(&path).unwrap().log, Log::Debug);
 }

@@ -86,7 +86,7 @@ recording (`transcript = false`, from before, still means nothing); `model = "�
 Whisper model; `minutes_provider` — a provider's address, `"http://localhost:11434/v1"` for Ollama
 on this computer — and `minutes_model`
 for who writes the minutes; `minutes_agreed = "…"`, the host the user agreed to send a meeting to
-the first time — another host asks again, one on this computer never asks; `keep_audio = "always"` or a number of days; `developer = true` for the developer mode (*Settings → Advanced*). Out of the box,
+the first time — another host asks again, one on this computer never asks; `keep_audio = "always"` or a number of days; `developer = true` for the developer mode (*Settings → Advanced*); `log = "debug"` for detailed logs from the next start, the shell's and its programs' (`WHOLEHEARD_LOG`, when set, wins). Out of the box,
 sessions go to a folder `Wholeheard` in the user's documents, the transcript follows alone, and the
 model is `wholeheard/models/ggml-large-v3-turbo-q8_0.bin` in the user's data folder — fetched there
 on the user's word, or placed by hand. When Wholeheard writes the file it touches only what changed:
@@ -104,7 +104,9 @@ its program as `WHOLEHEARD_TRACE`: one id finds both sides. `WHOLEHEARD_LOG` and
 A failure reaches the user in plain words — what failed, what still holds, what to do — in a
 notification and on the window's page; what its program or the system said of it is never there
 but in the log. With the developer mode on, the page shows it under the sentence; a notification
-never does (D29).
+never does. It also offers the logs' level and folder in the settings, and on a meeting's page
+*Copy a diagnostic*: every program's lines of that meeting's makings, read together by their id
+from the days kept — nothing of the meeting, which no line holds (D29).
 
 ## Getting started
 

@@ -20,6 +20,24 @@ pub enum After {
     Minutes,
 }
 
+/// How much the logs hold: the usual steps, or more for whoever looks into a failure (D29).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Log {
+    Info,
+    Debug,
+}
+
+impl Log {
+    /// As `WHOLEHEARD_LOG` names it, for the shell and the programs it starts.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Log::Info => "info",
+            Log::Debug => "debug",
+        }
+    }
+}
+
 /// How long a session's audio is kept; its transcript and minutes stay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -49,6 +67,8 @@ pub struct Settings {
     pub keep_audio: KeepAudio,
     /// Shows, under a failure on the window's page, what the program said of it (D29).
     pub developer: bool,
+    /// The logs' level, from Wholeheard's next start.
+    pub log: Log,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -68,6 +88,7 @@ impl Default for Settings {
             minutes_agreed: None,
             keep_audio: KeepAudio::Always,
             developer: false,
+            log: Log::Info,
         }
     }
 }
@@ -110,6 +131,7 @@ struct Written {
     minutes_agreed: Option<String>,
     keep_audio: Option<toml::Spanned<toml::Value>>,
     developer: Option<bool>,
+    log: Option<Log>,
 }
 
 /// Reads the settings. No file is no choice made: the defaults. A file that cannot be read as
@@ -143,6 +165,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     let mut settings = Settings::default();
     settings.reminder = written.reminder.unwrap_or(settings.reminder);
     settings.developer = written.developer.unwrap_or(settings.developer);
+    settings.log = written.log.unwrap_or(settings.log);
     settings.after = match (written.after, written.transcript) {
         (Some(after), _) => after,
         (None, Some(false)) => After::Nothing,
@@ -211,6 +234,9 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     }
     if settings.developer != before.developer {
         set(&mut document, "developer", Value::from(settings.developer));
+    }
+    if settings.log != before.log {
+        set(&mut document, "log", Value::from(settings.log.as_str()));
     }
     if settings.sessions != before.sessions {
         set(&mut document, "sessions", text(&settings.sessions));

@@ -483,8 +483,16 @@ def main() -> int:
             and "# mine" in text,
             text,
         )
+        # On, the developer mode offers the logs' level and their folder (D29).
+        check("the developer mode offers the logs' level and their folder",
+              browser.find_elements(By.ID, "log-level") and browser.find_elements(By.ID, "open-logs"))
+        changed(lambda: Select(browser.find_element(By.ID, "log-level")).select_by_value("debug"))
+        check("the logs' level chosen is in the file", 'log = "debug"' in window.file.read_text(), window.file.read_text())
+        changed(lambda: Select(browser.find_element(By.ID, "log-level")).select_by_value("info"))
+        check("the usual level chosen again is in the file", 'log = "info"' in window.file.read_text(), window.file.read_text())
         changed(lambda: browser.find_element(By.ID, "developer").click())
-        check("the developer mode turned off again is said so in the file", "developer = false" in window.file.read_text(), window.file.read_text())
+        check("the developer mode turned off again is said so in the file, and hides its rows",
+              "developer = false" in window.file.read_text() and not browser.find_elements(By.ID, "log-level"), window.file.read_text())
         failed = browser.find_element(By.ID, "not-saved").is_displayed()
         check("nothing said failed", not failed)
         # Any number of days, when the list has not the one wanted.
@@ -951,6 +959,13 @@ def main() -> int:
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         detailed = wait_for(browser, lambda b: "the provider's answer is not minutes" in state(b) and "n’a pas été fait" in state(b), 5)
         check("in developer mode, what the program said is under the sentence", detailed, state(browser))
+        # And the meeting's diagnostic: its makings' lines, every program's — nothing of a path of the run.
+        offered = wait_for(browser, lambda b: b.find_elements(By.ID, "copy-diagnostic"), 5)
+        lines = browser.execute_async_script(
+            "window.__TAURI__.core.invoke('diagnostic', {name: '2026-10-18_11-00'}).then(arguments[arguments.length - 1])"
+        )
+        check("in developer mode, the meeting offers its diagnostic: its failed minutes, no path of the run",
+              offered and '"shell.minutes_failed"' in lines and str(WORK) not in lines, lines[-600:])
         browser.execute_script("location.hash = '#/settings'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "developer"))
         press(browser, "developer")

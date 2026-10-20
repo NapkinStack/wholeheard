@@ -59,6 +59,7 @@ main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 56px; display: flex
 .chip.cut { color: var(--soft); font-style: italic; }
 .session:hover { border-color: var(--accent); }
 .meeting-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.meeting-top .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .back { color: var(--soft); text-decoration: none; font-weight: 500; padding: 10px 4px; }
 .open, .search { min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font: inherit; }
 .open { padding: 0 16px; font-weight: 600; cursor: pointer; }
