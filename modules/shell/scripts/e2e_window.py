@@ -1304,6 +1304,19 @@ def main() -> int:
     unplayable = listening / "2026-10-19_08-00"
     session(unplayable, now - dt.timedelta(hours=3), 0.1, {"local.wav": 4000})
     shutil.copy(played / "transcript.jsonl", unplayable / "transcript.jsonl")
+    # A meeting of two minutes, one track of silence: more than a player reads ahead of itself.
+    long = listening / "2026-10-19_06-00"
+    session(long, now - dt.timedelta(hours=5), 2, {})
+    record = json.loads((long / "session.json").read_text())
+    record["tracks"] = {"local": {"device": "Mic"}}
+    (long / "session.json").write_text(json.dumps(record))
+    with wave.open(str(long / "local.wav"), "wb") as made:
+        made.setnchannels(1)
+        made.setsampwidth(2)
+        made.setframerate(48000)
+        made.writeframes(bytes(2 * 48000 * 120))
+    (long / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n')
+    shutil.copy(played / "transcript.jsonl", long / "transcript.jsonl")
     # Tracks a WAV header names, in a form no player reads: listed, and refused by the window.
     unreadable = listening / "2026-10-19_07-00"
     session(unreadable, now - dt.timedelta(hours=4), 0.1, {})
@@ -1325,7 +1338,7 @@ def main() -> int:
         at = lambda b: b.execute_script("const a = document.querySelector('audio.track'); return a && !a.paused ? a.currentTime : 0")
         playing = lambda b: b.execute_script("const a = document.querySelector('audio.track'); return !!a && !a.paused")
         # As long as the last track ends: the remote one, 1.5 s in, for 6 s.
-        lasts = wait_for(browser, lambda b: b.execute_script("return document.querySelector('audio.track').duration || 0") > 0, 10)
+        lasts = wait_for(browser, lambda b: b.execute_script("return document.querySelector('audio.track')?.duration || 0") > 0, 10)
         length = browser.execute_script("return document.querySelector('audio.track').duration || 0")
         check("the sound lasts to the end of the last track", lasts and abs(length - 7.5) < 0.05, length)
         press(browser, "play")
@@ -1415,17 +1428,17 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         stopped = wait_for(browser, lambda b: not b.execute_script("return document.querySelectorAll('audio.track').length"), 10)
         check("the list shown, nothing plays", stopped)
-        # Its sound refused by the server — its tracks gone since the page was drawn: said, never silence.
-        browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
+        # Its sound refused by the server — its track gone since the page was drawn, then a part of
+        # it asked for that the player had not read: said, never silence.
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_06-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.execute_script("return document.querySelector('audio.track')?.duration || 0") > 0, 10)
         browser.execute_script("document.querySelectorAll('audio.track').forEach(a => { a.muted = true; a.volume = 0; })")
-        for name in ("local", "remote"):
-            (played / f"{name}.wav").rename(listening / f"aside-{name}.wav")
+        (long / "local.wav").rename(listening / "aside-long.wav")
+        browser.find_element(By.CSS_SELECTOR, ".drawing").send_keys(Keys.END)
         press(browser, "play")
         said = wait_for(browser, lambda b: b.find_elements(By.ID, "not-played") and b.find_element(By.ID, "not-played").text, 10)
         check("a sound that cannot be played is said", said and "n’a pas pu être lue" in browser.find_element(By.ID, "not-played").text)
-        for name in ("local", "remote"):
-            (listening / f"aside-{name}.wav").rename(played / f"{name}.wav")
+        (listening / "aside-long.wav").rename(long / "local.wav")
         # A track in a form no player reads: no sound, and it is said not playable here.
         browser.execute_script("location.hash = '#/meeting/2026-10-19_07-00'")
         unread = wait_for(browser, lambda b: b.find_elements(By.ID, "no-player") and "ne s’écoute pas ici" in b.find_element(By.ID, "no-player").text, 10)

@@ -601,6 +601,7 @@ function listen(name, url) {
   const failed = (error) => {
     // A play cut short by a pause is no failure.
     if (error?.name === "AbortError") return;
+    clearInterval(shown.ticking);
     audio.pause();
     for (const failure of shown.failures) failure();
   };
@@ -619,9 +620,11 @@ function listen(name, url) {
     audio.remove();
   };
   // The playhead and the line said, ten times a second while it plays; once more at each change.
+  // A failure is read at each tick too: WebKitGTK sets a network error on a range refused
+  // without the event, and its player waits for good.
   audio.addEventListener("play", () => {
     clearInterval(shown.ticking);
-    shown.ticking = setInterval(tell, 100);
+    shown.ticking = setInterval(() => (audio.error ? failed(audio.error) : tell()), 100);
     tell();
   });
   for (const changed of ["pause", "ended", "seeked", "loadedmetadata"]) {
