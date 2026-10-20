@@ -581,118 +581,66 @@ function transcriptCard(read, words, session) {
   return card;
 }
 
-// The meeting being listened to (D26): its tracks, kept while its page is drawn again, so that
-// a window coming forward never stops what plays. Paused when another page is shown.
+// The meeting being listened to (D26): kept while its page is drawn again, so that a window
+// coming forward never stops what plays. Stopped when another page is shown.
 let player = null;
 
-// Plays a meeting's tracks together where the session's clock puts them. One master clock, the
-// system's, as players keep audio and video in step: the session's time is where it was last
-// put plus the time since, and each track is put back to it when it drifts. No track is the
-// clock, so none can pull it back; a track at its end is never played again, which would start
-// it over. The meeting ends at the last track's end. Ticks of a timer, never of animation
-// frames: a hidden window keeps playing.
-function listen(name, tracks) {
+// Plays a meeting from the loopback server: its tracks as one sound, each where the session's
+// clock puts it (ADR-0009). One media element, so the page keeps no clock of its own: its time
+// is the session's.
+function listen(name, url) {
   if (player?.name === name) return player;
   player?.stop();
-  const audios = tracks.map((track) => {
-    const audio = new Audio(track.url);
-    audio.preload = "metadata";
-    audio.className = "track";
-    audio.dataset.track = track.name;
-    audio.dataset.starts = String(track.starts);
-    return audio;
-  });
-  const starts = (audio) => Number(audio.dataset.starts);
-  const shown = { name, audios, listeners: new Set(), failures: new Set(), on: false, base: 0, since: 0, timer: 0 };
-  // Unknown until every track has said its length.
-  const end = () => Math.max(...audios.map((audio) => starts(audio) + audio.duration));
-  const now = () => (shown.on ? shown.base + (performance.now() - shown.since) / 1000 : shown.base);
+  const audio = new Audio(url);
+  audio.preload = "metadata";
+  audio.className = "track";
+  const shown = { name, audio, listeners: new Set(), failures: new Set(), ticking: 0 };
+  const tell = () => {
+    for (const listener of shown.listeners) listener(audio.currentTime);
+  };
   const failed = (error) => {
     // A play cut short by a pause is no failure.
     if (error?.name === "AbortError") return;
-    shown.pause();
+    audio.pause();
     for (const failure of shown.failures) failure();
   };
-  // A track that should sound and is not ready yet — loading, or seeking where it was put.
-  const due = (audio, at) => at - starts(audio) >= 0 && at - starts(audio) < (audio.duration || Infinity) - 0.05;
-  const loading = (audio) => audio.seeking || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
-  const follow = () => {
-    let at = now();
-    // While one loads, the clock waits for it, as a player waits while it buffers: put back
-    // again and again, a slow track would never catch up.
-    // The others wait with it, paused where they are.
-    const waiting = shown.on && audios.some((audio) => due(audio, shown.base) && loading(audio));
-    if (waiting) at = shown.base;
-    shown.base = at;
-    shown.since = performance.now();
-    if (shown.on && at >= end()) {
-      shown.base = end();
-      shown.on = false;
-      clearInterval(shown.timer);
-      at = shown.base;
-    }
-    for (const audio of audios) {
-      const wanted = at - starts(audio);
-      const length = audio.duration || Infinity;
-      if (!shown.on || wanted < 0 || wanted >= length - 0.05 || (waiting && !loading(audio))) {
-        if (!audio.paused) audio.pause();
-        // Paused where the next play starts it, or at its start until its time comes.
-        const still = Math.min(Math.max(0, wanted), audio.duration || 0);
-        if (!audio.seeking && Math.abs(audio.currentTime - still) > 0.15) audio.currentTime = still;
-      } else {
-        if (!audio.seeking && Math.abs(audio.currentTime - wanted) > 0.15) audio.currentTime = wanted;
-        if (audio.paused) audio.play().catch(failed);
-      }
-    }
-    for (const listener of shown.listeners) listener(at);
-  };
-  shown.time = now;
-  shown.playing = () => shown.on;
-  shown.play = () => {
-    if (shown.on) return;
-    // Played to its end: listened again from its start.
-    if (shown.base >= end()) shown.base = 0;
-    shown.on = true;
-    shown.since = performance.now();
-    follow();
-    clearInterval(shown.timer);
-    shown.timer = setInterval(follow, 50);
-  };
-  shown.pause = () => {
-    shown.base = now();
-    shown.on = false;
-    clearInterval(shown.timer);
-    follow();
-  };
+  shown.time = () => audio.currentTime;
+  shown.playing = () => !audio.paused;
+  shown.play = () => audio.play().catch(failed);
+  shown.pause = () => audio.pause();
+  // Never at its very end, where WebKitGTK's player stops answering: a tenth of a second before.
   shown.seek = (at) => {
-    shown.base = Math.max(0, Math.min(at, Number.isFinite(end()) ? end() : at));
-    shown.since = performance.now();
-    // Put where it is asked, a track seeking already is sought again.
-    for (const audio of audios) {
-      const still = Math.min(Math.max(0, shown.base - starts(audio)), audio.duration || 0);
-      if (Math.abs(audio.currentTime - still) > 0.15) audio.currentTime = still;
-    }
-    follow();
+    audio.currentTime = Math.max(0, Math.min(at, (audio.duration || at + 1) - 0.1));
+    tell();
   };
   shown.stop = () => {
-    shown.on = false;
-    clearInterval(shown.timer);
-    for (const audio of audios) {
-      audio.pause();
-      audio.remove();
-    }
+    clearInterval(shown.ticking);
+    audio.pause();
+    audio.remove();
   };
-  for (const audio of audios) audio.addEventListener("error", failed);
+  // The playhead and the line said, ten times a second while it plays; once more at each change.
+  audio.addEventListener("play", () => {
+    clearInterval(shown.ticking);
+    shown.ticking = setInterval(tell, 100);
+    tell();
+  });
+  for (const changed of ["pause", "ended", "seeked", "loadedmetadata"]) {
+    audio.addEventListener(changed, () => {
+      if (changed !== "seeked" && changed !== "loadedmetadata") clearInterval(shown.ticking);
+      tell();
+    });
+  }
+  audio.addEventListener("error", failed);
   // Kept in the page, never shown: the browser plays an element it holds.
-  document.body.append(...audios);
+  document.body.append(audio);
   player = shown;
   return shown;
 }
 
 // The player of a meeting's page: Écouter / Pause, where the playback is, and the drawing of who
 // spoke as its control — a click, or the arrows on it, put the playback there (D26).
-function playerBar(session, tracks, total, words, drawing) {
-  if (tracks.length === 0) {
+function playerBar(session, listened, total, words, drawing) {
+  if (!listened) {
     // Its audio freed while it played: nothing plays on.
     if (player?.name === nameOf(session)) {
       player.stop();
@@ -703,7 +651,7 @@ function playerBar(session, tracks, total, words, drawing) {
     freed.id = "no-player";
     return freed;
   }
-  const shown = listen(nameOf(session), tracks);
+  const shown = listen(nameOf(session), listened);
   const bar = element("div", "player");
   const toggle = element("button", "open", "");
   toggle.type = "button";
@@ -766,7 +714,7 @@ document.addEventListener("keydown", (event) => {
   player.playing() ? player.pause() : player.play();
 });
 
-function showMeeting({ session, transcript, minutes, developer, tracks }, words) {
+function showMeeting({ session, transcript, minutes, developer, listen: listened }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
   const back = element("a", "back", `‹ ${words.back}`);
@@ -815,7 +763,7 @@ function showMeeting({ session, transcript, minutes, developer, tracks }, words)
   );
   const drawing = element("div", "drawing");
   drawing.append(relief(said, total, words));
-  drawn.append(drawing, legend, playerBar(session, tracks, total, words, drawing));
+  drawn.append(drawing, legend, playerBar(session, listened, total, words, drawing));
   const columns = element("div", "columns");
   columns.append(minutesCard(minutes, words, session, transcript), transcriptCard(transcript, words, session));
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
