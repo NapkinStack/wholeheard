@@ -9,7 +9,7 @@ use wholeheard_capture::Event;
 const SCHEMA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../contracts/recording/v1/event.schema.json");
 
 #[test]
-fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are_six() {
+fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are_seven() {
     let schema: serde_json::Value = serde_json::from_str(&fs::read_to_string(SCHEMA).unwrap()).unwrap();
     let allows = jsonschema::validator_for(&schema).unwrap();
     let folder = Path::new("sessions/2026-10-14_14-05");
@@ -35,6 +35,11 @@ fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are
         Event::Level { source: 0, level: 0.0 },
         Event::Level { source: 1, level: 0.4251 },
         Event::Level { source: 0, level: 1.0 },
+        Event::Device {
+            source: 0,
+            device: Some("Headset Microphone"),
+        },
+        Event::Device { source: 1, device: None },
         Event::Stopped { folder, seconds: 0.0 },
         Event::Stopped { folder, seconds: 1912.4 },
     ];
@@ -46,11 +51,11 @@ fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are
         assert!(!line.to_string().contains('\n'), "{line}");
         said.insert(line["event"].as_str().unwrap().to_string());
     }
-    // The six the contract names, and no other: an event renamed would still be a line the
+    // The seven the contract names, and no other: an event renamed would still be a line the
     // schema allows — one of a name it does not know, which a consumer ignores.
     assert_eq!(
         said,
-        ["heard", "level", "silent", "started", "stopped", "unavailable"]
+        ["device", "heard", "level", "silent", "started", "stopped", "unavailable"]
             .map(String::from)
             .into()
     );
@@ -65,4 +70,16 @@ fn a_level_is_the_peak_on_a_meter_s_scale_rounded_to_a_hundredth() {
     assert!((wholeheard_capture::level(0.01) - 1.0 / 3.0).abs() < 1e-4, "-40 dB is a third up");
     assert_eq!(Event::Level { source: 1, level: 0.4251 }.line()["level"], 0.43);
     assert_eq!(Event::Level { source: 0, level: 1.7 }.line()["level"], 1.0);
+}
+
+#[test]
+fn a_device_changed_is_another_recorded_and_one_gone_is_none_left() {
+    use cpal::ErrorKind;
+    // D31: what the system says of a stream's device is a move — to another, or to none.
+    assert_eq!(wholeheard_capture::moved(ErrorKind::DeviceChanged), Some(true));
+    assert_eq!(wholeheard_capture::moved(ErrorKind::DeviceNotAvailable), Some(false));
+    // Any other trouble of the stream is no move.
+    for other in [ErrorKind::DeviceBusy, ErrorKind::BackendError] {
+        assert_eq!(wholeheard_capture::moved(other), None, "{other:?}");
+    }
 }
