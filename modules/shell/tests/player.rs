@@ -136,6 +136,15 @@ fn the_meeting_offered_is_served_as_one_sound_whole_or_by_range_to_the_token_alo
         served.offer(vec![(long.clone(), 0.0), (growing.clone(), 1.0)]).unwrap(),
         grown_beside
     );
+    // Another meeting of the very same form — same place, length and rate: another offer, and
+    // its own sound, never the one before.
+    let twin = folder.path().join("twin.wav");
+    track(&twin, 96_000, 5);
+    let first = served.offer(vec![(growing.clone(), 0.0)]).unwrap();
+    let other = served.offer(vec![(twin.clone(), 0.0)]).unwrap();
+    assert_ne!(other, first);
+    let twin_mix = Mix::of(&[(twin.clone(), 0.0)]).unwrap();
+    assert!(get(&other, "GET", None).2 == twin_mix.read(0, twin_mix.size()).unwrap());
     served.offer(offered.clone()).unwrap();
     let url = served.offer(offered.clone()).unwrap();
     // Another meeting opened: the earlier offer is gone.
