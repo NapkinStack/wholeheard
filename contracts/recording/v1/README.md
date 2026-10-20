@@ -50,14 +50,17 @@ nothing.
 `session-audio` promises of a recording ended by a crash.
 
 **Its log**: the program logs what it does ([ADR-0007](../../../docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md)),
-at `info`, under an id of its own, in the user's folder for logs (`$XDG_STATE_HOME/wholeheard/logs`,
-or `~/.local/state/wholeheard/logs`), where it also removes day files older than fourteen days.
+at `info`, under an id of its own, in the user's folder for logs — on Linux
+`$XDG_STATE_HOME/wholeheard/logs`, or `~/.local/state/wholeheard/logs`; on macOS
+`~/Library/Logs/Wholeheard`; on Windows `%LOCALAPPDATA%\Wholeheard\logs`. There it also removes
+the day files written more than fourteen days ago, then the oldest until the folder weighs
+under 50 MB — every program's day files, nothing else.
 Whoever starts it may set, in its environment:
 
-- `WHOLEHEARD_TRACE` — the making's id: letters, digits and dashes, 64 at most. Any other value
+- `WHOLEHEARD_TRACE` — the making's id: ASCII letters, digits and dashes, 64 at most. Any other value
   is replaced by an id of the run's own, without a word;
-- `WHOLEHEARD_LOG` — `off`, `error`, `warn`, `info`, `debug` or `trace`; any other value is
-  `info`. Turned `off`, the log leaves nothing: no file, no day file removed;
+- `WHOLEHEARD_LOG` — `off`, `error`, `warn`, `info`, `debug` or `trace`, in lower case; a value
+  holding `=` is read as a `tracing` filter, for whoever knows them; any other value is `info`. Turned `off`, the log leaves nothing: no file, no day file removed;
 - `WHOLEHEARD_LOG_DIR` — an absolute folder; a relative one is ignored. A folder that cannot be
   made or written leaves no log, and changes nothing else.
 
