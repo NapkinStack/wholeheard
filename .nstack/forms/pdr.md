@@ -1,5 +1,7 @@
 # PDR-XXXX — <short, user-oriented title>
 
+> The framework's words: `.nstack/handbook/glossary.md`.
+
 - **Status**: Proposed | Accepted | Superseded by PDR-YYYY | Abandoned
 - **Date**: YYYY-MM-DD
 - **Decision makers**:

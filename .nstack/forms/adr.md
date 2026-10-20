@@ -1,5 +1,7 @@
 # ADR-XXXX — <short verb-phrase title: "Adopt X", "Split Y">
 
+> The framework's words: `.nstack/handbook/glossary.md`.
+
 - **Status**: Proposed | Accepted | Superseded by ADR-YYYY | Abandoned
 - **Date**: YYYY-MM-DD
 - **Decision makers**: <team or people>

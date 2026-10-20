@@ -4,8 +4,8 @@
 
 extends: default
 
-# Written by Copier (nstack init, nstack update), never by hand: its lines follow the
-# project name and the template path. check-yaml still loads it.
+# Written by Copier (nstack init, nstack update): its lines follow the project name and the
+# template path, and the decider changes an answer such as `checks` by hand. check-yaml still loads it.
 ignore: |
   .copier-answers.yml
 
