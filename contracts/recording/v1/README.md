@@ -8,6 +8,7 @@ flowchart LR
     S["shell — or a script,<br/>a terminal"]:::consumer -->|"starts: wholeheard-capture record <sessions-folder>, or the same with --as v1"| C["capture"]:::producer
     C -->|"its output: one JSON object per line"| S
     S -->|"its input: the line stop"| C
+    S -.->|"its environment: WHOLEHEARD_TRACE, its log's id"| C
     C -.->|"its error stream: one sentence, when it fails"| S
     C --> F["The session's folder<br/>(session-audio)"]:::file
 
@@ -47,6 +48,13 @@ nothing.
 **Failing**: the program ends in failure with one sentence on its error stream, and no
 `stopped`. Before `started`, nothing was recorded; after it, the folder holds what
 `session-audio` promises of a recording ended by a crash.
+
+**Its log**: whoever starts it may set, in its environment, `WHOLEHEARD_TRACE` — the id of the
+making, letters, digits and dashes, 64 at most —, `WHOLEHEARD_LOG` — a level — and
+`WHOLEHEARD_LOG_DIR` — an absolute folder. The program then logs what it does under that id,
+in that folder, at that level ([ADR-0007](../../../docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md)).
+None is required; none changes a line of the output, the error stream, or what it leaves. What
+the log holds is not this contract: it is read by people, never by a consumer.
 
 ## What it never does
 

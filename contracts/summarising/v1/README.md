@@ -7,7 +7,7 @@ it is asked whether a model answers: one line of text per event, for whoever sta
 flowchart LR
     S["shell — or a script,<br/>a terminal"]:::consumer -->|"starts: wholeheard-summary <session-folder> --provider <address> --model <name>"| M["summary"]:::producer
     S -->|"or: wholeheard-summary --test --provider <address> --model <name>"| M
-    S -.->|"its environment: WHOLEHEARD_PROVIDER_KEY, when the provider wants a key"| M
+    S -.->|"its environment: WHOLEHEARD_PROVIDER_KEY, when the provider wants a key; WHOLEHEARD_TRACE, its log's id"| M
     M -->|"its output: one JSON object per line"| S
     M -.->|"its error stream: one sentence, when it fails"| S
     M -->|"sends: the request, to the provider's host"| P["The provider<br/>(OpenAI's protocol)"]:::outside
@@ -54,6 +54,13 @@ order of the events, and what each means, are said here and nowhere else.
 `wholeheard-summary: `, and no `written` or `answered`. Whatever fails, the transcript is untouched
 and the minutes that were there are still there — nothing half-written is left behind. Before
 `sending`, nothing left the machine.
+
+**Its log**: whoever starts it may set, in its environment, `WHOLEHEARD_TRACE` — the id of the
+making, letters, digits and dashes, 64 at most —, `WHOLEHEARD_LOG` — a level — and
+`WHOLEHEARD_LOG_DIR` — an absolute folder. The program then logs what it does under that id,
+in that folder, at that level ([ADR-0007](../../../docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md)).
+None is required; none changes a line of the output, the error stream, or what it leaves. What
+the log holds is not this contract: it is read by people, never by a consumer.
 
 ## What it never does
 
