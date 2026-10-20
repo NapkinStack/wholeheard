@@ -49,12 +49,23 @@ nothing.
 `stopped`. Before `started`, nothing was recorded; after it, the folder holds what
 `session-audio` promises of a recording ended by a crash.
 
-**Its log**: whoever starts it may set, in its environment, `WHOLEHEARD_TRACE` — the id of the
-making, letters, digits and dashes, 64 at most —, `WHOLEHEARD_LOG` — a level — and
-`WHOLEHEARD_LOG_DIR` — an absolute folder. The program then logs what it does under that id,
-in that folder, at that level ([ADR-0007](../../../docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md)).
-None is required; none changes a line of the output, the error stream, or what it leaves. What
-the log holds is not this contract: it is read by people, never by a consumer.
+**Its log**: the program logs what it does ([ADR-0007](../../../docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md)),
+at `info`, under an id of its own, in the user's folder for logs (`$XDG_STATE_HOME/wholeheard/logs`,
+or `~/.local/state/wholeheard/logs`), where it also removes day files older than fourteen days.
+Whoever starts it may set, in its environment:
+
+- `WHOLEHEARD_TRACE` — the making's id: letters, digits and dashes, 64 at most. Any other value
+  is replaced by an id of the run's own, without a word;
+- `WHOLEHEARD_LOG` — `off`, `error`, `warn`, `info`, `debug` or `trace`; any other value is
+  `info`;
+- `WHOLEHEARD_LOG_DIR` — an absolute folder; a relative one is ignored. A folder that cannot be
+  made or written leaves no log, and changes nothing else.
+
+None is required. None, and no state of the log, changes a line of the output, the error stream
+or what the program leaves — with one exception: a run that crosses midnight UTC while the
+next day's file cannot be created has the logging library say so once on the error stream.
+The log is not what the program leaves. What the log holds is not this
+contract: it is read by people, never by a consumer.
 
 ## What it never does
 
