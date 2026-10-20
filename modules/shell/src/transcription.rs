@@ -35,14 +35,20 @@ impl Transcription {
     /// Starts the program that hears on a session's folder, with a model file. How it ended
     /// comes once on the receiver: `Written` only when it ended well with the transcript there.
     pub fn start(program: &Path, folder: &Path, model: &Path) -> io::Result<(Self, Receiver<Made>)> {
-        let trace = crate::log::making();
+        let (trace, making) = crate::log::making();
+        let _making = making.enter();
         let mut command = Command::new(program);
         command.arg(folder).arg("--model").arg(model).env("WHOLEHEARD_TRACE", &trace);
-        info!(trace, session = %named(folder), model = %named(model), "shell.transcript");
+        info!(session = %named(folder), model = %named(model), "shell.transcript");
         // A group of its own: ended, whatever it started ends with it.
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut command, 0);
-        let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+        let mut child = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .inspect_err(|error| error!(detail = %error, "shell.transcript_failed"))?;
         let (Some(mut output), Some(errors)) = (child.stdout.take(), child.stderr.take()) else {
             return Err(io::Error::other("the program that hears could not be listened to"));
         };
@@ -59,7 +65,9 @@ impl Transcription {
             last_line(errors, &kept);
             let _ = done.send(());
         });
+        let making = making.clone();
         thread::spawn(move || {
+            let _making = making.enter();
             // Asked, not waited on with the program held: `end` may need it meanwhile.
             let status = loop {
                 match waited.lock().map(|mut child| child.try_wait()) {
@@ -73,8 +81,8 @@ impl Transcription {
             let _ = all_read.recv_timeout(Duration::from_secs(1));
             let why = last.lock().map(|said| said.clone()).unwrap_or_default();
             match written {
-                true => info!(trace, "shell.transcript_written"),
-                false => error!(trace, detail = %why, status = ?status, "shell.transcript_failed"),
+                true => info!("shell.transcript_written"),
+                false => error!(detail = %crate::log::without(&why, folder.parent()), status = ?status, "shell.transcript_failed"),
             }
             let _ = tell.send(if written { Made::Written(folder) } else { Made::Failed(why) });
         });

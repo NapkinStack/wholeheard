@@ -12,6 +12,7 @@ use std::{
 };
 
 use wholeheard_shell::{
+    recording::{Recording, Said},
     summarising::{Event, Summarising},
     transcription::Transcription,
 };
@@ -39,7 +40,7 @@ fn script(path: &Path, text: &str) {
 fn of(lines: &[serde_json::Value], trace: &str) -> Vec<String> {
     lines
         .iter()
-        .filter(|line| line["trace"] == trace)
+        .filter(|line| line["span"]["trace"] == trace)
         .map(|line| line["message"].as_str().unwrap().to_string())
         .collect()
 }
@@ -52,6 +53,7 @@ fn each_making_is_logged_under_the_id_its_program_was_given() {
     tracing_subscriber::fmt()
         .json()
         .flatten_event(true)
+        .with_current_span(true)
         .with_writer(move || writer.clone())
         .init();
 
@@ -88,6 +90,23 @@ echo '{"event":"written","file":"x"}'"#,
     .unwrap();
     while !matches!(events.recv_timeout(Duration::from_secs(10)).unwrap(), Event::Ended(_)) {}
 
+    // A recording whose program fails, naming the session's full path as an older version did.
+    let records = folder.path().join("wholeheard-capture");
+    script(
+        &records,
+        r#"printf %s "$WHOLEHEARD_TRACE" > "$2/../recording.trace"
+echo "{\"event\":\"started\",\"folder\":\"$2/2026-10-20_10-00\"}"
+echo "wholeheard-capture: $2/2026-10-20_10-00/local.wav: No space left on device" >&2
+exit 1"#,
+    );
+    let sessions = folder.path().join("sessions");
+    fs::create_dir(&sessions).unwrap();
+    let (_recording, said) = Recording::start(&records, &sessions).unwrap();
+    while !matches!(said.recv_timeout(Duration::from_secs(10)).unwrap(), Said::Failed(_)) {}
+
+    // A program that is not there: the making is said to have failed, not left begun.
+    assert!(Transcription::start(&folder.path().join("nowhere"), &session, Path::new("/models/ggml-a.bin")).is_err());
+
     let text = String::from_utf8(kept.0.lock().unwrap().clone()).unwrap();
     let lines: Vec<serde_json::Value> = text.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
     let heard = fs::read_to_string(folder.path().join("transcript.trace")).unwrap();
@@ -102,7 +121,24 @@ echo '{"event":"written","file":"x"}'"#,
         (&asked["session"], &asked["host"], &asked["key"]),
         (&"2026-10-20_10-00".into(), &"openrouter.ai".into(), &true.into())
     );
-    for said in ["a-key-for-the-test", &*folder.path().to_string_lossy()] {
+    let recorded = fs::read_to_string(folder.path().join("recording.trace")).unwrap();
+    assert_eq!(
+        of(&lines, &recorded),
+        ["shell.recording", "shell.recording_started", "shell.recording_failed"],
+        "{text}"
+    );
+    let failed = lines.iter().find(|line| line["message"] == "shell.recording_failed").unwrap();
+    assert_eq!(
+        failed["detail"],
+        "wholeheard-capture: <sessions>/2026-10-20_10-00/local.wav: No space left on device"
+    );
+    let missing: Vec<_> = lines
+        .iter()
+        .filter(|line| line["message"].as_str().unwrap().starts_with("shell.transcript"))
+        .collect();
+    assert_eq!(missing.len(), 4, "{text}");
+    assert_eq!(missing[3]["message"], "shell.transcript_failed");
+    for said in ["a-key-for-the-test", "/models", &*folder.path().to_string_lossy()] {
         assert!(!text.contains(said), "the log holds {said:?}: {text}");
     }
 }

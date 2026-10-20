@@ -1028,9 +1028,9 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
     let summary = program("wholeheard-summary", "WHOLEHEARD_SUMMARY");
     let ran = tauri::async_runtime::spawn_blocking(move || {
         let key = providers::host(&provider).and_then(|host| keys::key(&host).ok().flatten());
-        let trace = log::making();
+        let (trace, making) = log::making();
+        let _making = making.enter();
         tracing::info!(
-            trace,
             host = providers::host(&provider).unwrap_or_default(),
             model,
             key = key.is_some(),
@@ -1044,7 +1044,15 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
         if let Some(key) = key {
             command.env("WHOLEHEARD_PROVIDER_KEY", key);
         }
-        command.output()
+        let output = command.output();
+        match &output {
+            Ok(output) if output.status.success() => tracing::info!("shell.tested"),
+            Ok(output) => {
+                tracing::error!(detail = %String::from_utf8_lossy(&output.stderr).trim(), status = ?output.status, "shell.test_failed")
+            }
+            Err(error) => tracing::error!(detail = %error, "shell.test_failed"),
+        }
+        output
     })
     .await
     .map_err(|error| error.to_string())?;

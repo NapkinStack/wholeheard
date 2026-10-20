@@ -50,18 +50,31 @@ fn trace() -> String {
     }
 }
 
-/// A new making's id: unique on this machine, nothing of the meeting in it.
-pub fn making() -> String {
+/// A new making: its id — unique on this machine, nothing of the meeting in it — and the span
+/// its lines are logged in, so that they say `span.trace` as the program's own lines do.
+pub fn making() -> (String, tracing::Span) {
     static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
     let count = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    format!("{:x}-{:x}-{count}", now.as_millis(), std::process::id())
+    let id = format!("{:x}-{:x}-{count}", now.as_millis(), std::process::id());
+    let span = tracing::span!(Level::ERROR, "making", program = "shell", trace = %id);
+    (id, span)
+}
+
+/// A program's sentence as the log may hold it: the folder of sessions it may name taken out —
+/// a version of a program that says a path must not put whose meetings, and where, in a log.
+pub fn without(said: &str, sessions: Option<&Path>) -> String {
+    match sessions.map(Path::to_string_lossy).filter(|sessions| sessions.len() > 1) {
+        Some(sessions) => said.replace(&*sessions, "<sessions>"),
+        None => said.to_string(),
+    }
 }
 
 /// `info` unless `WHOLEHEARD_LOG` names a level — or, for whoever knows them, a filter.
-/// A level reaches this program's own lines only: a library's are never asked for by it.
+/// A level reaches the shell's own lines only — its library's and its program's, both named
+/// `wholeheard…` —: a library's are never asked for by it.
 fn filter() -> EnvFilter {
-    let own = env!("CARGO_CRATE_NAME");
+    let own = "wholeheard";
     let asked = std::env::var("WHOLEHEARD_LOG").unwrap_or_default();
     let directives = match asked.trim() {
         level @ ("error" | "warn" | "info" | "debug" | "trace") => format!("off,{own}={level}"),
