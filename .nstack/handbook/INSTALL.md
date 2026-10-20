@@ -184,8 +184,10 @@ author, when it is opened:
 
 Issues → Labels:
 
-- [ ] Labels `cross-module`, `over-budget` and `out-of-cycle` — they make the exceptions
-  visible **and countable** (`.nstack/handbook/10-measurement.md` §3)
+- [ ] Labels `cross-module`, `over-budget`, `out-of-cycle`, `request`, `bug`, `architecture`, `debt` and `acceptance` — the first three make the exceptions
+  visible **and countable** (`.nstack/handbook/10-measurement.md` §3); the other five are
+  the ones the issue templates put on an issue, which GitHub drops without a word when the
+  label does not exist
 
 Settings → Developer settings → GitHub Apps → New GitHub App, then install it on this
 repository — **the identity your agents work under** (`.nstack/handbook/07-governance.md` §7):

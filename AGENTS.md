@@ -195,7 +195,7 @@ dependencies, the target module identified. If a piece of information is missing
 being blocking: move forward with an **explicitly stated assumption**.
 
 **Done** — a task is finished when the *applicable* validations have actually passed:
-oracle green, local checks green, contracts validated when the module has one, the test sheet run by a verifier
+oracle green, local checks green — recorded by `nstack attest` where the project's checks are attested —, contracts validated when the module has one, the test sheet run by a verifier
 when one is due, affected documentation up to date, diff self-reviewed,
 summary produced. The level required depends on the criticality declared in the module's
 manifest (`.nstack/handbook/05-workflow.md` §7).
