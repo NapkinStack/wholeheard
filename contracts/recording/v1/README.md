@@ -39,7 +39,7 @@ order of the events, and what each means, are said here and nowhere else.
 | `silent` | `source` | This source has given no sound for ten seconds. Said once per silence |
 | `heard` | `source` | A source that was said `silent` gives sound again |
 | `level` | `source`; `level`: how loud it is now, from 0 (silence) to 1 (the loudest it can be), a number | About ten times a second for each source being recorded, after `started` and before `stopped`: for a meter that moves as sound comes (cycle 03, D22) |
-| `device` | `source`; `device`: the name the system gives the device, or `null` | This source is now recorded from another device: the user chose another default, or the one recorded was taken away and the system named another. Its track goes on, in the form it opened with (`session-audio`). `null`: the system names no device for it, and nothing comes from it until a `device` names one. Said at each change, after `started` and before `stopped` |
+| `device` | `source`; `device`: the name the system gives the device, or `null` | This source is now recorded from another device: the user chose another default, or the one recorded was taken away and the system named another. Its track goes on, in the form it opened with (`session-audio`). `null`: the system names no device for it, and nothing comes from it until a `device` names one. Said at each change, after `started` and before `stopped`; never of a source said `unavailable`, which has no stream to move |
 | `stopped` | `folder`; `seconds`: the recording's length, a number | The session's files are whole and `session.json` says `stopped`. **Last**, and only when the recording was stopped as below |
 
 **Stopping**: the line `stop` on the program's input, an interrupt or a termination signal.
