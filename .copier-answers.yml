@@ -2,7 +2,7 @@
 # Managed by Copier: changed by nstack update, never by hand.
 _commit: v0.10.0
 _src_path: https://github.com/NapkinStack/engineering-os.git
-checks: forge
+checks: attested
 github_repo: NapkinStack/wholeheard
 owner_team: NapkinStack/maintainers
 project_name: Wholeheard
