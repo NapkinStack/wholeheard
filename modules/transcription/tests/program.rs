@@ -149,3 +149,27 @@ fn a_session_read_then_refused_logs_nothing_of_its_context_and_an_odd_id_is_repl
         assert!(!text.contains(said), "the log holds {said:?}: {text}");
     }
 }
+
+/// A log folder whose day file cannot take a byte: every write to it fails.
+fn full_logs(program: &str) -> tempfile::TempDir {
+    let logs = tempfile::tempdir().unwrap();
+    let today = std::process::Command::new("date").args(["-u", "+%F"]).output().unwrap();
+    let today = String::from_utf8(today.stdout).unwrap();
+    std::os::unix::fs::symlink("/dev/full", logs.path().join(format!("{program}.{}.jsonl", today.trim()))).unwrap();
+    logs
+}
+
+#[test]
+fn a_log_that_cannot_be_written_says_nothing_on_the_error_stream() {
+    let session = tempfile::tempdir().unwrap();
+    let logs = full_logs("transcription");
+    let output = Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+        .args([session.path().to_str().unwrap(), "--model", "/nowhere/a-model.bin"])
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert_eq!(err.lines().count(), 1, "{err}");
+    assert!(err.starts_with("wholeheard-transcription: this folder is not a session"), "{err}");
+}

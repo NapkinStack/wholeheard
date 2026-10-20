@@ -63,21 +63,36 @@ pub fn making() -> (String, tracing::Span) {
 
 /// A program's sentence as the log may hold it: the folder of sessions it may name taken out —
 /// a version of a program that says a path must not put whose meetings, and where, in a log.
+/// Only the folder itself is taken out, never the start of another name: `/srv/Meet` leaves
+/// `/srv/Meetings` and `/srv/Meet.bak` as they are.
 pub fn without(said: &str, sessions: Option<&Path>) -> String {
-    match sessions.map(Path::to_string_lossy).filter(|sessions| sessions.len() > 1) {
-        Some(sessions) => said.replace(&*sessions, "<sessions>"),
-        None => said.to_string(),
+    let separator = std::path::MAIN_SEPARATOR;
+    let sessions = sessions.map(Path::to_string_lossy).unwrap_or_default();
+    let sessions = sessions.trim_end_matches(separator);
+    if sessions.is_empty() {
+        return said.to_string();
     }
+    let (mut kept, mut rest) = (String::new(), said);
+    while let Some(at) = rest.find(sessions) {
+        let after = &rest[at + sessions.len()..];
+        kept.push_str(&rest[..at]);
+        // Followed by what goes on with a name — `ings`, `.bak` —, it is another folder's name.
+        let goes_on = after.starts_with(|c: char| c.is_alphanumeric() || "._-".contains(c));
+        kept.push_str(if goes_on { sessions } else { "<sessions>" });
+        rest = after;
+    }
+    kept.push_str(rest);
+    kept
 }
 
-/// `info` unless `WHOLEHEARD_LOG` names a level — or, for whoever knows them, a filter.
+/// `info` unless `WHOLEHEARD_LOG` names a level, `off` included — or, for whoever knows them, a filter.
 /// A level reaches the shell's own lines only — its library's and its program's, both named
 /// `wholeheard…` —: a library's are never asked for by it.
 fn filter() -> EnvFilter {
     let own = "wholeheard";
     let asked = std::env::var("WHOLEHEARD_LOG").unwrap_or_default();
     let directives = match asked.trim() {
-        level @ ("error" | "warn" | "info" | "debug" | "trace") => format!("off,{own}={level}"),
+        level @ ("off" | "error" | "warn" | "info" | "debug" | "trace") => format!("off,{own}={level}"),
         filter if filter.contains('=') => filter.to_string(),
         _ => format!("off,{own}=info"),
     };
@@ -150,6 +165,9 @@ pub fn start(program: &'static str) -> EnteredSpan {
             .with_ansi(false)
             .with_env_filter(filter())
             .with_writer(appender)
+            // A log that cannot be written says nothing on the error stream: what is said there
+            // is the program's one sentence (its contract).
+            .log_internal_errors(false)
             .try_init();
     }
     tracing::span!(Level::ERROR, "run", program, version = env!("CARGO_PKG_VERSION"), trace = %trace()).entered()

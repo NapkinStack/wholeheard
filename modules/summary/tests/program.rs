@@ -515,3 +515,29 @@ fn a_run_removes_the_day_files_of_more_than_fourteen_days() {
     assert!(!logs.path().join("shell.2026-01-01.jsonl").exists());
     assert_eq!(logged(logs.path()).len(), 2);
 }
+
+/// A log folder whose day file cannot take a byte: every write to it fails.
+fn full_logs(program: &str) -> tempfile::TempDir {
+    let logs = tempfile::tempdir().unwrap();
+    let today = std::process::Command::new("date").args(["-u", "+%F"]).output().unwrap();
+    let today = String::from_utf8(today.stdout).unwrap();
+    std::os::unix::fs::symlink("/dev/full", logs.path().join(format!("{program}.{}.jsonl", today.trim()))).unwrap();
+    logs
+}
+
+#[test]
+fn a_log_that_cannot_be_written_says_nothing_on_the_error_stream() {
+    let folder = session(None);
+    let logs = full_logs("summary");
+    let (address, _received) = provider("401 Unauthorized", r#"{"error": "no"}"#.to_string());
+    let output = program()
+        .arg(folder.path())
+        .args(["--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .output()
+        .unwrap();
+    let (_, err) = said(&output);
+    assert!(!output.status.success());
+    assert_eq!(err.lines().collect::<Vec<_>>().len(), 1, "{err}");
+    assert!(err.starts_with("wholeheard-summary: ") && err.contains("refused the key"), "{err}");
+}
