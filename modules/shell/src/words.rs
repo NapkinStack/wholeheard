@@ -309,6 +309,9 @@ pub struct Window {
     pub no_player: &'static str,
     /// Its audio is there, and no track of it is one this version plays.
     pub not_playable: &'static str,
+    /// A track the window could not play; and the drawing as the playback's slider, named.
+    pub not_played: &'static str,
+    pub playback: &'static str,
     /// In developer mode: the logs' level, the logs' folder, a meeting's diagnostic copied.
     pub log_level: [&'static str; 2],
     pub log_info: &'static str,
@@ -519,6 +522,8 @@ pub fn window(language: Language) -> Window {
             play: "Listen",
             pause: "Pause",
             not_playable: "Its audio cannot be listened to here: it holds no track this version plays.",
+            not_played: "This meeting could not be played here. “Open the folder” shows its tracks, which another player reads.",
+            playback: "Where the meeting is played from",
             no_player: "Its audio was freed: the meeting can no longer be listened to. Its transcript and minutes stay.",
             log_level: ["Logs’ level", "Read at Wholeheard’s next start, by it and its programs."],
             log_info: "Usual",
@@ -723,6 +728,8 @@ pub fn window(language: Language) -> Window {
             play: "Écouter",
             pause: "Pause",
             not_playable: "Son audio ne s’écoute pas ici\u{a0}: il ne contient aucune piste que cette version lit.",
+            not_played: "Cette réunion n’a pas pu être lue ici. «\u{a0}Ouvrir le dossier\u{a0}» montre ses pistes, qu’un autre lecteur lit.",
+            playback: "D’où la réunion est lue",
             no_player: "Son audio a été libéré\u{a0}: la réunion ne s’écoute plus. Son transcript et son compte rendu restent.",
             log_level: [
                 "Niveau des journaux",

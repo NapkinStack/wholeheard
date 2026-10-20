@@ -533,12 +533,21 @@ function transcriptCard(read, words, session) {
     const line = element("li");
     line.dataset.track = segment.track;
     line.dataset.start = String(segment.start);
-    // A click on a line plays the meeting from it (D26).
-    line.addEventListener("click", () => {
+    // A click on a line, or Enter on it, plays the meeting from it (D26).
+    const from = () => {
       if (!player || player.name !== nameOf(session)) return;
       player.seek(segment.start);
       player.play();
-    });
+    };
+    line.addEventListener("click", from);
+    if (player?.name === nameOf(session)) {
+      line.tabIndex = 0;
+      line.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        from();
+      });
+    }
     const side = segment.track === "local" ? words.here : words.remote;
     const who = segment.voice === null ? side : `${side} · ${fill(words.voice, segment.voice)}`;
     const said = element("div", "said");
@@ -565,57 +574,92 @@ function transcriptCard(read, words, session) {
 // a window coming forward never stops what plays. Paused when another page is shown.
 let player = null;
 
-// Plays a meeting's tracks together where the session's clock puts them: the one starting first
-// leads, the others follow it, put back in place when they drift. `onTime` is told the session's
-// time as it moves.
+// Plays a meeting's tracks together where the session's clock puts them. The session's time is
+// the first track sounding — between tracks, before one starts, the time since the last tick —
+// and each track is put back where that time puts it when it drifts. The meeting ends at the
+// last track's end. Ticks of a timer, never of animation frames: a hidden window keeps playing.
 function listen(name, tracks) {
   if (player?.name === name) return player;
   player?.stop();
-  const audios = [...tracks]
-    .sort((a, b) => a.starts - b.starts)
-    .map((track) => {
-      const audio = new Audio(track.url);
-      audio.preload = "metadata";
-      audio.className = "track";
-      audio.dataset.track = track.name;
-      audio.dataset.starts = String(track.starts);
-      return audio;
-    });
-  const lead = audios[0];
-  const shown = { name, audios, listeners: new Set(), frame: 0 };
-  const now = () => lead.currentTime + Number(lead.dataset.starts);
+  const audios = tracks.map((track) => {
+    const audio = new Audio(track.url);
+    audio.preload = "metadata";
+    audio.className = "track";
+    audio.dataset.track = track.name;
+    audio.dataset.starts = String(track.starts);
+    return audio;
+  });
+  const starts = (audio) => Number(audio.dataset.starts);
+  const shown = { name, audios, listeners: new Set(), failures: new Set(), on: false, base: 0, since: 0, timer: 0, moved: false };
+  // Unknown until every track has said its length.
+  const end = () => Math.max(...audios.map((audio) => starts(audio) + audio.duration));
+  const now = () => {
+    // Just moved: the tracks are not there yet.
+    if (!shown.on || shown.moved) return shown.base;
+    const sounding = audios.find((audio) => !audio.paused && !audio.ended && !audio.seeking);
+    return sounding ? sounding.currentTime + starts(sounding) : shown.base + (performance.now() - shown.since) / 1000;
+  };
+  const failed = () => {
+    shown.pause();
+    for (const failure of shown.failures) failure();
+  };
   const follow = () => {
-    const at = now();
-    for (const audio of audios.slice(1)) {
-      const wanted = at - Number(audio.dataset.starts);
-      if (wanted < 0 || wanted >= (audio.duration || Infinity)) {
+    let at = now();
+    shown.moved = false;
+    if (shown.on && at >= end()) {
+      shown.on = false;
+      clearInterval(shown.timer);
+      at = end();
+    }
+    shown.base = at;
+    shown.since = performance.now();
+    for (const audio of audios) {
+      const wanted = at - starts(audio);
+      if (!shown.on || wanted < 0 || wanted >= (audio.duration || Infinity)) {
         if (!audio.paused) audio.pause();
+        // Paused where the next play starts it, or at its start until its time comes.
+        const still = Math.min(Math.max(0, wanted), audio.duration || 0);
+        if (Math.abs(audio.currentTime - still) > 0.15) audio.currentTime = still;
       } else {
         if (Math.abs(audio.currentTime - wanted) > 0.15) audio.currentTime = wanted;
-        if (audio.paused && !lead.paused) audio.play().catch(() => {});
+        if (audio.paused) audio.play().catch(failed);
       }
     }
     for (const listener of shown.listeners) listener(at);
-    if (!lead.paused) shown.frame = requestAnimationFrame(follow);
   };
-  shown.time = now;
-  shown.playing = () => !lead.paused;
-  shown.play = () => lead.play().then(() => { cancelAnimationFrame(shown.frame); follow(); }).catch(() => {});
+  shown.time = () => shown.base;
+  shown.playing = () => shown.on;
+  shown.play = () => {
+    if (shown.on) return;
+    // Played to its end: listened again from its start.
+    if (shown.base >= end()) shown.base = 0;
+    shown.on = true;
+    shown.since = performance.now();
+    follow();
+    clearInterval(shown.timer);
+    shown.timer = setInterval(follow, 50);
+  };
   shown.pause = () => {
-    for (const audio of audios) audio.pause();
-    cancelAnimationFrame(shown.frame);
+    shown.base = now();
+    shown.on = false;
+    clearInterval(shown.timer);
     follow();
   };
   shown.seek = (at) => {
-    lead.currentTime = Math.max(0, at - Number(lead.dataset.starts));
+    shown.base = Math.max(0, Math.min(at, Number.isFinite(end()) ? end() : at));
+    shown.since = performance.now();
+    shown.moved = true;
     follow();
   };
   shown.stop = () => {
-    shown.pause();
-    for (const audio of audios) audio.remove();
+    shown.on = false;
+    clearInterval(shown.timer);
+    for (const audio of audios) {
+      audio.pause();
+      audio.remove();
+    }
   };
-  lead.addEventListener("ended", () => shown.pause());
-  lead.addEventListener("pause", () => follow());
+  for (const audio of audios) audio.addEventListener("error", failed);
   // Kept in the page, never shown: the browser plays an element it holds.
   document.body.append(...audios);
   player = shown;
@@ -623,9 +667,14 @@ function listen(name, tracks) {
 }
 
 // The player of a meeting's page: Écouter / Pause, where the playback is, and the drawing of who
-// spoke as its control — a click puts the playback there (D26).
+// spoke as its control — a click, or the arrows on it, put the playback there (D26).
 function playerBar(session, tracks, total, words, drawing) {
   if (tracks.length === 0) {
+    // Its audio freed while it played: nothing plays on.
+    if (player?.name === nameOf(session)) {
+      player.stop();
+      player = null;
+    }
     // Freed, said so; there and not playable, said so too — never one for the other.
     const freed = element("p", "note", session.audio > 0 ? words.not_playable : words.no_player);
     freed.id = "no-player";
@@ -638,31 +687,52 @@ function playerBar(session, tracks, total, words, drawing) {
   toggle.id = "play";
   const at = element("span", "at", "");
   at.id = "played";
+  // A track the window could not play, said where a screen reader hears it.
+  const says = element("p", "note", "");
+  says.id = "not-played";
+  says.setAttribute("role", "status");
   const head = element("span", "playhead");
   drawing.append(head);
+  drawing.tabIndex = 0;
+  drawing.setAttribute("role", "slider");
+  drawing.setAttribute("aria-label", words.playback);
+  drawing.setAttribute("aria-valuemin", "0");
+  drawing.setAttribute("aria-valuemax", String(Math.round(total)));
   const paint = (time) => {
     toggle.textContent = shown.playing() ? words.pause : words.play;
-    toggle.setAttribute("aria-pressed", String(shown.playing()));
-    at.textContent = `${clock(time)} / ${clock(total)}`;
+    at.textContent = clock(time);
     head.style.left = `${Math.min(100, (time / total) * 100)}%`;
+    drawing.setAttribute("aria-valuenow", String(Math.round(time)));
+    drawing.setAttribute("aria-valuetext", `${clock(time)} / ${clock(total)}`);
   };
   shown.listeners.clear();
   shown.listeners.add(paint);
+  shown.failures.clear();
+  shown.failures.add(() => (says.textContent = words.not_played));
   toggle.addEventListener("click", () => (shown.playing() ? shown.pause() : shown.play()));
   drawing.addEventListener("click", (event) => {
     const box = drawing.getBoundingClientRect();
     shown.seek(((event.clientX - box.left) / box.width) * total);
   });
+  // A slider's keys: five seconds back or on, the start, the end.
+  drawing.addEventListener("keydown", (event) => {
+    const to = { ArrowLeft: shown.time() - 5, ArrowRight: shown.time() + 5, Home: 0, End: total }[event.key];
+    if (to === undefined) return;
+    event.preventDefault();
+    shown.seek(to);
+  });
   paint(shown.time());
-  bar.append(toggle, at);
+  bar.append(toggle, at, says);
   return bar;
 }
 
-// The space bar plays and pauses the meeting shown, wherever the focus is but in a field.
+// The space bar plays and pauses the meeting shown, wherever the focus is but in a field or on
+// a control of its own; held down, it does not toggle again and again.
 document.addEventListener("keydown", (event) => {
   if (event.key !== " " || !player || document.getElementById("meeting")?.hidden) return;
   if (event.target.closest("input, textarea, select, button, a")) return;
   event.preventDefault();
+  if (event.repeat) return;
   player.playing() ? player.pause() : player.play();
 });
 
@@ -1515,6 +1585,9 @@ async function refresh() {
     try {
       opened = await window.__TAURI__.core.invoke("opened", { name: decodeURIComponent(wanted[1]) });
     } catch {
+      // Gone while it played: it stops with its page.
+      player?.stop();
+      player = null;
       history.replaceState(null, "", "#/");
     }
   }
