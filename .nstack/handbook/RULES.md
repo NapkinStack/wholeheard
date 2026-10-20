@@ -94,6 +94,17 @@ a family, a number a rule; a retired rule's number is never reused.
 | `T4` | Evidence older than the head commit | `05-workflow.md` §7 |
 | `T5` | A scenario failed, or left not verified | `05-workflow.md` §7 |
 
+## A — checks attested on a workstation
+
+Where the project's answer `checks` is `attested` (`.copier-answers.yml`), the checks of a
+pull request run on a workstation through `nstack attest`, which records the run on the commit
+in git; elsewhere a record is shown, and the forge's CI judges.
+
+| Code | Refuses | Why |
+|---|---|---|
+| `A1` | In a project whose checks are attested, a head commit with no record | `07-governance.md` §7 |
+| `A2` | A record of the head that misses a check the CI runs, or holds a failed one | `07-governance.md` §7 |
+
 ## K — the cycle a change belongs to
 
 These rules bound work inside a cycle. A project with no accepted charter is **unframed**:
@@ -144,7 +155,7 @@ The nineteen lines of the checklist, in its order (`INSTALL.md`, "To do once on 
 | `G8` | Actions not pinned to a commit | `07-governance.md` §7 |
 | `G9` | A workflow runs for an outside contributor without approval | `07-governance.md` §7 |
 | `G10` | A workflow token that writes, or that approves pull requests | `07-governance.md` §7 |
-| `G11` | A label of the three exceptions missing | `10-measurement.md` §3 |
+| `G11` | A label missing: one of the three exceptions, or one a shipped issue template puts on an issue | `10-measurement.md` §3 |
 | `G12` | Somebody on the bypass list | `07-governance.md` §7 |
 | `G13` | An approval that survives a new commit | `07-governance.md` §7 |
 | `G14` | Auto-merge not available | `07-governance.md` §7 |

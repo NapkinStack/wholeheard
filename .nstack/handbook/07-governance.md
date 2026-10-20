@@ -288,6 +288,18 @@ run that fails when a commit reached the protected branch outside a pull request
 record, not a barrier, and it is worth exactly what a record is worth: the thing nobody would
 otherwise have been told. Reading it as a guarantee is the mistake it exists to prevent.
 
+**And when the forge cannot run the checks.** A runner down, the hosted minutes spent, a team
+that works off the forge: the checks still run, where the team works. `nstack attest` runs the
+CI's own checks — one list, bound to the workflows by a test — on a clean head, and records the
+run on the commit in git (`refs/notes/nstack/checks`, pushed with the branch), shown on GitHub
+as `nstack / local checks`, a name no CI job has. Such a change is **attested**, never
+*checked*: the record makes a claim traceable — who ran it, on which commit, with what output
+— not true. Whether a record stands in for the forge's CI is the decider's word, the project's
+answer `checks: attested` in `.copier-answers.yml`, changed in a pull request; `pr-check` then
+requires a complete, passed record of the head (A1, A2). Where the answer is `forge`, a record is
+information, and on a guarded repository the forge's required checks stay the barrier — a
+decider who wants the record to gate a protected branch requires its name at the forge.
+
 ### Agents and approval
 
 A pull request's author cannot approve it. An agent working with a human's credentials
