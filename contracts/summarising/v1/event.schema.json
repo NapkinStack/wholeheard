@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "A line of the summarising program's output",
-  "description": "summarising/v1 — one JSON object a line. What a schema cannot say is on the contract's page: the order of the events, that `sending` comes first and once, `written` or `answered` last.",
+  "description": "summarising/v1 — one JSON object a line. What a schema cannot say is on the contract's page: the order of the events, that `sending` comes first and once, `written`, `answered` or `failed` last.",
   "oneOf": [
     {
       "type": "object",
@@ -67,6 +67,25 @@
       ]
     },
     {
+      "type": "object",
+      "properties": {
+        "event": {
+          "const": "failed"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\n\\r]"
+          }
+        }
+      },
+      "required": [
+        "event",
+        "code"
+      ]
+    },
+    {
       "description": "An event this version does not name: a consumer ignores it.",
       "type": "object",
       "properties": {
@@ -76,7 +95,8 @@
             "enum": [
               "sending",
               "written",
-              "answered"
+              "answered",
+              "failed"
             ]
           }
         }

@@ -49,9 +49,28 @@ order of the events, and what each means, are said here and nowhere else.
 | `sending` | `host`: who receives the request, as the minutes name it — `local` for an address of this machine, else the host's name or address in lower case, without its port; `model`; `characters`: how many the request holds, a whole number | Said **before** anything leaves the machine, once, and first |
 | `written` | `file`: the minutes' path | The minutes are whole in the folder. **Last**, minutes only |
 | `answered` | `host`; `model` | The model answered the test's sentence. **Last**, a test only |
+| `failed` | `code`: the cause, one of the codes below, on one line | The program is ending in failure. **Last**, minutes or a test |
 
 **Failing**: the program ends in failure with one sentence on its error stream, starting
-`wholeheard-summary: `, and no `written` or `answered`. Whatever fails, the transcript is untouched
+`wholeheard-summary: `, and no `written` or `answered`. When the cause is one a person acts on
+differently, the output's last line says it first: `failed`, with its `code`. Otherwise no line
+says it, and the sentence alone does.
+
+| `code` | The cause | What a person does |
+|---|---|---|
+| `provider.unreachable` | The provider could not be reached, or did not answer in time | Check that it runs, or the network, then try again |
+| `provider.refused_key` | The provider refused the key (HTTP 401 or 403) | Give the provider's key again |
+| `provider.no_credit` | The provider refused for lack of credit (HTTP 402) | Add credit with the provider |
+| `provider.unknown_model` | The provider does not know this model or this address (HTTP 404) | Choose the model or the address again |
+| `provider.failed` | Any other refusal by the provider, or an answer it cut short, sent elsewhere, or left unreadable or empty | Try again later |
+| `answer.not_minutes` | The provider answered, and what it wrote is not minutes (`minutes/v1`) | Try again, or choose another model |
+| `transcript.unusable` | The session has no transcript this version reads | Make the transcript again |
+| `transcript.no_speech` | The transcript holds no speech: there is nothing to write minutes of | Nothing: check the recording |
+| `settings.invalid` | The address, the model's name or the key cannot be used as given | Correct them where they were chosen |
+| `minutes.unwritable` | The minutes could not be written in the session's folder | Free space, or check the folder |
+
+A consumer reads a code this page does not list as no code: a later code is added here, never
+a new version for it. Whatever fails, the transcript is untouched
 and the minutes that were there are still there — nothing half-written is left behind. Before
 `sending`, nothing left the machine.
 
