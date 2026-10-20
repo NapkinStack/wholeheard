@@ -15,7 +15,7 @@ Writes the minutes of a transcript.
 - It makes no transcript and reads no audio: `transcription`.
 - It shows nothing and asks nothing of the user — the consent before a first sending online
   is the `shell`'s, which reads the `sending` event.
-- It keeps no key: `SUMMIT_PROVIDER_KEY` is read from the environment and written nowhere.
+- It keeps no key: `WHOLEHEARD_PROVIDER_KEY` is read from the environment and written nowhere.
 
 ## Internal conventions nobody could guess
 

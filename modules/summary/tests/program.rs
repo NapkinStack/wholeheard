@@ -27,13 +27,14 @@ fn session(context: Option<&str>) -> tempfile::TempDir {
 }
 
 fn run(folder: &Path, address: &str, key: Option<&str>) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_summit-summary"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
     command
         .arg(folder)
         .args(["--provider", address, "--model", "a-model"])
+        .env_remove("WHOLEHEARD_PROVIDER_KEY")
         .env_remove("SUMMIT_PROVIDER_KEY");
     if let Some(key) = key {
-        command.env("SUMMIT_PROVIDER_KEY", key);
+        command.env("WHOLEHEARD_PROVIDER_KEY", key);
     }
     command.output().unwrap()
 }
@@ -162,13 +163,14 @@ fn what_cannot_be_sent_as_it_is_is_refused_before_anything_leaves() {
         ("", None, "the model's name"),
         ("m", Some("a key\nwith a line"), "the key holds a space or a character"),
     ] {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_summit-summary"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
         command
             .arg(folder.path())
             .args(["--provider", &address, "--model", model])
+            .env_remove("WHOLEHEARD_PROVIDER_KEY")
             .env_remove("SUMMIT_PROVIDER_KEY");
         if let Some(key) = key {
-            command.env("SUMMIT_PROVIDER_KEY", key);
+            command.env("WHOLEHEARD_PROVIDER_KEY", key);
         }
         let output = command.output().unwrap();
         let (out, err) = said(&output);
@@ -191,9 +193,10 @@ fn a_proxy_named_by_the_environment_is_never_used() {
     let (address, received) = provider("200 OK", answering(MINUTES, "stop"));
     let (proxy, seen_by_proxy) = provider("200 OK", String::new());
     let proxy = proxy.trim_end_matches("/v1").to_string();
-    let output = Command::new(env!("CARGO_BIN_EXE_summit-summary"))
+    let output = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"))
         .arg(folder.path())
         .args(["--provider", &address, "--model", "a-model"])
+        .env_remove("WHOLEHEARD_PROVIDER_KEY")
         .env_remove("SUMMIT_PROVIDER_KEY")
         .env_remove("NO_PROXY")
         .env_remove("no_proxy")
@@ -237,10 +240,11 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
     let folder = session(None);
     let (address, received) = provider("200 OK", answering(MINUTES, "stop"));
     let program = || {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_summit-summary"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
         command
             .arg(folder.path())
             .args(["--provider", &address, "--model"])
+            .env_remove("WHOLEHEARD_PROVIDER_KEY")
             .env_remove("SUMMIT_PROVIDER_KEY");
         command
     };
@@ -254,8 +258,8 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
     };
     refused(program().arg(not_text).output().unwrap(), "an argument is not text");
     refused(
-        program().arg("a-model").env("SUMMIT_PROVIDER_KEY", not_text).output().unwrap(),
-        "SUMMIT_PROVIDER_KEY is not text",
+        program().arg("a-model").env("WHOLEHEARD_PROVIDER_KEY", not_text).output().unwrap(),
+        "WHOLEHEARD_PROVIDER_KEY is not text",
     );
     // A context that is there and cannot be read is not the same as no context.
     fs::create_dir(folder.path().join("context.txt")).unwrap();
@@ -273,21 +277,27 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
     fs::remove_file(folder.path().join("context.txt")).unwrap();
     for key in ["a-key-for-the-test ", " a-key-for-the-test", "a key"] {
         refused(
-            program().arg("a-model").env("SUMMIT_PROVIDER_KEY", key).output().unwrap(),
+            program().arg("a-model").env("WHOLEHEARD_PROVIDER_KEY", key).output().unwrap(),
             "the key holds a space",
         );
     }
+    // From a shell older than D28, the key under its name then: read all the same.
+    refused(
+        program().arg("a-model").env("SUMMIT_PROVIDER_KEY", "a key").output().unwrap(),
+        "the key holds a space",
+    );
     assert!(received.try_recv().is_err(), "a request left the machine");
 }
 
 /// The program's test of a provider, as the settings' *Tester* runs it: no session.
 fn tested(address: &str, key: Option<&str>) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_summit-summary"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
     command
         .args(["--test", "--provider", address, "--model", "a-model"])
+        .env_remove("WHOLEHEARD_PROVIDER_KEY")
         .env_remove("SUMMIT_PROVIDER_KEY");
     if let Some(key) = key {
-        command.env("SUMMIT_PROVIDER_KEY", key);
+        command.env("WHOLEHEARD_PROVIDER_KEY", key);
     }
     command.output().unwrap()
 }
@@ -305,24 +315,25 @@ fn a_test_sends_one_fixed_sentence_and_says_the_model_answered() {
     // Nothing of a meeting: one sentence of the program's own.
     assert_eq!(
         asked["messages"].to_string(),
-        serde_json::json!([{"role": "user", "content": summit_summary::TEST}]).to_string()
+        serde_json::json!([{"role": "user", "content": wholeheard_summary::TEST}]).to_string()
     );
     let lines: Vec<serde_json::Value> = out.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
     assert_eq!(lines.len(), 2, "{out}");
     assert_eq!(lines[0]["event"], "sending");
-    assert_eq!(lines[0]["characters"], summit_summary::TEST.chars().count());
+    assert_eq!(lines[0]["characters"], wholeheard_summary::TEST.chars().count());
     assert_eq!(lines[1]["event"], "answered");
     assert_eq!(lines[1]["model"], "a-model");
     // The model named first is the same test.
     let (address, received) = provider("200 OK", answering("OK", "stop"));
-    let output = Command::new(env!("CARGO_BIN_EXE_summit-summary"))
+    let output = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"))
         .args(["--test", "--model", "a-model", "--provider", &address])
+        .env_remove("WHOLEHEARD_PROVIDER_KEY")
         .env_remove("SUMMIT_PROVIDER_KEY")
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", said(&output).1);
     let (_, asked) = received.recv().unwrap();
-    assert!(asked.contains(summit_summary::TEST), "{asked}");
+    assert!(asked.contains(wholeheard_summary::TEST), "{asked}");
 }
 
 #[test]

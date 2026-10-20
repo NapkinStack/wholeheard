@@ -1,4 +1,4 @@
-# What summit-summary is built with for Ubuntu 24.04 (D27): that system's C compiler (for the TLS
+# What wholeheard-summary is built with for Ubuntu 24.04 (D27): that system's C compiler (for the TLS
 # library's assembly), Rust as this repository uses it. Read by scripts/release.sh.
 FROM docker.io/library/ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
