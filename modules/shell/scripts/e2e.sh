@@ -33,6 +33,7 @@ echo '{"event":"silent","source":"others"}'
 # The user switches devices: a headset's microphone, then no output left (D31).
 echo '{"event":"device","source":"me","device":"Casque Mic"}'
 echo '{"event":"device","source":"others","device":null}'
+echo '{"event":"device","source":"others","device":"Casque"}'
 # Its input closed is no order to stop: it records on, as the real one does.
 read line || exec sleep 20
 echo "$line" > "$2/told"
@@ -116,8 +117,9 @@ check is "$(cat "$work/sessions/given")" "record $work/sessions"
 check is "$(titles 'Enregistrement en cours')" 1
 check is "$(titles 'Aucun son venant de la réunion')" 1
 check is "$(titles 'Micro changé')" 1
-check grep -q 'Enregistré maintenant.: Casque Mic' "$work/notified"
+check grep -q $'Enregistré maintenant\u00a0: Casque Mic' "$work/notified"
 check is "$(titles 'Le son de la réunion n’est plus enregistré pour l’instant')" 1
+check is "$(titles 'Le son de la réunion est de nouveau enregistré')" 1
 click 3
 check is "$(cat "$work/sessions/told")" "stop"
 check is "$(labels)" "Ouvrir Wholeheard|Démarrer l’enregistrement|Transcrire le dernier enregistrement|Faire le compte rendu du dernier enregistrement|Quitter Wholeheard"
