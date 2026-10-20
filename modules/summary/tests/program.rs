@@ -3,13 +3,9 @@
 
 mod common;
 
-use std::{
-    fs,
-    path::Path,
-    process::{Command, Output},
-};
+use std::{fs, path::Path, process::Output};
 
-use common::{MINUTES, answering, provider};
+use common::{MINUTES, answering, program, provider};
 
 const TRANSCRIPT: &str = concat!(
     r#"{"type": "header", "contract": "transcript/v1", "engine": "an-engine", "model": "a-model", "language": "fr", "context": null}"#,
@@ -27,7 +23,7 @@ fn session(context: Option<&str>) -> tempfile::TempDir {
 }
 
 fn run(folder: &Path, address: &str, key: Option<&str>) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
+    let mut command = program();
     command
         .arg(folder)
         .args(["--provider", address, "--model", "a-model"])
@@ -162,7 +158,7 @@ fn what_cannot_be_sent_as_it_is_is_refused_before_anything_leaves() {
         ("", None, "the model's name"),
         ("m", Some("a key\nwith a line"), "the key holds a space or a character"),
     ] {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
+        let mut command = program();
         command
             .arg(folder.path())
             .args(["--provider", &address, "--model", model])
@@ -191,7 +187,7 @@ fn a_proxy_named_by_the_environment_is_never_used() {
     let (address, received) = provider("200 OK", answering(MINUTES, "stop"));
     let (proxy, seen_by_proxy) = provider("200 OK", String::new());
     let proxy = proxy.trim_end_matches("/v1").to_string();
-    let output = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"))
+    let output = program()
         .arg(folder.path())
         .args(["--provider", &address, "--model", "a-model"])
         .env_remove("WHOLEHEARD_PROVIDER_KEY")
@@ -237,7 +233,7 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
     let folder = session(None);
     let (address, received) = provider("200 OK", answering(MINUTES, "stop"));
     let program = || {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
+        let mut command = program();
         command
             .arg(folder.path())
             .args(["--provider", &address, "--model"])
@@ -282,7 +278,7 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
 
 /// The program's test of a provider, as the settings' *Tester* runs it: no session.
 fn tested(address: &str, key: Option<&str>) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
+    let mut command = program();
     command
         .args(["--test", "--provider", address, "--model", "a-model"])
         .env_remove("WHOLEHEARD_PROVIDER_KEY");
@@ -315,7 +311,7 @@ fn a_test_sends_one_fixed_sentence_and_says_the_model_answered() {
     assert_eq!(lines[1]["model"], "a-model");
     // The model named first is the same test.
     let (address, received) = provider("200 OK", answering("OK", "stop"));
-    let output = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"))
+    let output = program()
         .args(["--test", "--model", "a-model", "--provider", &address])
         .env_remove("WHOLEHEARD_PROVIDER_KEY")
         .output()
@@ -344,4 +340,161 @@ fn a_test_that_fails_says_why_in_one_sentence() {
     }
     let output = tested("http://127.0.0.1:9/v1", None);
     assert!(!output.status.success() && said(&output).1.trim().lines().count() == 1);
+}
+
+/// What one run left in its own log folder: one file, its lines read as JSON.
+fn logged(folder: &Path) -> Vec<serde_json::Value> {
+    let files: Vec<_> = fs::read_dir(folder).unwrap().map(|entry| entry.unwrap().path()).collect();
+    assert_eq!(files.len(), 1, "{files:?}");
+    let name = files[0].file_name().unwrap().to_string_lossy().into_owned();
+    assert!(name.starts_with("summary.") && name.ends_with(".jsonl"), "{name}");
+    let text = fs::read_to_string(&files[0]).unwrap();
+    text.lines().map(|line| serde_json::from_str(line).unwrap()).collect()
+}
+
+fn steps(lines: &[serde_json::Value]) -> Vec<&str> {
+    lines.iter().map(|line| line["message"].as_str().unwrap()).collect()
+}
+
+#[test]
+fn the_log_says_each_step_under_the_makings_id_and_nothing_of_the_meeting() {
+    let folder = session(Some("Quatre personnes, réunion d'organisation.\n"));
+    let logs = tempfile::tempdir().unwrap();
+    let (address, _received) = provider("200 OK", answering(MINUTES, "stop"));
+    let output = program()
+        .arg(folder.path())
+        .args(["--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_PROVIDER_KEY", "a-key-for-the-test")
+        .env("WHOLEHEARD_TRACE", "making-42")
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .env_remove("WHOLEHEARD_LOG")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", said(&output).1);
+
+    let lines = logged(logs.path());
+    assert_eq!(
+        steps(&lines),
+        [
+            "summary.started",
+            "summary.read",
+            "summary.sending",
+            "summary.answered",
+            "summary.written"
+        ]
+    );
+    for line in &lines {
+        assert_eq!(line["span"]["trace"], "making-42", "{line}");
+        assert_eq!(line["span"]["program"], "summary", "{line}");
+        assert_eq!(line["level"], "INFO", "{line}");
+    }
+    assert_eq!(lines[2]["host"], "local");
+    assert_eq!(lines[2]["key"], true);
+    let text = fs::read_to_string(fs::read_dir(logs.path()).unwrap().next().unwrap().unwrap().path()).unwrap();
+    let whole = folder.path().to_string_lossy();
+    for said in [
+        "3 juin",
+        "Quatre personnes",
+        "a-key-for-the-test",
+        "Points forts",
+        "others",
+        &*whole,
+    ] {
+        assert!(!text.contains(said), "the log holds {said:?}: {text}");
+    }
+}
+
+#[test]
+fn a_failure_is_logged_with_its_detail() {
+    let folder = session(None);
+    let logs = tempfile::tempdir().unwrap();
+    let (address, _received) = provider("401 Unauthorized", r#"{"error": "no"}"#.to_string());
+    let output = program()
+        .arg(folder.path())
+        .args(["--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let lines = logged(logs.path());
+    let failed = lines.last().unwrap();
+    assert_eq!(failed["message"], "summary.failed");
+    assert_eq!(failed["level"], "ERROR");
+    assert!(
+        failed["detail"].as_str().unwrap().contains("refused the key (HTTP 401)"),
+        "{failed}"
+    );
+    // Without an id from the shell, the run has one of its own.
+    assert!(!failed["span"]["trace"].as_str().unwrap().is_empty());
+}
+
+#[test]
+fn a_log_that_cannot_be_written_loses_nothing() {
+    let folder = session(None);
+    let not_a_folder = tempfile::NamedTempFile::new().unwrap();
+    let (address, _received) = provider("200 OK", answering(MINUTES, "stop"));
+    let output = program()
+        .arg(folder.path())
+        .args(["--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", not_a_folder.path())
+        .output()
+        .unwrap();
+    let (out, err) = said(&output);
+    assert!(output.status.success() && err.is_empty(), "{err}");
+    assert!(out.contains("\"written\"") && folder.path().join("minutes.md").exists());
+}
+
+#[test]
+fn a_level_asked_shows_more_and_a_library_says_nothing() {
+    let logs = tempfile::tempdir().unwrap();
+    let (address, _received) = provider("200 OK", answering("Bonjour.", "stop"));
+    let output = program()
+        .args(["--test", "--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .env("WHOLEHEARD_LOG", "debug")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", said(&output).1);
+    let lines = logged(logs.path());
+    assert_eq!(steps(&lines), ["summary.testing", "summary.answered"]);
+}
+
+#[test]
+fn a_failure_says_nothing_of_the_meeting_and_keeps_its_id_at_any_level() {
+    let logs = tempfile::tempdir().unwrap();
+    let odd = tempfile::tempdir().unwrap();
+    // A speaker outside the contract, holding words of the meeting.
+    fs::write(
+        odd.path().join("transcript.jsonl"),
+        TRANSCRIPT.replace(r#""speaker": "others""#, r#""speaker": "On parle de zebracolor demain""#),
+    )
+    .unwrap();
+    let empty = tempfile::tempdir().unwrap();
+    for folder in [odd.path(), empty.path()] {
+        let output = program()
+            .arg(folder)
+            .args(["--provider", "http://127.0.0.1:9/v1", "--model", "a-model"])
+            .env("WHOLEHEARD_LOG_DIR", logs.path())
+            .env("WHOLEHEARD_LOG", "error")
+            .env("WHOLEHEARD_TRACE", "making-43")
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+    }
+    let lines = logged(logs.path());
+    assert_eq!(steps(&lines), ["summary.failed", "summary.failed"]);
+    assert!(
+        lines
+            .iter()
+            .all(|line| line["span"]["trace"] == "making-43" && line["span"]["program"] == "summary")
+    );
+    let text = fs::read_to_string(fs::read_dir(logs.path()).unwrap().next().unwrap().unwrap().path()).unwrap();
+    for said in [
+        "zebracolor",
+        "3 juin",
+        &*odd.path().to_string_lossy(),
+        &*empty.path().to_string_lossy(),
+    ] {
+        assert!(!text.contains(said), "the log holds {said:?}: {text}");
+    }
 }

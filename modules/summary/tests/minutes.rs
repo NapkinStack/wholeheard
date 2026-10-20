@@ -64,7 +64,7 @@ fn what_is_not_a_transcript_of_this_version_is_refused_with_its_reason() {
         ),
         (
             transcript(&[r#"{"type": "segment", "speaker": "a-third-party", "start": 0.0, "end": 1.0, "text": "x"}"#]),
-            "speaker a-third-party",
+            "a speaker other than me or others, at 0",
         ),
         (
             transcript(&[r#"{"type": "segment", "speaker": "me", "start": 2.0, "end": 1.0, "text": "x"}"#]),
@@ -358,7 +358,7 @@ fn a_transcript_holds_its_header_first_and_each_segment_once() {
     );
     for (text, expected) in [
         (format!("\n{}", transcript(&[segment])), "does not name transcript/v1"),
-        (transcript(&[&segment.replace("1.0", "-1.0")]), "speaker me, -1 to 2"),
+        (transcript(&[&segment.replace("1.0", "-1.0")]), "refuses: -1 to 2"),
     ] {
         let Err(Refused(why)) = read_transcript(&text) else {
             panic!("accepted: {text}")

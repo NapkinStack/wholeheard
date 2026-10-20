@@ -93,7 +93,7 @@ deliverables:
   - id: D29
     title: "What Wholeheard does is logged, never what was said; a failure reaches the user in plain words"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given each program run — by the window or by hand —, when it works or fails, then its steps and its failures are written, one JSON line each, in the user's state folder under the id of the making they belong to, a file a day kept fourteen days; and the logs of a run on a known meeting hold none of its words, its context, nor a key"
       - "Given a making that fails, when the user is told, then the page and the notification say it in one plain sentence in their language, with what to do, and never the technical detail"

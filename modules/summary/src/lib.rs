@@ -6,6 +6,7 @@
 
 use std::{fs, io, path::Path};
 
+pub mod log;
 pub mod provider;
 
 /// The contract this module reads, as the transcript's first line names it.
@@ -66,10 +67,14 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
                 "the transcript holds a segment whose text is on more than one line, at {start}"
             ));
         }
-        if !matches!(speaker, "me" | "others") || end < start || start < 0.0 {
+        // What the transcript holds is never said back: a failure's sentence is logged (ADR-0007).
+        if !matches!(speaker, "me" | "others") {
             return refused(format!(
-                "the transcript holds a segment this version refuses: speaker {speaker}, {start} to {end}"
+                "the transcript holds a segment of a speaker other than me or others, at {start}"
             ));
+        }
+        if end < start || start < 0.0 {
+            return refused(format!("the transcript holds a segment this version refuses: {start} to {end}"));
         }
         // A segment is known by its speaker and its start: said twice, it is read once.
         // Adding zero makes the two zeros one: -0.0 and 0.0 are the same start.
