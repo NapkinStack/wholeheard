@@ -275,6 +275,7 @@ EXAMPLES = {
             {"event": "written", "file": "<session-folder>/minutes.md"},
             {"event": "answered", "host": "local", "model": "mistral"},
             {"event": "failed", "code": "provider.refused_key"},
+            {"event": "failed", "code": "settings.invalid"},
             {"event": "failed", "code": "a code of a later version"},
             {"event": "an event of a later version"},
         ],
