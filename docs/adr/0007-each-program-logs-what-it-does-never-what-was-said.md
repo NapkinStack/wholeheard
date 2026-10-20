@@ -91,6 +91,12 @@ Option 1.
   `provider.refused_key`, `model.missing`, …) and its technical detail on the error stream; the
   shell logs both, and says the code to the user as a sentence of `words` — plain, in their
   language, with what to do. The detail is never on the page or in a notification.
+- **Errors, as built (2026-10-20, D29's third step):** the code is not put first on the error
+  stream. It is a `failed` event, the last line of the program's output, beside the sentence,
+  which stays as it was. The reasons: the output is already a contract judged by its schema,
+  and the shell already reads the sentence. A line the contract adds is additive; a sentence
+  that changes form is not. Codes start with `wholeheard-summary` (`summarising/v1`). Capture's
+  and transcription's come later: transcription has no contract for how it runs.
 - **Developer mode:** Settings → Advanced, off by default. On: the detail under the sentence, a
   log level chosen, *Open the logs*, *Copy a diagnostic* — the last day's logs of a meeting's
   makings, nothing of the meeting, ready to send.
@@ -107,7 +113,8 @@ day of real meetings hold none of their words.
 ## Consequences
 
 - Each program gains three dependencies (`tracing`, `tracing-subscriber`, `tracing-appender`).
-- The programs' failure lines change form — a code first — and the contracts' prose says so.
+- The programs' contracts gain a `failed` event with a code; their failure sentences keep their form
+  (see *Errors, as built*).
 - The page's error sentences move from the programs to the shell's `words`.
 
 ## Rejected alternatives

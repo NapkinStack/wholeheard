@@ -412,19 +412,21 @@ plain file; a temporary file left by a crash is never cleaned.
 … les erreurs technique ne devrait pas remonté dans l'ihm de l'utilisateur (ou peut être prévoir
 un mode "developpeur", a toi de voir)"; then, 2026-10-20, "oui pour les 2"). Nothing is logged
 today; a program's technical sentence reaches the page as it is. Its design:
-[ADR-0007](../../adr/0007-each-program-logs-what-it-does-never-what-was-said.md). Built in two
+[ADR-0007](../../adr/0007-each-program-logs-what-it-does-never-what-was-said.md). Built in
 steps, one module a pull request: the logs (each program, then the shell passing the making's
-id), then the failures said in words and the developer mode (the shell).
+id); the failures said in words, and the developer mode (the shell); then their causes.
 
 **Third step, the causes (2026-10-20, on the decider's word "avance en autonomie").** The
-second step left one sentence per step: "the minutes were not written … Try again". When the
-key was refused, there is no credit left, or the provider is not running, that gesture fails
-the same way. ADR-0007 (*Errors*) gives each failure a stable code for that reason. It starts
+second step left one sentence per step: "The minutes were not written", with "“Write the
+minutes of the last recording”, in Wholeheard’s menu, tries again." When the key was refused,
+there is no credit left, or the provider is not running, that gesture fails the same way.
+ADR-0007 (*Errors*) gives each failure a stable code for that reason. As built, the code is an
+event of the output, not the head of the error stream's line (ADR-0007, *Errors, as built*). It starts
 with `wholeheard-summary`, whose failures differ most in what the user does next:
 
 ```mermaid
 flowchart LR
-    C["contracts<br/>summarising/v1: a failed event<br/>with its code, additive"]:::contract --> P["summary<br/>says the code<br/>before its sentence"]:::prog
+    C["contracts<br/>summarising/v1: a failed event<br/>with its code, additive"]:::contract --> P["summary<br/>says the code,<br/>beside its sentence"]:::prog
     P --> S["shell<br/>a sentence per code,<br/>with its gesture"]:::ui
     classDef contract fill:#374151,color:#fff
     classDef prog fill:#065f46,color:#fff
@@ -458,8 +460,8 @@ pull request per box, in this order.
 - Compressing the tracks without loss (cycle 02, D9: it halves their weight).
 - An online service for the transcription (narrowed out of D20).
 - Error codes from capture and transcription, as summary gives them (D29's third step). Few of
-  capture's failures call for a gesture of their own (no source; a folder that cannot be
-  written, which the shell already says before it starts). Transcription has no contract for
+  capture's failures call for a gesture of their own: no source; a disk full while recording;
+  a folder that cannot be written, which the shell already says before it starts. Transcription has no contract for
   how it runs and fails, only for the file it writes, so it would need one first.
 
 ## Open questions
