@@ -31,8 +31,7 @@ fn run(folder: &Path, address: &str, key: Option<&str>) -> Output {
     command
         .arg(folder)
         .args(["--provider", address, "--model", "a-model"])
-        .env_remove("WHOLEHEARD_PROVIDER_KEY")
-        .env_remove("SUMMIT_PROVIDER_KEY");
+        .env_remove("WHOLEHEARD_PROVIDER_KEY");
     if let Some(key) = key {
         command.env("WHOLEHEARD_PROVIDER_KEY", key);
     }
@@ -167,8 +166,7 @@ fn what_cannot_be_sent_as_it_is_is_refused_before_anything_leaves() {
         command
             .arg(folder.path())
             .args(["--provider", &address, "--model", model])
-            .env_remove("WHOLEHEARD_PROVIDER_KEY")
-            .env_remove("SUMMIT_PROVIDER_KEY");
+            .env_remove("WHOLEHEARD_PROVIDER_KEY");
         if let Some(key) = key {
             command.env("WHOLEHEARD_PROVIDER_KEY", key);
         }
@@ -197,7 +195,6 @@ fn a_proxy_named_by_the_environment_is_never_used() {
         .arg(folder.path())
         .args(["--provider", &address, "--model", "a-model"])
         .env_remove("WHOLEHEARD_PROVIDER_KEY")
-        .env_remove("SUMMIT_PROVIDER_KEY")
         .env_remove("NO_PROXY")
         .env_remove("no_proxy")
         .envs([
@@ -244,8 +241,7 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
         command
             .arg(folder.path())
             .args(["--provider", &address, "--model"])
-            .env_remove("WHOLEHEARD_PROVIDER_KEY")
-            .env_remove("SUMMIT_PROVIDER_KEY");
+            .env_remove("WHOLEHEARD_PROVIDER_KEY");
         command
     };
     let refused = |output: Output, expected: &str| {
@@ -281,11 +277,6 @@ fn what_is_not_text_or_cannot_be_read_is_refused_in_one_sentence_and_nothing_lea
             "the key holds a space",
         );
     }
-    // From a shell older than D28, the key under its name then: read all the same.
-    refused(
-        program().arg("a-model").env("SUMMIT_PROVIDER_KEY", "a key").output().unwrap(),
-        "the key holds a space",
-    );
     assert!(received.try_recv().is_err(), "a request left the machine");
 }
 
@@ -294,8 +285,7 @@ fn tested(address: &str, key: Option<&str>) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"));
     command
         .args(["--test", "--provider", address, "--model", "a-model"])
-        .env_remove("WHOLEHEARD_PROVIDER_KEY")
-        .env_remove("SUMMIT_PROVIDER_KEY");
+        .env_remove("WHOLEHEARD_PROVIDER_KEY");
     if let Some(key) = key {
         command.env("WHOLEHEARD_PROVIDER_KEY", key);
     }
@@ -328,7 +318,6 @@ fn a_test_sends_one_fixed_sentence_and_says_the_model_answered() {
     let output = Command::new(env!("CARGO_BIN_EXE_wholeheard-summary"))
         .args(["--test", "--model", "a-model", "--provider", &address])
         .env_remove("WHOLEHEARD_PROVIDER_KEY")
-        .env_remove("SUMMIT_PROVIDER_KEY")
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", said(&output).1);

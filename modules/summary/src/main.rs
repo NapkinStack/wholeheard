@@ -61,17 +61,13 @@ fn test(address: &str, model: &str) -> Result<(), Refused> {
     Ok(())
 }
 
-/// The key, when the provider wants one: from `WHOLEHEARD_PROVIDER_KEY`, written nowhere — or,
-/// from a shell older than D28, from `SUMMIT_PROVIDER_KEY`, until every module passes the new name.
+/// The key, when the provider wants one: from `WHOLEHEARD_PROVIDER_KEY`, written nowhere.
 fn key() -> Result<Option<String>, Refused> {
-    for name in ["WHOLEHEARD_PROVIDER_KEY", "SUMMIT_PROVIDER_KEY"] {
-        match std::env::var(name) {
-            Ok(key) => return Ok(Some(key)),
-            Err(std::env::VarError::NotPresent) => continue,
-            Err(_) => return Err(Refused(format!("the key in {name} is not text"))),
-        }
+    match std::env::var("WHOLEHEARD_PROVIDER_KEY") {
+        Ok(key) => Ok(Some(key)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(_) => Err(Refused("the key in WHOLEHEARD_PROVIDER_KEY is not text".into())),
     }
-    Ok(None)
 }
 
 fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {

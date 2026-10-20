@@ -75,7 +75,7 @@ declares `assembles: [shell, capture, transcription, summary]` and its release
 *run* rather than linked is required by name (`pw-metadata`, for capture).
 
 The next system adds its format to the same release — a `dmg` from the same artefacts. **The
-target is one for every module, named in the environment** (`SUMMIT_TARGET`, D27, 2026-10-19):
+target is one for every module, named in the environment** (`WHOLEHEARD_TARGET`, D27, 2026-10-19):
 each program's release builds in a container of that system, from its module's own
 `containers/<target>.Containerfile`, and `install` makes that system's package — `fedora-44`
 an rpm, `ubuntu-24.04` a `.deb` read by `dpkg-shlibdeps` — in a container of it too. A program

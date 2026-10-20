@@ -5,7 +5,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 dist=${NSTACK_DIST:?run through nstack release, which names this module\'s artefacts folder}
-target=${WHOLEHEARD_TARGET:-${SUMMIT_TARGET:-}}   # SUMMIT_TARGET: its name before D28, until every module reads the new one
+target=${WHOLEHEARD_TARGET:-}
 # The processors it is built for: .cargo/config.toml, read by every build of the module.
 # On the graphics card through Vulkan where the machine has it — a tenth of the meeting's
 # length on the decider's laptop —, on the processor where it has not (ADR-0003).
