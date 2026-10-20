@@ -389,7 +389,8 @@ EXAMPLES = {
                         "device": "Digital Microphone",
                         "changed": [
                             {"at": 312.5, "device": "Headset Microphone"},
-                            {"at": 1290.0, "device": "Digital Microphone"},
+                            {"at": 1290.0, "device": None},
+                            {"at": 1302.5, "device": "Digital Microphone"},
                         ],
                     },
                     "remote": {"device": "Speaker", "changed": []},
@@ -453,6 +454,16 @@ EXAMPLES = {
                 "contract": "session-audio/v2",
                 "started": "2026-10-14T14:05:12+02:00",
                 "tracks": {"local": {"device": "a", "changed": [{"at": "1.0", "device": "b"}]}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"device": "a", "changed": [{"at": 1.0}]}},
+            },
+            {
+                "contract": "session-audio/v2",
+                "started": "2026-10-14T14:05:12+02:00",
+                "tracks": {"local": {"device": "a", "changed": [{"at": 1.0, "device": 7}]}},
             },
             "a record that is no object",
         ],
