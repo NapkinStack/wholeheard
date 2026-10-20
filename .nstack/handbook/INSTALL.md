@@ -92,6 +92,9 @@ nstack update                            # branch nstack/update-vX.Y.Z, merged a
 git push -u origin nstack/update-vX.Y.Z  # then the PR, validated by CI
 ```
 
+An agent passes its session — `nstack update --session <its identifier>` — and the commit
+carries the trailer every commit of an agent carries (`AGENTS.md`, *Identity*).
+
 **When: at a cycle's boundary** — close the cycle, take the update, then accept the next one.
 Upgrading mid-cycle changes the judge while a cycle is being judged.
 

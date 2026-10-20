@@ -9,6 +9,8 @@ round: 1
 
 # Discovery
 
+> The framework's words: `.nstack/handbook/glossary.md`.
+
 > Started by the engine's `discover` command, run by your agent (`.nstack/playbooks/discovery.md`).
 > One document, a decision at the end of each round.
 

@@ -7,6 +7,8 @@ success_criteria:             # when the goal is reached: measurable, dated or r
 
 # Charter — <project name: project_name in .copier-answers.yml>
 
+> The framework's words: `.nstack/handbook/glossary.md`.
+
 > Written once, at the first framing (`.nstack/playbooks/framing.md`), copied to `docs/project/charter.md`;
 > changed only through a PDR. Every agent session reads it.
 
