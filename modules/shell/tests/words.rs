@@ -475,3 +475,31 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
         "Rien n’est envoyé à openrouter.ai avant votre accord, dans la fenêtre de Wholeheard."
     );
 }
+
+#[test]
+fn a_failure_the_user_can_put_right_says_where_and_the_gesture() {
+    use wholeheard_shell::words::{Minutes, Trouble};
+    for language in BOTH {
+        // The meetings' folder cannot be made: the settings choose another, reinstalling does not.
+        let folder = words::trouble(&Trouble::NoFolder("/media/gone/Wholeheard".into()), language).body;
+        assert!(
+            folder.contains("/media/gone/Wholeheard") && !folder.contains("nstall") && !folder.contains("éinstall"),
+            "{folder}"
+        );
+        // Who writes the minutes is no provider's address: the settings, not a try again.
+        let provider = words::minutes(&Minutes::NoProvider("ollama:11434".into()), language).body;
+        assert!(
+            provider.contains("ollama:11434") && !provider.contains(words::menu(language).minutes),
+            "{provider}"
+        );
+    }
+}
+
+#[test]
+fn the_page_has_what_a_program_said_only_in_developer_mode() {
+    assert_eq!(words::shown_detail("wholeheard-summary: the key was refused", false), "");
+    assert_eq!(
+        words::shown_detail("wholeheard-summary: the key was refused", true),
+        "wholeheard-summary: the key was refused"
+    );
+}

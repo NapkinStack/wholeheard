@@ -1186,7 +1186,7 @@ fn named(folder: &Path) -> String {
 #[tauri::command]
 fn makings(shell: State<'_, Shell>) -> Makings {
     let developer = shell.settings().developer;
-    let said = |why: &String| if developer { why.clone() } else { String::new() };
+    let said = |why: &String| words::shown_detail(why, developer);
     let writing = shell.writing_minutes.lock().unwrap().clone();
     let by = shell.minutes_by.lock().unwrap().clone();
     Makings {
@@ -1352,8 +1352,9 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
     }
     let Some(host) = providers::host(&provider) else {
         let why = format!("{provider} is no provider's address");
-        refused(why.clone());
-        return tell(app, &words::minutes(&words::Minutes::Failed(why), shell.language));
+        tracing::warn!(detail = %why, "shell.minutes_refused");
+        refused(why);
+        return tell(app, &words::minutes(&words::Minutes::NoProvider(provider), shell.language));
     };
     if agreed_now != Some(host.as_str()) && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
         let mut awaiting = shell.awaiting.lock().unwrap();
@@ -1405,6 +1406,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => {
                 let why = format!("the minutes there could not be set aside ({error}): nothing was made");
+                tracing::error!(detail = %why, "shell.minutes_failed");
                 minutes_ended(&app, &folder, Some(why.clone()));
                 return tell(&app, &words::minutes(&words::Minutes::failed(why, again), shell.language));
             }
@@ -1567,8 +1569,15 @@ fn toggle_recording(app: &AppHandle) {
     }
     // The settings as the file says them now: the user may have changed it by hand.
     let _ = shell.reread();
-    let started = std::fs::create_dir_all(&shell.settings().sessions)
-        .and_then(|()| Recording::start(&program("wholeheard-capture", "WHOLEHEARD_CAPTURE"), &shell.settings().sessions));
+    let sessions = shell.settings().sessions;
+    if let Err(error) = std::fs::create_dir_all(&sessions) {
+        tracing::error!(detail = %error, "shell.sessions_refused");
+        return tell(
+            app,
+            &words::trouble(&Trouble::NoFolder(sessions.display().to_string()), shell.language),
+        );
+    }
+    let started = Recording::start(&program("wholeheard-capture", "WHOLEHEARD_CAPTURE"), &sessions);
     match started {
         Ok((running, said)) => {
             *recording = Some(running);

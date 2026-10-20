@@ -804,8 +804,16 @@ pub enum Trouble {
     NoModel(String),
     /// The program that hears could not be started: what the system said of it.
     NoTranscriber(String),
+    /// The meetings' folder could not be made or written: where it is.
+    NoFolder(String),
     /// A transcript was asked for, and no recording is in the folder of sessions.
     NoSession,
+}
+
+/// What the window's page shows of what a program said of a failure: it, in developer mode;
+/// else nothing — the page says the failure in plain words (D29).
+pub fn shown_detail(said: &str, developer: bool) -> String {
+    if developer { said.to_string() } else { String::new() }
 }
 
 /// What the user is told of a trouble: what it is, and what still works. Where the user has
@@ -864,6 +872,20 @@ pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
             "Wholeheard cannot transcribe",
             "Its transcription program could not be started. The recording is kept; installing Wholeheard again puts the program back.",
         ),
+        (Trouble::NoFolder(at), English) => {
+            return said(
+                "Wholeheard cannot record",
+                format!("Its meetings folder cannot be written: {at}. Choose another one in Wholeheard’s settings."),
+            );
+        }
+        (Trouble::NoFolder(at), French) => {
+            return said(
+                "Wholeheard ne peut pas enregistrer",
+                format!(
+                    "Son dossier des réunions ne peut pas être écrit\u{a0}: {at}. Choisissez-en un autre dans les réglages de Wholeheard."
+                ),
+            );
+        }
         (Trouble::NoSession, English) => (
             "No recording to transcribe",
             "Record a meeting first: its transcript follows the stop.",
@@ -913,6 +935,8 @@ pub enum Minutes {
     Waiting(String),
     /// No one is chosen to write them.
     Unchosen,
+    /// Who writes them, in the settings, is no provider's address: the address as written.
+    NoProvider(String),
     /// The last recording has no whole transcript.
     NoTranscript,
 }
@@ -972,6 +996,16 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         (Minutes::Unchosen, French) => (
             "Personne n’est choisi pour écrire le compte rendu",
             "Choisissez-le dans les réglages de Wholeheard.".to_string(),
+        ),
+        (Minutes::NoProvider(address), English) => (
+            "The minutes were not written",
+            format!("“{address}” is not a provider’s address: choose who writes the minutes in Wholeheard’s settings."),
+        ),
+        (Minutes::NoProvider(address), French) => (
+            "Le compte rendu n’a pas été fait",
+            format!(
+                "«\u{a0}{address}\u{a0}» n’est pas l’adresse d’un fournisseur\u{a0}: choisissez qui écrit le compte rendu dans les réglages de Wholeheard."
+            ),
         ),
         (Minutes::NoTranscript, English) => (
             "No minutes without a transcript",
