@@ -68,13 +68,18 @@ impl Served {
 
     /// Serves these tracks, each with where its first frame is on the session's clock, as one
     /// sound — and no longer what was offered before: its URL, or none when no track reads as one.
-    /// The same tracks offered again — the page drawn again — keep their URL, which a player may
-    /// still be reading.
+    /// The same tracks offered again as they were — the page drawn again — keep their URL,
+    /// which a player may still be reading; grown since, a meeting still recording, they do not.
     pub fn offer(&self, tracks: Vec<(PathBuf, f64)>) -> Option<String> {
+        let mix = Mix::of(&tracks).map(Arc::new);
         let mut offered = self.offered.lock().unwrap();
-        if offered.tracks != tracks || offered.mix.is_none() {
+        let same = |old: &Option<Arc<Mix>>| match (old, &mix) {
+            (Some(old), Some(new)) => old.size() == new.size(),
+            _ => false,
+        };
+        if offered.tracks != tracks || !same(&offered.mix) {
             offered.number += 1;
-            offered.mix = Mix::of(&tracks).map(Arc::new);
+            offered.mix = mix;
             offered.tracks = tracks;
         }
         offered.mix.as_ref()?;

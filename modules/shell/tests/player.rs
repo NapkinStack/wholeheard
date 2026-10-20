@@ -113,6 +113,18 @@ fn the_meeting_offered_is_served_as_one_sound_whole_or_by_range_to_the_token_alo
     // The same meeting drawn again: the same URL, still served — a player may be reading it.
     assert_eq!(served.offer(offered.clone()).as_deref(), Some(url.as_str()));
     assert_eq!(get(&url, "GET", Some("bytes=44-45")).0, 206);
+    // The same tracks grown since — a meeting opened while it records, then again: a new offer,
+    // as long as they are now; the same tracks placed elsewhere, too.
+    let growing = folder.path().join("growing.wav");
+    track(&growing, 48_000, 3);
+    let short = served.offer(vec![(growing.clone(), 0.0)]).unwrap();
+    track(&growing, 480_000, 3);
+    let grown = served.offer(vec![(growing.clone(), 0.0)]).unwrap();
+    assert_ne!(grown, short);
+    assert_eq!(header(&get(&grown, "HEAD", None).1, "content-length"), Some("960044"));
+    assert_ne!(served.offer(vec![(growing.clone(), 1.0)]).unwrap(), grown);
+    served.offer(offered.clone()).unwrap();
+    let url = served.offer(offered.clone()).unwrap();
     // Another meeting opened: the earlier offer is gone.
     let again = served.offer(vec![(remote.clone(), 0.0)]).unwrap();
     assert_eq!(get(&url, "GET", None).0, 404);
