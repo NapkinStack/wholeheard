@@ -574,7 +574,7 @@ def main() -> int:
     # key goes to the scenario's own keyring, which lives as long as the program.
     class Tags(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
-            body = json.dumps({"models": [{"name": "qwen3:14b"}, {"name": "mistral:7b"}, {"name": "qwen3:8b"}]}).encode()
+            body = json.dumps({"models": [{"name": "qwen3:14b"}, {"name": "mistral:7b"}]}).encode()
             self.send_response(200)
             self.send_header("content-length", str(len(body)))
             self.end_headers()
@@ -595,7 +595,7 @@ def main() -> int:
         offered = browser.execute_script("return [...document.querySelectorAll('#minutes option')].map(o => o.textContent)")
         check(
             "who can write the minutes: Ollama's models, the online services, one's own",
-            offered == ["Pas encore choisi", "qwen3:8b — recommandé", "mistral:7b", "qwen3:14b", "OpenRouter", "OpenAI", "Mistral", "Personnalisé…"],
+            offered == ["Pas encore choisi", "mistral:7b", "qwen3:14b", "OpenRouter", "OpenAI", "Mistral", "Personnalisé…"],
             offered,
         )
         # Going through the list never saves: what is chosen is saved on the word (D25).
