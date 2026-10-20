@@ -42,10 +42,18 @@ impl Served {
         let (heard, kept) = (token.clone(), Arc::clone(&offered));
         std::thread::spawn(move || {
             for request in server.incoming_requests() {
-                let kept = Arc::clone(&kept);
-                let heard = heard.clone();
-                // One at a time per request: a slow reader holds no other.
-                std::thread::spawn(move || answer(request, &heard, &kept));
+                // Turned away where it arrives: anything but reading an offered track holds no
+                // thread. Only a track offered is streamed, on a thread of its own, so that a
+                // slow reader holds no other.
+                if !matches!(request.method(), Method::Get | Method::Head) {
+                    let _ = request.respond(Response::empty(StatusCode(405)));
+                    continue;
+                }
+                let Some(path) = named(request.url(), &heard, &kept.lock().unwrap()) else {
+                    let _ = request.respond(Response::empty(StatusCode(404)));
+                    continue;
+                };
+                std::thread::spawn(move || answer(request, path));
             }
         });
         Ok(Served {
@@ -76,15 +84,12 @@ fn named(url: &str, token: &str, offered: &Offered) -> Option<PathBuf> {
     offered.tracks.get(place.parse::<usize>().ok()?).cloned()
 }
 
-fn answer(request: Request, token: &str, offered: &Mutex<Offered>) {
-    let wanted = named(request.url(), token, &offered.lock().unwrap());
+/// Streams an offered track, whole or by one range.
+fn answer(request: Request, path: PathBuf) {
     let refused = |request: Request, code: u16| {
         let _ = request.respond(Response::empty(StatusCode(code)));
     };
-    if !matches!(request.method(), Method::Get | Method::Head) {
-        return refused(request, 405);
-    }
-    let Some(file) = wanted.and_then(|path| File::open(path).ok()) else {
+    let Ok(file) = File::open(path) else {
         return refused(request, 404);
     };
     let Ok(size) = file.metadata().map(|data| data.len()) else {

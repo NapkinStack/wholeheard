@@ -82,3 +82,26 @@ fn the_tracks_offered_are_served_whole_or_by_range_to_the_token_alone() {
     let last = served.offer(vec![folder.path().join("local.wav")]);
     assert_eq!(get(&last[0], Some("bytes=0-0")).2, [0]);
 }
+
+#[test]
+fn only_reading_is_answered_whole_or_by_one_range() {
+    let folder = tempfile::tempdir().unwrap();
+    fs::write(folder.path().join("local.wav"), vec![7u8; 1000]).unwrap();
+    let served = Served::start().unwrap();
+    let url = served.offer(vec![folder.path().join("local.wav")]).remove(0);
+    let agent: ureq::Agent = ureq::Agent::config_builder().http_status_as_error(false).build().into();
+    // HEAD: what a player asks first — the size, no body.
+    let head = agent.head(&url).call().unwrap();
+    assert_eq!(head.status().as_u16(), 200);
+    assert_eq!(
+        head.headers().get("content-length").and_then(|value| value.to_str().ok()),
+        Some("1000")
+    );
+    // Nothing is written through it.
+    assert_eq!(agent.post(&url).send("x").unwrap().status().as_u16(), 405);
+    assert_eq!(agent.delete(&url).call().unwrap().status().as_u16(), 405);
+    // Several ranges at once: refused, never half answered.
+    assert_eq!(get(&url, Some("bytes=0-9,20-29")).0, 416);
+    assert_eq!(get(&url, Some("bytes=-10")).2, vec![7u8; 10]);
+    assert_eq!(get(&url, Some("items=0-9")).0, 416);
+}
