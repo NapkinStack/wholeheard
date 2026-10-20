@@ -635,6 +635,9 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
 /// nothing of the meeting, which no line holds (D29).
 #[tauri::command]
 fn diagnostic(shell: State<'_, Shell>, name: String) -> Result<String, String> {
+    if !shell.settings().developer {
+        return Err("the developer mode is off".into());
+    }
     session_folder(&shell, &name)?;
     let folder = log::folder().ok_or("this system names no folder for logs")?;
     Ok(log::diagnostic(&folder, &name))

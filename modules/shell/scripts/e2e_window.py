@@ -489,6 +489,7 @@ def main() -> int:
         changed(lambda: Select(browser.find_element(By.ID, "log-level")).select_by_value("debug"))
         check("the logs' level chosen is in the file", 'log = "debug"' in window.file.read_text(), window.file.read_text())
         changed(lambda: Select(browser.find_element(By.ID, "log-level")).select_by_value("info"))
+        check("the usual level chosen again is in the file", 'log = "info"' in window.file.read_text(), window.file.read_text())
         changed(lambda: browser.find_element(By.ID, "developer").click())
         check("the developer mode turned off again is said so in the file, and hides its rows",
               "developer = false" in window.file.read_text() and not browser.find_elements(By.ID, "log-level"), window.file.read_text())

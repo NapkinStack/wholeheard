@@ -567,16 +567,19 @@ function showMeeting({ session, transcript, minutes, developer }, words) {
     const copy = element("button", "open", words.copy_diagnostic);
     copy.type = "button";
     copy.id = "copy-diagnostic";
+    // What became of it, said where a screen reader hears it.
+    const copied = element("span", "says", "");
+    copied.setAttribute("role", "status");
     copy.addEventListener("click", async () => {
       try {
         const lines = await window.__TAURI__.core.invoke("diagnostic", { name: nameOf(session) });
         await navigator.clipboard.writeText(lines);
-        copy.textContent = lines ? words.diagnostic_copied : words.diagnostic_empty;
+        copied.textContent = lines ? words.diagnostic_copied : words.diagnostic_empty;
       } catch {
-        copy.textContent = words.diagnostic_not_copied;
+        copied.textContent = words.diagnostic_not_copied;
       }
     });
-    actions.append(copy);
+    actions.append(copied, copy);
   }
   actions.append(open);
   top.append(back, actions);
@@ -1062,6 +1065,7 @@ function showSettings(shown, minutes, words) {
     level.append(levelSaid, levelPick);
     const logs = element("div", "row");
     const logsSaid = element("span", "said");
+    logsSaid.setAttribute("role", "status");
     logsSaid.append(element("span", "name", words.logs[0]), element("span", "says", words.logs[1]));
     const openLogs = element("button", "open", words.open_logs);
     openLogs.type = "button";

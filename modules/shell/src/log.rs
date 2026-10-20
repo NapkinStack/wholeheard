@@ -194,6 +194,8 @@ pub fn diagnostic(folder: &Path, session: &str) -> String {
             let parts: Vec<&str> = name.split('.').collect();
             matches!(parts[..], [program, date, "jsonl"] if is_program(program) && is_date(date))
         })
+        // The folder's own files, as pruned: a link is not followed.
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
         .filter_map(|entry| std::fs::read_to_string(entry.path()).ok())
         .flat_map(|text| text.lines().map(str::to_string).collect::<Vec<_>>())
         .filter_map(|line| Some((serde_json::from_str(&line).ok()?, line)))

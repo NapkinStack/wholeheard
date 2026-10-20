@@ -94,6 +94,26 @@ fn a_meetings_diagnostic_holds_its_makings_lines_from_every_program_in_order() {
         ],
         "{said}"
     );
+    // A meeting whose name starts another's is that meeting only.
+    fs::write(
+        at.join("shell.2026-10-19.jsonl"),
+        line(
+            "2026-10-19T08:00:00Z",
+            "shell.transcript",
+            Some("longer"),
+            &format!(r#","session":"{MEETING}1""#),
+        ),
+    )
+    .unwrap();
+    assert!(!diagnostic(at, MEETING).contains("\"longer\""));
+    // A link named as a day's file is not followed: the folder's own files only, as pruned.
+    #[cfg(unix)]
+    {
+        let elsewhere = tempfile::tempdir().unwrap();
+        fs::write(elsewhere.path().join("x"), line("2026-10-20T09:06:35Z", "linked", Some("m1"), "")).unwrap();
+        std::os::unix::fs::symlink(elsewhere.path().join("x"), at.join("capture.2026-10-20.jsonl")).unwrap();
+        assert!(!diagnostic(at, MEETING).contains("linked"));
+    }
     // A meeting with no making logged has nothing to say.
     assert_eq!(diagnostic(at, "2026-01-01_00-00"), "");
     // No folder, no diagnostic — never a failure.
