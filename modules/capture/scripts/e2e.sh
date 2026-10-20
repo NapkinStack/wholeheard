@@ -54,7 +54,7 @@ tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -
 tone 440 40 "$work/me.wav"; tone 880 8 "$work/others-a.wav"; tone 880 8 "$work/others-b.wav"
 
 measure() { python3 scripts/e2e_measure.py "$@" 2>&1 | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
-# Whether the run of an id logged these steps, in this order among its own, and never a path of the run's folder.
+# Whether the run of an id logged these steps, in this order among its own, no level, and never a path of the run's folder.
 logged() {
   python3 - "$work" "$@" <<'PY'
 import json, pathlib, sys
@@ -62,7 +62,8 @@ work, trace, wanted = sys.argv[1], sys.argv[2], sys.argv[3:]
 text = "".join(path.read_text() for path in sorted(pathlib.Path(work, "logs").glob("capture.*.jsonl")))
 steps = [line["message"] for line in map(json.loads, text.splitlines()) if line.get("span", {}).get("trace") == trace]
 mine = iter(steps)
-sys.exit(0 if all(step in mine for step in wanted) and work not in text else f"{trace}: {steps}")
+# The levels, ten a second, are said to the shell and never logged.
+sys.exit(0 if all(step in mine for step in wanted) and work not in text and "capture.level" not in steps else f"{trace}: {steps}")
 PY
 }
 failed=0
@@ -130,6 +131,18 @@ check grep -q '"stopped"' "$(ls -d "$work"/alone/*/ | head -1)session.json"
 # in 24 bits, so that a track cut to 16 does.
 tone() { ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$1:duration=$2" -af "volume=0.5,pan=stereo|c0=c0|c1=0.5*c0,dcshift=0.02" -ar 48000 -c:a pcm_s24le "$3"; }
 tone 440 40 "$work/me.wav"; tone 880 8 "$work/others-a.wav"; tone 880 8 "$work/others-b.wav"
+# How many gaps of zeros the run of an id logged — and where the first was, in seconds.
+zeros() {
+  python3 - "$work" "$@" <<'PY'
+import json, pathlib, sys
+work, trace, count = sys.argv[1], sys.argv[2], int(sys.argv[3])
+lines = [json.loads(line) for path in pathlib.Path(work, "logs").glob("capture.*.jsonl") for line in path.read_text().splitlines()]
+gaps = [line for line in lines if line.get("span", {}).get("trace") == trace and line["message"] == "capture.zeros"]
+first = float(sys.argv[4]) if len(sys.argv) > 4 else None
+ok = len(gaps) == count and all(gap["track"] == "remote" for gap in gaps) and (first is None or abs(gaps[0]["at"] - first) < 0.5)
+sys.exit(0 if ok else f"{trace}: {gaps}")
+PY
+}
 measure2() { python3 scripts/e2e_measure_v2.py "$@" 2>&1 | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
 pactl set-default-source wholeheard_e2e_mic.monitor
 
@@ -186,6 +199,20 @@ kill -INT "$recorder"; wait "$recorder" || true
 kill "$mic_player" "$others_player" 2>/dev/null || true
 check measure2 stopped-source "$(ls -d "$work"/v2-stops/*/ | head -1)"
 check logged e2e-h capture.started capture.zeros capture.stopped
+check zeros e2e-h 1
+
+say "I. each source as delivered: a source mute from its start"
+# Its stream paused as soon as it is there: it delivers nothing, and its zeros are logged once.
+pw-play --target wholeheard_e2e_mic "$work/me.wav" & mic_player=$!
+sleep 0.5
+WHOLEHEARD_TRACE=e2e-i "$bin" record "$work/v2-mute" --as v2 > /dev/null 2>&1 &
+recorder=$!
+for _ in $(seq 40); do python3 scripts/e2e_measure_v2.py pause "$recorder" remote 5 2>/dev/null && break; sleep 0.05; done
+pw-play "$work/others-a.wav" & others_player=$!
+sleep 3
+kill -INT "$recorder"; wait "$recorder" || true
+kill "$mic_player" "$others_player" 2>/dev/null || true
+check zeros e2e-i 1 0
 
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"
 exit "$failed"

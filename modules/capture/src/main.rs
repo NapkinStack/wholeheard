@@ -326,6 +326,8 @@ struct Delivered {
     point: Option<(u64, f64)>,
     /// The next sound owes a point: it is the first, or the first after zeros written here.
     owed: bool,
+    /// Zeros are being written for it: logged once a gap, the first from the start included.
+    mute: bool,
     stream: Option<Stream>,
 }
 
@@ -348,6 +350,7 @@ impl Delivered {
             self.point = Some((frame, at));
             self.owed = false;
         }
+        self.mute = false;
         self.track.push(samples)
     }
 }
@@ -381,6 +384,7 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
                     watch: Watch::new(SILENT_AFTER),
                     point: None,
                     owed: true,
+                    mute: false,
                     stream: Some(stream),
                 }));
             }
@@ -450,8 +454,9 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
                     // the track does not hold yet — never the track zeros nobody named.
                     let zeros = (source.track.frames(), (due - LATE / 3.0 * rate) as u64);
                     // Once a gap: zeros follow each second while the source stays mute.
-                    if !source.owed {
-                        warn!(source = SOURCES[index], at = zeros.0 as f64 / rate, "capture.zeros");
+                    if !source.mute {
+                        warn!(track = TRACKS[index], at = zeros.0 as f64 / rate, "capture.zeros");
+                        source.mute = true;
                     }
                     clock.silence(TRACKS[index], zeros).map_err(|e| e.to_string())?;
                     source.track.silence_to(zeros.1).map_err(|e| e.to_string())?;
