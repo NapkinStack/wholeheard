@@ -34,9 +34,7 @@ order of the events, and what each means, are said here and nowhere else.
   `context.txt`, when there is one, and writes the folder's `minutes.md` (`minutes/v1`).
 - **A test**: `wholeheard-summary --test --provider <address> --model <name>`, the options in either
   order. It sends one sentence of its own — nothing of a meeting — and writes nothing.
-- **The key**, when the provider wants one, is in its environment as `WHOLEHEARD_PROVIDER_KEY`
-  (`SUMMIT_PROVIDER_KEY`, its name before the product was renamed in D28, is read too until every
-  module passes the new one),
+- **The key**, when the provider wants one, is in its environment as `WHOLEHEARD_PROVIDER_KEY`,
   never in its arguments. It is sent to the provider's host and written nowhere: not on the
   output, not on the error stream, not in the minutes.
 - **The address** speaks OpenAI's protocol (`…/v1`); it is followed nowhere else — no

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The package as a user meets it, for the system WHOLEHEARD_TARGET names (SUMMIT_TARGET, its name before D28, read too) (unset: the system it runs on): installed
+# The package as a user meets it, for the system WHOLEHEARD_TARGET names (unset: the system it runs on): installed
 # with dnf or apt in a container of that system that never saw Wholeheard, each program run, removed —
 # meetings and settings stay. With no argument, made from stand-in programs (no other module
 # built); given a package, that one. Needs podman and the network.
@@ -9,7 +9,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 # As the other modules' e2e where their system is missing: said, not failed.
 command -v podman >/dev/null || { echo "e2e: NOT RUN — podman is missing here"; exit 0; }
 # Unset, the system this runs on, as it names itself (fedora-44, ubuntu-24.04).
-target=${WHOLEHEARD_TARGET:-${SUMMIT_TARGET:-$(. /etc/os-release && echo "$ID-$VERSION_ID")}}
+target=${WHOLEHEARD_TARGET:-$(. /etc/os-release && echo "$ID-$VERSION_ID")}
 package=${1:+$(realpath "$1")}
 if [ -z "$package" ]; then
   work=$(mktemp -d)
