@@ -3,6 +3,7 @@
 
 use crate::{
     recording::{Said, Source},
+    summarising::Cause,
     transcription::Made,
 };
 
@@ -856,6 +857,53 @@ pub fn shown_detail(said: &str, developer: bool) -> String {
     if developer { said.to_string() } else { String::new() }
 }
 
+/// Why minutes were not made, and what to do, as wholeheard-summary coded it (summarising/v1).
+pub fn cause(cause: Cause, language: Language) -> &'static str {
+    use Language::{English, French};
+    match (cause, language) {
+        (Cause::Unreachable, English) => "The provider could not be reached: check that it runs, or the network, then try again.",
+        (Cause::Unreachable, French) => "Le fournisseur n’a pas pu être joint\u{a0}: vérifiez qu’il tourne, ou le réseau, puis réessayez.",
+        (Cause::TooSlow, English) => "The provider did not answer in time: try again later, or choose a faster model.",
+        (Cause::TooSlow, French) => {
+            "Le fournisseur n’a pas répondu à temps\u{a0}: réessayez plus tard, ou choisissez un modèle plus rapide."
+        }
+        (Cause::RefusedKey, English) => "The provider refused the key: give it again in Wholeheard’s settings.",
+        (Cause::RefusedKey, French) => "Le fournisseur a refusé la clé\u{a0}: saisissez-la de nouveau dans les réglages de Wholeheard.",
+        (Cause::NoCredit, English) => "The provider refused for lack of credit: add credit with it, then try again.",
+        (Cause::NoCredit, French) => "Le fournisseur a refusé faute de crédit\u{a0}: ajoutez du crédit chez lui, puis réessayez.",
+        (Cause::UnknownModel, English) => {
+            "The provider does not know this model or this address: choose them again in Wholeheard’s settings."
+        }
+        (Cause::UnknownModel, French) => {
+            "Le fournisseur ne connaît pas ce modèle ou cette adresse\u{a0}: choisissez-les de nouveau dans les réglages de Wholeheard."
+        }
+        (Cause::Redirected, English) => "The provider sends the request to another address: check the address in Wholeheard’s settings.",
+        (Cause::Redirected, French) => {
+            "Le fournisseur renvoie la demande vers une autre adresse\u{a0}: vérifiez l’adresse dans les réglages de Wholeheard."
+        }
+        (Cause::ProviderFailed, English) => "The provider failed to answer: try again later.",
+        (Cause::ProviderFailed, French) => "Le fournisseur n’a pas su répondre\u{a0}: réessayez plus tard.",
+        (Cause::CutShort, English) => "The model stopped before the end: choose one that writes longer answers in Wholeheard’s settings.",
+        (Cause::CutShort, French) => {
+            "Le modèle s’est arrêté avant la fin\u{a0}: choisissez-en un qui écrit plus long dans les réglages de Wholeheard."
+        }
+        (Cause::NotMinutes, English) => "The model did not write minutes: try again, or choose another model.",
+        (Cause::NotMinutes, French) => "Le modèle n’a pas écrit de compte rendu\u{a0}: réessayez, ou choisissez un autre modèle.",
+        (Cause::TranscriptUnusable, English) => "The transcript cannot be read: make it again first.",
+        (Cause::TranscriptUnusable, French) => "Le transcript ne peut pas être lu\u{a0}: refaites-le d’abord.",
+        (Cause::NoSpeech, English) => "The transcript holds no speech: there is nothing to write minutes of. Check the recording.",
+        (Cause::NoSpeech, French) => "Le transcript ne contient aucune parole\u{a0}: il n’y a rien à résumer. Vérifiez l’enregistrement.",
+        (Cause::Settings, English) => "Who writes the minutes cannot be used as chosen: correct it in Wholeheard’s settings.",
+        (Cause::Settings, French) => {
+            "Le service choisi pour le compte rendu ne peut pas être utilisé tel quel\u{a0}: corrigez-le dans les réglages de Wholeheard."
+        }
+        (Cause::Unwritable, English) => "The minutes could not be written in the meeting’s folder: free space, or check the folder.",
+        (Cause::Unwritable, French) => {
+            "Le compte rendu n’a pas pu être écrit dans le dossier de la réunion\u{a0}: libérez de la place, ou vérifiez le dossier."
+        }
+    }
+}
+
 /// What the user is told of a trouble: what it is, and what still works. Where the user has
 /// something to put right — the settings file's line, the place the model goes —, it says where;
 /// never what a program or the system said (D29).
@@ -967,10 +1015,10 @@ pub enum Minutes {
     Ready,
     /// Ready, and the minutes they replace could not go to the trash: kept beside them, by this name.
     ReadyKeptBeside(String),
-    /// Not made: wholeheard-summary's sentence.
-    Failed(String),
-    /// Made again (*Refaire…*) and not made: the ones there stayed; wholeheard-summary's sentence.
-    RedoFailed(String),
+    /// Not made, and why when wholeheard-summary named a cause this version knows.
+    Failed(Option<Cause>),
+    /// Made again (*Refaire…*) and not made: the ones there stayed; and why, as above.
+    RedoFailed(Option<Cause>),
     /// Online, and the user has not agreed to send this meeting to this host yet.
     Waiting(String),
     /// No one is chosen to write them.
@@ -983,8 +1031,12 @@ pub enum Minutes {
 
 impl Minutes {
     /// Not made: as a first making, or as minutes made again (*Refaire…*) — the ones there stayed.
-    pub fn failed(why: String, again: bool) -> Self {
-        if again { Minutes::RedoFailed(why) } else { Minutes::Failed(why) }
+    pub fn failed(cause: Option<Cause>, again: bool) -> Self {
+        if again {
+            Minutes::RedoFailed(cause)
+        } else {
+            Minutes::Failed(cause)
+        }
     }
 }
 
@@ -1008,18 +1060,36 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
             "Compte rendu prêt",
             "Il est dans la fenêtre de Wholeheard, à côté du transcript.".to_string(),
         ),
-        (Minutes::Failed(_), English) => (
+        // Its cause named, the cause's gesture; else the menu's entry, which tries again.
+        (Minutes::Failed(Some(cause)), English) => (
+            "The minutes were not written",
+            format!("The transcript is untouched. {}", self::cause(*cause, language)),
+        ),
+        (Minutes::Failed(Some(cause)), French) => (
+            "Le compte rendu n’a pas été fait",
+            format!("Le transcript est intact. {}", self::cause(*cause, language)),
+        ),
+        (Minutes::Failed(None), English) => (
             "The minutes were not written",
             format!("The transcript is untouched. “{entry}”, in Wholeheard’s menu, tries again."),
         ),
-        (Minutes::Failed(_), French) => (
+        (Minutes::Failed(None), French) => (
             "Le compte rendu n’a pas été fait",
             format!("Le transcript est intact. «\u{a0}{entry}\u{a0}», dans le menu de Wholeheard, le refait."),
         ),
-        (Minutes::RedoFailed(_), English) => ("The minutes were not made again", "The previous ones stayed in place.".to_string()),
-        (Minutes::RedoFailed(_), French) => (
+        (Minutes::RedoFailed(cause), English) => (
+            "The minutes were not made again",
+            match cause {
+                Some(cause) => format!("The previous ones stayed in place. {}", self::cause(*cause, language)),
+                None => "The previous ones stayed in place.".to_string(),
+            },
+        ),
+        (Minutes::RedoFailed(cause), French) => (
             "Le compte rendu n’a pas été refait",
-            "Celui d’avant est resté en place.".to_string(),
+            match cause {
+                Some(cause) => format!("Celui d’avant est resté en place. {}", self::cause(*cause, language)),
+                None => "Celui d’avant est resté en place.".to_string(),
+            },
         ),
         (Minutes::Waiting(host), English) => (
             "The minutes wait for your agreement",

@@ -42,7 +42,7 @@ printf '%s\\n' "$*" > "$here/summary-args"
 printf '%s' "${WHOLEHEARD_PROVIDER_KEY:-none}" > "$here/summary-key"
 if [ "$1" != --test ]; then
   [ -e "$here/slow-minutes" ] && sleep 3
-  [ -e "$here/fail-minutes" ] && { echo "wholeheard-summary: the provider's answer is not minutes" >&2; exit 1; }
+  [ -e "$here/fail-minutes" ] && { echo '{"event": "failed", "code": "answer.not_minutes"}'; echo "wholeheard-summary: the provider's answer is not minutes" >&2; exit 1; }
   echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
   printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" > "$1/minutes.md"
   echo '{"event": "written", "file": "x"}'
@@ -951,6 +951,10 @@ def main() -> int:
         failed = wait_for(browser, lambda b: "n’a pas été fait" in state(b) and b.find_elements(By.ID, "minutes-again"), 5)
         check("the failure said on the meeting's page too, in plain words, with a way to try again — never what the program said",
               failed and "not minutes" not in state(browser) and "not minutes" not in heard.read_text(), (state(browser), heard.read_text()[-400:]))
+        # Its cause named by the program, its gesture said, on the page and in the notice (D29).
+        check("the cause the program named is said with its gesture, on the page and in the notice",
+              "écrit de compte rendu" in state(browser) and "écrit de compte rendu" in heard.read_text(),
+              (state(browser), heard.read_text()[-400:]))
         # The developer mode shows what the program said, under the sentence; never in a notice (D29).
         browser.execute_script("location.hash = '#/settings'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "developer"))

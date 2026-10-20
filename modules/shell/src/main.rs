@@ -98,6 +98,8 @@ struct Shell {
     minutes_waiting: Mutex<VecDeque<Queued>>,
     /// Why the last minutes of a meeting were not written, until they are (D25).
     minutes_failed: Mutex<HashMap<PathBuf, String>>,
+    /// Their cause, when wholeheard-summary named one this version knows (D29).
+    minutes_causes: Mutex<HashMap<PathBuf, summarising::Cause>>,
     /// How many times each meeting's minutes were written since the start: a page drawn with
     /// fewer is drawn again, however quickly they were made (D25).
     minutes_made: Mutex<HashMap<PathBuf, u64>>,
@@ -280,6 +282,7 @@ fn main() {
                 minutes_waiting: Mutex::new(VecDeque::new()),
                 awaiting: Mutex::new(Vec::new()),
                 minutes_failed: Mutex::new(HashMap::new()),
+                minutes_causes: Mutex::new(HashMap::new()),
                 minutes_made: Mutex::new(HashMap::new()),
                 minutes_tried: Mutex::new(HashMap::new()),
                 asked_again: Mutex::new(HashMap::new()),
@@ -1203,6 +1206,8 @@ struct Makings {
     transcripts_failed: HashMap<String, String>,
     transcripts_made: HashMap<String, u64>,
     failed: HashMap<String, String>,
+    /// The minutes' cause and its gesture, in the user's language, when one was named (D29).
+    failed_said: HashMap<String, String>,
     awaiting: HashMap<String, String>,
     made: HashMap<String, u64>,
 }
@@ -1286,6 +1291,13 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .unwrap()
             .iter()
             .map(|(folder, why)| (named(folder), said(why)))
+            .collect(),
+        failed_said: shell
+            .minutes_causes
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(folder, cause)| (named(folder), words::cause(*cause, shell.language).to_string()))
             .collect(),
         made: shell
             .minutes_made
@@ -1437,6 +1449,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
     shell.awaiting.lock().unwrap().retain(|(aside, _)| *aside != folder);
     *shell.minutes_by.lock().unwrap() = Some((model.clone(), host.clone(), Instant::now()));
     shell.minutes_failed.lock().unwrap().remove(&folder);
+    shell.minutes_causes.lock().unwrap().remove(&folder);
     minuting(app, true);
     let app = app.clone();
     // The keyring may ask the user first: never on the window's and the tray's thread.
@@ -1454,7 +1467,15 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                 let why = format!("the minutes there could not be set aside ({error}): nothing was made");
                 tracing::error!(detail = %why, "shell.minutes_failed");
                 minutes_ended(&app, &folder, Some(why.clone()));
-                return tell(&app, &words::minutes(&words::Minutes::failed(why, again), shell.language));
+                shell
+                    .minutes_causes
+                    .lock()
+                    .unwrap()
+                    .insert(folder.clone(), summarising::Cause::Unwritable);
+                return tell(
+                    &app,
+                    &words::minutes(&words::Minutes::failed(Some(summarising::Cause::Unwritable), again), shell.language),
+                );
             }
         };
         let started = Summarising::start(
@@ -1474,10 +1495,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                     let _ = std::fs::remove_file(previous);
                 }
                 minutes_ended(&app, &folder, Some(error.to_string()));
-                return tell(
-                    &app,
-                    &words::minutes(&words::Minutes::failed(error.to_string(), again), shell.language),
-                );
+                return tell(&app, &words::minutes(&words::Minutes::failed(None, again), shell.language));
             }
         };
         let made = events
@@ -1486,7 +1504,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                 summarising::Event::Ended(made) => Some(made),
                 summarising::Event::Sending { .. } => None,
             })
-            .unwrap_or(summarising::Made::Failed(String::new()));
+            .unwrap_or(summarising::Made::Failed(String::new(), None));
         shell.minuting.lock().unwrap().take();
         // Replaced, the earlier minutes go to the trash — refused, they stay beside, and it is said.
         let mut kept_beside = None;
@@ -1496,7 +1514,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                     kept_beside = previous.file_name().map(|name| name.to_string_lossy().into_owned());
                 }
                 summarising::Made::Written(_) => {}
-                summarising::Made::Failed(_) => {
+                summarising::Made::Failed(..) => {
                     let _ = std::fs::remove_file(&previous);
                 }
             }
@@ -1505,17 +1523,20 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
             &app,
             &folder,
             match &made {
-                summarising::Made::Failed(why) => Some(why.clone()),
+                summarising::Made::Failed(why, _) => Some(why.clone()),
                 summarising::Made::Written(_) => None,
             },
         );
+        if let summarising::Made::Failed(_, Some(cause)) = &made {
+            shell.minutes_causes.lock().unwrap().insert(folder.clone(), *cause);
+        }
         if *shell.leaving.lock().unwrap() {
             return;
         }
         let said = match made {
             summarising::Made::Written(_) if kept_beside.is_some() => words::Minutes::ReadyKeptBeside(kept_beside.unwrap_or_default()),
             summarising::Made::Written(_) => words::Minutes::Ready,
-            summarising::Made::Failed(why) => words::Minutes::failed(why, again),
+            summarising::Made::Failed(_, cause) => words::Minutes::failed(cause, again),
         };
         tell(&app, &words::minutes(&said, shell.language));
     });
