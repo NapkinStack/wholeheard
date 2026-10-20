@@ -57,7 +57,7 @@ Whoever starts it may set, in its environment:
 - `WHOLEHEARD_TRACE` — the making's id: letters, digits and dashes, 64 at most. Any other value
   is replaced by an id of the run's own, without a word;
 - `WHOLEHEARD_LOG` — `off`, `error`, `warn`, `info`, `debug` or `trace`; any other value is
-  `info`;
+  `info`. Turned `off`, the log leaves nothing: no file, no day file removed;
 - `WHOLEHEARD_LOG_DIR` — an absolute folder; a relative one is ignored. A folder that cannot be
   made or written leaves no log, and changes nothing else.
 
