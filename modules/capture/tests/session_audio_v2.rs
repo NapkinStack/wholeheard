@@ -3,7 +3,9 @@
 
 use std::{f32::consts::TAU, fs, path::Path};
 
-use wholeheard_capture::v2::{CONTRACT, Clock, Track, write_session};
+use wholeheard_capture::v2::{CONTRACT, Clock, Held, Track, write_session};
+
+const SESSION: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../contracts/session-audio/v2/session.schema.json");
 
 /// A tone at `level` of full scale, resting at `rest`, each channel a little weaker than the
 /// one before: channels that differ show a mix.
@@ -227,13 +229,13 @@ fn a_session_names_the_tracks_it_holds_and_says_whether_it_was_stopped() {
     let read = || -> serde_json::Value { serde_json::from_slice(&fs::read(folder.path().join("session.json")).unwrap()).unwrap() };
 
     // A microphone that could not be opened has no entry.
-    write_session(folder.path(), "2026-10-14T14:05:12+02:00", None, &[("remote", "Speaker")]).unwrap();
+    write_session(folder.path(), "2026-10-14T14:05:12+02:00", None, &[Held::new("remote", "Speaker")]).unwrap();
     assert_eq!(
         read(),
         serde_json::json!({ "contract": CONTRACT, "started": "2026-10-14T14:05:12+02:00", "tracks": { "remote": { "device": "Speaker" } } })
     );
 
-    let both = [("local", "Digital Microphone"), ("remote", "Speaker")];
+    let both = [Held::new("local", "Digital Microphone"), Held::new("remote", "Speaker")];
     write_session(folder.path(), "2026-10-14T14:05:12+02:00", Some("2026-10-14T15:05:12+02:00"), &both).unwrap();
     let session = read();
     assert_eq!(session["stopped"], "2026-10-14T15:05:12+02:00");
@@ -270,4 +272,35 @@ fn a_source_resting_away_from_zero_reads_silence_on_the_meter() {
     track.push(&tone(48_000, 1, 1.0, 0.0, 0.3)).unwrap();
     let rest = track.level();
     assert!(rest < 0.05, "a source resting at 0.3 read as {rest}");
+}
+
+#[test]
+fn a_session_keeps_each_device_a_track_was_recorded_from_and_when() {
+    let folder = tempfile::tempdir().unwrap();
+    let mut local = Held::new("local", "Digital Microphone");
+    local.changed.push((312.5, Some("Headset Microphone".into())));
+    local.changed.push((1290.0, None));
+    local.changed.push((1302.25, Some("Digital Microphone".into())));
+    write_session(
+        folder.path(),
+        "2026-10-14T14:05:12+02:00",
+        None,
+        &[local, Held::new("remote", "Speaker")],
+    )
+    .unwrap();
+    let session: serde_json::Value = serde_json::from_slice(&fs::read(folder.path().join("session.json")).unwrap()).unwrap();
+    assert_eq!(
+        session["tracks"],
+        serde_json::json!({
+            "local": { "device": "Digital Microphone", "changed": [
+                { "at": 312.5, "device": "Headset Microphone" },
+                { "at": 1290.0, "device": null },
+                { "at": 1302.25, "device": "Digital Microphone" },
+            ] },
+            // A track never moved says nothing more.
+            "remote": { "device": "Speaker" },
+        })
+    );
+    let schema: serde_json::Value = serde_json::from_str(&fs::read_to_string(SESSION).unwrap()).unwrap();
+    assert!(jsonschema::validator_for(&schema).unwrap().is_valid(&session), "{session}");
 }

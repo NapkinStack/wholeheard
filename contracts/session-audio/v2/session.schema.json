@@ -56,9 +56,34 @@
       "properties": {
         "device": {
           "type": "string"
+        },
+        "changed": {
+          "description": "Each change of device after the first, in order: `at`, seconds on the session's clock, as clock.jsonl's; `device`, the name the system gave the device from then on, or null when it named none.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/change"
+          }
         }
       },
       "required": [
+        "device"
+      ]
+    },
+    "change": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "device": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "at",
         "device"
       ]
     }
