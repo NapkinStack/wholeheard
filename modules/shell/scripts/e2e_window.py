@@ -464,6 +464,20 @@ def main() -> int:
             act()
             WebDriverWait(browser, 5).until(staleness_of(before))
 
+        # Back to Settings from another page: its last drawing stays in the hidden page until the
+        # new one replaces it — waited for, so that nothing is clicked or read on the old one.
+        def to_settings():
+            old = browser.find_elements(By.ID, "reminder")
+            browser.execute_script("location.hash = '#/settings'")
+            if old:
+                WebDriverWait(browser, 5).until(staleness_of(old[0]))
+            wait_for(browser, lambda b: b.find_elements(By.ID, "developer"))
+
+        # A refusal is said on the page drawn after the save: waited for, never read too soon.
+        def not_saved():
+            wait_for(browser, lambda b: b.find_elements(By.ID, "not-saved") and b.find_element(By.ID, "not-saved").text, 5)
+            return browser.find_element(By.ID, "not-saved").text
+
         changed(lambda: browser.find_element(By.CSS_SELECTOR, "input[name=after][value=nothing]").click())
         changed(lambda: Select(browser.find_element(By.ID, "keep")).select_by_value("30"))
         changed(lambda: Select(browser.find_element(By.ID, "model")).select_by_visible_text(
@@ -543,7 +557,7 @@ def main() -> int:
         check("a folder typed is made, and in the settings file", elsewhere.is_dir() and f'sessions = "{elsewhere}"' in text, text)
         folder = folder_field()
         changed(lambda: typed(folder, "Wholeheard"))
-        said = browser.find_element(By.ID, "not-saved").text
+        said = not_saved()
         check("a folder that is not a whole path is said, and nothing changes", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == text, said)
         browser.find_element(By.ID, "meetings").click()
         listed = wait_for(browser, lambda b: str(elsewhere) in b.find_element(By.ID, "none").text, 5)
@@ -562,13 +576,12 @@ def main() -> int:
               silent and "Sur cet ordinateur" in said and "ne répond pas" in said and not browser.find_elements(By.ID, "minutes-lacking"), said)
         window.file.write_text(kept)
         browser.execute_script("location.hash = '#/'")
-        browser.execute_script("location.hash = '#/settings'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "reminder"))
+        to_settings()
         # A file broken by hand is never written over: the change is said not saved.
         window.file.write_text(window.file.read_text() + "keep_audio = 0\n")
         broken = window.file.read_text()
         changed(lambda: browser.find_element(By.ID, "reminder").click())
-        said = browser.find_element(By.ID, "not-saved").text
+        said = not_saved()
         check("a file that cannot be read is not written over", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == broken, said)
     # Who writes the minutes: an Ollama made here, an online service, an address of the user's. A
     # key goes to the scenario's own keyring, which lives as long as the program.
@@ -958,8 +971,7 @@ def main() -> int:
               "écrit de compte rendu" in state(browser) and "écrit de compte rendu" in heard.read_text(),
               (state(browser), heard.read_text()[-400:]))
         # The developer mode shows what the program said, under the sentence; never in a notice (D29).
-        browser.execute_script("location.hash = '#/settings'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "developer"))
+        to_settings()
         press(browser, "developer")
         wait_for(browser, lambda b: "developer = true" in window.file.read_text(), 5)
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
@@ -972,8 +984,7 @@ def main() -> int:
         )
         check("in developer mode, the meeting offers its diagnostic: its failed minutes, no path of the run",
               offered and '"shell.minutes_failed"' in lines and str(WORK) not in lines, lines[-600:])
-        browser.execute_script("location.hash = '#/settings'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "developer"))
+        to_settings()
         press(browser, "developer")
         wait_for(browser, lambda b: "developer = false" in window.file.read_text(), 5)
         settled = window.file.read_text()
