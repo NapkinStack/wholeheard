@@ -416,6 +416,30 @@ today; a program's technical sentence reaches the page as it is. Its design:
 steps, one module a pull request: the logs (each program, then the shell passing the making's
 id), then the failures said in words and the developer mode (the shell).
 
+**Third step, the causes (2026-10-20, on the decider's word "avance en autonomie").** The
+second step left one sentence per step: "the minutes were not written … Try again". When the
+key was refused, there is no credit left, or the provider is not running, that gesture fails
+the same way. ADR-0007 (*Errors*) gives each failure a stable code for that reason. It starts
+with `wholeheard-summary`, whose failures differ most in what the user does next:
+
+```mermaid
+flowchart LR
+    C["contracts<br/>summarising/v1: a failed event<br/>with its code, additive"]:::contract --> P["summary<br/>says the code<br/>before its sentence"]:::prog
+    P --> S["shell<br/>a sentence per code,<br/>with its gesture"]:::ui
+    classDef contract fill:#374151,color:#fff
+    classDef prog fill:#065f46,color:#fff
+    classDef ui fill:#1e3a8a,color:#fff
+```
+
+**Legend**: grey is the contract, green the producer, and blue what the user reads. There is one
+pull request per box, in this order.
+
+- The code is a line the contract adds (a `failed` event). It is added, never put in place of
+  anything: the sentence on the error stream stays as it is.
+- A consumer that does not know a code reads it as no code, and keeps the step's sentence.
+  So a code can be added later without a new version.
+- Capture and transcription come later (see *Later*).
+
 ## Out of scope
 
 - The offer to record when an application takes the microphone, and recording by itself:
@@ -433,6 +457,10 @@ id), then the failures said in words and the developer mode (the shell).
 - `export`, with `all`.
 - Compressing the tracks without loss (cycle 02, D9: it halves their weight).
 - An online service for the transcription (narrowed out of D20).
+- Error codes from capture and transcription, as summary gives them (D29's third step). Few of
+  capture's failures call for a gesture of their own (no source; a folder that cannot be
+  written, which the shell already says before it starts). Transcription has no contract for
+  how it runs and fails, only for the file it writes, so it would need one first.
 
 ## Open questions
 
