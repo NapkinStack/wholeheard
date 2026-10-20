@@ -100,8 +100,66 @@ fn only_reading_is_answered_whole_or_by_one_range() {
     // Nothing is written through it.
     assert_eq!(agent.post(&url).send("x").unwrap().status().as_u16(), 405);
     assert_eq!(agent.delete(&url).call().unwrap().status().as_u16(), 405);
-    // Several ranges at once: refused, never half answered.
-    assert_eq!(get(&url, Some("bytes=0-9,20-29")).0, 416);
+    // Several ranges, another unit, a range backwards: ignored, the whole file (RFC 9110 §14.2).
+    for ignored in ["bytes=0-9,20-29", "items=0-9", "bytes=5-4"] {
+        let (status, _, body) = get(&url, Some(ignored));
+        assert_eq!((status, body.len()), (200, 1000), "{ignored}");
+    }
     assert_eq!(get(&url, Some("bytes=-10")).2, vec![7u8; 10]);
-    assert_eq!(get(&url, Some("items=0-9")).0, 416);
+}
+
+/// Raw bytes sent to the server, and what it answers within a second — none when it closed.
+fn raw(base: &str, sent: &[u8]) -> Option<String> {
+    use std::{io::Write, net::TcpStream, time::Duration};
+    let address = base.trim_start_matches("http://").split('/').next().unwrap();
+    let mut stream = TcpStream::connect(address).ok()?;
+    stream.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+    stream.write_all(sent).ok()?;
+    let mut answer = vec![0; 512];
+    let read = stream.read(&mut answer).ok()?;
+    Some(String::from_utf8_lossy(&answer[..read]).into_owned())
+}
+
+#[test]
+fn no_one_without_the_token_stops_or_holds_the_server() {
+    use std::{io::Write, net::TcpStream, time::Duration};
+    let folder = tempfile::tempdir().unwrap();
+    fs::write(folder.path().join("local.wav"), vec![1u8; 100]).unwrap();
+    fs::write(folder.path().join("beside.txt"), b"not offered").unwrap();
+    let served = Served::start().unwrap();
+    let url = served.offer(vec![folder.path().join("local.wav")]).remove(0);
+    let token = url.trim_start_matches("http://").split('/').nth(1).unwrap().to_string();
+    let base = url.split(&format!("/{token}/")).next().unwrap().to_string();
+    // A file beside the offered one, by its name: never.
+    assert_eq!(get(&format!("{base}/{token}/1/beside.txt"), None).0, 404);
+    // A body announced as a petabyte, never sent: the server neither ends nor waits on it.
+    let _ = raw(
+        &base,
+        b"POST /x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 1000000000000000\r\n\r\n",
+    );
+    // Clients that send half a request and keep the line open: they hold no one else.
+    let held: Vec<TcpStream> = (0..50)
+        .filter_map(|_| {
+            let mut stream = TcpStream::connect(base.trim_start_matches("http://")).ok()?;
+            stream.write_all(b"GET /nope HTTP/1.1\r\nContent-Length: 1000000000\r\n").ok()?;
+            Some(stream)
+        })
+        .collect();
+    assert!(!held.is_empty());
+    let started = std::time::Instant::now();
+    let (status, _, body) = get(&url, Some("bytes=0-9"));
+    assert_eq!((status, body.len()), (206, 10));
+    assert!(
+        started.elapsed() < Duration::from_secs(2),
+        "a reader waited {:?}",
+        started.elapsed()
+    );
+    // A request that never ends its headers is let go.
+    let mut slow = TcpStream::connect(base.trim_start_matches("http://")).unwrap();
+    slow.write_all(b"GET /").unwrap();
+    slow.set_read_timeout(Some(Duration::from_secs(15))).unwrap();
+    let mut rest = Vec::new();
+    let _ = std::io::Read::read_to_end(&mut slow, &mut rest);
+    drop(held);
+    assert_eq!(get(&url, None).2.len(), 100, "the server still answers");
 }
