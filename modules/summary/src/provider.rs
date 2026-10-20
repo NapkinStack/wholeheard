@@ -177,7 +177,7 @@ impl Provider {
             Ok(response) => response,
             Err(ureq::Error::Timeout(_)) => {
                 return refused(
-                    "provider.unreachable",
+                    "provider.too_slow",
                     format!("{host} did not answer within {} s", self.patience.as_secs()),
                 );
             }
@@ -200,7 +200,7 @@ impl Provider {
             }
             status @ (301 | 302 | 303 | 307 | 308) => {
                 return refused(
-                    "provider.failed",
+                    "provider.redirected",
                     format!("{host} sent the request elsewhere, and it was not followed (HTTP {status})"),
                 );
             }
@@ -219,7 +219,7 @@ impl Provider {
             reason if reason == "stop" => {}
             reason if reason == "length" => {
                 return refused(
-                    "provider.failed",
+                    "answer.cut_short",
                     format!("{host} cut its answer short: the minutes would be incomplete"),
                 );
             }

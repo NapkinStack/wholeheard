@@ -145,7 +145,7 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     if key.as_deref().is_some_and(|key| !key.is_empty() && answer.contains(key)) {
         return Err(Refused(
             format!("{} sent the key back in its answer: nothing was written", provider.named()),
-            Some("provider.failed"),
+            None,
         ));
     }
 

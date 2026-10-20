@@ -583,7 +583,13 @@ fn a_failure_a_person_acts_on_differently_ends_the_output_with_its_code() {
         ("402 Payment Required", "{}".to_string(), "provider.no_credit"),
         ("404 Not Found", "{}".to_string(), "provider.unknown_model"),
         ("500 Internal Server Error", "oops".to_string(), "provider.failed"),
-        ("200 OK", answering(MINUTES, "length"), "provider.failed"),
+        ("200 OK", answering(MINUTES, "length"), "answer.cut_short"),
+        (
+            "302 Found\r\nLocation: http://127.0.0.1:9/elsewhere",
+            String::new(),
+            "provider.redirected",
+        ),
+        ("200 OK", r#"{"choices": []}"#.to_string(), "provider.failed"),
         (
             "200 OK",
             answering("Bien sûr ! Voici le compte rendu.", "stop"),
