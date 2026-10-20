@@ -23,13 +23,33 @@ fn a_day_file_older_than_fourteen_days_goes_and_nothing_else() {
     written(folder.path(), "summary.2026-10-10.jsonl", 10, 13 * DAY);
     written(folder.path(), "notes.txt", 10, 90 * DAY);
     written(folder.path(), "a.jsonl", 10, 90 * DAY);
+    // Named nearly as a day file, and not one: the user's, if the folder is theirs.
+    written(folder.path(), "export.abcdefghij.jsonl", 10, 90 * DAY);
+    written(folder.path(), "My meeting.2026-09-01.jsonl", 10, 90 * DAY);
+    written(folder.path(), "notes.2026-09-01.jsonl.bak", 10, 90 * DAY);
+    // A link named as a day file is not a file: neither it nor what it leads to goes.
+    let elsewhere = tempfile::tempdir().unwrap();
+    written(elsewhere.path(), "kept.txt", 10, 90 * DAY);
+    std::os::unix::fs::symlink(elsewhere.path().join("kept.txt"), folder.path().join("shell.2026-08-01.jsonl")).unwrap();
     prune(folder.path(), SystemTime::now());
     let mut left: Vec<_> = fs::read_dir(folder.path())
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
         .collect();
     left.sort();
-    assert_eq!(left, ["a.jsonl", "notes.txt", "summary.2026-10-10.jsonl"]);
+    assert_eq!(
+        left,
+        [
+            "My meeting.2026-09-01.jsonl",
+            "a.jsonl",
+            "export.abcdefghij.jsonl",
+            "notes.2026-09-01.jsonl.bak",
+            "notes.txt",
+            "shell.2026-08-01.jsonl",
+            "summary.2026-10-10.jsonl"
+        ]
+    );
+    assert!(elsewhere.path().join("kept.txt").exists());
 }
 
 #[test]

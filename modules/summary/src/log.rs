@@ -61,6 +61,21 @@ fn filter() -> EnvFilter {
     EnvFilter::try_new(directives).unwrap_or_else(|_| EnvFilter::new(format!("off,{own}=info")))
 }
 
+/// A program's name as its files start: lower-case letters, and dashes between.
+fn is_program(name: &str) -> bool {
+    !name.is_empty() && name.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')
+}
+
+/// A day as the files name it: `YYYY-MM-DD`.
+fn is_date(day: &str) -> bool {
+    let bytes = day.as_bytes();
+    bytes.len() == 10
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(at, b)| if at == 4 || at == 7 { *b == b'-' } else { b.is_ascii_digit() })
+}
+
 /// Removes the day files — every program's, `<program>.<date>.jsonl` — written more than
 /// fourteen days ago, then the oldest until the folder weighs less than fifty megabytes.
 /// Nothing else in the folder is touched.
@@ -72,7 +87,7 @@ pub fn prune(folder: &Path, now: SystemTime) {
             let name = entry.file_name();
             let name = name.to_string_lossy();
             let parts: Vec<&str> = name.split('.').collect();
-            matches!(parts[..], [program, date, "jsonl"] if !program.is_empty() && date.len() == 10)
+            matches!(parts[..], [program, date, "jsonl"] if is_program(program) && is_date(date))
         })
         .filter_map(|entry| {
             let found = entry.metadata().ok().filter(std::fs::Metadata::is_file)?;

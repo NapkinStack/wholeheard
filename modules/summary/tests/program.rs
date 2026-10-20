@@ -498,3 +498,20 @@ fn a_failure_says_nothing_of_the_meeting_and_keeps_its_id_at_any_level() {
         assert!(!text.contains(said), "the log holds {said:?}: {text}");
     }
 }
+
+#[test]
+fn a_run_removes_the_day_files_of_more_than_fourteen_days() {
+    let logs = tempfile::tempdir().unwrap();
+    let old = fs::File::create(logs.path().join("shell.2026-01-01.jsonl")).unwrap();
+    old.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(15 * 24 * 3600))
+        .unwrap();
+    let (address, _received) = provider("200 OK", answering("Bonjour.", "stop"));
+    let output = program()
+        .args(["--test", "--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(!logs.path().join("shell.2026-01-01.jsonl").exists());
+    assert_eq!(logged(logs.path()).len(), 2);
+}
