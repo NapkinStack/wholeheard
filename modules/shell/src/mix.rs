@@ -74,6 +74,18 @@ impl Mix {
         self.frames
     }
 
+    /// Whether it is made of the very same tracks as `other`: each placed at the same frame and
+    /// holding as many — a track grown since, or moved, makes another mix.
+    pub fn same(&self, other: &Mix) -> bool {
+        self.rate == other.rate
+            && self.tracks.len() == other.tracks.len()
+            && self
+                .tracks
+                .iter()
+                .zip(&other.tracks)
+                .all(|(one, two)| (&one.path, one.at, one.frames, one.rate) == (&two.path, two.at, two.frames, two.rate))
+    }
+
     /// Its length in bytes, header included.
     pub fn size(&self) -> u64 {
         HEADER + 2 * self.frames

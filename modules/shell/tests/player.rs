@@ -123,6 +123,19 @@ fn the_meeting_offered_is_served_as_one_sound_whole_or_by_range_to_the_token_alo
     assert_ne!(grown, short);
     assert_eq!(header(&get(&grown, "HEAD", None).1, "content-length"), Some("960044"));
     assert_ne!(served.offer(vec![(growing.clone(), 1.0)]).unwrap(), grown);
+    // Beside a longer track, the mix the same size: a short track grown, or moved, still makes
+    // another mix.
+    let long = folder.path().join("long.wav");
+    track(&long, 480_000, 2);
+    track(&growing, 48_000, 3);
+    let beside = served.offer(vec![(long.clone(), 0.0), (growing.clone(), 0.0)]).unwrap();
+    track(&growing, 96_000, 3);
+    let grown_beside = served.offer(vec![(long.clone(), 0.0), (growing.clone(), 0.0)]).unwrap();
+    assert_ne!(grown_beside, beside);
+    assert_ne!(
+        served.offer(vec![(long.clone(), 0.0), (growing.clone(), 1.0)]).unwrap(),
+        grown_beside
+    );
     served.offer(offered.clone()).unwrap();
     let url = served.offer(offered.clone()).unwrap();
     // Another meeting opened: the earlier offer is gone.

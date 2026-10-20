@@ -74,10 +74,10 @@ impl Served {
         let mix = Mix::of(&tracks).map(Arc::new);
         let mut offered = self.offered.lock().unwrap();
         let same = |old: &Option<Arc<Mix>>| match (old, &mix) {
-            (Some(old), Some(new)) => old.size() == new.size(),
+            (Some(old), Some(new)) => old.same(new),
             _ => false,
         };
-        if offered.tracks != tracks || !same(&offered.mix) {
+        if !same(&offered.mix) {
             offered.number += 1;
             offered.mix = mix;
             offered.tracks = tracks;
