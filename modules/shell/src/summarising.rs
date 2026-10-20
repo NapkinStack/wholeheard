@@ -31,8 +31,49 @@ pub enum Event {
 pub enum Made {
     /// Written whole, in this session's folder.
     Written(PathBuf),
-    /// Not written: the program's own sentence, or why there is none.
-    Failed(String),
+    /// Not written: the program's own sentence, or why there is none — and its cause, when the
+    /// program named one this version knows.
+    Failed(String, Option<Cause>),
+}
+
+/// Why minutes were not made, as `summarising/v1` codes it: each calls for its own gesture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cause {
+    Unreachable,
+    TooSlow,
+    RefusedKey,
+    NoCredit,
+    UnknownModel,
+    Redirected,
+    ProviderFailed,
+    CutShort,
+    NotMinutes,
+    TranscriptUnusable,
+    NoSpeech,
+    Settings,
+    Unwritable,
+}
+
+impl Cause {
+    /// The cause a code names; a code this version does not know names none (summarising/v1).
+    pub fn of(code: &str) -> Option<Self> {
+        Some(match code {
+            "provider.unreachable" => Cause::Unreachable,
+            "provider.too_slow" => Cause::TooSlow,
+            "provider.redirected" => Cause::Redirected,
+            "answer.cut_short" => Cause::CutShort,
+            "provider.refused_key" => Cause::RefusedKey,
+            "provider.no_credit" => Cause::NoCredit,
+            "provider.unknown_model" => Cause::UnknownModel,
+            "provider.failed" => Cause::ProviderFailed,
+            "answer.not_minutes" => Cause::NotMinutes,
+            "transcript.unusable" => Cause::TranscriptUnusable,
+            "transcript.no_speech" => Cause::NoSpeech,
+            "settings.invalid" => Cause::Settings,
+            "minutes.unwritable" => Cause::Unwritable,
+            _ => return None,
+        })
+    }
 }
 
 /// Minutes in the making. Ended, the program is stopped; the minutes that were there stay.
@@ -72,12 +113,16 @@ impl Summarising {
         let (said, (read, all_read)) = (tell.clone(), mpsc::channel());
         let written = Arc::new(AtomicBool::new(false));
         let heard_written = Arc::clone(&written);
+        let cause = Arc::new(Mutex::new(None));
+        let heard_cause = Arc::clone(&cause);
         thread::spawn(move || {
             for line in BufReader::new(output).lines().map_while(Result::ok) {
                 if let Some(sending) = sending(&line) {
                     let _ = said.send(sending);
                 } else if event(&line).as_deref() == Some("written") {
                     heard_written.store(true, Ordering::SeqCst);
+                } else if let Some(code) = failed(&line) {
+                    *heard_cause.lock().unwrap() = Cause::of(&code);
                 }
             }
             let _ = read.send(());
@@ -110,15 +155,16 @@ impl Summarising {
             } else {
                 let said = last.lock().map(|said| said.clone()).unwrap_or_default();
                 let said = said.strip_prefix("wholeheard-summary: ").unwrap_or(&said).to_string();
-                Made::Failed(match (said.is_empty(), status) {
+                let why = match (said.is_empty(), status) {
                     (false, _) => said,
                     (true, Some(status)) => format!("wholeheard-summary stopped without saying why ({status})"),
                     (true, None) => "wholeheard-summary could not be waited for".into(),
-                })
+                };
+                Made::Failed(why, *cause.lock().unwrap())
             };
             match &made {
                 Made::Written(_) => info!("shell.minutes_written"),
-                Made::Failed(why) => {
+                Made::Failed(why, _) => {
                     error!(detail = %crate::log::without(why, sessions.as_deref()), status = ?status, "shell.minutes_failed")
                 }
             }
@@ -139,6 +185,15 @@ impl Summarising {
 fn event(line: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
     Some(value.get("event")?.as_str()?.to_string())
+}
+
+/// The code of a `failed` line of the contract; none for any other line.
+fn failed(line: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(line).ok()?;
+    if value.get("event")?.as_str()? != "failed" {
+        return None;
+    }
+    Some(value.get("code")?.as_str()?.to_string())
 }
 
 /// A `sending` line of the contract; any other line — a later version's event, or none — is not.

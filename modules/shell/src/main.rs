@@ -97,7 +97,9 @@ struct Shell {
     /// Minutes asked while others were written: made in turn, never dropped (D25).
     minutes_waiting: Mutex<VecDeque<Queued>>,
     /// Why the last minutes of a meeting were not written, until they are (D25).
-    minutes_failed: Mutex<HashMap<PathBuf, String>>,
+    /// With their cause, when wholeheard-summary named one this version knows: one entry, so
+    /// that a later failure never shows an earlier one's cause (D29).
+    minutes_failed: Mutex<HashMap<PathBuf, (String, Option<summarising::Cause>)>>,
     /// How many times each meeting's minutes were written since the start: a page drawn with
     /// fewer is drawn again, however quickly they were made (D25).
     minutes_made: Mutex<HashMap<PathBuf, u64>>,
@@ -1154,18 +1156,18 @@ struct Queued {
 
 /// A making of minutes is over: its meeting free, its failure kept for its page, and the next
 /// one asked meanwhile started — those that cannot start yet (an agreement to give) left as said.
-fn minutes_ended(app: &AppHandle, folder: &Path, failed: Option<String>) {
+fn minutes_ended(app: &AppHandle, folder: &Path, failed: Option<(String, Option<summarising::Cause>)>) {
     let shell = app.state::<Shell>();
     // What says it is being written goes first, the meeting freed last: nothing started in
     // between is left without its model, nor the tray's entry greyed off.
     shell.minutes_by.lock().unwrap().take();
-    if let Some(why) = failed {
+    if let Some((why, cause)) = failed {
         let why = if why.trim().is_empty() {
             "wholeheard-summary stopped without saying why".to_string()
         } else {
             why
         };
-        shell.minutes_failed.lock().unwrap().insert(folder.to_path_buf(), why);
+        shell.minutes_failed.lock().unwrap().insert(folder.to_path_buf(), (why, cause));
     } else {
         *shell.minutes_made.lock().unwrap().entry(folder.to_path_buf()).or_default() += 1;
     }
@@ -1203,6 +1205,8 @@ struct Makings {
     transcripts_failed: HashMap<String, String>,
     transcripts_made: HashMap<String, u64>,
     failed: HashMap<String, String>,
+    /// The minutes' cause and its gesture, in the user's language, when one was named (D29).
+    failed_said: HashMap<String, String>,
     awaiting: HashMap<String, String>,
     made: HashMap<String, u64>,
 }
@@ -1233,6 +1237,17 @@ fn named(folder: &Path) -> String {
 fn makings(shell: State<'_, Shell>) -> Makings {
     let developer = shell.settings().developer;
     let said = |why: &String| words::shown_detail(why, developer);
+    // Read under one hold: a second hold of the same lock in the struct below would never be
+    // given, its first still held to the statement's end.
+    let (failed, failed_said) = {
+        let failures = shell.minutes_failed.lock().unwrap();
+        let failed = failures.iter().map(|(folder, (why, _))| (named(folder), said(why))).collect();
+        let causes = failures
+            .iter()
+            .filter_map(|(folder, (_, cause))| Some((named(folder), words::cause((*cause)?, shell.language).to_string())))
+            .collect();
+        (failed, causes)
+    };
     let writing = shell.writing_minutes.lock().unwrap().clone();
     let by = shell.minutes_by.lock().unwrap().clone();
     Makings {
@@ -1280,13 +1295,8 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .iter()
             .map(|(folder, times)| (named(folder), *times))
             .collect(),
-        failed: shell
-            .minutes_failed
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|(folder, why)| (named(folder), said(why)))
-            .collect(),
+        failed,
+        failed_said,
         made: shell
             .minutes_made
             .lock()
@@ -1370,7 +1380,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
     // Not started: said on the meeting's page as well as in a notification (D25).
     let refused = |why: String| {
         shell.awaiting.lock().unwrap().retain(|(aside, _)| *aside != folder);
-        shell.minutes_failed.lock().unwrap().insert(folder.clone(), why);
+        shell.minutes_failed.lock().unwrap().insert(folder.clone(), (why, None));
     };
     let settings = match shell.reread() {
         Ok(settings) => settings,
@@ -1453,8 +1463,11 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
             Err(error) => {
                 let why = format!("the minutes there could not be set aside ({error}): nothing was made");
                 tracing::error!(detail = %why, "shell.minutes_failed");
-                minutes_ended(&app, &folder, Some(why.clone()));
-                return tell(&app, &words::minutes(&words::Minutes::failed(why, again), shell.language));
+                minutes_ended(&app, &folder, Some((why, Some(summarising::Cause::Unwritable))));
+                return tell(
+                    &app,
+                    &words::minutes(&words::Minutes::failed(Some(summarising::Cause::Unwritable), again), shell.language),
+                );
             }
         };
         let started = Summarising::start(
@@ -1473,11 +1486,8 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                 if let Some(previous) = &previous {
                     let _ = std::fs::remove_file(previous);
                 }
-                minutes_ended(&app, &folder, Some(error.to_string()));
-                return tell(
-                    &app,
-                    &words::minutes(&words::Minutes::failed(error.to_string(), again), shell.language),
-                );
+                minutes_ended(&app, &folder, Some((error.to_string(), None)));
+                return tell(&app, &words::minutes(&words::Minutes::failed(None, again), shell.language));
             }
         };
         let made = events
@@ -1486,7 +1496,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                 summarising::Event::Ended(made) => Some(made),
                 summarising::Event::Sending { .. } => None,
             })
-            .unwrap_or(summarising::Made::Failed(String::new()));
+            .unwrap_or(summarising::Made::Failed(String::new(), None));
         shell.minuting.lock().unwrap().take();
         // Replaced, the earlier minutes go to the trash — refused, they stay beside, and it is said.
         let mut kept_beside = None;
@@ -1496,7 +1506,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                     kept_beside = previous.file_name().map(|name| name.to_string_lossy().into_owned());
                 }
                 summarising::Made::Written(_) => {}
-                summarising::Made::Failed(_) => {
+                summarising::Made::Failed(..) => {
                     let _ = std::fs::remove_file(&previous);
                 }
             }
@@ -1505,7 +1515,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
             &app,
             &folder,
             match &made {
-                summarising::Made::Failed(why) => Some(why.clone()),
+                summarising::Made::Failed(why, cause) => Some((why.clone(), *cause)),
                 summarising::Made::Written(_) => None,
             },
         );
@@ -1515,7 +1525,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
         let said = match made {
             summarising::Made::Written(_) if kept_beside.is_some() => words::Minutes::ReadyKeptBeside(kept_beside.unwrap_or_default()),
             summarising::Made::Written(_) => words::Minutes::Ready,
-            summarising::Made::Failed(why) => words::Minutes::failed(why, again),
+            summarising::Made::Failed(_, cause) => words::Minutes::failed(cause, again),
         };
         tell(&app, &words::minutes(&said, shell.language));
     });

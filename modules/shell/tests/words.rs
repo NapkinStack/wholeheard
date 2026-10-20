@@ -214,8 +214,8 @@ fn no_notice_of_a_failure_carries_what_a_program_or_the_system_said() {
             words::trouble(&Trouble::Shortcut(SAID.into()), language),
             words::trouble(&Trouble::NoTranscriber(SAID.into()), language),
             words::made(&Made::Failed(SAID.into()), language),
-            words::minutes(&Minutes::Failed(SAID.into()), language),
-            words::minutes(&Minutes::RedoFailed(SAID.into()), language),
+            words::minutes(&Minutes::Failed(None), language),
+            words::minutes(&Minutes::RedoFailed(None), language),
             words::fetched(&Err(SAID.into()), language),
         ];
         for said in [
@@ -412,7 +412,7 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
         let ready = words::minutes(&Minutes::Ready, language);
         assert!(!ready.title.is_empty());
         // Failed: the transcript untouched, the entry that makes them again — never the program's sentence.
-        let failed = words::minutes(&Minutes::Failed("the provider at openrouter.ai refused the key".into()), language);
+        let failed = words::minutes(&Minutes::Failed(None), language);
         assert!(
             failed.body.contains(entry) && !failed.body.contains("refused the key"),
             "{}",
@@ -454,12 +454,12 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
             back.body
         );
         // Minutes made again that failed: the ones there stayed, and the menu's entry is not offered.
-        let redo = words::minutes(&Minutes::failed("the provider's answer is not minutes".into(), true), language);
+        let redo = words::minutes(&Minutes::failed(None, true), language);
         assert_eq!(
-            words::minutes(&Minutes::failed("x".into(), false), language).title,
-            words::minutes(&Minutes::Failed("x".into()), language).title
+            words::minutes(&Minutes::failed(None, false), language).title,
+            words::minutes(&Minutes::Failed(None), language).title
         );
-        let failed = words::minutes(&Minutes::Failed("x".into()), language);
+        let failed = words::minutes(&Minutes::Failed(None), language);
         assert!(
             redo.title != failed.title && !redo.body.contains(words::menu(language).minutes) && !redo.body.contains("not minutes"),
             "{}",
@@ -467,7 +467,7 @@ fn the_minutes_are_said_ready_waiting_or_not_made_with_what_to_do() {
         );
     }
     assert_eq!(
-        words::minutes(&Minutes::RedoFailed(String::new()), Language::French).title,
+        words::minutes(&Minutes::RedoFailed(None), Language::French).title,
         "Le compte rendu n’a pas été refait"
     );
     assert_eq!(
@@ -502,4 +502,87 @@ fn the_page_has_what_a_program_said_only_in_developer_mode() {
         words::shown_detail("wholeheard-summary: the key was refused", true),
         "wholeheard-summary: the key was refused"
     );
+}
+
+#[test]
+fn minutes_not_made_say_their_cause_and_its_gesture_when_the_program_named_one() {
+    use wholeheard_shell::{summarising::Cause, words::Minutes};
+    const ALL: [Cause; 13] = [
+        Cause::Unreachable,
+        Cause::TooSlow,
+        Cause::RefusedKey,
+        Cause::NoCredit,
+        Cause::UnknownModel,
+        Cause::Redirected,
+        Cause::ProviderFailed,
+        Cause::CutShort,
+        Cause::NotMinutes,
+        Cause::TranscriptUnusable,
+        Cause::NoSpeech,
+        Cause::Settings,
+        Cause::Unwritable,
+    ];
+    // Where the gesture is a setting, the sentence says the settings, not the menu's entry.
+    const SETTINGS: [Cause; 7] = [
+        Cause::RefusedKey,
+        Cause::UnknownModel,
+        Cause::Redirected,
+        Cause::Settings,
+        Cause::CutShort,
+        Cause::TooSlow,
+        Cause::NotMinutes,
+    ];
+    // What each sentence is about, in each language: a sentence said for another cause fails.
+    let about = |cause: Cause| match cause {
+        Cause::Unreachable => ("could not be reached", "pas pu être joint"),
+        Cause::TooSlow => ("in time", "à temps"),
+        Cause::RefusedKey => ("refused the key", "refusé la clé"),
+        Cause::NoCredit => ("credit", "crédit"),
+        Cause::UnknownModel => ("does not know", "ne connaît pas"),
+        Cause::Redirected => ("another address", "autre adresse"),
+        Cause::ProviderFailed => ("failed to answer", "pas su répondre"),
+        Cause::CutShort => ("before the end", "avant la fin"),
+        Cause::NotMinutes => ("did not write minutes", "pas écrit de compte rendu"),
+        Cause::TranscriptUnusable => ("cannot be read", "ne peut pas être lu"),
+        Cause::NoSpeech => ("no speech", "aucune parole"),
+        Cause::Settings => ("cannot be used as given", "tels quels"),
+        Cause::Unwritable => ("could not be written", "pas pu être écrit"),
+    };
+    for language in BOTH {
+        let mut said = std::collections::HashSet::new();
+        for cause in ALL {
+            let sentence = words::cause(cause, language);
+            assert!(
+                !sentence.is_empty() && !sentence.contains('\'') && said.insert(sentence),
+                "{cause:?}: {sentence}"
+            );
+            let (english, french) = about(cause);
+            let topic = if language == Language::French { french } else { english };
+            assert!(sentence.contains(topic), "{cause:?}: {sentence}");
+            if language == Language::French {
+                // Every colon after a space that does not break, as French is printed.
+                assert!(
+                    sentence.match_indices(':').all(|(at, _)| sentence[..at].ends_with('\u{a0}')),
+                    "{sentence}"
+                );
+            }
+            for failed in [Minutes::failed(Some(cause), false), Minutes::failed(Some(cause), true)] {
+                let body = words::minutes(&failed, language).body;
+                assert!(body.contains(sentence), "{cause:?}: {body}");
+                if SETTINGS.contains(&cause) {
+                    let settings = if language == Language::French { "réglages" } else { "settings" };
+                    assert!(
+                        body.contains(settings) && !body.contains(words::menu(language).minutes),
+                        "{cause:?}: {body}"
+                    );
+                }
+            }
+        }
+        // No cause named, or one this version does not know: the step's sentence, as before.
+        assert!(
+            words::minutes(&Minutes::Failed(None), language)
+                .body
+                .contains(words::menu(language).minutes)
+        );
+    }
 }

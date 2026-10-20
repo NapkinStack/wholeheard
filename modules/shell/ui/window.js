@@ -91,7 +91,7 @@ function minutesState(name) {
   const waiting = makings.minutes_waiting.indexOf(name);
   if (waiting >= 0) return { kind: "waiting", before: waiting + 1 };
   if (makings.awaiting[name] !== undefined) return { kind: "awaiting", host: makings.awaiting[name] };
-  if (makings.failed[name] !== undefined) return { kind: "failed", why: makings.failed[name] };
+  if (makings.failed[name] !== undefined) return { kind: "failed", why: makings.failed[name], said: makings.failed_said[name] };
   return null;
 }
 
@@ -151,7 +151,9 @@ function paintState(said, shown, of) {
     });
     // What the program said, only in developer mode: the shell sends nothing else (D29).
     const detail = shown.why ? [element("code", "detail", fill(words.program_said, shown.why))] : [];
-    said.replaceChildren(element("span", "what", of.not_made), again, ...detail);
+    // Its cause and gesture, when the program named one (D29): else the step's sentence alone.
+    const what = shown.said ? `${of.not_made} ${shown.said}` : of.not_made;
+    said.replaceChildren(element("span", "what", what), again, ...detail);
   }
 }
 

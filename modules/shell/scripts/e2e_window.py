@@ -42,7 +42,8 @@ printf '%s\\n' "$*" > "$here/summary-args"
 printf '%s' "${WHOLEHEARD_PROVIDER_KEY:-none}" > "$here/summary-key"
 if [ "$1" != --test ]; then
   [ -e "$here/slow-minutes" ] && sleep 3
-  [ -e "$here/fail-minutes" ] && { echo "wholeheard-summary: the provider's answer is not minutes" >&2; exit 1; }
+  [ -e "$here/fail-minutes" ] && { echo '{"event": "failed", "code": "answer.not_minutes"}'; echo "wholeheard-summary: the provider's answer is not minutes" >&2; exit 1; }
+  [ -e "$here/fail-plainly" ] && { echo "wholeheard-summary: a failure no code names" >&2; exit 1; }
   echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
   printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" > "$1/minutes.md"
   echo '{"event": "written", "file": "x"}'
@@ -951,6 +952,10 @@ def main() -> int:
         failed = wait_for(browser, lambda b: "n’a pas été fait" in state(b) and b.find_elements(By.ID, "minutes-again"), 5)
         check("the failure said on the meeting's page too, in plain words, with a way to try again — never what the program said",
               failed and "not minutes" not in state(browser) and "not minutes" not in heard.read_text(), (state(browser), heard.read_text()[-400:]))
+        # Its cause named by the program, its gesture said, on the page and in the notice (D29).
+        check("the cause the program named is said with its gesture, on the page and in the notice",
+              "écrit de compte rendu" in state(browser) and "écrit de compte rendu" in heard.read_text(),
+              (state(browser), heard.read_text()[-400:]))
         # The developer mode shows what the program said, under the sentence; never in a notice (D29).
         browser.execute_script("location.hash = '#/settings'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "developer"))
@@ -975,6 +980,9 @@ def main() -> int:
             "\n".join(line for line in settled.splitlines() if not line.startswith(("minutes_provider", "minutes_model", "minutes_agreed")))
             + '\nminutes_provider = "https://openrouter.ai/api/v1"\nminutes_model = "a-model"\n'
         )
+        # This time a failure no code names: the earlier cause is not said again (D29).
+        (WORK / "fail-minutes").unlink()
+        (WORK / "fail-plainly").touch()
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
@@ -990,8 +998,13 @@ def main() -> int:
         told = wait_for(browser, lambda b: "pas été refait" in heard.read_text()[since:], 10)
         said = heard.read_text()[since:]
         monitor.terminate()
-        (WORK / "fail-minutes").unlink()
+        (WORK / "fail-plainly").unlink()
         check("asked through the agreement, still a redo: its failure said as one", told and "pas été fait" not in said and (asked / "minutes.md").read_text() == before, said[-400:])
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
+        plain = wait_for(browser, lambda b: "n’a pas été fait" in state(b), 5)
+        check("a later failure that names no cause does not show the earlier one's",
+              plain and "écrit de compte rendu" not in state(browser) and "écrit de compte rendu" not in said, (state(browser), said[-300:]))
         time.sleep(3)
         left = sorted(p.name for p in asked.glob("minutes*"))
         check("nothing else is made after, no copy left beside", (asked / "minutes.md").read_text() == before and left == ["minutes.md"], (left, (asked / "minutes.md").read_text()[:80], (WORK / "summary-args").read_text()))

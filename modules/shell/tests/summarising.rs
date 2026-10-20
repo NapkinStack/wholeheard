@@ -4,7 +4,7 @@
 
 use std::{fs, os::unix::fs::PermissionsExt, path::Path, sync::Mutex, time::Duration};
 
-use wholeheard_shell::summarising::{Event, Made, Summarising};
+use wholeheard_shell::summarising::{Cause, Event, Made, Summarising};
 
 /// What a making by a script said, to its end — one at a time, as for transcripts.
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
@@ -84,7 +84,8 @@ exit 1"#,
     assert_eq!(
         events.last(),
         Some(&Event::Ended(Made::Failed(
-            "the provider at openrouter.ai refused the key (HTTP 401)".into()
+            "the provider at openrouter.ai refused the key (HTTP 401)".into(),
+            None
         )))
     );
 }
@@ -101,7 +102,7 @@ fn written_is_believed_only_from_a_program_that_ended_well_with_the_file_there()
     ] {
         let folder = session();
         let events = said(folder.path(), script, None);
-        let Some(Event::Ended(Made::Failed(why))) = events.last() else {
+        let Some(Event::Ended(Made::Failed(why, _))) = events.last() else {
             panic!("{script}: {events:?}")
         };
         assert!(!why.is_empty(), "{script}");
@@ -129,6 +130,43 @@ exec sleep 30
     making.end();
     assert!(matches!(
         events.recv_timeout(Duration::from_secs(5)),
-        Ok(Event::Ended(Made::Failed(_)))
+        Ok(Event::Ended(Made::Failed(..)))
     ));
+}
+
+#[test]
+fn a_making_that_failed_says_its_cause_when_its_program_names_one_this_version_knows() {
+    for (code, cause) in [
+        ("provider.unreachable", Some(Cause::Unreachable)),
+        ("provider.too_slow", Some(Cause::TooSlow)),
+        ("provider.redirected", Some(Cause::Redirected)),
+        ("answer.cut_short", Some(Cause::CutShort)),
+        ("provider.refused_key", Some(Cause::RefusedKey)),
+        ("provider.no_credit", Some(Cause::NoCredit)),
+        ("provider.unknown_model", Some(Cause::UnknownModel)),
+        ("provider.failed", Some(Cause::ProviderFailed)),
+        ("answer.not_minutes", Some(Cause::NotMinutes)),
+        ("transcript.unusable", Some(Cause::TranscriptUnusable)),
+        ("transcript.no_speech", Some(Cause::NoSpeech)),
+        ("settings.invalid", Some(Cause::Settings)),
+        ("minutes.unwritable", Some(Cause::Unwritable)),
+        // A code of a later version is read as none (summarising/v1).
+        ("provider.on_fire", None),
+    ] {
+        let folder = session();
+        let events = said(
+            folder.path(),
+            &format!(
+                r#"echo '{{"event":"failed","code":"{code}"}}'
+echo 'wholeheard-summary: a sentence' >&2
+exit 1"#
+            ),
+            None,
+        );
+        assert_eq!(
+            events.last(),
+            Some(&Event::Ended(Made::Failed("a sentence".into(), cause))),
+            "{code}"
+        );
+    }
 }
