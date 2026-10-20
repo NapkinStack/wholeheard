@@ -78,7 +78,11 @@ async fn serve(listener: Listener, token: String, offered: Arc<Mutex<Offered>>) 
     let Ok(listener) = TcpListener::from_std(listener) else { return };
     let held = Arc::new(Semaphore::new(AT_ONCE));
     loop {
-        let Ok((stream, _)) = listener.accept().await else { continue };
+        let Ok((stream, _)) = listener.accept().await else {
+            // Out of descriptors, or another passing error: wait a moment, never spin.
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            continue;
+        };
         // Too many held already: this one is closed as it came.
         let Ok(permit) = Arc::clone(&held).try_acquire_owned() else {
             continue;

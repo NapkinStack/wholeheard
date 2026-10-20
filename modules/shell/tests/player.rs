@@ -154,12 +154,26 @@ fn no_one_without_the_token_stops_or_holds_the_server() {
         "a reader waited {:?}",
         started.elapsed()
     );
-    // A request that never ends its headers is let go.
+    // A request that never ends its headers is let go within a few seconds.
     let mut slow = TcpStream::connect(base.trim_start_matches("http://")).unwrap();
     slow.write_all(b"GET /").unwrap();
     slow.set_read_timeout(Some(Duration::from_secs(15))).unwrap();
+    let waited = std::time::Instant::now();
     let mut rest = Vec::new();
     let _ = std::io::Read::read_to_end(&mut slow, &mut rest);
+    assert!(waited.elapsed() < Duration::from_secs(8), "held {:?}", waited.elapsed());
+    // Headers past a few kilobytes are refused, and a connection serves one request.
+    let long = format!("GET /{token}/1/0 HTTP/1.1\r\nX-Long: {}\r\n\r\n", "a".repeat(20_000));
+    let answer = raw(&base, long.as_bytes()).unwrap_or_default();
+    assert!(answer.is_empty() || answer.starts_with("HTTP/1.1 431"), "{answer}");
+    let path = url.split(&format!("/{token}/")).nth(1).unwrap();
+    let twice = format!("GET /{token}/{path} HTTP/1.1\r\nHost: x\r\n\r\nGET /{token}/{path} HTTP/1.1\r\nHost: x\r\n\r\n");
+    let mut stream = TcpStream::connect(base.trim_start_matches("http://")).unwrap();
+    stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    stream.write_all(twice.as_bytes()).unwrap();
+    let mut answered = Vec::new();
+    let _ = std::io::Read::read_to_end(&mut stream, &mut answered);
+    assert_eq!(String::from_utf8_lossy(&answered).matches("HTTP/1.1 200").count(), 1);
     drop(held);
     assert_eq!(get(&url, None).2.len(), 100, "the server still answers");
 }
