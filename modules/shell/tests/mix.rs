@@ -145,7 +145,7 @@ fn a_track_of_another_rate_is_heard_at_its_own_pitch_and_length() {
             .map(|(pair, whole)| (i32::from(i16::from_le_bytes(*pair)) - i32::from(*whole)).abs())
             .max()
             .unwrap();
-        assert!(apart <= 2, "from frame {first}, a range differs from the whole by {apart}");
+        assert!(apart == 0, "from frame {first}, a range differs from the whole by {apart}");
     }
 }
 
@@ -168,4 +168,75 @@ fn a_track_cut_by_a_crash_is_read_to_its_end_and_no_track_is_no_mix() {
     assert!(Mix::of(&[]).is_none());
     let early = Mix::of(&[(local, -0.25)]).unwrap();
     assert_eq!(early.frames(), 12_000);
+}
+
+#[test]
+fn a_track_of_another_rate_is_placed_to_the_frame_and_read_the_same_by_any_range() {
+    // Noise, and one burst a second in: the mix of a 44.1 kHz track is the same bytes whoever
+    // reads it from where, and the burst is where the clock puts it.
+    let folder = tempfile::tempdir().unwrap();
+    let remote = folder.path().join("remote.wav");
+    let mut seed = 7u64;
+    let mut noise = || {
+        seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        ((seed >> 33) as f64 / f64::from(1u32 << 31) - 0.5) * 0.02
+    };
+    let frames: Vec<Vec<f64>> = (0..88_200).map(|n| vec![if n == 44_100 { 0.9 } else { noise() }]).collect();
+    wav(&remote, 44_100, 1, 16, &frames, false);
+    // A track of 48 kHz beside it, silent: the mix is at 48 kHz, the other brought up.
+    let local = folder.path().join("local.wav");
+    wav(&local, 48_000, 1, 16, &vec![vec![0.0]; 4_800], false);
+    let mix = Mix::of(&[(local, 0.0), (remote, 0.5)]).unwrap();
+    assert_eq!(mix.rate(), 48_000);
+    let mixed = samples(&mix);
+    let loudest = (0..mixed.len()).max_by_key(|&at| mixed[at].unsigned_abs()).unwrap();
+    assert!((loudest as i64 - 72_000).abs() <= 2, "the burst is at frame {loudest}, not 72000");
+    let whole = mix.read(0, mix.size()).unwrap();
+    for from in [44 + 2 * 50_001u64, 44 + 2 * 61_111, 44 + 2 * 72_003, 44 + 2 * 99_999, 1_001] {
+        assert!(
+            mix.read(from, 4_000).unwrap() == whole[from as usize..from as usize + 4_000],
+            "from byte {from}"
+        );
+    }
+}
+
+#[test]
+fn what_no_track_is_gives_no_mix_and_no_read_breaks_it() {
+    let folder = tempfile::tempdir().unwrap();
+    let good = folder.path().join("good.wav");
+    wav(&good, 48_000, 1, 16, &vec![vec![0.1]; 4_800], false);
+    // A start that is no instant, or far beyond any meeting: the track is left out.
+    for starts in [f64::INFINITY, f64::NAN, 1e15, -1e15] {
+        assert!(Mix::of(&[(good.clone(), starts)]).is_none(), "{starts}");
+    }
+    // Rates no device gives, an extensible format whose `fmt ` is too short to say its own,
+    // a block that is not its channels' samples: not tracks.
+    let header = |rate: u32, tag: u16, block: u16, bits: u16, extra: &[u8]| {
+        let mut file = b"RIFF\0\0\0\0WAVEfmt ".to_vec();
+        file.extend_from_slice(&(16 + extra.len() as u32).to_le_bytes());
+        file.extend_from_slice(&tag.to_le_bytes());
+        file.extend_from_slice(&1u16.to_le_bytes());
+        file.extend_from_slice(&rate.to_le_bytes());
+        file.extend_from_slice(&rate.wrapping_mul(u32::from(block)).to_le_bytes());
+        file.extend_from_slice(&block.to_le_bytes());
+        file.extend_from_slice(&bits.to_le_bytes());
+        file.extend_from_slice(extra);
+        file.extend_from_slice(b"data\0\0\0\0");
+        file.extend_from_slice(&[1u8; 400]);
+        file
+    };
+    for (what, bytes) in [
+        ("a rate of 1 Hz", header(1, 1, 2, 16, &[])),
+        ("a rate past any device's", header(3_000_000_000, 1, 2, 16, &[])),
+        ("extensible, its fmt too short", header(48_000, 0xFFFE, 2, 16, &[])),
+        ("a block wider than its sample", header(48_000, 1, 4, 16, &[])),
+    ] {
+        let path = folder.path().join("odd.wav");
+        fs::write(&path, bytes).unwrap();
+        assert!(Mix::of(&[(path, 0.0)]).is_none(), "{what}");
+    }
+    // Read past its end, or nothing: nothing, never a panic.
+    let mix = Mix::of(&[(good, 0.0)]).unwrap();
+    assert!(mix.read(mix.size() + 10, 5).unwrap().is_empty());
+    assert!(mix.read(3, 0).unwrap().is_empty());
 }

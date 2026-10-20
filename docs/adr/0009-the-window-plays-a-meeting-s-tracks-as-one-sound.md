@@ -74,8 +74,8 @@ Option 1. The page plays one URL, and the drawing of who spoke is only its contr
   - The result is one channel of 16 bits at the highest of the tracks' rates, a WAV whose size
     is known at once.
   - A track of a lower rate is brought up with rubato, the resampler the transcription uses.
-    The resampler starts on a frame of the track that falls on a frame of the mix, so a range
-    holds the same frames as the whole.
+    The resampler always starts on the same grid of its blocks, each block starting on a frame
+    that falls on a frame of the mix, so a range is the same bytes as the whole.
 - **How it is read.** `/<token>/<offer>/mix`, `GET` and `HEAD`, a single Range, as ADR-0008
   says. Each range is made as it is asked for, a second at a time, off the server's thread.
   Nothing is written, nothing is kept in memory but the second being made, and the tracks are
@@ -99,6 +99,13 @@ By the end of cycle 03, 2026-11-07:
   shows who spoke.
 - Two sides speaking at once are added: a sum held at full scale may clip, where a call's own
   mix would bring them down. Speech rarely overlaps for long.
+- **Each track is placed by its first clock point, then read at the rate its header names.**
+  `session-audio/v2`'s clock also gives each track's true rate, which this mix does not apply.
+  - On one sound server with one device, two tracks moved by a ten-thousandth of a second
+    (measured 2026-10-13).
+  - Two devices on two clocks may drift further over an hour. How far is the contract's open
+    question, and the decider's trial (D23) will hear it.
+  - Following the true rate is the next step if they are heard apart.
 
 ## Rejected alternatives
 

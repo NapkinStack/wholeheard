@@ -41,7 +41,12 @@ impl Mix {
     /// The mix of these tracks, each with where its first frame is on the session's clock, in
     /// seconds; none when not one of them reads as a track.
     pub fn of(tracks: &[(PathBuf, f64)]) -> Option<Mix> {
-        let read: Vec<(Track, f64)> = tracks.iter().filter_map(|(path, starts)| Some((track(path)?, *starts))).collect();
+        // A start that is no instant, or beyond any meeting, leaves its track out.
+        let read: Vec<(Track, f64)> = tracks
+            .iter()
+            .filter(|(_, starts)| starts.is_finite() && starts.abs() < 1e6)
+            .filter_map(|(path, starts)| Some((track(path)?, *starts)))
+            .collect();
         let rate = read.iter().map(|(track, _)| track.rate).max()?;
         let tracks: Vec<Track> = read
             .into_iter()
@@ -76,7 +81,10 @@ impl Mix {
 
     /// `length` bytes of the mix from byte `from`, as a file of it would hold them.
     pub fn read(&self, from: u64, length: u64) -> io::Result<Vec<u8>> {
-        let to = (from + length).min(self.size());
+        if from >= self.size() {
+            return Ok(Vec::new());
+        }
+        let to = from.saturating_add(length).min(self.size());
         let mut bytes = Vec::with_capacity(to.saturating_sub(from) as usize);
         if from < HEADER {
             bytes.extend_from_slice(&self.header()[from as usize..to.min(HEADER) as usize]);
@@ -159,13 +167,15 @@ impl Track {
     }
 
     /// Adds this track, of a lower rate, brought up to `rate`, into `sum`: the mix's frames from
-    /// `first`. The resampler always starts on a frame of the track that falls on a frame of the
-    /// mix, so a range of the mix is made of the same frames, whoever asks for it and from where.
+    /// `first`. The resampler always starts on the same grid of its blocks, each on a frame of the
+    /// track that falls on a frame of the mix, so a range of the mix is the same bytes as the whole.
     fn raised(&self, rate: u32, first: i64, sum: &mut [f32]) -> io::Result<()> {
         let failed = |error: &dyn std::fmt::Display| io::Error::other(format!("a track could not be brought to {rate} Hz: {error}"));
         let shared = gcd(self.rate, rate);
         let (taken, given) = (i64::from(self.rate / shared), i64::from(rate / shared));
-        let chunk = 1024;
+        // Blocks of a whole number of the ratio's steps, each starting on the same grid: a block
+        // starts on a frame of the mix, and the resampler is given the same blocks whoever asks.
+        let chunk = taken * ((1024 + taken - 1) / taken);
         let mut resampler = Fft::<f32>::new_custom(
             self.rate as usize,
             rate as usize,
@@ -179,7 +189,7 @@ impl Track {
         let delay = resampler.output_delay() as i64;
         // Two blocks before the first frame asked, for the resampler to settle.
         let wanted = ((first - self.at) as f64 * taken as f64 / given as f64).floor() as i64;
-        let start = (wanted - 2 * chunk).div_euclid(taken) * taken;
+        let start = (wanted - 2 * chunk).div_euclid(chunk) * chunk;
         let from = self.at + start / taken * given;
         let (mut made, mut read) = (Vec::new(), start);
         let mut out = vec![0.0f32; resampler.output_frames_max()];
@@ -220,14 +230,22 @@ fn track(path: &Path) -> Option<Track> {
         match &head[at..at + 4] {
             b"fmt " => {
                 let fmt = head.get(at + 8..at + 24)?;
-                // WAVE_FORMAT_EXTENSIBLE says its own in the first two bytes of its sub-format.
+                // WAVE_FORMAT_EXTENSIBLE says its own in the first two bytes of its sub-format,
+                // in a `fmt ` of 40 bytes.
                 let tag = match u16::from_le_bytes([fmt[0], fmt[1]]) {
-                    0xFFFE => u16::from_le_bytes(head.get(at + 32..at + 34)?.try_into().ok()?),
+                    0xFFFE if length >= 40 => u16::from_le_bytes(head.get(at + 32..at + 34)?.try_into().ok()?),
+                    0xFFFE => return None,
                     tag => tag,
                 };
                 let channels = usize::from(u16::from_le_bytes([fmt[2], fmt[3]]));
                 let rate = u32::from_le_bytes(fmt[4..8].try_into().ok()?);
-                let width = usize::from(u16::from_le_bytes([fmt[14], fmt[15]])) / 8;
+                // A sample's width is its block's share, which its bits fill: 20 bits in 3 bytes.
+                let block = usize::from(u16::from_le_bytes([fmt[12], fmt[13]]));
+                let bits = usize::from(u16::from_le_bytes([fmt[14], fmt[15]]));
+                let width = block.checked_div(channels)?;
+                if block != width * channels || bits.div_ceil(8) != width || !(1_000..=768_000).contains(&rate) {
+                    return None;
+                }
                 let float = match (tag, width) {
                     (1, 2..=4) => false,
                     (3, 4) => true,
