@@ -1237,6 +1237,17 @@ fn named(folder: &Path) -> String {
 fn makings(shell: State<'_, Shell>) -> Makings {
     let developer = shell.settings().developer;
     let said = |why: &String| words::shown_detail(why, developer);
+    // Read under one hold: a second hold of the same lock in the struct below would never be
+    // given, its first still held to the statement's end.
+    let (failed, failed_said) = {
+        let failures = shell.minutes_failed.lock().unwrap();
+        let failed = failures.iter().map(|(folder, (why, _))| (named(folder), said(why))).collect();
+        let causes = failures
+            .iter()
+            .filter_map(|(folder, (_, cause))| Some((named(folder), words::cause((*cause)?, shell.language).to_string())))
+            .collect();
+        (failed, causes)
+    };
     let writing = shell.writing_minutes.lock().unwrap().clone();
     let by = shell.minutes_by.lock().unwrap().clone();
     Makings {
@@ -1284,20 +1295,8 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .iter()
             .map(|(folder, times)| (named(folder), *times))
             .collect(),
-        failed: shell
-            .minutes_failed
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|(folder, (why, _))| (named(folder), said(why)))
-            .collect(),
-        failed_said: shell
-            .minutes_failed
-            .lock()
-            .unwrap()
-            .iter()
-            .filter_map(|(folder, (_, cause))| Some((named(folder), words::cause((*cause)?, shell.language).to_string())))
-            .collect(),
+        failed,
+        failed_said,
         made: shell
             .minutes_made
             .lock()
