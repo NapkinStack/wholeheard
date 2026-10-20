@@ -209,7 +209,7 @@ impl Provider {
                     format!("{host} does not know this model or this address (HTTP 404)"),
                 );
             }
-            status @ (301 | 302 | 303 | 307 | 308) => {
+            status @ (300 | 301 | 302 | 303 | 307 | 308) => {
                 return refused(
                     "provider.redirected",
                     format!("{host} sent the request elsewhere, and it was not followed (HTTP {status})"),
