@@ -1,6 +1,6 @@
 # platform
 
-Measures what Summit's steps produce against a meeting whose every word is known.
+Measures what Wholeheard's steps produce against a meeting whose every word is known.
 
 - **Owner**: NapkinStack/maintainers
 - **Criticality**: standard
@@ -11,7 +11,7 @@ flowchart LR
     S["bench/meeting.txt<br/>a script: four voices, two sides,<br/>overlaps, silences"]:::file --> R["bench.render<br/>synthetic voices on one clock"]:::mod
     R --> A["A session, as a recording<br/>of that meeting would be"]:::file
     R --> T["truth.json<br/>each turn: its voice, its side,<br/>its instants, its words"]:::file
-    A --> P["Summit's programs<br/>as a user runs them"]:::other
+    A --> P["Wholeheard's programs<br/>as a user runs them"]:::other
     P --> C["Counts, against the truth"]:::mod
 
     classDef file fill:#374151,color:#fff
@@ -61,7 +61,7 @@ transcript that is not one whole `transcript/v1` of that meeting is refused, not
 
 ```bash
 # Each draw of a condition is transcribed by the program under test, then counted together.
-summit-transcription <out-folder>/low/0 --model <model-file> --language fr   # and /1 to /5
+wholeheard-transcription <out-folder>/low/0 --model <model-file> --language fr   # and /1 to /5
 uv run python -m bench.counts <out-folder>/low/0 <out-folder>/low/1 <out-folder>/low/2   # … /5
 ```
 
@@ -75,7 +75,7 @@ nstack run platform <voices-folder> <out-folder> 6 v2
 ```
 
 A synthetic voice is easier to transcribe than a person's: the bench says how one way of
-doing compares with another on the same meeting, not how well Summit hears a real one.
+doing compares with another on the same meeting, not how well Wholeheard hears a real one.
 
 **Real meetings**, for what the bench cannot say: passages of
 [SUMM-RE](https://huggingface.co/datasets/linagora/SUMM-RE) (CC BY-SA 4.0) — French meetings,
@@ -94,7 +94,7 @@ for n in 0 2 3 5 6 21 22 23; do f=$(printf "test-%05d-of-00028.parquet" $n)
   curl -L -o <parquet-folder>/$f https://huggingface.co/datasets/linagora/SUMM-RE/resolve/main/data/test/$f; done
 # Then, five minutes of each.
 uv run python -m bench.real build <parquet-folder> <out-folder> 5
-summit-transcription <out-folder>/<meeting>/v1 --model <model-file> --language fr   # and v2
+wholeheard-transcription <out-folder>/<meeting>/v1 --model <model-file> --language fr   # and v2
 uv run python -m bench.real score <out-folder>/*
 ```
 

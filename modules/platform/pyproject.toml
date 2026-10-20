@@ -1,7 +1,7 @@
 [project]
-name = "summit-platform"
+name = "wholeheard-platform"
 version = "0.1.0"
-description = "What Summit's modules share and none owns: the bench that measures a transcript against a meeting whose truth is known."
+description = "What Wholeheard's modules share and none owns: the bench that measures a transcript against a meeting whose truth is known."
 requires-python = ">=3.12"
 dependencies = [
     "jiwer>=4",

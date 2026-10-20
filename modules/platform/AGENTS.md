@@ -8,11 +8,11 @@
 
 ## Responsibility
 
-Measures what Summit's steps produce against a meeting whose every word is known.
+Measures what Wholeheard's steps produce against a meeting whose every word is known.
 
 ## What this module does not do
 
-- It is not a step of Summit and ships to no user: it measures the steps.
+- It is not a step of Wholeheard and ships to no user: it measures the steps.
 - It never imports a step's code: it runs the programs as a user does, and reads their files.
 
 ## Internal conventions nobody could guess
