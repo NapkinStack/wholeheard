@@ -66,7 +66,7 @@ fn each_making_is_logged_under_the_id_its_program_was_given() {
     script(
         &hears,
         r#"printf %s "$WHOLEHEARD_TRACE" > "$1/../transcript.trace"
-echo 'wholeheard-transcription: the model could not be loaded' >&2
+echo "wholeheard-transcription: $1/derived/ cannot be written" >&2
 exit 1"#,
     );
     let (_making, made) = Transcription::start(&hears, &session, Path::new("/models/ggml-a.bin")).unwrap();
@@ -106,6 +106,8 @@ exit 1"#,
 
     // A program that is not there: the making is said to have failed, not left begun.
     assert!(Transcription::start(&folder.path().join("nowhere"), &session, Path::new("/models/ggml-a.bin")).is_err());
+    assert!(Summarising::start(&folder.path().join("nowhere"), &session, "http://127.0.0.1:9/v1", "m", None).is_err());
+    assert!(Recording::start(&folder.path().join("nowhere"), &sessions).is_err());
 
     let text = String::from_utf8(kept.0.lock().unwrap().clone()).unwrap();
     let lines: Vec<serde_json::Value> = text.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
@@ -115,7 +117,11 @@ exit 1"#,
     assert_eq!(of(&lines, &heard), ["shell.transcript", "shell.transcript_failed"], "{text}");
     assert_eq!(of(&lines, &wrote), ["shell.minutes", "shell.minutes_written"], "{text}");
     let failed = lines.iter().find(|line| line["message"] == "shell.transcript_failed").unwrap();
-    assert_eq!(failed["detail"], "wholeheard-transcription: the model could not be loaded");
+    // An older program named the session's path: the log holds the folder of sessions as a word.
+    assert_eq!(
+        failed["detail"],
+        "wholeheard-transcription: <sessions>/2026-10-20_10-00/derived/ cannot be written"
+    );
     let asked = lines.iter().find(|line| line["message"] == "shell.minutes").unwrap();
     assert_eq!(
         (&asked["session"], &asked["host"], &asked["key"]),
@@ -138,6 +144,9 @@ exit 1"#,
         .collect();
     assert_eq!(missing.len(), 4, "{text}");
     assert_eq!(missing[3]["message"], "shell.transcript_failed");
+    let failed: Vec<_> = lines.iter().map(|line| line["message"].as_str().unwrap()).collect();
+    assert_eq!(failed.iter().filter(|step| **step == "shell.minutes_failed").count(), 1, "{text}");
+    assert_eq!(failed.iter().filter(|step| **step == "shell.recording_failed").count(), 2, "{text}");
     for said in ["a-key-for-the-test", "/models", &*folder.path().to_string_lossy()] {
         assert!(!text.contains(said), "the log holds {said:?}: {text}");
     }
