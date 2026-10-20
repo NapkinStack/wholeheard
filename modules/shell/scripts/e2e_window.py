@@ -464,6 +464,11 @@ def main() -> int:
             act()
             WebDriverWait(browser, 5).until(staleness_of(before))
 
+        # The page drawn again, the refusal is said just after: waited for, never read too soon.
+        def not_saved():
+            wait_for(browser, lambda b: b.find_elements(By.ID, "not-saved") and b.find_element(By.ID, "not-saved").text, 5)
+            return browser.find_element(By.ID, "not-saved").text
+
         changed(lambda: browser.find_element(By.CSS_SELECTOR, "input[name=after][value=nothing]").click())
         changed(lambda: Select(browser.find_element(By.ID, "keep")).select_by_value("30"))
         changed(lambda: Select(browser.find_element(By.ID, "model")).select_by_visible_text(
@@ -543,7 +548,7 @@ def main() -> int:
         check("a folder typed is made, and in the settings file", elsewhere.is_dir() and f'sessions = "{elsewhere}"' in text, text)
         folder = folder_field()
         changed(lambda: typed(folder, "Wholeheard"))
-        said = browser.find_element(By.ID, "not-saved").text
+        said = not_saved()
         check("a folder that is not a whole path is said, and nothing changes", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == text, said)
         browser.find_element(By.ID, "meetings").click()
         listed = wait_for(browser, lambda b: str(elsewhere) in b.find_element(By.ID, "none").text, 5)
@@ -568,7 +573,7 @@ def main() -> int:
         window.file.write_text(window.file.read_text() + "keep_audio = 0\n")
         broken = window.file.read_text()
         changed(lambda: browser.find_element(By.ID, "reminder").click())
-        said = browser.find_element(By.ID, "not-saved").text
+        said = not_saved()
         check("a file that cannot be read is not written over", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == broken, said)
     # Who writes the minutes: an Ollama made here, an online service, an address of the user's. A
     # key goes to the scenario's own keyring, which lives as long as the program.
