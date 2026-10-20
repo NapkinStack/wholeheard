@@ -68,6 +68,7 @@ An agent speaking to a person uses these words, and explains one the first time 
 | **Guarded · unguarded** | Whether the forge can refuse a merge that breaks the rules; on some plans nothing can | `nstack doctor` | "Private on a free plan: unguarded." |
 | **Checked · attested** | A change's checks ran on the forge's CI, or on a workstation and were recorded on the commit | `Checks :` in `pr-check`; `nstack attest` | "Attested on a workstation, 5 of 5." |
 | **Published · unpublished** | Whether the engine judging a project is a released version or a local copy | The first line of every judging command | "Judged by an UNPUBLISHED NapkinStack — a local checkout." |
+| **Sources** | A contributor's engine: a local checkout of the framework that holds the project's version, ahead of what CI installs — said by `doctor`, not a gap | `SOURCES [L1]` in `nstack doctor` | "Sources at v0.11.0-3: ahead of the project's v0.11.0." |
 | **Prior art gate** | Before a structuring decision: find how the field does it, adopt that unless a user gains from another way | The *Prior art* section of an ADR or a PDR | "Copier, because the field already uses it." |
 
 ## Records and files
