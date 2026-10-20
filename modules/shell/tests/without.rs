@@ -23,10 +23,7 @@ fn the_folder_of_sessions_is_taken_out_wherever_it_is_named() {
 fn another_name_that_starts_the_same_is_left_as_it_is() {
     let sessions = Some(Path::new("/srv/Meet"));
     assert_eq!(without("/srv/Meetings/x", sessions), "/srv/Meetings/x");
-    assert_eq!(
-        without("/srv/Meet.bak and /srv/Meet", sessions),
-        "/srv/Meet.bak and <sessions>"
-    );
+    assert_eq!(without("/srv/Meet.bak and /srv/Meet", sessions), "/srv/Meet.bak and <sessions>");
     // The root, or nothing, takes nothing out.
     assert_eq!(without("/a/b", Some(Path::new("/"))), "/a/b");
     assert_eq!(without("/a/b", None), "/a/b");
