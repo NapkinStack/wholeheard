@@ -2,12 +2,14 @@
 status: accepted              # proposed | accepted — the decider accepts
 decider: "@napkinstack-admin"   # the human who validates the charter and the cycles
 success_criteria:             # when the goal is reached: measurable, dated or relative to a named event
-  - "From the day Summit installs on the decider's Fedora, the decider records every meeting with it for two consecutive weeks and does not go back to a bot"
+  - "From the day Wholeheard installs on the decider's Fedora, the decider records every meeting with it for two consecutive weeks and does not go back to a bot"
   - "From the day it installs on their machines, the colleague on Windows and the colleague on macOS each do the same for two consecutive weeks"
   - "Each of the three installed it without help"
 ---
 
-# Charter — Summit
+# Charter — Wholeheard
+
+> Named Summit until 2026-10-20: renamed by [PDR-0001](../pdr/0001-wholeheard-open-on-linux-paid-on-macos-and-windows.md) (D28). Where the decider's words are quoted, they keep the name they used.
 
 > Written at the first framing (`.nstack/playbooks/framing.md`), from the discovery decided **go** on
 > 2026-10-12 (`discovery.md`); changed only through a PDR. Every agent session reads it.
@@ -17,7 +19,7 @@ success_criteria:             # when the goal is reached: measurable, dated or r
 
 ```mermaid
 flowchart LR
-    U["The user<br/>on Linux, Windows or macOS"]:::user --> S["Summit<br/>on the user's machine"]:::product
+    U["The user<br/>on Linux, Windows or macOS"]:::user --> S["Wholeheard<br/>on the user's machine"]:::product
     S --> C["1 Capture<br/>microphone, system sound"]:::step --> T["2 Transcribe"]:::step --> R["3 Summarise"]:::step --> E["4 Export"]:::step
     T -. "only if the user chose it" .-> P1["A transcription service<br/>OpenAI-compatible"]:::out
     R -. "only if the user chose it" .-> P2["A summary service<br/>OpenAI-compatible"]:::out
@@ -31,9 +33,9 @@ flowchart LR
     classDef other fill:#92400e,color:#fff
 ```
 
-**Legend** — blue: who uses Summit · green: the product · grey: its four steps, each usable
+**Legend** — blue: who uses Wholeheard · green: the product · grey: its four steps, each usable
 alone · red: what is outside the machine, reached only by the user's choice · orange: people
-who do not use Summit and are affected by it.
+who do not use Wholeheard and are affected by it.
 
 **Who.** Today, three people: the decider, on Fedora, and two colleagues, one on Windows and
 one on macOS, each on the latest version of their system. The idea names wider profiles — the
@@ -51,7 +53,7 @@ not named.
 The three criteria of the front matter are the discovery's success signals, **re-dated**: the
 challenger showed that a fixed date two weeks after a product that does not exist cannot tell
 "not wanted" from "not finished". Each window now starts the day the product is in the
-user's hands. They are observed by asking the three people, and by the sessions Summit keeps.
+user's hands. They are observed by asking the three people, and by the sessions Wholeheard keeps.
 
 A second purpose is not a criterion: the project is meant to make the decider's company
 known, once the repository is opened. Nothing measures it yet.
@@ -68,9 +70,9 @@ known, once the repository is opened. Nothing measures it yet.
   strictest. In France the Penal Code, art. 226-1, presumes consent only when the recording
   is made in the sight and knowledge of the people recorded — the other participants, not the
   user (read at Légifrance by the challenger, 2026-10-12).
-- **Summit tells the other participants nothing; the user announces the recording.** Decided
+- **Wholeheard tells the other participants nothing; the user announces the recording.** Decided
   by the decider on 2026-10-12: "rien, c'est l'utilisateur qui annonce". The lawfulness of a
-  recording therefore rests on its user, each time. What Summit owes them in return *(framer,
+  recording therefore rests on its user, each time. What Wholeheard owes them in return *(framer,
   to confirm)*: it says so plainly before the first recording, and its reminder at each start
   is the only trace that the user was told — a reminder shown out of the box, which a setting
   removes, as the idea file allows (C7): the decider's answer of 2026-10-13, below.
@@ -84,7 +86,7 @@ known, once the repository is opened. Nothing measures it yet.
 
 | Risk | What it would cost | What follows |
 |---|---|---|
-| A recording is made that a participant did not know about | A criminal offence for the user, in France; the end of the product's reason to exist | Accepted by the decider as the user's responsibility (constraints). By the handbook's own rule — a module that "touches someone's personal data is `critical`" (`.nstack/handbook/05-workflow.md` §7) — the capture module would be **critical**. **The decider declares it `standard` for now, and `critical` before the repository is opened** (2026-10-12): three users who agreed, a private repository, one builder. A deviation from the handbook's rule, taken knowingly; the day strangers install Summit it ends |
+| A recording is made that a participant did not know about | A criminal offence for the user, in France; the end of the product's reason to exist | Accepted by the decider as the user's responsibility (constraints). By the handbook's own rule — a module that "touches someone's personal data is `critical`" (`.nstack/handbook/05-workflow.md` §7) — the capture module would be **critical**. **The decider declares it `standard` for now, and `critical` before the repository is opened** (2026-10-12): three users who agreed, a private repository, one builder. A deviation from the handbook's rule, taken knowingly; the day strangers install Wholeheard it ends |
 | A recording or a transcript leaves the machine without the user choosing it | The one promise the product keeps against a bot, broken | `.nstack/playbooks/security.md` applies from the first cycle; a rule of the project is proposed (`rules/security.md`) |
 | A recording is lost: a crash, a full disk | A meeting that cannot be held again | Part of the capture module's criticality |
 | The nearest product works after all | Nothing to build; perhaps a contribution | **Not tested, by the decider's choice** (2026-10-12): "on ne le fait pas, on a déjà acté le dev Summit". The spike the discovery carried is dropped, and the objection it answered stays open: nobody ran the nearest product's Linux build |
@@ -110,7 +112,7 @@ The decider's, from the idea file and the discovery:
 
 - A bot that joins a meeting; an account, a sign-up.
 - Cloud synchronisation, team collaboration.
-- A provider imposed, a key supplied by Summit.
+- A provider imposed, a key supplied by Wholeheard.
 - A mobile application.
 - "Ask your notes a question" across meetings.
 - Sales analysis of calls, CRM integration.
@@ -121,7 +123,7 @@ The decider's, from the idea file and the discovery:
 The framer's, accepted with the discovery:
 
 - A recording that starts by itself before the user chose it.
-- A notes editor: Summit produces the minutes and hands them over.
+- A notes editor: Wholeheard produces the minutes and hands them over.
 - Telemetry, even opt-in, while the repository is private.
 
 ## Open questions

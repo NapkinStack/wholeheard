@@ -1,6 +1,8 @@
-# Summit
+# Wholeheard
 
-Summit records a conversation, transcribes it and writes its minutes on Linux, Windows and macOS — four steps, each usable alone and with the provider you choose, on your machine by default — for people who want to keep control of their data and of their costs.
+**Be in the meeting. The minutes write themselves — and never leave your machine.**
+
+Wholeheard records a conversation, transcribes it and writes its minutes on Linux, Windows and macOS — four steps, each usable alone and with the provider you choose, on your machine by default — for people who want to keep control of their data and of their costs.
 
 > Installing or updating the foundation this project is built on:
 > [`.nstack/handbook/INSTALL.md`](.nstack/handbook/INSTALL.md). Delete this line when it no longer serves.
@@ -18,11 +20,11 @@ flowchart LR
     classDef out fill:#7c2d12,color:#fff
 ```
 
-**Legend** — blue: you, on your own machine · green: Summit's four steps, each usable
+**Legend** — blue: you, on your own machine · green: Wholeheard's four steps, each usable
 alone · red: what is outside your machine, reached only when you choose it.
 
 No bot joins your meeting and no account is asked for. **You tell the other participants
-that you are recording**: Summit shows them nothing.
+that you are recording**: Wholeheard shows them nothing.
 
 ## Run it
 
@@ -30,10 +32,10 @@ On Fedora, built from this repository — no installer yet, and nothing on Windo
 
 | What runs | How | Its page |
 |---|---|---|
-| Summit in the tray: start and stop a recording from its menu or a shortcut, told by notifications; the transcript follows the stop, the model fetched once on your word | `nstack run shell` | [`modules/shell`](modules/shell/) |
-| A recording, from a terminal | `summit-capture record <folder>` | [`modules/capture`](modules/capture/) |
-| The transcript of a session, on the machine | `summit-transcription <session> --model <file>` | [`modules/transcription`](modules/transcription/) |
-| The minutes of a transcript, from the provider you chose | `summit-summary <session> --provider <address> --model <name>` | [`modules/summary`](modules/summary/) |
+| Wholeheard in the tray: start and stop a recording from its menu or a shortcut, told by notifications; the transcript follows the stop, the model fetched once on your word | `nstack run shell` | [`modules/shell`](modules/shell/) |
+| A recording, from a terminal | `wholeheard-capture record <folder>` | [`modules/capture`](modules/capture/) |
+| The transcript of a session, on the machine | `wholeheard-transcription <session> --model <file>` | [`modules/transcription`](modules/transcription/) |
+| The minutes of a transcript, from the provider you chose | `wholeheard-summary <session> --provider <address> --model <name>` | [`modules/summary`](modules/summary/) |
 
 Each source is kept as your system delivers it, at its own rate and channels, in 24 bits —
 about 2 GB an hour on a laptop ([ADR-0004](docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md)).
