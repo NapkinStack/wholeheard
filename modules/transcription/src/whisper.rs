@@ -190,14 +190,20 @@ pub fn knows(language: &str) -> bool {
 impl Whisper {
     /// Loads a model in whisper.cpp's format. It is named in the transcript by its file's name.
     pub fn load(model: &Path) -> io::Result<Self> {
+        // The file's name, never its path: a sentence that fails is logged (ADR-0007), and a
+        // path names whose computer, or a session given by mistake.
+        let named = model
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
         if !model.is_file() || std::fs::File::open(model).is_err() {
-            return failed("the model is not a file that can be read", model.display());
+            return failed("the model is not a file that can be read", &named);
         }
         // whisper.cpp writes its own account of the model on the error stream: kept quiet,
         // so that what this program says there is one sentence.
         whisper_rs::install_logging_hooks();
         let Some(path) = model.to_str() else {
-            return failed("the model's path is not text", model.display());
+            return failed("the model's path is not text", &named);
         };
         let mut settings = WhisperContextParameters::default();
         let preset = heads(model);

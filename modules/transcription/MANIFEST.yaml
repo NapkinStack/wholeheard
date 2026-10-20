@@ -88,6 +88,18 @@ dependencies:
     exit_strategy: >
       One function, `cancelled` in src/echo.rs, held by tests/echo.rs and by the bench's
       counts; any canceller that passes them replaces it.
+  - name: tracing
+    purpose: The steps and failures the program logs, as events of a run (ADR-0007)
+    adr: docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md
+    exit_strategy: The info! and error! calls of src/main.rs and src/step.rs; any logging facade replaces them.
+  - name: tracing-subscriber
+    purpose: Writes those events as JSON lines, at the level asked
+    adr: docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md
+    exit_strategy: One function, start in src/log.rs.
+  - name: tracing-appender
+    purpose: A file a day
+    adr: docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md
+    exit_strategy: One function, start in src/log.rs.
 #  - name:
 #    purpose:
 #    adr:
