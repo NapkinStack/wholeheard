@@ -290,6 +290,8 @@ pub struct Window {
     pub search: &'static str,
     /// The minutes' maker: the model, the provider, when.
     pub written_by: &'static str,
+    /// Its provider, when known, said after the model.
+    pub written_via: &'static str,
     /// Between a day and its hour: "mar. 13 oct. à 12:21", "Tue, Oct 13 at 12:21 PM".
     pub at: &'static str,
     /// The transcript's maker: the model, on this computer.
@@ -515,7 +517,8 @@ pub fn window(language: Language) -> Window {
             minutes_title: "Minutes",
             transcript_title: "Transcript",
             search: "Search the meeting",
-            written_by: "Written by {}, via {} · {}",
+            written_by: "Written by {}",
+            written_via: ", via {}",
             at: "at",
             heard_by: "Written by {}, on this computer",
             here: "Here",
@@ -721,7 +724,8 @@ pub fn window(language: Language) -> Window {
             minutes_title: "Compte rendu",
             transcript_title: "Transcript",
             search: "Chercher dans la réunion",
-            written_by: "Écrit par {}, via {} · {}",
+            written_by: "Écrit par {}",
+            written_via: ", via {}",
             at: "à",
             heard_by: "Écrit par {}, sur cet ordinateur",
             here: "Ici",

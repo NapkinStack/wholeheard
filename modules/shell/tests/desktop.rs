@@ -19,3 +19,15 @@ fn gnome_s_settings_are_offered_under_gnome_only() {
         assert!(!gnome(no), "{no}");
     }
 }
+
+#[test]
+fn keys_said_in_gtk_s_notation_are_shown_as_a_person_reads_them() {
+    // GNOME's portal describes the keys it granted as a sentence in English around GTK's own
+    // notation; the window shows them as GNOME's settings do, whatever the language (#312).
+    assert_eq!(keys("Press <Alt><Super>m").as_deref(), Some("Super+Alt+M"));
+    assert_eq!(keys("<Primary><Shift>r").as_deref(), Some("Ctrl+Shift+R"));
+    assert_eq!(keys("Press <Control>F9").as_deref(), Some("Ctrl+F9"));
+    assert_eq!(keys("<Super>space").as_deref(), Some("Super+Space"));
+    // Keys said otherwise are shown as said.
+    assert_eq!(keys("Meta+Alt+M").as_deref(), Some("Meta+Alt+M"));
+}

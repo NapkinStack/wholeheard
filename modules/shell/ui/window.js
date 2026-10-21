@@ -18,7 +18,9 @@ function size(bytes, words) {
 // The day a session started, on this machine's clock; none when the shell could not read it.
 const dayOf = (session) => (session.instant === null ? null : new Date(session.instant * 1000));
 
+// As the notifications say it (words::length): seconds under a minute, then minutes, then hours.
 function length(seconds) {
+  if (seconds < 59.5) return `${Math.round(Math.max(0, seconds))} s`;
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `${minutes} min`;
   return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}`;
@@ -478,8 +480,11 @@ function minutesCard(read, words, session, transcript) {
   // As the board says it: the day of the week, no year, and the model as people say it.
   const day = { weekday: "short", day: "numeric", month: "short" };
   const hour = { hour: "2-digit", minute: "2-digit" };
-  const when = made ? `${new Intl.DateTimeFormat(words.locale, day).format(made)} ${words.at} ${new Intl.DateTimeFormat(words.locale, hour).format(made)}` : "—";
-  card.append(element("p", "maker", fill(words.written_by, read.model ? modelSaid(read.model) : "—", read.provider || "—", when)));
+  // What is known of who wrote them, and when: what is not known is left unsaid.
+  let maker = fill(words.written_by, read.model ? modelSaid(read.model) : "—");
+  if (read.provider) maker += fill(words.written_via, read.provider);
+  if (made) maker += ` · ${new Intl.DateTimeFormat(words.locale, day).format(made)} ${words.at} ${new Intl.DateTimeFormat(words.locale, hour).format(made)}`;
+  card.append(element("p", "maker", maker));
   // The minutes as written, rendered by the shell: raw HTML in them is text there, a link its words.
   const body = element("div", "body");
   body.innerHTML = read.body;
