@@ -108,7 +108,7 @@ in git; elsewhere a record is shown, and the forge's CI judges.
 ## K — the cycle a change belongs to
 
 These rules bound work inside a cycle. A project with no accepted charter is **unframed**:
-it has no cycle, K1 to K3 say nothing there, and every other rule applies.
+it has no cycle, K1 to K3 and K5 say nothing there, and every other rule applies.
 
 | Code | Refuses | Why |
 |---|---|---|
@@ -116,6 +116,7 @@ it has no cycle, K1 to K3 say nothing there, and every other rule applies.
 | `K2` | Delivery work after the cycle's end date: the circuit breaker | `.nstack/handbook/project.md` |
 | `K3` | Delivery work that names no ready or in-progress deliverable | `.nstack/handbook/project.md` |
 | `K4` | The out-of-cycle label with no justification | `.nstack/handbook/project.md` |
+| `K5` | Delivery work for a deliverable someone else holds — from none of the hold's sessions, nor its person's account | `.nstack/handbook/project.md`, *Who holds a deliverable* |
 
 ## V — a contract version someone relies on
 
@@ -141,7 +142,7 @@ it has no cycle, K1 to K3 say nothing there, and every other rule applies.
 
 ## G — the forge's settings
 
-The nineteen lines of the checklist, in its order (`INSTALL.md`, "To do once on GitHub").
+The twenty lines of the checklist, in its order (`INSTALL.md`, "To do once on GitHub").
 
 | Code | Reports as a gap | Why |
 |---|---|---|
@@ -164,3 +165,4 @@ The nineteen lines of the checklist, in its order (`INSTALL.md`, "To do once on 
 | `G17` | The main branch can be deleted | `07-governance.md` §7 |
 | `G18` | The main branch's history can be rewritten by a force push | `07-governance.md` §7 |
 | `G19` | A default branch other than `main`, which no workflow watches | `07-governance.md` §7 |
+| `G20` | A hold of a deliverable that can be force-pushed or deleted: the one way past its refusal | `project.md`, *Who holds a deliverable* |

@@ -200,8 +200,9 @@ quietest way to accumulate debt.
 
 Do not start a significant task without:
 
-- [ ] a **deliverable of the current cycle**, ready (`docs/project/`) — in a framed project;
-      an unframed one has no cycle, and the seven lines below are its whole definition of ready
+- [ ] a **deliverable of the current cycle**, ready (`docs/project/`), and held by you —
+      `nstack claim D<n>` — in a framed project; an unframed one has no cycle, and the seven
+      lines below are its whole definition of ready
 - [ ] a goal understandable without a spoken conversation
 - [ ] scope **and out of scope**
 - [ ] the target module identified
