@@ -20,7 +20,14 @@ cargo build --locked 2>&1 | tail -1 >> .evidence/e2e.txt
 bin=${CARGO_TARGET_DIR:-$PWD/target}/debug/wholeheard
 work=$(mktemp -d)
 app=""
-ended() { [ -z "$app" ] || kill "$app" 2>/dev/null || true; pkill -P $$ 2>/dev/null || true; rm -rf "$work"; }
+mic_module=""; old_source=""
+ended() {
+  [ -z "$app" ] || kill "$app" 2>/dev/null || true; pkill -P $$ 2>/dev/null || true
+  # Scenario S's microphone, made for the run, taken away; the system's default put back.
+  [ -z "$old_source" ] || pactl set-default-source "$old_source" 2>/dev/null || true
+  [ -z "$mic_module" ] || pactl unload-module "$mic_module" 2>/dev/null || true
+  rm -rf "$work"
+}
 trap ended EXIT
 
 # The recorder, played: it notes what it was given and told, says a source is silent, and
@@ -342,6 +349,39 @@ check test -s "$work/sessions/2026-10-13_14-05/minutes.md"
 check is "$(tail -1 "$work/summarised")" "$work/sessions/2026-10-13_14-05 --provider http://127.0.0.1:9/v1 --model mistral"
 check is "$(titles 'Compte rendu prêt')" 3
 click 6
+
+say "S. a call takes a microphone in another application: offered once, named; never while recording, nor with offers off (D30)"
+# The call is pw-record on a microphone made for the run, the system's default meanwhile, so
+# that nothing reaches the computer's own: nobody is recorded.
+if ! command -v pw-record >/dev/null || [ -n "$(pactl list short source-outputs 2>/dev/null)" ]; then
+  say "  NOT RUN — pw-record missing, or an application holds a microphone: a call may be in progress"
+else
+  old_source=$(pactl get-default-source)
+  mic_module=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_offer media.class=Audio/Source/Virtual)
+  pactl set-default-source wholeheard_e2e_offer
+  call() { timeout "$1" pw-record --target wholeheard_e2e_offer /dev/null || true; }
+  offered() { for _ in $(seq 30); do [ "$(titles 'pw-cat utilise votre micro')" -ge "$1" ] && return 0; sleep 0.1; done; return 1; }
+  start fr_FR.UTF-8 "reminder = false\ntranscript = false" "$work/wholeheard-capture"
+  sleep 1
+  call 2 &
+  check offered 1                                  # within three seconds
+  wait
+  call 2 & call 2                                  # held again, by two at once: two applications
+  check offered 3
+  click 3; sleep 1                                 # recording: no offer
+  call 2
+  check is "$(titles 'pw-cat utilise votre micro')" 3
+  click 3; sleep 1
+  check is "$(grep -c 'pw-cat' "$work/state/wholeheard/logs/"* 2>/dev/null | awk -F: '{n += $2} END {print n + 0}')" 0
+  click 6
+  start fr_FR.UTF-8 "reminder = false\ntranscript = false\noffer = false" "$work/wholeheard-capture"
+  sleep 1
+  call 2
+  check is "$(titles 'pw-cat utilise votre micro')" 3
+  click 6
+  pactl set-default-source "$old_source"; old_source=""
+  pactl unload-module "$mic_module"; mic_module=""
+fi
 
 # The window (cycle 03): Wholeheard started with --window by tauri-driver, its page read over
 # WebDriver (scripts/e2e_window.py). For a few seconds a window appears, twice.

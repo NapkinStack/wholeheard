@@ -69,6 +69,8 @@ pub struct Settings {
     pub developer: bool,
     /// The logs' level, from Wholeheard's next start.
     pub log: Log,
+    /// Offer to record when another application takes a microphone (D30).
+    pub offer: bool,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -88,6 +90,7 @@ impl Default for Settings {
             minutes_agreed: None,
             keep_audio: KeepAudio::Always,
             developer: false,
+            offer: true,
             log: Log::Info,
         }
     }
@@ -131,6 +134,7 @@ struct Written {
     minutes_agreed: Option<String>,
     keep_audio: Option<toml::Spanned<toml::Value>>,
     developer: Option<bool>,
+    offer: Option<bool>,
     log: Option<Log>,
 }
 
@@ -165,6 +169,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     let mut settings = Settings::default();
     settings.reminder = written.reminder.unwrap_or(settings.reminder);
     settings.developer = written.developer.unwrap_or(settings.developer);
+    settings.offer = written.offer.unwrap_or(settings.offer);
     settings.log = written.log.unwrap_or(settings.log);
     settings.after = match (written.after, written.transcript) {
         (Some(after), _) => after,
@@ -234,6 +239,9 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     }
     if settings.developer != before.developer {
         set(&mut document, "developer", Value::from(settings.developer));
+    }
+    if settings.offer != before.offer {
+        set(&mut document, "offer", Value::from(settings.offer));
     }
     if settings.log != before.log {
         set(&mut document, "log", Value::from(settings.log.as_str()));
