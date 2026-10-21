@@ -64,8 +64,11 @@ main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 56px; display: flex
 .open, .search { min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font: inherit; }
 .open { padding: 0 16px; font-weight: 600; cursor: pointer; }
 .search { padding: 0 12px; min-width: 200px; }
-/* In a card's head, the search takes the room the title and its gesture leave (#312). */
-.top > .search { flex: 1 1 260px; }
+/* In the transcript's head, the search takes the room the title leaves; Refaire… sits beside who
+   heard it, as board 2 has it (#312). */
+.top > .search { flex: 1 1 200px; max-width: 320px; }
+.made { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.made > .redo { flex-basis: 100%; }
 .meeting-title { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
 .meeting-title h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
 .named { display: flex; flex-direction: column; gap: 4px; }

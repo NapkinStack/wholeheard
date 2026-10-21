@@ -535,8 +535,10 @@ function transcriptCard(read, words, session) {
     const shown = await window.__TAURI__.core.invoke("settings_shown");
     redo.replaceWith(redoTranscriptPanel(shown, session, words, redo));
   });
-  top.append(redo);
-  card.append(element("p", "maker", fill(words.heard_by, read.model ? spoken(read.model) : read.engine || "—")));
+  // Beside who heard it, as board 2 has it: the head keeps its search whole.
+  const heard = element("div", "made");
+  heard.append(element("p", "maker", fill(words.heard_by, read.model ? spoken(read.model) : read.engine || "—")), redo);
+  card.append(heard);
   if (!read.complete) card.append(element("p", "note", words.being_made));
   if (read.unread > 0) card.append(element("p", "note", fill(words.unread, read.unread)));
   const lines = element("ol", "lines");
