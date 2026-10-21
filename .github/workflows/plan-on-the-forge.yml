@@ -1,0 +1,53 @@
+name: Plan on the forge
+
+# The cycles and their deliverables, shown on GitHub as milestones and issues (`nstack board`).
+#
+# The cycle files are the plan; this workflow only SHOWS them, one way. An issue or a milestone
+# edited by hand is put back at the next run, and the run says so: the plan is edited in
+# docs/project/cycles/, in a pull request. Nothing here ever refuses anything — a forge that
+# refuses a call is said in the run's summary, and the run succeeds.
+#
+# When: a merge to the default branch (the plan changed), once a day (a hold changed — a claim
+# pushes a branch holding no file, so no workflow of it can start), and by hand. Whatever
+# triggered it, the run reads the default branch's tip: a re-run never shows an older plan.
+#
+# Rights: writing issues and milestones, reading pull requests and the code — asked by this job
+# alone; the project's other automation stays read-only (rule G10). The holds are fetched with
+# the job's token for that one command; the checkout keeps no credential.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: plan-on-the-forge
+  cancel-in-progress: false
+
+jobs:
+  board:
+    name: Plan on the forge
+    runs-on: ${{ vars.NSTACK_RUNS_ON || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - name: NapkinStack, the project version
+        run: bash .nstack/install-engine.sh
+
+      - name: The cycles, shown as milestones and issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: nstack board
