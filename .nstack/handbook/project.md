@@ -88,10 +88,10 @@ An issue closes as *completed* when the deliverable is accepted, as *not planned
 dropped, deferred, or left unfinished by a closed cycle.
 
 Nothing is maintained by hand and nothing on the forge is the plan: an issue or a milestone edited
-there is put back at the next run, and the run says so — the plan is edited in the cycle file, in a
-pull request. The display finds its own objects by a marker in their body; an issue or a milestone
-a person made is never touched, and a person's milestone already holding a cycle's title is said,
-not overwritten. What cannot be shown — no token, a refusal, holds unreadable — is said in the
+there is put back at the next run, and the run says it updated it — it cannot tell an edit by
+hand from the plan moving: the plan is edited in the cycle files, in a pull request. The display
+finds its own objects by a marker in their body; an issue or a milestone a person made is never
+touched, and a person's milestone already holding a cycle's title is said, not overwritten. What cannot be shown — no token, a refusal, holds unreadable — is said in the
 run's summary, never a failed merge. The first run on a project creates an issue per deliverable,
 and the repository's watchers get a notification for each.
 
