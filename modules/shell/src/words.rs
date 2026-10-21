@@ -1322,6 +1322,27 @@ pub fn back(source: Source, name: Option<&str>, language: Language) -> Notice {
     Notice { title: title.into(), body }
 }
 
+/// The offer to record a call another application started (D30): the notice, naming the
+/// application, and its three gestures — record, not this time, never offer.
+pub fn offer(application: &str, language: Language) -> (Notice, [&'static str; 3]) {
+    match language {
+        Language::English => (
+            Notice {
+                title: format!("{application} is using your microphone"),
+                body: "Record this call with Wholeheard?".into(),
+            },
+            ["Record", "Not this time", "Never offer"],
+        ),
+        Language::French => (
+            Notice {
+                title: format!("{application} utilise votre micro"),
+                body: "Enregistrer cet appel avec Wholeheard\u{202f}?".into(),
+            },
+            ["Enregistrer", "Pas cette fois", "Ne plus proposer"],
+        ),
+    }
+}
+
 /// Said after a recording's stop when its transcript is made next, without another gesture.
 pub fn follows(language: Language) -> &'static str {
     match language {

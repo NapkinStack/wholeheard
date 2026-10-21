@@ -380,3 +380,19 @@ fn the_logs_level_is_the_usual_one_until_the_user_asks_for_more() {
     assert_eq!(fs::read_to_string(&path).unwrap(), "log = \"debug\"\n");
     assert_eq!(read(&path).unwrap().log, Log::Debug);
 }
+
+#[test]
+fn a_call_is_offered_to_be_recorded_unless_the_user_said_nothing_is() {
+    // D30: offers are on by default, off by `offer = false`, and written back as chosen.
+    assert!(Settings::default().offer);
+    assert!(!written("offer = false\n").unwrap().offer);
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "# mine\nreminder = false\n").unwrap();
+    let mut chosen = read(&path).unwrap();
+    chosen.offer = false;
+    write(&path, &chosen).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("# mine") && text.contains("offer = false"), "{text}");
+    assert!(!read(&path).unwrap().offer);
+}
