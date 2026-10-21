@@ -60,7 +60,11 @@ fn an_application_that_takes_a_microphone_is_said_once_and_its_letting_go_too() 
         }]
     );
     // A change of its stream that carries only its state: still held.
-    assert!(takers.read(&json!([{ "id": 30, "type": "PipeWire:Interface:Node", "info": { "state": "running" } }])).is_empty());
+    assert!(
+        takers
+            .read(&json!([{ "id": 30, "type": "PipeWire:Interface:Node", "info": { "state": "running" } }]))
+            .is_empty()
+    );
     // A second stream of the same application: nothing more.
     assert!(
         takers
