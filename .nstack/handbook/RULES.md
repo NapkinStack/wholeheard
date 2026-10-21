@@ -33,6 +33,7 @@ a family, a number a rule; a retired rule's number is never reused.
 | `M9` | A module missing a file of its envelope | `02-modules.md` §4 |
 | `M10` | A module that does not say whether a user sees it | `05-workflow.md` §7 |
 | `M11` | `assembles` naming no module of the project, the module itself, or releases that wait for each other | `09-platform.md` §2 |
+| `M12` | An `evidence` declaration that checks nothing: an unknown key; a pattern that is not text, does not compile or matches an empty line; no level or no scenario; `levels` without a group named `level` | `.nstack/playbooks/tests.md` §1 |
 
 ## B — the boundaries between modules
 

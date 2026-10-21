@@ -56,7 +56,7 @@ section, with its own stack's commands.
 | `check` | All the fast validations: format, lint, types | In under 2 minutes |
 | `test` | The module's test suite | With no dependency on another module |
 | `run` | Start the module locally | With doubles for the dependencies |
-| `e2e` | The module's end-to-end scenarios; evidence written to `.evidence/` | Against the running module, in CI |
+| `e2e` | The module's end-to-end scenarios; logs and screenshots written to `$NSTACK_EVIDENCE` (`.evidence/e2e/`), read after the run | Against the running module, in CI |
 | `clean` | Remove what the module's commands left in its folder — build outputs | After its checks in CI on a self-hosted runner, even failed ones |
 | `compat` | Tell whether a change to a contract version is compatible: exit 0 when `$NSTACK_HEAD_PATH` accepts what `$NSTACK_BASE_PATH` did | On the module holding contracts, once one is consumed or stable |
 | `contracts` | Validate and generate the contract artefacts | On every contract change |
