@@ -52,6 +52,13 @@ from sessions whose transcript is whole; their transcript and minutes stay.
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification
 says when it is there, and a click on it opens the session's folder under a Linux desktop.
+A meeting's page plays it (D26) as one sound: its tracks placed where the session's clock puts
+them and mixed by the shell as they are read, never written (ADR-0009). The line being said is
+marked and kept in view; the drawing of who spoke — a slider — and each line are the controls,
+by mouse or keyboard, and the space bar plays and pauses. The sound comes from a server on the
+loopback interface that answers the run's token and the opened meeting alone (ADR-0008), nothing
+else of the disk; a meeting whose audio was freed has no player and says why.
+
 A transcript that failed is said in one sentence, the recording untouched: *Transcribe the
 last recording*, in the menu, makes it again from where it stopped; it is greyed while a
 recording runs, whose transcript follows its stop. One transcript at a time: a stop during

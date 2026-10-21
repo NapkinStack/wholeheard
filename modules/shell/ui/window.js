@@ -489,6 +489,12 @@ function minutesCard(read, words, session, transcript) {
 
 const folded = (text) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
+// The one line of a transcript in the order of Tab: this one, the others reached by the arrows.
+function roam(lines, line) {
+  if (!line || line.tabIndex === -1 && !line.hasAttribute("role")) return;
+  for (const other of lines.children) if (other.hasAttribute("role")) other.tabIndex = other === line ? 0 : -1;
+}
+
 function transcriptCard(read, words, session) {
   const card = element("aside", "card transcript");
   card.setAttribute("aria-label", words.transcript_title);
@@ -532,6 +538,36 @@ function transcriptCard(read, words, session) {
   for (const segment of read.segments) {
     const line = element("li");
     line.dataset.track = segment.track;
+    line.dataset.start = String(segment.start);
+    // A click on a line, or Enter on it, plays the meeting from it (D26).
+    const from = () => {
+      if (!player || player.name !== nameOf(session)) return;
+      player.seek(segment.start);
+      player.play();
+    };
+    line.addEventListener("click", () => {
+      roam(lines, line);
+      from();
+    });
+    // By the keyboard: one line in the order of Tab, the arrows to the others; Enter or Space
+    // plays from it, as a button's keys do.
+    if (player?.name === nameOf(session)) {
+      line.setAttribute("role", "button");
+      line.tabIndex = lines.children.length === 0 ? 0 : -1;
+      line.addEventListener("keydown", (event) => {
+        // The next line shown: one a search hides is passed over.
+        let next = { ArrowDown: line.nextElementSibling, ArrowUp: line.previousElementSibling }[event.key];
+        while (next?.hidden) next = event.key === "ArrowDown" ? next.nextElementSibling : next.previousElementSibling;
+        if (next) {
+          event.preventDefault();
+          roam(lines, next);
+          next.focus();
+        }
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        if (!event.repeat) from();
+      });
+    }
     const side = segment.track === "local" ? words.here : words.remote;
     const who = segment.voice === null ? side : `${side} · ${fill(words.voice, segment.voice)}`;
     const said = element("div", "said");
@@ -549,12 +585,157 @@ function transcriptCard(read, words, session) {
       shown += line.hidden ? 0 : 1;
     }
     nothing.hidden = shown > 0;
+    // The line in the order of Tab hidden: the first one shown takes its place.
+    const stop = [...lines.children].find((line) => line.tabIndex === 0);
+    if (stop?.hidden) roam(lines, [...lines.children].find((line) => !line.hidden));
   });
   card.append(lines, nothing);
   return card;
 }
 
-function showMeeting({ session, transcript, minutes, developer }, words) {
+// The meeting being listened to (D26): kept while its page is drawn again, so that a window
+// coming forward never stops what plays. Stopped when another page is shown.
+let player = null;
+
+// Plays a meeting from the loopback server: its tracks as one sound, each where the session's
+// clock puts it (ADR-0009). One media element, so the page keeps no clock of its own: its time
+// is the session's.
+function listen(name, url) {
+  if (player?.name === name) return player;
+  player?.stop();
+  const audio = new Audio(url);
+  audio.preload = "metadata";
+  audio.className = "track";
+  const shown = { name, audio, listeners: new Set(), failures: new Set(), ticking: 0 };
+  const tell = () => {
+    for (const listener of shown.listeners) listener(audio.currentTime);
+  };
+  const failed = (error) => {
+    // A play cut short by a pause is no failure.
+    if (error?.name === "AbortError") return;
+    clearInterval(shown.ticking);
+    audio.pause();
+    for (const failure of shown.failures) failure();
+  };
+  shown.time = () => audio.currentTime;
+  shown.playing = () => !audio.paused;
+  // After a failure, the sound is asked for again before it is played.
+  shown.play = () => {
+    if (audio.error) audio.load();
+    return audio.play().catch(failed);
+  };
+  shown.pause = () => audio.pause();
+  // Never at its very end, where WebKitGTK's player stops answering: a tenth of a second before.
+  shown.seek = (at) => {
+    audio.currentTime = Math.max(0, Math.min(at, (audio.duration || at + 1) - 0.1));
+    tell();
+  };
+  shown.stop = () => {
+    clearInterval(shown.ticking);
+    audio.pause();
+    audio.remove();
+  };
+  // The playhead and the line said, ten times a second while it plays; once more at each change.
+  // A failure is read at each tick too: WebKitGTK sets a network error on a range refused
+  // without the event, and its player waits for good.
+  audio.addEventListener("play", () => {
+    clearInterval(shown.ticking);
+    shown.ticking = setInterval(() => (audio.error ? failed(audio.error) : tell()), 100);
+    tell();
+  });
+  for (const changed of ["pause", "ended", "seeked", "loadedmetadata"]) {
+    audio.addEventListener(changed, () => {
+      if (changed !== "seeked" && changed !== "loadedmetadata") clearInterval(shown.ticking);
+      tell();
+    });
+  }
+  audio.addEventListener("error", failed);
+  // Kept in the page, never shown: the browser plays an element it holds.
+  document.body.append(audio);
+  player = shown;
+  return shown;
+}
+
+// The player of a meeting's page: Écouter / Pause, where the playback is, and the drawing of who
+// spoke as its control — a click, or the arrows on it, put the playback there (D26).
+function playerBar(session, listened, total, words, drawing) {
+  if (!listened) {
+    // Its audio freed while it played: nothing plays on.
+    if (player?.name === nameOf(session)) {
+      player.stop();
+      player = null;
+    }
+    // Freed, said so; there and not playable, said so too — never one for the other.
+    const freed = element("p", "note", session.audio > 0 ? words.not_playable : words.no_player);
+    freed.id = "no-player";
+    return freed;
+  }
+  const shown = listen(nameOf(session), listened);
+  const bar = element("div", "player");
+  const toggle = element("button", "open", "");
+  toggle.type = "button";
+  toggle.id = "play";
+  const at = element("span", "at", "");
+  at.id = "played";
+  // A track the window could not play, said where a screen reader hears it.
+  const says = element("p", "note", "");
+  says.id = "not-played";
+  says.setAttribute("role", "status");
+  const head = element("span", "playhead");
+  drawing.append(head);
+  drawing.tabIndex = 0;
+  drawing.setAttribute("role", "slider");
+  drawing.setAttribute("aria-label", words.playback);
+  drawing.setAttribute("aria-valuemin", "0");
+  // The slider runs to the sound's end, once known: it may outlast the session's recorded length.
+  const span = () => Math.max(total, shown.audio.duration || 0);
+  const paint = (time) => {
+    toggle.textContent = shown.playing() ? words.pause : words.play;
+    at.textContent = clock(time);
+    head.style.left = `${Math.min(100, (time / total) * 100)}%`;
+    drawing.setAttribute("aria-valuemax", String(Number(span().toFixed(1))));
+    drawing.setAttribute("aria-valuenow", String(Number(time.toFixed(1))));
+    drawing.setAttribute("aria-valuetext", `${clock(time)} / ${clock(span())}`);
+  };
+  shown.listeners.clear();
+  shown.listeners.add(paint);
+  shown.failures.clear();
+  shown.failures.add(() => (says.textContent = words.not_played));
+  toggle.addEventListener("click", () => {
+    if (shown.playing()) return shown.pause();
+    says.textContent = "";
+    shown.play();
+  });
+  drawing.addEventListener("click", (event) => {
+    const box = drawing.getBoundingClientRect();
+    shown.seek(((event.clientX - box.left) / box.width) * total);
+  });
+  // A slider's keys: five seconds back or on, the start, the end.
+  drawing.addEventListener("keydown", (event) => {
+    const at = shown.time();
+    const to = { ArrowLeft: at - 5, ArrowDown: at - 5, ArrowRight: at + 5, ArrowUp: at + 5, PageDown: at - 30, PageUp: at + 30, Home: 0, End: span() }[
+      event.key
+    ];
+    if (to === undefined) return;
+    event.preventDefault();
+    shown.seek(to);
+  });
+  paint(shown.time());
+  bar.append(toggle, at, says);
+  return bar;
+}
+
+// The space bar plays and pauses the meeting shown, wherever the focus is but in a field or on
+// a control of its own; held down, it does not toggle again and again.
+document.addEventListener("keydown", (event) => {
+  if (event.key !== " " || !player || document.getElementById("meeting")?.hidden) return;
+  if (event.target.closest("input, textarea, select, button, a, [role=button]")) return;
+  event.preventDefault();
+  if (event.repeat) return;
+  player.playing() ? player.pause() : player.play();
+});
+
+function showMeeting({ session, transcript, minutes, developer, listen: listened }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
   const back = element("a", "back", `‹ ${words.back}`);
@@ -601,13 +782,29 @@ function showMeeting({ session, transcript, minutes, developer }, words) {
     element("span", "remote", words.remote_described),
     element("span", "range", `${clock(0)} – ${clock(total)}`),
   );
-  drawn.append(relief(said, total, words), legend);
+  const drawing = element("div", "drawing");
+  drawing.append(relief(said, total, words));
+  drawn.append(drawing, legend, playerBar(session, listened, total, words, drawing));
   const columns = element("div", "columns");
   columns.append(minutesCard(minutes, words, session, transcript), transcriptCard(transcript, words, session));
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
   page.dataset.name = nameOf(session);
   page.replaceChildren(top, title, drawn, columns);
+  // The line being said, marked and kept in view while it plays (D26).
+  if (player?.name === nameOf(session)) {
+    const lines = [...page.querySelectorAll(".lines li")];
+    let marked = null;
+    player.listeners.add((at) => {
+      const now = lines.findLast((line) => Number(line.dataset.start) <= at) ?? null;
+      if (now === marked) return;
+      marked?.classList.remove("now");
+      now?.classList.add("now");
+      if (now && player.playing()) now.scrollIntoView({ block: "nearest" });
+      marked = now;
+    });
+    player.listeners.forEach((listener) => listener(player.time()));
+  }
   const search = document.getElementById("search");
   if (search && searching) {
     search.value = searching;
@@ -1353,6 +1550,11 @@ async function refresh() {
   words = listing.words;
   show(listing);
   const wanted = location.hash.match(/^#\/meeting\/(.+)$/);
+  // Another page, or another meeting: what was played stops.
+  if (player && player.name !== (wanted && decodeURIComponent(wanted[1]))) {
+    player.stop();
+    player = null;
+  }
   const settings = location.hash === "#/settings";
   const freeing = location.hash === "#/free";
   document.getElementById("free").hidden = !freeing;
@@ -1382,6 +1584,9 @@ async function refresh() {
     try {
       opened = await window.__TAURI__.core.invoke("opened", { name: decodeURIComponent(wanted[1]) });
     } catch {
+      // Gone while it played: it stops with its page.
+      player?.stop();
+      player = null;
       history.replaceState(null, "", "#/");
     }
   }

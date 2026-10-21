@@ -11,17 +11,22 @@ from __future__ import annotations
 import datetime as dt
 import http.server
 import json
+import math
 import os
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import threading
 import time
+import traceback
+import wave
 from pathlib import Path
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchWindowException, StaleElementReferenceException, WebDriverException
+from selenium.common.exceptions import NoSuchWindowException, StaleElementReferenceException, TimeoutException, WebDriverException
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.options import ArgOptions
@@ -745,8 +750,25 @@ def main() -> int:
     online = 'minutes_provider = "https://openrouter.ai/api/v1"\nminutes_model = "a-model"\n'
     window = Window(agreeing, "fr_FR.UTF-8", online, ollama=ollama)
     with window as browser:
-        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
+        # To the agreement page: its last drawing stays in the hidden page until the new one
+        # replaces it — waited for, so that nothing is clicked on the old one (as #302 found).
+        def to_agree(ready):
+            # Read while the page replaces it — after `#/` — the drawing cannot be held: read
+            # again, as `press` does (#309).
+            for _ in range(10):
+                try:
+                    old = browser.find_elements(By.CSS_SELECTOR, "#agree > *")
+                    break
+                except StaleElementReferenceException:
+                    time.sleep(0.1)
+            else:
+                old = browser.find_elements(By.CSS_SELECTOR, "#agree > *")
+            browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
+            if old:
+                WebDriverWait(browser, 5).until(staleness_of(old[0]))
+            wait_for(browser, lambda b: b.find_elements(By.ID, ready))
+
+        to_agree("agree-send")
         shot(browser, "agreement")
         page = browser.find_element(By.ID, "agree").text
         check(
@@ -769,8 +791,7 @@ def main() -> int:
         )
         window.file.write_text(window.file.read_text().replace("https://api.mistral.ai/v1", "https://openrouter.ai/api/v1"))
         browser.execute_script("location.hash = '#/'")
-        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"))
+        to_agree("agree-send")
         press(browser, "agree-send")
         sent = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         check(
@@ -782,8 +803,7 @@ def main() -> int:
         check("then the meeting is shown", wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/meeting/2026-10-18_11-00", 5))
         # Ticked: this meeting and the next ones go to that service without asking.
         (asked / "minutes.md").unlink()
-        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-remember"))
+        to_agree("agree-remember")
         press(browser, "agree-remember")
         press(browser, "agree-send")
         kept = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
@@ -792,8 +812,7 @@ def main() -> int:
         (asked / "minutes.md").unlink()
         (WORK / "summary-args").unlink()
         window.file.write_text(window.file.read_text().replace('minutes_agreed = "openrouter.ai"\n', ""))
-        browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-local-open"))
+        to_agree("agree-local-open")
         browser.find_element(By.ID, "agree-local-open").click()
         Select(browser.find_element(By.ID, "agree-local")).select_by_visible_text("qwen3:14b")
         browser.find_element(By.ID, "agree-local-write").click()
@@ -1261,8 +1280,220 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_element(By.ID, "weight").is_displayed())
         one = browser.find_element(By.ID, "taken").text
         check("one meeting is said in the singular", one == "taken by 1 meeting · 10 min of audio", one)
+
+    print("R. a meeting listened to, its words following (D26) — muted: nothing reaches the speakers")
+    listening = WORK / "listening"
+    played = listening / "2026-10-19_10-00"
+    session(played, now - dt.timedelta(hours=1), 0.1, {})
+    record = json.loads((played / "session.json").read_text())
+    record["tracks"] = {"local": {"device": "Mic"}, "remote": {"device": "Speaker"}}
+    (played / "session.json").write_text(json.dumps(record))
+    for name, hertz in (("local", 440), ("remote", 880)):
+        with wave.open(str(played / f"{name}.wav"), "wb") as made:
+            made.setnchannels(2)
+            made.setsampwidth(3)
+            made.setframerate(48000)
+            frames = bytearray()
+            for n in range(48000 * 6):
+                sample = int(0.2 * 8388607 * math.sin(2 * math.pi * hertz * n / 48000))
+                frames += struct.pack("<i", sample)[:3] * 2
+            made.writeframes(bytes(frames))
+    # The remote track's frame 0 is a second and a half into the session: it ends after the local one.
+    (played / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n{"track":"remote","sample":0,"at":1.5}\n')
+    heard = [(0.4, "local", "Bonjour à tous."), (2.5, "remote", "Bonjour, je vous entends."), (4.2, "local", "Commençons.")]
+    (played / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":"fr","context":null}\n'
+        + "".join(json.dumps({"type": "segment", "speaker": "me" if track == "local" else "others", "track": track, "voice": None,
+                              "start": start, "end": start + 1.5, "text": text}, ensure_ascii=False) + "\n" for start, track, text in heard)
+        + '{"type":"complete","duration":6.0}\n'
+    )
+    freed = listening / "2026-10-19_09-00"
+    session(freed, now - dt.timedelta(hours=2), 0.1, {})
+    shutil.copy(played / "transcript.jsonl", freed / "transcript.jsonl")
+    # Audio there, and no track this version plays: not said freed.
+    unplayable = listening / "2026-10-19_08-00"
+    session(unplayable, now - dt.timedelta(hours=3), 0.1, {"local.wav": 4000})
+    shutil.copy(played / "transcript.jsonl", unplayable / "transcript.jsonl")
+    # A meeting of two minutes, one track of silence: more than a player reads ahead of itself.
+    long = listening / "2026-10-19_06-00"
+    session(long, now - dt.timedelta(hours=5), 2, {})
+    record = json.loads((long / "session.json").read_text())
+    record["tracks"] = {"local": {"device": "Mic"}}
+    (long / "session.json").write_text(json.dumps(record))
+    with wave.open(str(long / "local.wav"), "wb") as made:
+        made.setnchannels(1)
+        made.setsampwidth(2)
+        made.setframerate(48000)
+        made.writeframes(bytes(2 * 48000 * 120))
+    (long / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n')
+    shutil.copy(played / "transcript.jsonl", long / "transcript.jsonl")
+    # Tracks a WAV header names, in a form no player reads: listed, and refused by the window.
+    unreadable = listening / "2026-10-19_07-00"
+    session(unreadable, now - dt.timedelta(hours=4), 0.1, {})
+    record = json.loads((unreadable / "session.json").read_text())
+    record["tracks"] = {"local": {"device": "Mic"}}
+    (unreadable / "session.json").write_text(json.dumps(record))
+    noise = bytes(range(256)) * 16
+    fmt = struct.pack("<HHIIHH", 0x9999, 2, 48000, 48000 * 6, 6, 24)
+    (unreadable / "local.wav").write_bytes(b"RIFF" + struct.pack("<I", 4 + 24 + 8 + len(noise)) + b"WAVE"
+                                           + b"fmt " + struct.pack("<I", len(fmt)) + fmt + b"data" + struct.pack("<I", len(noise)) + noise)
+    (unreadable / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n')
+    shutil.copy(played / "transcript.jsonl", unreadable / "transcript.jsonl")
+    with Window(listening, "fr_FR.UTF-8") as browser:
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
+        ready = wait_for(browser, lambda b: b.find_elements(By.ID, "play") and len(b.execute_script("return document.querySelectorAll('audio.track')")) == 1, 10)
+        check("a meeting with its audio has a player: its tracks as one sound (ADR-0009)", ready)
+        browser.execute_script("document.querySelectorAll('audio.track').forEach(a => { a.muted = true; a.volume = 0; })")
+        # The session's time is the one sound's, while it plays.
+        at = lambda b: b.execute_script("const a = document.querySelector('audio.track'); return a && !a.paused ? a.currentTime : 0")
+        playing = lambda b: b.execute_script("const a = document.querySelector('audio.track'); return !!a && !a.paused")
+        # As long as the last track ends: the remote one, 1.5 s in, for 6 s.
+        lasts = wait_for(browser, lambda b: b.execute_script("return document.querySelector('audio.track')?.duration || 0") > 0, 10)
+        length = browser.execute_script("return document.querySelector('audio.track').duration || 0")
+        check("the sound lasts to the end of the last track", lasts and abs(length - 7.5) < 0.05, length)
+        press(browser, "play")
+        moving = wait_for(browser, lambda b: at(b) > 1.9, 10)
+        check("Écouter plays the meeting", moving and playing(browser))
+        marked = wait_for(browser, lambda b: b.execute_script("return document.querySelector('.lines li.now')?.dataset.start") == "0.4", 5)
+        check("the line being said is marked", marked, browser.execute_script("return document.querySelector('.lines li.now')?.textContent"))
+        shot(browser, "10-playing")
+        browser.find_element(By.ID, "search").send_keys(" ")
+        check("a space typed in a field is the field's", not browser.execute_script("return document.querySelector('audio.track').paused"))
+        browser.find_elements(By.CSS_SELECTOR, ".lines li")[2].click()
+        jumped = wait_for(browser, lambda b: abs(at(b) - 4.2) < 0.6
+                          and b.execute_script("return document.querySelector('.lines li.now')?.dataset.start") == "4.2", 5)
+        check("a click on a line plays from it, and marks it", jumped, at(browser))
+        width = browser.execute_script("return document.querySelector('.drawing').getBoundingClientRect().width")
+        ActionChains(browser).move_to_element_with_offset(browser.find_element(By.CSS_SELECTOR, ".drawing"), int(-width / 2 + width * 0.4), 0).click().perform()
+        sought = wait_for(browser, lambda b: abs(at(b) - 2.4) < 0.6, 5)
+        check("a click on who spoke moves the playback there", sought, at(browser))
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.SPACE)
+        paused = wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('audio.track')].every(a => a.paused)"), 5)
+        check("the space bar pauses", paused and browser.find_element(By.ID, "play").text == "Écouter", browser.find_element(By.ID, "play").text)
+        # By the keyboard alone: the drawing is a slider, a line plays from it on Enter.
+        drawing = browser.find_element(By.CSS_SELECTOR, ".drawing")
+        slider = lambda b: b.find_element(By.CSS_SELECTOR, ".drawing").get_attribute("aria-valuenow")
+        drawing.send_keys(Keys.HOME)
+        drawing.send_keys(Keys.ARROW_RIGHT)
+        moved = wait_for(browser, lambda b: slider(b) == "5", 5)
+        check("the arrows move the playback on the drawing, a slider", moved and drawing.get_attribute("role") == "slider"
+              and drawing.get_attribute("tabindex") == "0", slider(browser))
+        drawing.send_keys(Keys.ARROW_LEFT)
+        back = wait_for(browser, lambda b: slider(b) == "0", 5)
+        # To the end of the sound — 7.5 s, past the session's 6 — a tenth before it.
+        maximum = lambda b: float(b.find_element(By.CSS_SELECTOR, ".drawing").get_attribute("aria-valuemax"))
+        drawing.send_keys(Keys.END)
+        ended_at = wait_for(browser, lambda b: abs(float(slider(b)) - 7.4) < 0.05, 5)
+        check("back, and to the end of the sound", back and ended_at and maximum(browser) == 7.5, (slider(browser), maximum(browser)))
+        drawing.send_keys(Keys.PAGE_DOWN)
+        down = wait_for(browser, lambda b: slider(b) == "0", 5)
+        drawing.send_keys(Keys.ARROW_UP)
+        up = wait_for(browser, lambda b: slider(b) == "5", 5)
+        drawing.send_keys(Keys.ARROW_DOWN)
+        check("up and down, page up and page down, as a slider's keys", down and up and wait_for(browser, lambda b: slider(b) == "0", 5), slider(browser))
+        stops = lambda b: b.execute_script("return [...document.querySelectorAll('.lines li')].map(li => li.tabIndex)")
+        # The line clicked last is the one in Tab's order.
+        check("one line in the order of Tab, the one clicked last", stops(browser) == [-1, -1, 0], stops(browser))
+        first = browser.find_elements(By.CSS_SELECTOR, ".lines li")[0]
+        first.send_keys(Keys.ARROW_DOWN)
+        line = browser.find_elements(By.CSS_SELECTOR, ".lines li")[1]
+        focused = browser.execute_script("return document.activeElement === arguments[0]", line)
+        check("the arrow moves the line in the order of Tab", stops(browser) == [-1, 0, -1], stops(browser))
+        line.send_keys(Keys.ENTER)
+        entered = wait_for(browser, lambda b: abs(at(b) - 2.5) < 0.6, 5)
+        check("down to a line, Enter plays from it", focused and entered and line.get_attribute("role") == "button", at(browser))
+        # A search that hides that line: the first line shown takes its place in Tab's order.
+        browser.find_element(By.ID, "search").send_keys("Commençons")
+        sought = wait_for(browser, lambda b: stops(b) == [-1, -1, 0], 5)
+        check("a search hiding the line in Tab's order gives the first shown its place", sought, stops(browser))
+        browser.find_element(By.ID, "search").send_keys(Keys.CONTROL, "a")
+        browser.find_element(By.ID, "search").send_keys(Keys.DELETE)
+        # Space held down: the first press alone counts.
+        browser.execute_script("document.body.dispatchEvent(new KeyboardEvent('keydown', {key: ' ', repeat: true, bubbles: true}))")
+        check("Space held does not toggle again", not browser.execute_script("return document.querySelector('audio.track').paused"))
+        # The page drawn again while it plays: the same player goes on.
+        drawn_before = browser.find_element(By.CSS_SELECTOR, ".drawing")
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        try:
+            WebDriverWait(browser, 5).until(staleness_of(drawn_before))
+        except TimeoutException:
+            check("the page is drawn again", False)
+        count = browser.execute_script("return document.querySelectorAll('audio.track').length")
+        check("drawn again, it plays on", count == 1 and playing(browser) and at(browser) > 2.5, (count, at(browser)))
+        # From the start, through the end of the shorter track, to the end of the last.
+        press(browser, "play")
+        wait_for(browser, lambda b: browser.find_element(By.ID, "play").text == "Écouter", 5)
+        browser.find_element(By.CSS_SELECTOR, ".drawing").send_keys(Keys.HOME)
+        press(browser, "play")
+        past = wait_for(browser, lambda b: at(b) > 6.3, 12)
+        check("from the start, past the end of the shorter track, it plays on", past and playing(browser), at(browser))
+        ended = wait_for(browser, lambda b: browser.find_element(By.ID, "play").text == "Écouter", 5)
+        check("at the end of the last, the meeting stops", ended and not playing(browser))
+        press(browser, "play")
+        anew = wait_for(browser, lambda b: 0 < at(b) < 1.4, 5)
+        check("played again, it starts over", anew, at(browser))
+        # Paused at once, the sound not yet loaded: no failure is said.
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
+        browser.execute_script("const a = document.querySelector('audio.track'); a.muted = true; a.volume = 0;"
+                               " document.getElementById('play').click(); document.getElementById('play').click()")
+        time.sleep(1)
+        check("a play paused at once is no failure", not browser.find_element(By.ID, "not-played").text and not playing(browser))
+        # Its audio freed while it plays: it stops, and says so.
+        for name in ("local", "remote"):
+            (played / f"{name}.wav").rename(listening / f"aside-{name}.wav")
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        freed = wait_for(browser, lambda b: not b.execute_script("return document.querySelectorAll('audio.track').length")
+                         and b.find_elements(By.ID, "no-player"), 10)
+        check("its audio freed while it plays, it stops", freed)
+        for name in ("local", "remote"):
+            (listening / f"aside-{name}.wav").rename(played / f"{name}.wav")
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
+        browser.execute_script("document.querySelectorAll('audio.track').forEach(a => { a.muted = true; a.volume = 0; })")
+        press(browser, "play")
+        wait_for(browser, lambda b: at(b) > 0.3, 5)
+        browser.execute_script("location.hash = '#/'")
+        stopped = wait_for(browser, lambda b: not b.execute_script("return document.querySelectorAll('audio.track').length"), 10)
+        check("the list shown, nothing plays", stopped)
+        # Its sound refused by the server — its track gone since the page was drawn, then a part of
+        # it asked for that the player had not read: said, never silence.
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_06-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.execute_script("return document.querySelector('audio.track')?.duration || 0") > 0, 10)
+        browser.execute_script("document.querySelectorAll('audio.track').forEach(a => { a.muted = true; a.volume = 0; })")
+        (long / "local.wav").rename(listening / "aside-long.wav")
+        browser.find_element(By.CSS_SELECTOR, ".drawing").send_keys(Keys.END)
+        press(browser, "play")
+        said = wait_for(browser, lambda b: b.find_elements(By.ID, "not-played") and b.find_element(By.ID, "not-played").text, 10)
+        check("a sound that cannot be played is said", said and "n’a pas pu être lue" in browser.find_element(By.ID, "not-played").text)
+        (listening / "aside-long.wav").rename(long / "local.wav")
+        # A track in a form no player reads: no sound, and it is said not playable here.
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_07-00'")
+        unread = wait_for(browser, lambda b: b.find_elements(By.ID, "no-player") and "ne s’écoute pas ici" in b.find_element(By.ID, "no-player").text, 10)
+        check("a track no player reads is said not playable here", unread)
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_09-00'")
+        none = wait_for(browser, lambda b: b.find_elements(By.ID, "no-player"), 10)
+        check("a meeting whose audio was freed has no player, and says why",
+              none and not browser.find_elements(By.ID, "play") and "libéré" in browser.find_element(By.ID, "no-player").text
+              and not browser.execute_script("return document.querySelectorAll('audio.track').length"),
+              browser.find_element(By.ID, "no-player").text if none else "")
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_08-00'")
+        there = wait_for(browser, lambda b: b.find_elements(By.ID, "no-player") and "libéré" not in b.find_element(By.ID, "no-player").text, 10)
+        check("a meeting whose audio is there but not playable is not said freed",
+              there and "ne s’écoute pas ici" in browser.find_element(By.ID, "no-player").text,
+              browser.find_element(By.ID, "no-player").text if there else "")
     return 1 if FAILED else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # A scenario that breaks off says where, on the output the evidence keeps: its error stream
+    # is not kept, and a run that failed once must say why.
+    try:
+        sys.exit(main())
+    except Exception:
+        traceback.print_exc(file=sys.stdout)
+        sys.exit(1)
