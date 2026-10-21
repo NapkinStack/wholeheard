@@ -1107,6 +1107,23 @@ function showSettings(shown, minutes, words) {
   const remindSaid = element("span", "said");
   remindSaid.append(element("span", "name", words.reminder[0]), element("span", "says", words.reminder[1]));
   remind.append(remindSaid, box);
+  // When another application takes the microphone (D30), as board 4 has it: offer to record,
+  // or do nothing.
+  const offer = element("div", "row");
+  const offerSaid = element("label", "said");
+  offerSaid.htmlFor = "offer";
+  offerSaid.append(element("span", "name", words.offer[0]), element("span", "says", words.offer[1]));
+  const offerPick = element("select");
+  offerPick.id = "offer";
+  offerPick.disabled = locked;
+  for (const [value, text] of [["offer", words.offer_choices[0]], ["nothing", words.offer_choices[1]]]) {
+    const option = element("option", "", text);
+    option.value = value;
+    offerPick.append(option);
+  }
+  offerPick.value = shown.offer ? "offer" : "nothing";
+  offerPick.addEventListener("change", () => save({ offer: offerPick.value === "offer" }));
+  offer.append(offerSaid, offerPick);
   const keep = element("div", "row");
   const keepSaid = element("label", "said");
   keepSaid.htmlFor = "keep";
@@ -1215,7 +1232,7 @@ function showSettings(shown, minutes, words) {
     );
     keys.append(open);
   }
-  more.append(remind, keys, where, keep);
+  more.append(remind, offer, keys, where, keep);
   parts.push(more);
 
   // The transcription model's state: there and ready, or offered at the first transcript.
