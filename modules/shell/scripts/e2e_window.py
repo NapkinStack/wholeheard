@@ -20,6 +20,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import wave
 from pathlib import Path
 
@@ -1480,4 +1481,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # A scenario that breaks off says where, on the output the evidence keeps: its error stream
+    # is not kept, and a run that failed once must say why.
+    try:
+        sys.exit(main())
+    except Exception:
+        traceback.print_exc(file=sys.stdout)
+        sys.exit(1)
