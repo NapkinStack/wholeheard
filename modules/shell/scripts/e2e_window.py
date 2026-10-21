@@ -753,7 +753,16 @@ def main() -> int:
         # To the agreement page: its last drawing stays in the hidden page until the new one
         # replaces it — waited for, so that nothing is clicked on the old one (as #302 found).
         def to_agree(ready):
-            old = browser.find_elements(By.CSS_SELECTOR, "#agree > *")
+            # Read while the page replaces it — after `#/` — the drawing cannot be held: read
+            # again, as `press` does (#309).
+            for _ in range(10):
+                try:
+                    old = browser.find_elements(By.CSS_SELECTOR, "#agree > *")
+                    break
+                except StaleElementReferenceException:
+                    time.sleep(0.1)
+            else:
+                old = browser.find_elements(By.CSS_SELECTOR, "#agree > *")
             browser.execute_script("location.hash = '#/agree/2026-10-18_11-00'")
             if old:
                 WebDriverWait(browser, 5).until(staleness_of(old[0]))
