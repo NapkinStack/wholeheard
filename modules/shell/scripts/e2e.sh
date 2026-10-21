@@ -367,12 +367,12 @@ else
   offers() { titles 'pw-cat utilise votre micro'; }
   offered() { for _ in $(seq 30); do [ "$(offers)" -ge "$1" ] && return 0; sleep 0.1; done; return 1; }
   # The desktop's answers to Wholeheard: each notification's number, for its gestures to be
-  # pressed as a click presses them — the signal the desktop sends.
+  # pressed as a click presses them — the signal the desktop sends, typed as it types it (u, s).
   dbus-monitor --session "type='method_return',sender='org.freedesktop.Notifications'" > "$work/answered" 2>/dev/null &
   answers=$!
   gesture() {
     gdbus emit --session --object-path /org/freedesktop/Notifications --signal \
-      org.freedesktop.Notifications.ActionInvoked "$(grep -oE '^ +uint32 [0-9]+' "$work/answered" | tail -1 | awk '{print $2}')" "$1" >/dev/null
+      org.freedesktop.Notifications.ActionInvoked "uint32 $(grep -oE '^ +uint32 [0-9]+' "$work/answered" | tail -1 | awk '{print $2}')" "'$1'" >/dev/null
     sleep 1
   }
   settings_file="$work/config/wholeheard/settings.toml"
