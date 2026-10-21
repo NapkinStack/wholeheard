@@ -3,7 +3,7 @@
 
 /// The keys a desktop says it granted, as a person reads them; said empty, none. GNOME's portal
 /// says them in GTK's notation inside an English sentence — "Press <Alt><Super>m" —: they are
-/// shown as GNOME's settings show them, "Super+Alt+M". Keys said otherwise are shown as said.
+/// shown as D11's fourth board shows them, "Super + Alt + M". Keys said otherwise are shown as said.
 pub fn keys(said: &str) -> Option<String> {
     let said = said.trim();
     let Some(start) = said.find('<') else {
@@ -27,14 +27,14 @@ pub fn keys(said: &str) -> Option<String> {
     }
     let mut key: Vec<char> = key.chars().collect();
     key[0] = key[0].to_ascii_uppercase();
-    // As GNOME's settings order them: Super first, then Ctrl, Alt, Shift.
+    // As the board orders them: Super first, then Ctrl, Alt, Shift.
     let mut shown: Vec<&str> = ["Super", "Ctrl", "Alt", "Shift"]
         .into_iter()
         .filter(|name| held.contains(name))
         .collect();
     let key: String = key.into_iter().collect();
     shown.push(&key);
-    Some(shown.join("+"))
+    Some(shown.join(" + "))
 }
 
 /// Whether the desktop running is GNOME, as `XDG_CURRENT_DESKTOP` names it — a list of names

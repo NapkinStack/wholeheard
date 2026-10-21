@@ -108,6 +108,18 @@ def shot(browser, name: str) -> None:
         browser.save_screenshot(str(Path(folder) / f"{name}.png"))
 
 
+def choose(browser, element_id: str, value: str) -> None:
+    """A choice in a list of the page as it is: drawn again under the driver — a choice just
+    saved draws it anew —, the list is found afresh."""
+    for _ in range(5):
+        try:
+            Select(browser.find_element(By.ID, element_id)).select_by_value(value)
+            return
+        except StaleElementReferenceException:
+            time.sleep(0.2)
+    Select(browser.find_element(By.ID, element_id)).select_by_value(value)
+
+
 def press(browser, element_id: str) -> None:
     """A click on the page as it is: drawn again under the driver, the element is found afresh."""
     for _ in range(5):
@@ -520,13 +532,13 @@ def main() -> int:
         failed = browser.find_element(By.ID, "not-saved").is_displayed()
         check("nothing said failed", not failed)
         # Any number of days, when the list has not the one wanted.
-        Select(browser.find_element(By.ID, "keep")).select_by_value("other")
+        choose(browser, "keep", "other")
         typed = browser.find_element(By.ID, "keep-other")
         changed(lambda: (typed.send_keys("45"), typed.send_keys(Keys.ENTER)))
         kept = window.file.read_text()
         offered = [o.text for o in browser.find_elements(By.CSS_SELECTOR, "#keep option")]
         check("any number of days can be typed, and is offered after", "keep_audio = 45" in kept and "45 jours" in offered, (kept, offered))
-        Select(browser.find_element(By.ID, "keep")).select_by_value("other")
+        choose(browser, "keep", "other")
         typed_days = browser.find_element(By.ID, "keep-other")
         typed_days.send_keys("0", Keys.ENTER)
         refused = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
