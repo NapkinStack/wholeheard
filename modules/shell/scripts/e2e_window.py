@@ -24,7 +24,7 @@ import wave
 from pathlib import Path
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchWindowException, StaleElementReferenceException, WebDriverException
+from selenium.common.exceptions import NoSuchWindowException, StaleElementReferenceException, TimeoutException, WebDriverException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -1370,25 +1370,44 @@ def main() -> int:
               and drawing.get_attribute("tabindex") == "0", slider(browser))
         drawing.send_keys(Keys.ARROW_LEFT)
         back = wait_for(browser, lambda b: slider(b) == "0", 5)
+        # To the end of the sound — 7.5 s, past the session's 6 — a tenth before it.
+        maximum = lambda b: float(b.find_element(By.CSS_SELECTOR, ".drawing").get_attribute("aria-valuemax"))
         drawing.send_keys(Keys.END)
-        ended_at = wait_for(browser, lambda b: slider(b) == "6", 5)
-        check("back, and to the end", back and ended_at and len(set(drawing.get_attribute("aria-valuetext").split(" / "))) == 1,
-              drawing.get_attribute("aria-valuetext"))
-        stops = browser.execute_script("return [...document.querySelectorAll('.lines li')].map(li => li.tabIndex)")
-        check("one line in the order of Tab, the others by the arrows", stops == [0, -1, -1], stops)
+        ended_at = wait_for(browser, lambda b: abs(float(slider(b)) - 7.4) < 0.05, 5)
+        check("back, and to the end of the sound", back and ended_at and maximum(browser) == 7.5, (slider(browser), maximum(browser)))
+        drawing.send_keys(Keys.PAGE_DOWN)
+        down = wait_for(browser, lambda b: slider(b) == "0", 5)
+        drawing.send_keys(Keys.ARROW_UP)
+        up = wait_for(browser, lambda b: slider(b) == "5", 5)
+        drawing.send_keys(Keys.ARROW_DOWN)
+        check("up and down, page up and page down, as a slider's keys", down and up and wait_for(browser, lambda b: slider(b) == "0", 5), slider(browser))
+        stops = lambda b: b.execute_script("return [...document.querySelectorAll('.lines li')].map(li => li.tabIndex)")
+        # The line clicked last is the one in Tab's order.
+        check("one line in the order of Tab, the one clicked last", stops(browser) == [-1, -1, 0], stops(browser))
         first = browser.find_elements(By.CSS_SELECTOR, ".lines li")[0]
         first.send_keys(Keys.ARROW_DOWN)
         line = browser.find_elements(By.CSS_SELECTOR, ".lines li")[1]
         focused = browser.execute_script("return document.activeElement === arguments[0]", line)
+        check("the arrow moves the line in the order of Tab", stops(browser) == [-1, 0, -1], stops(browser))
         line.send_keys(Keys.ENTER)
         entered = wait_for(browser, lambda b: abs(at(b) - 2.5) < 0.6, 5)
         check("down to a line, Enter plays from it", focused and entered and line.get_attribute("role") == "button", at(browser))
+        # A search that hides that line: the first line shown takes its place in Tab's order.
+        browser.find_element(By.ID, "search").send_keys("Commençons")
+        sought = wait_for(browser, lambda b: stops(b) == [-1, -1, 0], 5)
+        check("a search hiding the line in Tab's order gives the first shown its place", sought, stops(browser))
+        browser.find_element(By.ID, "search").send_keys(Keys.CONTROL, "a")
+        browser.find_element(By.ID, "search").send_keys(Keys.DELETE)
         # Space held down: the first press alone counts.
         browser.execute_script("document.body.dispatchEvent(new KeyboardEvent('keydown', {key: ' ', repeat: true, bubbles: true}))")
         check("Space held does not toggle again", not browser.execute_script("return document.querySelector('audio.track').paused"))
         # The page drawn again while it plays: the same player goes on.
+        drawn_before = browser.find_element(By.CSS_SELECTOR, ".drawing")
         browser.execute_script("window.dispatchEvent(new Event('focus'))")
-        time.sleep(1)
+        try:
+            WebDriverWait(browser, 5).until(staleness_of(drawn_before))
+        except TimeoutException:
+            check("the page is drawn again", False)
         count = browser.execute_script("return document.querySelectorAll('audio.track').length")
         check("drawn again, it plays on", count == 1 and playing(browser) and at(browser) > 2.5, (count, at(browser)))
         # From the start, through the end of the shorter track, to the end of the last.
@@ -1403,12 +1422,15 @@ def main() -> int:
         press(browser, "play")
         anew = wait_for(browser, lambda b: 0 < at(b) < 1.4, 5)
         check("played again, it starts over", anew, at(browser))
-        # Paused at once: no failure is said.
-        press(browser, "play")
-        press(browser, "play")
-        press(browser, "play")
-        time.sleep(0.5)
-        check("a play paused at once is no failure", not browser.find_element(By.ID, "not-played").text)
+        # Paused at once, the sound not yet loaded: no failure is said.
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
+        browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
+        browser.execute_script("const a = document.querySelector('audio.track'); a.muted = true; a.volume = 0;"
+                               " document.getElementById('play').click(); document.getElementById('play').click()")
+        time.sleep(1)
+        check("a play paused at once is no failure", not browser.find_element(By.ID, "not-played").text and not playing(browser))
         # Its audio freed while it plays: it stops, and says so.
         for name in ("local", "remote"):
             (played / f"{name}.wav").rename(listening / f"aside-{name}.wav")

@@ -489,6 +489,12 @@ function minutesCard(read, words, session, transcript) {
 
 const folded = (text) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
+// The one line of a transcript in the order of Tab: this one, the others reached by the arrows.
+function roam(lines, line) {
+  if (!line || line.tabIndex === -1 && !line.hasAttribute("role")) return;
+  for (const other of lines.children) if (other.hasAttribute("role")) other.tabIndex = other === line ? 0 : -1;
+}
+
 function transcriptCard(read, words, session) {
   const card = element("aside", "card transcript");
   card.setAttribute("aria-label", words.transcript_title);
@@ -539,8 +545,12 @@ function transcriptCard(read, words, session) {
       player.seek(segment.start);
       player.play();
     };
-    line.addEventListener("click", from);
-    // By the keyboard: one line in the order of Tab, the arrows to the others, Enter plays.
+    line.addEventListener("click", () => {
+      roam(lines, line);
+      from();
+    });
+    // By the keyboard: one line in the order of Tab, the arrows to the others; Enter or Space
+    // plays from it, as a button's keys do.
     if (player?.name === nameOf(session)) {
       line.setAttribute("role", "button");
       line.tabIndex = lines.children.length === 0 ? 0 : -1;
@@ -550,13 +560,12 @@ function transcriptCard(read, words, session) {
         while (next?.hidden) next = event.key === "ArrowDown" ? next.nextElementSibling : next.previousElementSibling;
         if (next) {
           event.preventDefault();
-          line.tabIndex = -1;
-          next.tabIndex = 0;
+          roam(lines, next);
           next.focus();
         }
-        if (event.key !== "Enter") return;
+        if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
-        from();
+        if (!event.repeat) from();
       });
     }
     const side = segment.track === "local" ? words.here : words.remote;
@@ -576,6 +585,9 @@ function transcriptCard(read, words, session) {
       shown += line.hidden ? 0 : 1;
     }
     nothing.hidden = shown > 0;
+    // The line in the order of Tab hidden: the first one shown takes its place.
+    const stop = [...lines.children].find((line) => line.tabIndex === 0);
+    if (stop?.hidden) roam(lines, [...lines.children].find((line) => !line.hidden));
   });
   card.append(lines, nothing);
   return card;
@@ -607,7 +619,11 @@ function listen(name, url) {
   };
   shown.time = () => audio.currentTime;
   shown.playing = () => !audio.paused;
-  shown.play = () => audio.play().catch(failed);
+  // After a failure, the sound is asked for again before it is played.
+  shown.play = () => {
+    if (audio.error) audio.load();
+    return audio.play().catch(failed);
+  };
   shown.pause = () => audio.pause();
   // Never at its very end, where WebKitGTK's player stops answering: a tenth of a second before.
   shown.seek = (at) => {
@@ -671,13 +687,15 @@ function playerBar(session, listened, total, words, drawing) {
   drawing.setAttribute("role", "slider");
   drawing.setAttribute("aria-label", words.playback);
   drawing.setAttribute("aria-valuemin", "0");
-  drawing.setAttribute("aria-valuemax", String(Math.round(total)));
+  // The slider runs to the sound's end, once known: it may outlast the session's recorded length.
+  const span = () => Math.max(total, shown.audio.duration || 0);
   const paint = (time) => {
     toggle.textContent = shown.playing() ? words.pause : words.play;
     at.textContent = clock(time);
     head.style.left = `${Math.min(100, (time / total) * 100)}%`;
-    drawing.setAttribute("aria-valuenow", String(Math.round(time)));
-    drawing.setAttribute("aria-valuetext", `${clock(time)} / ${clock(total)}`);
+    drawing.setAttribute("aria-valuemax", String(Number(span().toFixed(1))));
+    drawing.setAttribute("aria-valuenow", String(Number(time.toFixed(1))));
+    drawing.setAttribute("aria-valuetext", `${clock(time)} / ${clock(span())}`);
   };
   shown.listeners.clear();
   shown.listeners.add(paint);
@@ -695,7 +713,7 @@ function playerBar(session, listened, total, words, drawing) {
   // A slider's keys: five seconds back or on, the start, the end.
   drawing.addEventListener("keydown", (event) => {
     const at = shown.time();
-    const to = { ArrowLeft: at - 5, ArrowDown: at - 5, ArrowRight: at + 5, ArrowUp: at + 5, PageDown: at - 30, PageUp: at + 30, Home: 0, End: total }[
+    const to = { ArrowLeft: at - 5, ArrowDown: at - 5, ArrowRight: at + 5, ArrowUp: at + 5, PageDown: at - 30, PageUp: at + 30, Home: 0, End: span() }[
       event.key
     ];
     if (to === undefined) return;
@@ -711,7 +729,7 @@ function playerBar(session, listened, total, words, drawing) {
 // a control of its own; held down, it does not toggle again and again.
 document.addEventListener("keydown", (event) => {
   if (event.key !== " " || !player || document.getElementById("meeting")?.hidden) return;
-  if (event.target.closest("input, textarea, select, button, a")) return;
+  if (event.target.closest("input, textarea, select, button, a, [role=button]")) return;
   event.preventDefault();
   if (event.repeat) return;
   player.playing() ? player.pause() : player.play();
