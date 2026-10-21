@@ -108,6 +108,18 @@ def shot(browser, name: str) -> None:
         browser.save_screenshot(str(Path(folder) / f"{name}.png"))
 
 
+def choose(browser, element_id: str, value: str) -> None:
+    """A choice in a list of the page as it is: drawn again under the driver — a choice just
+    saved draws it anew —, the list is found afresh."""
+    for _ in range(5):
+        try:
+            Select(browser.find_element(By.ID, element_id)).select_by_value(value)
+            return
+        except StaleElementReferenceException:
+            time.sleep(0.2)
+    Select(browser.find_element(By.ID, element_id)).select_by_value(value)
+
+
 def press(browser, element_id: str) -> None:
     """A click on the page as it is: drawn again under the driver, the element is found afresh."""
     for _ in range(5):
@@ -279,6 +291,9 @@ def main() -> int:
         check("its sections are named in French for a screen reader", sections == "Rubriques", sections)
         listed = rows(browser)
         shot(browser, "1-sessions")
+        granted = browser.find_element(By.ID, "header-keys").text
+        check("the shortcut is said as a person reads it, never in GTK's notation (#312)",
+              "<" not in granted and "Press" not in granted, granted)
         # The header's gesture, as the board has it — never pressed here: no recorder is played.
         said = browser.find_element(By.ID, "record").text
         check("the header offers to start a recording", said == "Démarrer un enregistrement", said)
@@ -526,13 +541,13 @@ def main() -> int:
         failed = browser.find_element(By.ID, "not-saved").is_displayed()
         check("nothing said failed", not failed)
         # Any number of days, when the list has not the one wanted.
-        Select(browser.find_element(By.ID, "keep")).select_by_value("other")
+        choose(browser, "keep", "other")
         typed = browser.find_element(By.ID, "keep-other")
         changed(lambda: (typed.send_keys("45"), typed.send_keys(Keys.ENTER)))
         kept = window.file.read_text()
         offered = [o.text for o in browser.find_elements(By.CSS_SELECTOR, "#keep option")]
         check("any number of days can be typed, and is offered after", "keep_audio = 45" in kept and "45 jours" in offered, (kept, offered))
-        Select(browser.find_element(By.ID, "keep")).select_by_value("other")
+        choose(browser, "keep", "other")
         typed_days = browser.find_element(By.ID, "keep-other")
         typed_days.send_keys("0", Keys.ENTER)
         refused = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
@@ -659,8 +674,10 @@ def main() -> int:
             said,
         )
         window.file.write_text(saved)
+        # The page drawn anew from the file just written: its last drawing waited out, so that the
+        # old Tester, hidden, is never the one pressed (as #302 found of the agreement page).
         browser.execute_script("location.hash = '#/'")
-        browser.execute_script("location.hash = '#/settings'")
+        to_settings()
         wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-test"), 5)
         # Tester asks wholeheard-summary about the choice saved: no key for Ollama here.
         press(browser, "minutes-test")
@@ -1136,6 +1153,9 @@ def main() -> int:
         heard_state = lambda b: b.find_element(By.ID, "transcript-state").text if b.find_elements(By.ID, "transcript-state") else ""
         unmade = wait_for(browser, lambda b: "Le transcript n’a pas été fait" in heard_state(b) and b.find_elements(By.ID, "transcript-again"), 5)
         shot(browser, "9-transcript-failed")
+        check("what is not known of who wrote the minutes is left unsaid (#312)",
+              "— · —" not in browser.find_element(By.ID, "meeting").text and "via —" not in browser.find_element(By.ID, "meeting").text,
+              [p.text for p in browser.find_elements(By.CSS_SELECTOR, "#meeting .maker")])
         check("a transcript not made says so on its card in plain words, with a way to try again", unmade and "engine stopped" not in heard_state(browser), heard_state(browser))
         # Tried again as it was asked: made again with the model the Refaire… picked, not resumed.
         # Made again — the one there set aside, then in the trash —, never resumed from it.
@@ -1366,6 +1386,8 @@ def main() -> int:
         marked = wait_for(browser, lambda b: b.execute_script("return document.querySelector('.lines li.now')?.dataset.start") == "0.4", 5)
         check("the line being said is marked", marked, browser.execute_script("return document.querySelector('.lines li.now')?.textContent"))
         shot(browser, "10-playing")
+        lasting = browser.find_element(By.CSS_SELECTOR, "#meeting .length").text
+        check("a meeting under a minute says its seconds (#312)", lasting == "6 s", lasting)
         browser.find_element(By.ID, "search").send_keys(" ")
         check("a space typed in a field is the field's", not browser.execute_script("return document.querySelector('audio.track').paused"))
         browser.find_elements(By.CSS_SELECTOR, ".lines li")[2].click()
