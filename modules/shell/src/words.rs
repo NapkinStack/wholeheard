@@ -338,7 +338,7 @@ pub struct Window {
     pub transcription: &'static str,
     pub on_this_computer: &'static str,
     pub reminder: [&'static str; 2],
-    /// The switch of the offer to record a call (D30).
+    /// When an application takes the microphone (D30): its name and line, as board 4 has them.
     pub offer: [&'static str; 2],
     /// Its two choices: offer to record, do nothing.
     pub offer_choices: [&'static str; 2],
