@@ -492,12 +492,16 @@ def main() -> int:
         window.file.write_text(window.file.read_text().replace("keep_audio = 30", "keep_audio = 90 # by hand"))
         changed(lambda: browser.find_element(By.ID, "reminder").click())
         changed(lambda: browser.find_element(By.ID, "developer").click())
+        # A call offered to be recorded (D30): on by default, turned off here.
+        offer_on = browser.find_element(By.ID, "offer").is_selected()
+        changed(lambda: browser.find_element(By.ID, "offer").click())
         text = window.file.read_text()
         check(
             "each choice is in the settings file, the user's lines kept, a change by hand too",
             'after = "nothing"' in text
             and "reminder = false" in text
             and "developer = true" in text
+            and offer_on and "offer = false" in text
             and "keep_audio = 90 # by hand" in text
             and f'model = "{models / "ggml-small.bin"}"' in text
             and text.startswith(f'sessions = "{chosen}"\n')

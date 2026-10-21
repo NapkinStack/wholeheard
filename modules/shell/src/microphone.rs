@@ -23,12 +23,22 @@ pub fn watch(tell: impl Fn(Change) + Send + 'static) {
     std::thread::spawn(move || {
         let mut takers = Takers::default();
         loop {
-            let started = Command::new("pw-dump")
+            let mut command = Command::new("pw-dump");
+            command
                 .args(["--monitor", "--no-colors"])
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .spawn();
+                .stderr(Stdio::null());
+            // It ends with Wholeheard: on Linux, the system ends it when its parent goes.
+            #[cfg(target_os = "linux")]
+            unsafe {
+                use std::os::unix::process::CommandExt;
+                command.pre_exec(|| {
+                    libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                    Ok(())
+                });
+            }
+            let started = command.spawn();
             match started {
                 Ok(mut dump) => {
                     takers.anew();

@@ -1107,6 +1107,18 @@ function showSettings(shown, minutes, words) {
   const remindSaid = element("span", "said");
   remindSaid.append(element("span", "name", words.reminder[0]), element("span", "says", words.reminder[1]));
   remind.append(remindSaid, box);
+  // A call another application starts, offered to be recorded (D30).
+  const offer = element("label", "row");
+  const offerBox = element("input");
+  offerBox.type = "checkbox";
+  offerBox.id = "offer";
+  offerBox.setAttribute("role", "switch");
+  offerBox.checked = shown.offer;
+  offerBox.disabled = locked;
+  offerBox.addEventListener("change", () => save({ offer: offerBox.checked }));
+  const offerSaid = element("span", "said");
+  offerSaid.append(element("span", "name", words.offer[0]), element("span", "says", words.offer[1]));
+  offer.append(offerSaid, offerBox);
   const keep = element("div", "row");
   const keepSaid = element("label", "said");
   keepSaid.htmlFor = "keep";
@@ -1215,7 +1227,7 @@ function showSettings(shown, minutes, words) {
     );
     keys.append(open);
   }
-  more.append(remind, keys, where, keep);
+  more.append(remind, offer, keys, where, keep);
   parts.push(more);
 
   // The transcription model's state: there and ready, or offered at the first transcript.

@@ -404,7 +404,11 @@ else
   shell_logged=$(cat "$work"/state/wholeheard/logs/shell.*.jsonl 2>/dev/null || true)
   for step in made taken declined off; do check grep -q "\"message\":\"shell.offer_$step\"" <<< "$shell_logged"; done
   check is "$(grep -c 'pw-cat' <<< "$shell_logged" || true)" 0
-  click 6
+  watching=$(pgrep -P "$app" -x pw-dump || true)
+  click 6; sleep 1
+  # Its watch of the graph ends with it.
+  check test -n "$watching"
+  check test -z "$(ps -o pid= -p "$watching" 2>/dev/null || true)"
   kill "$answers" 2>/dev/null || true; answers=""
   # Off in the file from the start: none.
   start fr_FR.UTF-8 "reminder = false\ntranscript = false\noffer = false" "$work/wholeheard-capture"

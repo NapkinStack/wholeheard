@@ -336,6 +336,8 @@ pub struct Window {
     pub transcription: &'static str,
     pub on_this_computer: &'static str,
     pub reminder: [&'static str; 2],
+    /// The switch of the offer to record a call (D30).
+    pub offer: [&'static str; 2],
     pub keep_audio: [&'static str; 2],
     /// The settings' last card, and its one switch: what a program said of a failure, shown on
     /// the page under the sentence (D29).
@@ -556,6 +558,10 @@ pub fn window(language: Language) -> Window {
                 "Remind me to tell the participants",
                 "At the start, a line reminds you to say the meeting is recorded.",
             ],
+            offer: [
+                "Offer to record a call",
+                "When another application takes your microphone — a call starting —, a notification offers to record it.",
+            ],
             advanced_title: "Advanced",
             developer: [
                 "Developer mode",
@@ -761,6 +767,10 @@ pub fn window(language: Language) -> Window {
             reminder: [
                 "Rappeler de prévenir les participants",
                 "Au démarrage, une ligne rappelle de dire que la réunion est enregistrée.",
+            ],
+            offer: [
+                "Proposer d’enregistrer un appel",
+                "Quand une autre application prend votre micro — un appel qui commence —, une notification propose de l’enregistrer.",
             ],
             advanced_title: "Avancé",
             developer: [
