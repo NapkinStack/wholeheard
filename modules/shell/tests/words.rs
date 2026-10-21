@@ -742,3 +742,48 @@ fn a_device_changed_says_what_is_recorded_now_one_gone_says_that_side_and_one_ba
         assert_eq!((got.as_str(), said.as_str()), (title, body), "{source:?} {language:?}");
     }
 }
+
+#[test]
+fn what_the_devices_are_decides_what_is_said_of_one_gone_and_one_back() {
+    use Language::{English, French};
+    use words::Sides;
+    let (lost, back) = (Said::Lost(Source::Others), Said::Moved(Source::Others, Some("Casque".into())));
+    let body = |sides: &mut Sides, said: &Said, language| sides.told(said, false, language).map(|notice| notice.body);
+
+    // The microphone still recorded: the output gone says so — the criterion's "the recording
+    // goes on with the other".
+    let mut sides = Sides::default();
+    assert_eq!(
+        body(&mut sides, &lost, English).as_deref(),
+        Some("Your computer has no sound output left. Your microphone is still recorded, and an output plugged in is recorded at once.")
+    );
+    // Back: recorded again; then a move like any other.
+    assert_eq!(
+        sides.told(&back, false, English).unwrap().title,
+        "The meeting’s sound is recorded again"
+    );
+    assert_eq!(sides.told(&back, false, English).unwrap().title, "Sound output changed");
+
+    // Both gone: neither is said still recorded.
+    let mut sides = Sides::default();
+    sides.told(&Said::Lost(Source::Me), false, French);
+    assert_eq!(
+        body(&mut sides, &lost, French).as_deref(),
+        Some("Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.")
+    );
+    // The microphone not opened at the start: the same.
+    let mut sides = Sides::default();
+    sides.told(&Said::Unavailable(Source::Me, String::new()), false, English);
+    assert_eq!(
+        body(&mut sides, &lost, English).as_deref(),
+        Some("Your computer has no sound output left. An output plugged in is recorded at once; the recording goes on.")
+    );
+    // And the other way round, in French, the meeting's sound still recorded.
+    let mut sides = Sides::default();
+    assert_eq!(
+        body(&mut sides, &Said::Lost(Source::Me), French).as_deref(),
+        Some(
+            "Votre ordinateur n’a plus de micro. Le son de la réunion est toujours enregistré, et un micro branché est enregistré aussitôt."
+        )
+    );
+}

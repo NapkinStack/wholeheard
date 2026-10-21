@@ -119,6 +119,7 @@ check is "$(titles 'Aucun son venant de la réunion')" 1
 check is "$(titles 'Micro changé')" 1
 check grep -q $'Enregistré maintenant\u00a0: Casque Mic' "$work/notified"
 check is "$(titles 'Le son de la réunion n’est plus enregistré pour l’instant')" 1
+check grep -q 'Votre micro est toujours enregistré, et une sortie branchée' "$work/notified"
 check is "$(titles 'Le son de la réunion est de nouveau enregistré')" 1
 click 3
 check is "$(cat "$work/sessions/told")" "stop"

@@ -1216,6 +1216,62 @@ pub fn transcript_kept_beside(language: Language, name: &str, not_put_back: bool
     Notice { title: title.into(), body }
 }
 
+/// What a recording's devices are, as its notices need them: each side with no device — not
+/// opened at the start, or none left since (D31).
+#[derive(Debug, Default)]
+pub struct Sides {
+    gone: [bool; 2],
+}
+
+impl Sides {
+    /// The notice of what a recording said, as [`of`] says it, knowing the sides: a side gone
+    /// says the other is still recorded only when it is; one back after none is recorded again.
+    pub fn told(&mut self, said: &Said, reminder: bool, language: Language) -> Option<Notice> {
+        let side = |source: &Source| usize::from(*source == Source::Others);
+        match said {
+            Said::Unavailable(source, _) => self.gone[side(source)] = true,
+            Said::Lost(source) => {
+                self.gone[side(source)] = true;
+                if !self.gone[1 - side(source)] {
+                    return Some(lost_beside(*source, language));
+                }
+            }
+            Said::Moved(source, name) if self.gone[side(source)] => {
+                self.gone[side(source)] = false;
+                return Some(back(*source, name.as_deref(), language));
+            }
+            _ => {}
+        }
+        of(said, reminder, language)
+    }
+}
+
+/// A side with no device left while the other is still recorded.
+fn lost_beside(source: Source, language: Language) -> Notice {
+    let (title, body) = match (source, language) {
+        (Source::Me, Language::English) => (
+            "Your microphone is not recorded for now",
+            "Your computer has no microphone left. The meeting’s sound is still recorded, and a microphone plugged in is recorded at once.",
+        ),
+        (Source::Me, Language::French) => (
+            "Votre micro n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de micro. Le son de la réunion est toujours enregistré, et un micro branché est enregistré aussitôt.",
+        ),
+        (Source::Others, Language::English) => (
+            "The meeting’s sound is not recorded for now",
+            "Your computer has no sound output left. Your microphone is still recorded, and an output plugged in is recorded at once.",
+        ),
+        (Source::Others, Language::French) => (
+            "Le son de la réunion n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de sortie audio. Votre micro est toujours enregistré, et une sortie branchée est enregistrée aussitôt.",
+        ),
+    };
+    Notice {
+        title: title.into(),
+        body: body.into(),
+    }
+}
+
 /// Said when a side that had no device left is recorded again, from this one (D31).
 pub fn back(source: Source, name: Option<&str>, language: Language) -> Notice {
     let (title, body) = match (source, language) {

@@ -1677,8 +1677,8 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     let shell = app.state::<Shell>();
     let mut started = false;
     let mut stopped = None;
-    // The sides left with no device, for the one that comes back to be said recorded again.
-    let mut lost = [false, false];
+    // What the devices are: what is said of one gone, or back, depends on the other.
+    let mut sides = words::Sides::default();
     for event in said {
         started |= matches!(event, Said::Started(..));
         if let Said::Started(folder, _) = &event {
@@ -1698,15 +1698,8 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
                     ..notice
                 })
             }
-            Said::Moved(source, name) if lost[usize::from(*source == Source::Others)] => {
-                lost[usize::from(*source == Source::Others)] = false;
-                Some(words::back(*source, name.as_deref(), shell.language))
-            }
-            _ => words::of(&event, shell.settings().reminder, shell.language),
+            _ => sides.told(&event, shell.settings().reminder, shell.language),
         };
-        if let Said::Lost(source) = &event {
-            lost[usize::from(*source == Source::Others)] = true;
-        }
         if let Some(notice) = notice {
             tell(app, &notice);
         }
