@@ -23,6 +23,8 @@ app=""
 mic_module=""; old_source=""
 ended() {
   [ -z "$app" ] || kill "$app" 2>/dev/null || true; pkill -P $$ 2>/dev/null || true
+  # The bus's watcher by its own number: an e2e stopped outright left it running for days.
+  [ -z "${monitor:-}" ] || kill "$monitor" 2>/dev/null || true
   # Scenario S's microphone, made for the run, taken away; the system's default put back.
   [ -z "$old_source" ] || pactl set-default-source "$old_source" 2>/dev/null || true
   [ -z "$mic_module" ] || pactl unload-module "$mic_module" 2>/dev/null || true
@@ -51,6 +53,7 @@ chmod +x "$work/wholeheard-capture"
 # What the desktop is asked to show, kept. The desktop passes each request on to itself: only
 # those addressed to it by name are Wholeheard's own.
 dbus-monitor --session "interface='org.freedesktop.Notifications',member='Notify'" > "$work/notified" 2>/dev/null &
+monitor=$!
 titles() {
   awk -v title="   string \"$1\"" '/^method call/ { ours = /destination=org.freedesktop.Notifications / } ours && $0 == title { n++ } END { print n + 0 }' "$work/notified"
 }
@@ -363,10 +366,10 @@ else
   offered() { for _ in $(seq 30); do [ "$(titles 'pw-cat utilise votre micro')" -ge "$1" ] && return 0; sleep 0.1; done; return 1; }
   start fr_FR.UTF-8 "reminder = false\ntranscript = false" "$work/wholeheard-capture"
   sleep 1
-  call 2 &
+  call 2 & calling=$!
   check offered 1                                  # within three seconds
-  wait
-  call 2 & call 2                                  # held again, by two at once: two applications
+  wait "$calling"
+  call 2 & calling=$!; call 2; wait "$calling"     # held again, by two at once: two applications
   check offered 3
   click 3; sleep 1                                 # recording: no offer
   call 2
