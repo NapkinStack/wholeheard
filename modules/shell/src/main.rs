@@ -1677,6 +1677,8 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     let shell = app.state::<Shell>();
     let mut started = false;
     let mut stopped = None;
+    // What the devices are: what is said of one gone, or back, depends on the other.
+    let mut sides = words::Sides::default();
     for event in said {
         started |= matches!(event, Said::Started(..));
         if let Said::Started(folder, _) = &event {
@@ -1696,7 +1698,7 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
                     ..notice
                 })
             }
-            _ => words::of(&event, shell.settings().reminder, shell.language),
+            _ => sides.told(&event, shell.settings().reminder, shell.language),
         };
         if let Some(notice) = notice {
             tell(app, &notice);
