@@ -61,6 +61,40 @@ missing.
 | The plan, a fitness function | Every push | Formats; one accepted cycle at a time, under an accepted charter; `end` = `start` + the appetite; acceptance criteria once a deliverable is ready; closures recorded; a discovery decided with its decider and date, a charter only after a go. A charter, a cycle or a deliverable still holding the template's words is refused |
 | The pull request check | Every pull request changing a module beyond its description — manifest, `AGENTS.md`, `README.md`, `docs/`; not a framework update — **once the charter is accepted** | An accepted cycle; not past its end date; a ready or in-progress deliverable named — and, when someone holds it, delivered by its holder — or the `out-of-cycle` label with its justification |
 
+## A cycle's progress
+
+Read, never kept: `nstack plan` computes it from the accepted cycle's front matter and says it in
+one line, then who holds each deliverable.
+
+```
+Cycle 03-the-window: 10 of 14 accepted · 2 in progress · 2 ready · day 5 of 21, 17 left (ends 2026-11-07)
+Holds in 03-the-window: 3 held, of which 0 stale (from origin; stale after 7 days without work):
+```
+
+*Accepted* counts what the decider accepted; a `dropped` deliverable counts in nothing. From its
+end date — the first day the cycle is over — the line says the circuit breaker fell and the
+decider chooses, and the pull request check refuses delivery work (K2). The project's own
+success — the charter's criteria — is read at the cycle's closure, not here. An agent reporting
+progress gives this line, so that one figure circulates.
+
+### On the forge
+
+The same plan, where a person already looks: after every merge to the default branch, and once a
+day — so that a new holder shows within a day —, the workflow *Plan on the forge* runs `nstack board`. Each cycle the decider accepted,
+closed or stopped is a **milestone** — titled by the cycle file's heading, due on its end date,
+its description carrying the line above, counts only — and each deliverable an **issue** in it: its acceptance
+criteria as a checklist, its module and state, who holds it, the pull requests that name it.
+An issue closes as *completed* when the deliverable is accepted, as *not planned* when it is
+dropped, deferred, or left unfinished by a closed cycle.
+
+Nothing is maintained by hand and nothing on the forge is the plan: an issue or a milestone edited
+there is put back at the next run, and the run says so — the plan is edited in the cycle file, in a
+pull request. The display finds its own objects by a marker in their body; an issue or a milestone
+a person made is never touched, and a person's milestone already holding a cycle's title is said,
+not overwritten. What cannot be shown — no token, a refusal, holds unreadable — is said in the
+run's summary, never a failed merge. The first run on a project creates an issue per deliverable,
+and the repository's watchers get a notification for each.
+
 ## Who holds a deliverable
 
 With several contributors, a deliverable is **held** before its first change, so that two of
