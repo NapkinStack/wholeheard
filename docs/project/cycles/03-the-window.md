@@ -398,6 +398,15 @@ the meeting's length (D17, D18); the transcript has each line's time. Played in 
 two tracks of a session together; the drawing and the lines are the controls. Built to the
 boards' style (board 2, the meeting), no new board: the decider judges it in its trial.
 
+**Built, each pull request verified by an independent session (2026-10-21).** The page plays one
+`<audio>` element, a click on a line or on the drawing moves it, and the space bar plays (#304).
+At first the page played each track in its own element, kept in step; WebKitGTK failed that three
+times. On the decider's word ("lire l'audio unifié … pour éviter de synchro"), the shell now
+serves the tracks as one sound, mixed as they are read
+([ADR-0009](../../adr/0009-the-window-plays-a-meeting-s-tracks-as-one-sound.md), #307), from
+the loopback server of [ADR-0008](../../adr/0008-the-window-plays-a-meeting-from-a-loopback-server.md).
+Not yet offered for acceptance: the decider's trial is D23's meeting.
+
 ### D30 and D31
 
 **Added on the decider's word, 2026-10-20**: "si je démarre n'importe quel appel, discord,
@@ -442,6 +451,15 @@ matériel utilisé (un user peut changer les sources audio : baffle, casque, mic
 colleague's trial) and D23. Each is meant to take about a week. If they do not fit, D31's
 third criterion (the session's record of each device) is cut first, then D30's choice of
 nothing from the offer itself (Settings keep it). The end date does not move.
+
+**Built (2026-10-21), each pull request verified by an independent session; acceptance is the
+decider's, on real devices and real calls (D23):**
+
+- **D31:** the contracts (#305, `device` and `changed`); capture saying the device it records
+  from now and keeping each (#306); the shell's notices (#308).
+- **D30:** the offer (#311, `pw-dump --monitor` read in `microphone.rs`); Settings' *Quand une
+  application prend le micro* (#346, board 4). Out of reach, as said: a call stays unwatched for
+  60 seconds after `pw-dump` exits, until it is started again.
 
 ### D28
 
@@ -503,6 +521,13 @@ pull request per box, in this order.
 - A consumer that does not know a code reads it as no code, and keeps the step's sentence.
   So a code can be added later without a new version.
 - Capture and transcription come later (see *Later*).
+
+**Then (2026-10-21).** The shell's e2e reads what its run logged: a warning or an error nobody
+provoked fails it. Its screenshots and logs are kept in `modules/shell/.evidence/` (#345). Out
+of cycle, #347 fixed what those screenshots showed wrong (#312): the shortcut in GTK's
+notation, a short length, a maker not known. NapkinStack 0.14.0 audits the logs of
+`$NSTACK_EVIDENCE` too. The shell's e2e does not write there yet, and from the next minor
+version an error it does not declare (`evidence.provoked`) fails the run: that move comes next.
 
 ## Out of scope
 
