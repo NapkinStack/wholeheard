@@ -26,7 +26,7 @@ use tauri_plugin_notification::NotificationExt;
 use wholeheard_shell::{
     desktop, keys, log,
     meeting::{self, Read, Transcript},
-    migrate,
+    microphone, migrate,
     minutes::{self, Minutes},
     model::{self, Published},
     player,
@@ -302,6 +302,7 @@ fn main() {
                 tell(app.handle(), &words::trouble(&Trouble::Settings(why), language));
             }
             shortcut(app.handle());
+            offers(app.handle());
             // The audio kept longer than the settings say goes to the trash, now and every hour.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -327,6 +328,69 @@ fn main() {
         if let RunEvent::ExitRequested { api, code: None, .. } = event {
             api.prevent_exit();
         }
+    });
+}
+
+/// Another application taking a microphone — a call starting — is offered to be recorded, by a
+/// notification naming it: never a window (D17), never while recording, never with offers off;
+/// what was seen is shown, and kept nowhere (D30).
+#[cfg(target_os = "linux")]
+fn offers(app: &AppHandle) {
+    let app = app.clone();
+    let offers = Mutex::new(microphone::Offers::default());
+    microphone::watch(move |change| {
+        let shell = app.state::<Shell>();
+        let recording = shell.recording.lock().unwrap().is_some();
+        if let Some(name) = offers.lock().unwrap().on(&change, recording, shell.settings().offer) {
+            offer_recording(&app, name);
+        }
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn offers(_: &AppHandle) {}
+
+#[cfg(target_os = "linux")]
+fn offer_recording(app: &AppHandle, application: String) {
+    let (notice, [record, later, never]) = words::offer(&application, app.state::<Shell>().language);
+    let app = app.clone();
+    // Logged without the application: what it was is the notification's alone.
+    tracing::info!("shell.offer_made");
+    std::thread::spawn(move || {
+        let shown = notify_rust::Notification::new()
+            .appname("Wholeheard")
+            .summary(&notice.title)
+            .body(&notice.body)
+            .action("record", record)
+            .action("later", later)
+            .action("never", never)
+            .show();
+        let Ok(shown) = shown else { return };
+        shown.wait_for_action(|action| match action {
+            "record" => {
+                tracing::info!("shell.offer_taken");
+                // Started meanwhile from the menu: left as it is.
+                if app.state::<Shell>().recording.lock().unwrap().is_none() {
+                    toggle_recording(&app);
+                }
+            }
+            "never" => {
+                tracing::info!("shell.offer_off");
+                let shell = app.state::<Shell>();
+                let _saving = shell.saving.lock().unwrap();
+                let saved = shell.reread().and_then(|mut settings| {
+                    settings.offer = false;
+                    let file = settings::file().ok_or("this system names no folder for settings")?;
+                    settings::write(&file, &settings).map_err(|error| error.to_string())?;
+                    *shell.settings.lock().unwrap() = settings;
+                    Ok(())
+                });
+                if let Err(error) = saved {
+                    tracing::error!(detail = %error, "shell.offer_off_refused");
+                }
+            }
+            _ => tracing::info!("shell.offer_declined"),
+        });
     });
 }
 

@@ -33,6 +33,12 @@ other than the call's shows at once — a source that is silent, a device switch
 records, named, or none left for a side (D31), the stop, a failure. In
 French where the system is, in English anywhere else.
 
+**A call offered** (D30, Linux): when another application takes a microphone — a call in
+Discord, a browser tab —, a notification names it and offers *Record*, *Not this time* and
+*Never offer*: once while it holds one, never while recording. The shell watches PipeWire's graph
+with `pw-dump --monitor`; what it sees is shown in the notification and kept nowhere.
+`offer = false` in the settings file turns the offers off.
+
 **The window** (cycle 03, from D11's drawings) is opened by *Open Wholeheard* in the menu — or at
 once by `wholeheard --window` — and never without a gesture: the meetings in the sessions'
 folder by week, newest first, each with its day, its length, what it holds and what its

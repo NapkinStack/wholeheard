@@ -20,7 +20,17 @@ cargo build --locked 2>&1 | tail -1 >> .evidence/e2e.txt
 bin=${CARGO_TARGET_DIR:-$PWD/target}/debug/wholeheard
 work=$(mktemp -d)
 app=""
-ended() { [ -z "$app" ] || kill "$app" 2>/dev/null || true; pkill -P $$ 2>/dev/null || true; rm -rf "$work"; }
+mic_module=""; old_source=""
+ended() {
+  [ -z "$app" ] || kill "$app" 2>/dev/null || true; pkill -P $$ 2>/dev/null || true
+  # The bus's watcher by its own number: an e2e stopped outright left it running for days.
+  [ -z "${monitor:-}" ] || kill "$monitor" 2>/dev/null || true
+  [ -z "${answers:-}" ] || kill "$answers" 2>/dev/null || true
+  # Scenario S's microphone, made for the run, taken away; the system's default put back.
+  [ -z "$old_source" ] || pactl set-default-source "$old_source" 2>/dev/null || true
+  [ -z "$mic_module" ] || pactl unload-module "$mic_module" 2>/dev/null || true
+  rm -rf "$work"
+}
 trap ended EXIT
 
 # The recorder, played: it notes what it was given and told, says a source is silent, and
@@ -44,6 +54,7 @@ chmod +x "$work/wholeheard-capture"
 # What the desktop is asked to show, kept. The desktop passes each request on to itself: only
 # those addressed to it by name are Wholeheard's own.
 dbus-monitor --session "interface='org.freedesktop.Notifications',member='Notify'" > "$work/notified" 2>/dev/null &
+monitor=$!
 titles() {
   awk -v title="   string \"$1\"" '/^method call/ { ours = /destination=org.freedesktop.Notifications / } ours && $0 == title { n++ } END { print n + 0 }' "$work/notified"
 }
@@ -342,6 +353,68 @@ check test -s "$work/sessions/2026-10-13_14-05/minutes.md"
 check is "$(tail -1 "$work/summarised")" "$work/sessions/2026-10-13_14-05 --provider http://127.0.0.1:9/v1 --model mistral"
 check is "$(titles 'Compte rendu prêt')" 3
 click 6
+
+say "S. a call takes a microphone in another application: offered once, named; never while recording, nor with offers off (D30)"
+# The call is pw-record on a microphone made for the run, the system's default meanwhile, so
+# that nothing reaches the computer's own: nobody is recorded.
+if ! command -v pw-record >/dev/null || [ -n "$(pactl list short source-outputs 2>/dev/null)" ]; then
+  say "  NOT RUN — pw-record missing, or an application holds a microphone: a call may be in progress"
+else
+  old_source=$(pactl get-default-source)
+  mic_module=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_offer media.class=Audio/Source/Virtual)
+  pactl set-default-source wholeheard_e2e_offer
+  call() { timeout "$1" pw-record --target wholeheard_e2e_offer /dev/null || true; }
+  offers() { titles 'pw-cat utilise votre micro'; }
+  offered() { for _ in $(seq 30); do [ "$(offers)" -ge "$1" ] && return 0; sleep 0.1; done; return 1; }
+  # The desktop's answers to Wholeheard: each notification's number, for its gestures to be
+  # pressed as a click presses them — the signal the desktop sends, typed as it types it (u, s).
+  dbus-monitor --session "type='method_return',sender='org.freedesktop.Notifications'" > "$work/answered" 2>/dev/null &
+  answers=$!
+  gesture() {
+    gdbus emit --session --object-path /org/freedesktop/Notifications --signal \
+      org.freedesktop.Notifications.ActionInvoked "uint32 $(grep -oE '^ +uint32 [0-9]+' "$work/answered" | tail -1 | awk '{print $2}')" "'$1'" >/dev/null
+    sleep 1
+  }
+  settings_file="$work/config/wholeheard/settings.toml"
+  start fr_FR.UTF-8 "transcript = false" "$work/wholeheard-capture"
+  sleep 1
+  reminded=$(titles 'Enregistrement en cours')
+  call 4 & calling=$!
+  check offered 1                                  # within three seconds, named
+  gesture record                                   # Record: as from the menu, the reminder too
+  check test -s "$work/sessions/given"
+  check is "$(titles 'Enregistrement en cours')" "$((reminded + 1))"
+  wait "$calling"
+  call 2                                           # while recording: no offer
+  check is "$(offers)" 1
+  click 3; sleep 1
+  call 2 & calling=$!; call 2; wait "$calling"     # two applications at once: one offer each
+  check offered 3
+  rm -f "$work/sessions/given"
+  gesture later                                    # Not this time: nothing more
+  check test ! -e "$work/sessions/given"
+  call 2 & calling=$!
+  check offered 4
+  gesture never                                    # Never offer: kept in the settings file
+  wait "$calling"
+  check grep -q '^offer = false' "$settings_file"
+  call 2
+  check is "$(offers)" 4
+  # What was seen is the notification's alone: the log says each gesture, never the application.
+  shell_logged=$(cat "$work"/state/wholeheard/logs/shell.*.jsonl 2>/dev/null || true)
+  for step in made taken declined off; do check grep -q "\"message\":\"shell.offer_$step\"" <<< "$shell_logged"; done
+  check is "$(grep -c 'pw-cat' <<< "$shell_logged" || true)" 0
+  click 6
+  kill "$answers" 2>/dev/null || true; answers=""
+  # Off in the file from the start: none.
+  start fr_FR.UTF-8 "reminder = false\ntranscript = false\noffer = false" "$work/wholeheard-capture"
+  sleep 1
+  call 2
+  check is "$(offers)" 4
+  click 6
+  pactl set-default-source "$old_source"; old_source=""
+  pactl unload-module "$mic_module"; mic_module=""
+fi
 
 # The window (cycle 03): Wholeheard started with --window by tauri-driver, its page read over
 # WebDriver (scripts/e2e_window.py). For a few seconds a window appears, twice.

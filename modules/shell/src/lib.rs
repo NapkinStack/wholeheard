@@ -6,6 +6,7 @@ pub mod desktop;
 pub mod keys;
 pub mod log;
 pub mod meeting;
+pub mod microphone;
 pub mod migrate;
 pub mod minutes;
 pub mod mix;
