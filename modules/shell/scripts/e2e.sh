@@ -353,6 +353,7 @@ else
   mkdir -p "$work/window"
   # Its pages as they were drawn, kept for an eye against D11's boards — the author's first.
   export WHOLEHEARD_SCREENSHOTS=${WHOLEHEARD_SCREENSHOTS:-$PWD/.evidence/shots}
+  rm -rf "${WHOLEHEARD_SCREENSHOTS:?}"/*.png   # this run's alone
   # A window that stops answering fails the run, never holds it: it takes about 6 minutes.
   if ! timeout --kill-after=30 1200 uv run --quiet --with selenium==4.51.0 python scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt; then
     failed=1
