@@ -42,6 +42,31 @@ often, and diagnoses ten times worse.
 A scenario replayable end to end belongs in the module's `e2e` command, and its evidence in
 `.evidence/`: CI keeps it for the test sheet (`.nstack/handbook/05-workflow.md` §7).
 
+**What the run said.** `nstack e2e` gives the run a folder of its own, `$NSTACK_EVIDENCE`
+(`<module>/.evidence/e2e/`), keeps there the command's output — a traceback included — and then
+reads the log files the run wrote there:
+
+- **Write there** the module's logs (`.log`, `.jsonl`) and screenshots; data that are not logs —
+  recordings, events — elsewhere. A page's uncaught errors and console errors reach a log there:
+  logged by the page itself through the application, or collected by a script the scenario
+  injects (`window.onerror`, `unhandledrejection`) — some drivers expose no console.
+- **The audit** reads each line's level — JSON keys, `level=`, a level word leading the line, or
+  the module's `evidence.levels` expression. A warning or an error the module did not declare is
+  quoted with `file:line` and the declaration that would accept it: an error fails the run, a
+  warning fails from criticality `high` and is reported below. The first NapkinStack version that
+  brings the audit only reports; the project's next minor version judges.
+- **Declare** what the scenarios provoke on purpose, in the manifest — a pattern, its level, the
+  scenario that provokes it (M12). A line a scenario *expects* is asserted by the scenario; a
+  warning or an error it *provokes* is declared in the manifest — never both.
+
+```yaml
+evidence:
+  provoked:
+    - pattern: "key refused"
+      level: warning
+      scenario: S3
+```
+
 ---
 
 ## 2. The oracle
