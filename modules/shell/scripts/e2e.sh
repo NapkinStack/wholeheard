@@ -424,6 +424,12 @@ if ! command -v WebKitWebDriver >/dev/null; then
 else
   command -v tauri-driver >/dev/null || cargo install tauri-driver --locked --version 2.1.0 2>&1 | tail -1 >> .evidence/e2e.txt
   mkdir -p "$work/window"
+  # Its pages as they were drawn, kept for an eye against D11's boards — the author's first.
+  # Kept where the user says, untouched; by default in the evidence, this run's alone.
+  if [ -z "${WHOLEHEARD_SCREENSHOTS:-}" ]; then
+    export WHOLEHEARD_SCREENSHOTS="$PWD/.evidence/shots"
+    rm -rf .evidence/shots
+  fi
   # A window that stops answering fails the run, never holds it: it takes about 6 minutes.
   if ! timeout --kill-after=30 1200 uv run --quiet --with selenium==4.51.0 python scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt; then
     failed=1
@@ -436,6 +442,10 @@ check grep -q '"message":"shell.recording_started"' <<< "$shell_log"
 check grep -q '"message":"shell.minutes_written"' <<< "$shell_log"
 check test -z "$(grep -F "$work" <<< "$shell_log")"
 check test ! -s "$work/errors"
+# Every warning and error logged is one a scenario provokes, and each one named is logged: the
+# logs read, not thrown away with the run's folder (D29).
+logs_read() { python3 scripts/e2e_logs.py "$work" .evidence scripts/e2e-logged.txt | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
+check logs_read
 [ -s "$work/errors" ] && sed 's/^/    /' "$work/errors" >> .evidence/e2e.txt
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"
 exit "$failed"
