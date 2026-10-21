@@ -101,7 +101,7 @@ deliverables:
   - id: D30
     title: "A call starts in another application, and Wholeheard offers to record it"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given Wholeheard running and not recording, with the setting at its default, when another application starts taking a microphone — a call in Discord, in WhatsApp Web or another browser tab, in any program —, then within 3 seconds a notification names that application and offers Record and Not this time; no window opens for it (D17), and nothing is recorded without the gesture"
       - "Given an application that takes a microphone, then the offer is made once for as long as it holds one — however many streams it opens —, never while recording, never for Wholeheard's own capture, never for a stream that reads what the computer plays (a sink's monitor) nor for a level meter (Settings, pavucontrol); a noise filter that holds the microphone from the start is offered once, and Not this time sets it aside until it lets the microphone go"

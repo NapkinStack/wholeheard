@@ -88,8 +88,18 @@ pub struct Takers {
     clients: HashMap<u64, Value>,
     /// Each link: the node it comes from, the node it goes to.
     links: HashMap<u64, (u64, u64)>,
+    /// Each recording stream's application, as its client said it while it was there: a client
+    /// read gone before its streams leaves them the application they were.
+    owners: HashMap<u64, Owner>,
     /// The applications taking a microphone, as last said.
     taking: BTreeMap<u64, String>,
+}
+
+/// The application a stream belongs to, and whether it is Wholeheard's own.
+struct Owner {
+    key: u64,
+    name: String,
+    own: bool,
 }
 
 /// Programs whose streams are Wholeheard's own.
@@ -98,7 +108,7 @@ const OWN: [&str; 2] = ["wholeheard-capture", "wholeheard"];
 impl Takers {
     /// The graph forgotten, to be read whole again; who takes a microphone is kept, so that the
     /// first batch says only what changed meanwhile.
-    fn anew(&mut self) {
+    pub fn anew(&mut self) {
         self.nodes.clear();
         self.clients.clear();
         self.links.clear();
@@ -111,6 +121,7 @@ impl Takers {
             let info = &object["info"];
             if info.is_null() {
                 self.nodes.remove(&id);
+                self.owners.remove(&id);
                 self.clients.remove(&id);
                 self.links.remove(&id);
                 continue;
@@ -133,6 +144,16 @@ impl Takers {
                 _ => {}
             }
         }
+        // Each recording stream's application, while its client is there to say it.
+        for (id, props) in &self.nodes {
+            if props["media.class"].as_str() != Some("Stream/Input/Audio") {
+                continue;
+            }
+            let client = props["client.id"].as_u64();
+            if client.is_none_or(|client| self.clients.contains_key(&client)) || !self.owners.contains_key(id) {
+                self.owners.insert(*id, self.owner(*id, props));
+            }
+        }
         let now = self.now();
         let mut changes: Vec<Change> = self
             .taking
@@ -149,10 +170,28 @@ impl Takers {
         changes
     }
 
+    /// A stream's application, as its client says it: by its process, named as it names itself.
+    fn owner(&self, id: u64, props: &Value) -> Owner {
+        let text = |props: &Value, key: &str| props[key].as_str().filter(|text| !text.is_empty()).map(str::to_string);
+        let client_id = props["client.id"].as_u64();
+        let client = client_id.and_then(|id| self.clients.get(&id)).cloned().unwrap_or(Value::Null);
+        let binary = text(&client, "application.process.binary");
+        let own = binary.as_deref().is_some_and(|binary| OWN.contains(&binary));
+        let key = match (client["application.process.id"].as_u64(), client_id) {
+            (Some(process), _) => process,
+            (None, Some(client)) => 1 << 40 | client,
+            (None, None) => 1 << 41 | id,
+        };
+        let name = text(&client, "application.name")
+            .or_else(|| text(props, "application.name"))
+            .or(binary)
+            .unwrap_or_else(|| "?".into());
+        Owner { key, name, own }
+    }
+
     /// The applications taking a microphone in the graph as it is.
     fn now(&self) -> BTreeMap<u64, String> {
         let flag = |props: &Value, key: &str| matches!(&props[key], Value::Bool(true)) || props[key].as_str() == Some("true");
-        let text = |props: &Value, key: &str| props[key].as_str().filter(|text| !text.is_empty()).map(str::to_string);
         // The streams a device that is no output feeds.
         let fed: HashSet<u64> = self
             .links
@@ -174,21 +213,11 @@ impl Takers {
             {
                 continue;
             }
-            let client_id = props["client.id"].as_u64();
-            let client = client_id.and_then(|id| self.clients.get(&id)).cloned().unwrap_or(Value::Null);
-            let binary = text(&client, "application.process.binary");
-            if binary.as_deref().is_some_and(|binary| OWN.contains(&binary)) {
+            let Some(owner) = self.owners.get(id) else { continue };
+            if owner.own {
                 continue;
             }
-            let key = match (client["application.process.id"].as_u64(), client_id) {
-                (Some(process), _) => process,
-                (None, Some(client)) => 1 << 40 | client,
-                (None, None) => 1 << 41 | id,
-            };
-            let name = text(&client, "application.name")
-                .or_else(|| text(props, "application.name"))
-                .or(binary)
-                .unwrap_or_else(|| "?".into());
+            let (key, name) = (owner.key, owner.name.clone());
             taking.entry(key).or_insert(name);
         }
         taking
