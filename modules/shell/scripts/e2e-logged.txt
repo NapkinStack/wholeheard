@@ -1,7 +1,7 @@
 # Each warning or error a scenario of the e2e provokes on purpose: its message, then the scenario
 # and what it does. Any other warning or error logged fails the run; one named here and never
 # logged fails it too (scripts/e2e_logs.py, D29).
-shell.recording_lost A — the played recorder says the output has no device left (D31), at each of its starts: A, B, C, F, G, M
+shell.recording_lost A — the played recorder says the output has no device left (D31), at each of its starts: A, B, C, F, G, M, S
 shell.recording_failed D — no recorder where Wholeheard looks for one
 shell.transcript_failed F — the played engine fails once; the window's N has a transcript redone that fails
 shell.model_fetch_failed G — what is fetched is not the published model, and is removed

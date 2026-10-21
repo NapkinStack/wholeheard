@@ -425,8 +425,11 @@ else
   command -v tauri-driver >/dev/null || cargo install tauri-driver --locked --version 2.1.0 2>&1 | tail -1 >> .evidence/e2e.txt
   mkdir -p "$work/window"
   # Its pages as they were drawn, kept for an eye against D11's boards — the author's first.
-  export WHOLEHEARD_SCREENSHOTS=${WHOLEHEARD_SCREENSHOTS:-$PWD/.evidence/shots}
-  rm -rf "${WHOLEHEARD_SCREENSHOTS:?}"/*.png   # this run's alone
+  # Kept where the user says, untouched; by default in the evidence, this run's alone.
+  if [ -z "${WHOLEHEARD_SCREENSHOTS:-}" ]; then
+    export WHOLEHEARD_SCREENSHOTS="$PWD/.evidence/shots"
+    rm -rf .evidence/shots
+  fi
   # A window that stops answering fails the run, never holds it: it takes about 6 minutes.
   if ! timeout --kill-after=30 1200 uv run --quiet --with selenium==4.51.0 python scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt; then
     failed=1
