@@ -134,6 +134,12 @@ fn french_is_written_as_french_is_printed() {
         Said::Silent(Source::Me),
         Said::Silent(Source::Others),
         Said::Stopped("/s".into(), 60.0),
+        Said::Moved(Source::Me, Some("Mic".into())),
+        Said::Moved(Source::Me, None),
+        Said::Moved(Source::Others, Some("Speaker".into())),
+        Said::Moved(Source::Others, None),
+        Said::Lost(Source::Me),
+        Said::Lost(Source::Others),
         Said::Failed(String::new()),
         Said::Failed("x".into()),
     ];
@@ -597,5 +603,187 @@ fn the_minutes_sections_are_named_as_the_contract_and_d11_name_them() {
     assert_eq!(
         words::window(Language::French).minutes_sections,
         ["Points saillants", "Actions", "Points clés"]
+    );
+}
+
+#[test]
+fn a_device_changed_says_what_is_recorded_now_one_gone_says_that_side_and_one_back_says_so() {
+    // D31, each sentence as the user reads it.
+    use Language::{English, French};
+    let mic = Some("Headset Mic".to_string());
+    for (said, language, title, body) in [
+        (
+            Said::Moved(Source::Me, mic.clone()),
+            English,
+            "Microphone changed",
+            "Now recorded: Headset Mic.",
+        ),
+        (
+            Said::Moved(Source::Me, mic.clone()),
+            French,
+            "Micro changé",
+            "Enregistré maintenant\u{a0}: Headset Mic.",
+        ),
+        (
+            Said::Moved(Source::Others, Some("Speaker".into())),
+            English,
+            "Sound output changed",
+            "The meeting’s sound is now recorded from Speaker.",
+        ),
+        (
+            Said::Moved(Source::Others, Some("Speaker".into())),
+            French,
+            "Sortie audio changée",
+            "Le son de la réunion est maintenant enregistré depuis Speaker.",
+        ),
+        (
+            Said::Moved(Source::Me, None),
+            English,
+            "Microphone changed",
+            "Your microphone is still recorded, from the one your computer uses now.",
+        ),
+        (
+            Said::Moved(Source::Me, None),
+            French,
+            "Micro changé",
+            "Votre micro est toujours enregistré, depuis celui qu’utilise maintenant votre ordinateur.",
+        ),
+        (
+            Said::Moved(Source::Others, None),
+            English,
+            "Sound output changed",
+            "The meeting’s sound is still recorded, from the output your computer uses now.",
+        ),
+        (
+            Said::Moved(Source::Others, None),
+            French,
+            "Sortie audio changée",
+            "Le son de la réunion est toujours enregistré, depuis la sortie qu’utilise maintenant votre ordinateur.",
+        ),
+        // None left: that side is not recorded for now — nothing said of the other, which may
+        // have none either — and one plugged in is recorded at once.
+        (
+            Said::Lost(Source::Me),
+            English,
+            "Your microphone is not recorded for now",
+            "Your computer has no microphone left. A microphone plugged in is recorded at once; the recording goes on.",
+        ),
+        (
+            Said::Lost(Source::Me),
+            French,
+            "Votre micro n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{a0}; l’enregistrement continue.",
+        ),
+        (
+            Said::Lost(Source::Others),
+            English,
+            "The meeting’s sound is not recorded for now",
+            "Your computer has no sound output left. An output plugged in is recorded at once; the recording goes on.",
+        ),
+        (
+            Said::Lost(Source::Others),
+            French,
+            "Le son de la réunion n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.",
+        ),
+    ] {
+        assert_eq!(
+            told(&said, false, language),
+            (title.to_string(), body.to_string()),
+            "{said:?} {language:?}"
+        );
+    }
+    // A device back after none was left: recorded again, and said so.
+    for (source, name, language, title, body) in [
+        (
+            Source::Me,
+            mic.as_deref(),
+            English,
+            "Your microphone is recorded again",
+            "Now recorded: Headset Mic.",
+        ),
+        (
+            Source::Me,
+            mic.as_deref(),
+            French,
+            "Votre micro est de nouveau enregistré",
+            "Enregistré maintenant\u{a0}: Headset Mic.",
+        ),
+        (
+            Source::Others,
+            Some("Speaker"),
+            English,
+            "The meeting’s sound is recorded again",
+            "From Speaker.",
+        ),
+        (
+            Source::Others,
+            Some("Speaker"),
+            French,
+            "Le son de la réunion est de nouveau enregistré",
+            "Depuis Speaker.",
+        ),
+        (
+            Source::Me,
+            None,
+            English,
+            "Your microphone is recorded again",
+            "From the one your computer uses now.",
+        ),
+        (
+            Source::Others,
+            None,
+            French,
+            "Le son de la réunion est de nouveau enregistré",
+            "Depuis la sortie qu’utilise maintenant votre ordinateur.",
+        ),
+    ] {
+        let Notice { title: got, body: said } = words::back(source, name, language);
+        assert_eq!((got.as_str(), said.as_str()), (title, body), "{source:?} {language:?}");
+    }
+}
+
+#[test]
+fn what_the_devices_are_decides_what_is_said_of_one_gone_and_one_back() {
+    use Language::{English, French};
+    use words::Sides;
+    let (lost, back) = (Said::Lost(Source::Others), Said::Moved(Source::Others, Some("Casque".into())));
+    let body = |sides: &mut Sides, said: &Said, language| sides.told(said, false, language).map(|notice| notice.body);
+
+    // The microphone still recorded: the output gone says so — the criterion's "the recording
+    // goes on with the other".
+    let mut sides = Sides::default();
+    assert_eq!(
+        body(&mut sides, &lost, English).as_deref(),
+        Some("Your computer has no sound output left. Your microphone is still recorded, and an output plugged in is recorded at once.")
+    );
+    // Back: recorded again; then a move like any other.
+    assert_eq!(
+        sides.told(&back, false, English).unwrap().title,
+        "The meeting’s sound is recorded again"
+    );
+    assert_eq!(sides.told(&back, false, English).unwrap().title, "Sound output changed");
+
+    // Both gone: neither is said still recorded.
+    let mut sides = Sides::default();
+    sides.told(&Said::Lost(Source::Me), false, French);
+    assert_eq!(
+        body(&mut sides, &lost, French).as_deref(),
+        Some("Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.")
+    );
+    // The microphone not opened at the start: the same.
+    let mut sides = Sides::default();
+    sides.told(&Said::Unavailable(Source::Me, String::new()), false, English);
+    assert_eq!(
+        body(&mut sides, &lost, English).as_deref(),
+        Some("Your computer has no sound output left. An output plugged in is recorded at once; the recording goes on.")
+    );
+    // And the other way round, in French, the meeting's sound still recorded.
+    let mut sides = Sides::default();
+    assert_eq!(
+        body(&mut sides, &Said::Lost(Source::Me), French).as_deref(),
+        Some(
+            "Votre ordinateur n’a plus de micro. Le son de la réunion est toujours enregistré, et un micro branché est enregistré aussitôt."
+        )
     );
 }

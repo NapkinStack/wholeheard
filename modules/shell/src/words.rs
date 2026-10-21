@@ -111,6 +111,51 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         (Said::Unavailable(Source::Others, _), French) => {
             ("Le son de la réunion n’est pas enregistré", "Votre micro est toujours enregistré.")
         }
+        // The device recorded changed (D31): what is recorded now is named.
+        (Said::Moved(Source::Me, Some(name)), English) => return notice("Microphone changed", format!("Now recorded: {name}.")),
+        (Said::Moved(Source::Me, Some(name)), French) => return notice("Micro changé", format!("Enregistré maintenant\u{a0}: {name}.")),
+        (Said::Moved(Source::Others, Some(name)), English) => {
+            return notice("Sound output changed", format!("The meeting’s sound is now recorded from {name}."));
+        }
+        (Said::Moved(Source::Others, Some(name)), French) => {
+            return notice(
+                "Sortie audio changée",
+                format!("Le son de la réunion est maintenant enregistré depuis {name}."),
+            );
+        }
+        (Said::Moved(Source::Me, None), English) => (
+            "Microphone changed",
+            "Your microphone is still recorded, from the one your computer uses now.",
+        ),
+        (Said::Moved(Source::Me, None), French) => (
+            "Micro changé",
+            "Votre micro est toujours enregistré, depuis celui qu’utilise maintenant votre ordinateur.",
+        ),
+        (Said::Moved(Source::Others, None), English) => (
+            "Sound output changed",
+            "The meeting’s sound is still recorded, from the output your computer uses now.",
+        ),
+        (Said::Moved(Source::Others, None), French) => (
+            "Sortie audio changée",
+            "Le son de la réunion est toujours enregistré, depuis la sortie qu’utilise maintenant votre ordinateur.",
+        ),
+        // None left: that side, and nothing of the other, which may have none either.
+        (Said::Lost(Source::Me), English) => (
+            "Your microphone is not recorded for now",
+            "Your computer has no microphone left. A microphone plugged in is recorded at once; the recording goes on.",
+        ),
+        (Said::Lost(Source::Me), French) => (
+            "Votre micro n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{a0}; l’enregistrement continue.",
+        ),
+        (Said::Lost(Source::Others), English) => (
+            "The meeting’s sound is not recorded for now",
+            "Your computer has no sound output left. An output plugged in is recorded at once; the recording goes on.",
+        ),
+        (Said::Lost(Source::Others), French) => (
+            "Le son de la réunion n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.",
+        ),
         (Said::Silent(Source::Me), English) => (
             "No sound from your microphone",
             "Nothing was heard for ten seconds. The recording goes on.",
@@ -1166,6 +1211,91 @@ pub fn transcript_kept_beside(language: Language, name: &str, not_put_back: bool
         (Language::French, true) => (
             "Le transcript n’a pas pu être remis en place",
             format!("Il est dans le dossier de la réunion, sous {name}."),
+        ),
+    };
+    Notice { title: title.into(), body }
+}
+
+/// What a recording's devices are, as its notices need them: each side with no device — not
+/// opened at the start, or none left since (D31).
+#[derive(Debug, Default)]
+pub struct Sides {
+    gone: [bool; 2],
+}
+
+impl Sides {
+    /// The notice of what a recording said, as [`of`] says it, knowing the sides: a side gone
+    /// says the other is still recorded only when it is; one back after none is recorded again.
+    pub fn told(&mut self, said: &Said, reminder: bool, language: Language) -> Option<Notice> {
+        let side = |source: &Source| usize::from(*source == Source::Others);
+        match said {
+            Said::Unavailable(source, _) => self.gone[side(source)] = true,
+            Said::Lost(source) => {
+                self.gone[side(source)] = true;
+                if !self.gone[1 - side(source)] {
+                    return Some(lost_beside(*source, language));
+                }
+            }
+            Said::Moved(source, name) if self.gone[side(source)] => {
+                self.gone[side(source)] = false;
+                return Some(back(*source, name.as_deref(), language));
+            }
+            _ => {}
+        }
+        of(said, reminder, language)
+    }
+}
+
+/// A side with no device left while the other is still recorded.
+fn lost_beside(source: Source, language: Language) -> Notice {
+    let (title, body) = match (source, language) {
+        (Source::Me, Language::English) => (
+            "Your microphone is not recorded for now",
+            "Your computer has no microphone left. The meeting’s sound is still recorded, and a microphone plugged in is recorded at once.",
+        ),
+        (Source::Me, Language::French) => (
+            "Votre micro n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de micro. Le son de la réunion est toujours enregistré, et un micro branché est enregistré aussitôt.",
+        ),
+        (Source::Others, Language::English) => (
+            "The meeting’s sound is not recorded for now",
+            "Your computer has no sound output left. Your microphone is still recorded, and an output plugged in is recorded at once.",
+        ),
+        (Source::Others, Language::French) => (
+            "Le son de la réunion n’est plus enregistré pour l’instant",
+            "Votre ordinateur n’a plus de sortie audio. Votre micro est toujours enregistré, et une sortie branchée est enregistrée aussitôt.",
+        ),
+    };
+    Notice {
+        title: title.into(),
+        body: body.into(),
+    }
+}
+
+/// Said when a side that had no device left is recorded again, from this one (D31).
+pub fn back(source: Source, name: Option<&str>, language: Language) -> Notice {
+    let (title, body) = match (source, language) {
+        (Source::Me, Language::English) => (
+            "Your microphone is recorded again",
+            name.map_or("From the one your computer uses now.".into(), |name| {
+                format!("Now recorded: {name}.")
+            }),
+        ),
+        (Source::Me, Language::French) => (
+            "Votre micro est de nouveau enregistré",
+            name.map_or("Depuis celui qu’utilise maintenant votre ordinateur.".into(), |name| {
+                format!("Enregistré maintenant\u{a0}: {name}.")
+            }),
+        ),
+        (Source::Others, Language::English) => (
+            "The meeting’s sound is recorded again",
+            name.map_or("From the output your computer uses now.".into(), |name| format!("From {name}.")),
+        ),
+        (Source::Others, Language::French) => (
+            "Le son de la réunion est de nouveau enregistré",
+            name.map_or("Depuis la sortie qu’utilise maintenant votre ordinateur.".into(), |name| {
+                format!("Depuis {name}.")
+            }),
         ),
     };
     Notice { title: title.into(), body }

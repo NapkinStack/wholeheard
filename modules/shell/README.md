@@ -29,7 +29,8 @@ runs from a terminal.
 **Today**: an icon in the tray whose menu starts and stops a recording, the same from a
 global shortcut — Super+Alt+M under a Linux desktop — and a notification for what matters:
 the reminder to announce the recording, with the microphone recorded named in it — one
-other than the call's shows at once — a source that is silent, the stop, a failure. In
+other than the call's shows at once — a source that is silent, a device switched while it
+records, named, or none left for a side (D31), the stop, a failure. In
 French where the system is, in English anywhere else.
 
 **The window** (cycle 03, from D11's drawings) is opened by *Open Wholeheard* in the menu — or at

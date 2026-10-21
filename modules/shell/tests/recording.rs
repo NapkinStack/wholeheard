@@ -150,6 +150,19 @@ fn a_line_is_read_as_the_contract_describes_it_or_passed_over() {
         let line = format!(r#"{{"event":"started","folder":"/s","sources":{{"me":"{me}","others":"Speaker"}}}}"#);
         assert_eq!(read(&line), Some(Said::Started("/s".into(), named.map(str::to_string))), "{me}");
     }
+    // Another device, named as `started` names one; none left (D31).
+    assert_eq!(
+        read(r#"{"event":"device","source":"me","device":"  Headset\tMic"}"#),
+        Some(Said::Moved(Source::Me, Some("Headset Mic".into())))
+    );
+    assert_eq!(
+        read(r#"{"event":"device","source":"others","device":"unnamed"}"#),
+        Some(Said::Moved(Source::Others, None))
+    );
+    assert_eq!(
+        read(r#"{"event":"device","source":"others","device":null}"#),
+        Some(Said::Lost(Source::Others))
+    );
     assert_eq!(
         read(r#"{"event":"stopped","folder":"/s","seconds":3}"#),
         Some(Said::Stopped("/s".into(), 3.0))
@@ -162,6 +175,9 @@ fn a_line_is_read_as_the_contract_describes_it_or_passed_over() {
         r#"{"event":"silent","source":"someone"}"#,
         r#"{"event":"started"}"#,
         r#"{"event":7}"#,
+        r#"{"event":"device","source":"me"}"#,
+        r#"{"event":"device","source":"me","device":7}"#,
+        r#"{"event":"device","device":"Mic"}"#,
         r#"{"source":"me"}"#,
     ] {
         assert_eq!(read(passed_over), None, "{passed_over}");
