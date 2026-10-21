@@ -890,6 +890,8 @@ struct SettingsShown {
     sessions_said: String,
     after: After,
     reminder: bool,
+    /// A call another application starts is offered to be recorded (D30).
+    offer: bool,
     keep_audio: KeepAudio,
     model: PathBuf,
     models: Vec<Model>,
@@ -931,6 +933,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         sessions: settings.sessions,
         after: settings.after,
         reminder: settings.reminder,
+        offer: settings.offer,
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
@@ -946,6 +949,7 @@ struct Change {
     sessions: Option<PathBuf>,
     after: Option<After>,
     reminder: Option<bool>,
+    offer: Option<bool>,
     keep_audio: Option<KeepAudio>,
     model: Option<PathBuf>,
     developer: Option<bool>,
@@ -976,6 +980,9 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
     }
     if let Some(reminder) = change.reminder {
         settings.reminder = reminder;
+    }
+    if let Some(offer) = change.offer {
+        settings.offer = offer;
     }
     if let Some(developer) = change.developer {
         settings.developer = developer;
