@@ -665,8 +665,10 @@ def main() -> int:
             said,
         )
         window.file.write_text(saved)
+        # The page drawn anew from the file just written: its last drawing waited out, so that the
+        # old Tester, hidden, is never the one pressed (as #302 found of the agreement page).
         browser.execute_script("location.hash = '#/'")
-        browser.execute_script("location.hash = '#/settings'")
+        to_settings()
         wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-test"), 5)
         # Tester asks wholeheard-summary about the choice saved: no key for Ollama here.
         press(browser, "minutes-test")
