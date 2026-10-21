@@ -338,6 +338,8 @@ pub struct Window {
     pub reminder: [&'static str; 2],
     /// The switch of the offer to record a call (D30).
     pub offer: [&'static str; 2],
+    /// Its two choices: offer to record, do nothing.
+    pub offer_choices: [&'static str; 2],
     pub keep_audio: [&'static str; 2],
     /// The settings' last card, and its one switch: what a program said of a failure, shown on
     /// the page under the sentence (D29).
@@ -559,9 +561,10 @@ pub fn window(language: Language) -> Window {
                 "At the start, a line reminds you to say the meeting is recorded.",
             ],
             offer: [
-                "Offer to record a call",
-                "When another application takes your microphone — a call starting —, a notification offers to record it.",
+                "When an application takes the microphone",
+                "A call starting, most often. Wholeheard never records without you knowing.",
             ],
+            offer_choices: ["Offer to record", "Do nothing"],
             advanced_title: "Advanced",
             developer: [
                 "Developer mode",
@@ -769,9 +772,10 @@ pub fn window(language: Language) -> Window {
                 "Au démarrage, une ligne rappelle de dire que la réunion est enregistrée.",
             ],
             offer: [
-                "Proposer d’enregistrer un appel",
-                "Quand une autre application prend votre micro — un appel qui commence —, une notification propose de l’enregistrer.",
+                "Quand une application prend le micro",
+                "Un appel qui commence, le plus souvent. Wholeheard n’enregistre jamais sans que vous le sachiez.",
             ],
+            offer_choices: ["Proposer d’enregistrer", "Ne rien faire"],
             advanced_title: "Avancé",
             developer: [
                 "Mode développeur",

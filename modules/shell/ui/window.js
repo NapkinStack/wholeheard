@@ -1107,18 +1107,23 @@ function showSettings(shown, minutes, words) {
   const remindSaid = element("span", "said");
   remindSaid.append(element("span", "name", words.reminder[0]), element("span", "says", words.reminder[1]));
   remind.append(remindSaid, box);
-  // A call another application starts, offered to be recorded (D30).
-  const offer = element("label", "row");
-  const offerBox = element("input");
-  offerBox.type = "checkbox";
-  offerBox.id = "offer";
-  offerBox.setAttribute("role", "switch");
-  offerBox.checked = shown.offer;
-  offerBox.disabled = locked;
-  offerBox.addEventListener("change", () => save({ offer: offerBox.checked }));
-  const offerSaid = element("span", "said");
+  // When another application takes the microphone (D30), as board 4 has it: offer to record,
+  // or do nothing.
+  const offer = element("div", "row");
+  const offerSaid = element("label", "said");
+  offerSaid.htmlFor = "offer";
   offerSaid.append(element("span", "name", words.offer[0]), element("span", "says", words.offer[1]));
-  offer.append(offerSaid, offerBox);
+  const offerPick = element("select");
+  offerPick.id = "offer";
+  offerPick.disabled = locked;
+  for (const [value, text] of [["offer", words.offer_choices[0]], ["nothing", words.offer_choices[1]]]) {
+    const option = element("option", "", text);
+    option.value = value;
+    offerPick.append(option);
+  }
+  offerPick.value = shown.offer ? "offer" : "nothing";
+  offerPick.addEventListener("change", () => save({ offer: offerPick.value === "offer" }));
+  offer.append(offerSaid, offerPick);
   const keep = element("div", "row");
   const keepSaid = element("label", "said");
   keepSaid.htmlFor = "keep";

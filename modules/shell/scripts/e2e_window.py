@@ -492,16 +492,21 @@ def main() -> int:
         window.file.write_text(window.file.read_text().replace("keep_audio = 30", "keep_audio = 90 # by hand"))
         changed(lambda: browser.find_element(By.ID, "reminder").click())
         changed(lambda: browser.find_element(By.ID, "developer").click())
-        # A call offered to be recorded (D30): on by default, turned off here.
-        offer_on = browser.find_element(By.ID, "offer").is_selected()
-        changed(lambda: browser.find_element(By.ID, "offer").click())
+        # When an application takes the microphone (D30, board 4): offer to record by default;
+        # nothing chosen here, then the offer again, each written.
+        offer_on = Select(browser.find_element(By.ID, "offer")).first_selected_option.get_attribute("value") == "offer"
+        changed(lambda: Select(browser.find_element(By.ID, "offer")).select_by_value("nothing"))
+        offer_off = "offer = false" in window.file.read_text()
+        changed(lambda: Select(browser.find_element(By.ID, "offer")).select_by_value("offer"))
+        offer_again = "offer = true" in window.file.read_text()
+        changed(lambda: Select(browser.find_element(By.ID, "offer")).select_by_value("nothing"))
         text = window.file.read_text()
         check(
             "each choice is in the settings file, the user's lines kept, a change by hand too",
             'after = "nothing"' in text
             and "reminder = false" in text
             and "developer = true" in text
-            and offer_on and "offer = false" in text
+            and offer_on and offer_off and offer_again and "offer = false" in text
             and "keep_audio = 90 # by hand" in text
             and f'model = "{models / "ggml-small.bin"}"' in text
             and text.startswith(f'sessions = "{chosen}"\n')
