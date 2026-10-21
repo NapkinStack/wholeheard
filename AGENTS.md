@@ -28,6 +28,12 @@ and you never approve a pull request (`.nstack/handbook/07-governance.md` §7). 
 carries the trailer `Agent-Session: <an identifier of this session>`; as a verifier, you
 sign the sheet `Verifier: session <that identifier>`, and CI refuses one among the authors.
 
+**Hold.** As the author of a deliverable of the accepted cycle, take it before your first
+change: `nstack claim D<n> --session <this session> --person <the person you work for>` — their
+forge handle, asked once, never git's user: agents sharing one identity would be one person.
+Held by someone else, stop and say who holds it; never work around a hold, never force-push a
+branch `nstack/hold/…` (`.nstack/handbook/project.md`, *Who holds a deliverable*).
+
 **Words.** Facing a person, use the framework's words as `.nstack/handbook/glossary.md` defines
 them, and explain a term or a rule's code (`.nstack/handbook/RULES.md`) the first time you use it.
 
@@ -94,6 +100,7 @@ You **stop and report** in these cases, without looking for a way around:
 | Potentially destructive action | Stop. See §5. |
 | A blocking piece of information is missing after searching | Ask for clarification. Once, precisely. |
 | The framework itself is wrong — a message, a check, a page | Stop; never a workaround. Report it to the decider: the file, the message, what is wrong. Fixing it at its source is a task the decider assigns (`.nstack/handbook/INSTALL.md`, *When the framework is wrong*). |
+| The deliverable is held by someone else (`nstack claim` refuses it) | Stop. Say who holds it and since when; take another ready deliverable — and take over a stale hold only when the person you work for asks. |
 | A module's criticality has to be chosen | Propose it with what it costs, and let the decider settle it: it is a product decision (`.nstack/handbook/05-workflow.md` §7). |
 
 A red CI is never a detail. A bypassed gate is an incident.

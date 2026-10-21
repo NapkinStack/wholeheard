@@ -161,6 +161,13 @@ Settings → Rules → Rulesets → on the main branch (private repository: Team
 GitHub offers a check to require only once it has run: open a first pull request, then
 select them.
 
+Settings → Rules → Rulesets → a second ruleset, on the branches `nstack/hold/**/*` — where
+deliverables are held (`.nstack/handbook/project.md`, *Who holds a deliverable*). Not
+`nstack/hold/**`: in a ruleset, `**` stops at a slash, and a hold is two levels down. Nobody on
+its bypass list:
+
+- [ ] Hold branches `nstack/hold/**/*` cannot be force-pushed nor deleted
+
 Settings → Advanced Security (private repository: the Secret Protection option):
 
 - [ ] Secret Protection and push protection

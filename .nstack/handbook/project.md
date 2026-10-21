@@ -59,7 +59,29 @@ missing.
 | Check | When | Rules |
 |---|---|---|
 | The plan, a fitness function | Every push | Formats; one accepted cycle at a time, under an accepted charter; `end` = `start` + the appetite; acceptance criteria once a deliverable is ready; closures recorded; a discovery decided with its decider and date, a charter only after a go. A charter, a cycle or a deliverable still holding the template's words is refused |
-| The pull request check | Every pull request changing a module beyond its description — manifest, `AGENTS.md`, `README.md`, `docs/`; not a framework update — **once the charter is accepted** | An accepted cycle; not past its end date; a ready or in-progress deliverable named — or the `out-of-cycle` label with its justification |
+| The pull request check | Every pull request changing a module beyond its description — manifest, `AGENTS.md`, `README.md`, `docs/`; not a framework update — **once the charter is accepted** | An accepted cycle; not past its end date; a ready or in-progress deliverable named — and, when someone holds it, delivered by its holder — or the `out-of-cycle` label with its justification |
+
+## Who holds a deliverable
+
+With several contributors, a deliverable is **held** before its first change, so that two of
+them never deliver it twice:
+
+```bash
+nstack claim D30 --person @alice --session <session>   # held; its first work branch d30-… made
+nstack plan                                             # who holds what, since when; what is stale
+nstack unclaim D30                                      # given back: by its holder, the decider, anyone once stale
+nstack claim D30 --take-over                            # a hold nobody worked on for hold_days
+```
+
+The hold is a branch of the shared remote, `nstack/hold/<cycle>/D30`, whose commits are its
+events; the remote takes the first of two claims and refuses the second. A hold's last work is
+its newest event or commit on a branch `d30-…`; with none for `hold_days` (an answer of the
+project, 7 by default) it is **stale**, and anyone may take it over — recorded, with whom it was
+taken from; the previous work is kept. The pull request check refuses delivery work for a
+deliverable someone else holds (K5): its commits name none of the hold's sessions, and no
+author, committer or opener is its person; nobody holds it, it asks nothing. A holder working
+from a new session names it on the hold first — `nstack claim D30 --session <it>`. A hold says who is
+accountable; it proves nobody's identity.
 
 The charter changes only through a PDR (`.nstack/handbook/06-decisions.md` §4). A cycle is never
 extended: past its end date, delivery work stops until the decider records a decision.
