@@ -37,7 +37,9 @@ Writes the minutes of a transcript.
 
 ## Known traps
 
-- A model that opens with a sentence before the sections is refused, by design.
+- A model that opens with a sentence before the sections is refused, by design. One title of
+  first level above them, the habit of local models, is left out of the file instead (#353).
+- The transcript's speakers, `me` and `others`, are asked never to reach the minutes (#354).
 - Reading a format by hand: an answer was once read line by line, an address split by hand —
   each cost several rounds of verification. An answer goes through a CommonMark reader, an
   address through the HTTP client's own.
