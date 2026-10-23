@@ -458,8 +458,8 @@ decider's, on real devices and real calls (D23):**
 - **D31:** the contracts (#305, `device` and `changed`); capture saying the device it records
   from now and keeping each (#306); the shell's notices (#308).
 - **D30:** the offer (#311, `pw-dump --monitor` read in `microphone.rs`); Settings' *Quand une
-  application prend le micro* (#346, board 4). Out of reach, as said: a call stays unwatched for
-  60 seconds after `pw-dump` exits, until it is started again.
+  application prend le micro* (#346, board 4). Out of reach, as #311's verifier noted: a call
+  stays unwatched for 60 seconds after `pw-dump` exits, until it is started again.
 
 ### D28
 
