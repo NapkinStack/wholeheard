@@ -46,9 +46,9 @@ read while it writes, left silent, killed, and with the same sound in both sourc
 the tracks keep one clock. The second form's notes rest away from zero and carry two unequal
 channels in 24 bits, so that a track centred, mixed or cut shows; and one source stops and
 comes back. It runs nothing where there is no sound server, or while an application holds a
-microphone; what it saw is in `.evidence/e2e.txt`, its logs in `$NSTACK_EVIDENCE`
-(`.evidence/e2e/logs`), where nstack reads them after the run: a warning or an error the
-manifest's `evidence.provoked` does not declare is said. A real call, a real microphone and a
+microphone; what it saw is in `.evidence/e2e.txt`, its logs in `$NSTACK_EVIDENCE/logs`
+(`.evidence/e2e/logs` when run alone), where nstack reads them after the run: a warning or an
+error the manifest's `evidence.provoked` does not declare is said. A real call, a real microphone and a
 headset stay a person's to try.
 
 ## What it says while it runs
