@@ -510,13 +510,34 @@ mod tests {
         let mut first = true;
         let mut hear = |_: &[f32]| -> io::Result<Vec<Segment>> {
             Ok(match std::mem::replace(&mut first, false) {
-                true => vec![wrote(0.0, 0.0, "..."), wrote(3.0, 5.0, "Oui."), wrote(8.0, 8.0, "…")],
+                true => vec![
+                    wrote(0.0, 0.0, "..."),
+                    wrote(3.0, 5.0, "Oui."),
+                    wrote(6.0, 6.5, "42"),
+                    wrote(8.0, 8.0, "…"),
+                ],
                 false => vec![],
             })
         };
         let heard = listened(&sound, &mut hear).unwrap();
         let texts: Vec<&str> = heard.iter().map(|s| s.text.as_str()).collect();
-        assert_eq!(texts, ["Oui."]);
+        // A figure said is a word.
+        assert_eq!(texts, ["Oui.", "42"]);
+    }
+
+    #[test]
+    fn what_holds_no_word_still_stands_where_the_engine_wrote_while_the_span_is_read() {
+        // Left out last: over a voice, "..." is what the engine wrote there, and that stretch is
+        // not heard again, as before #355.
+        let sound = voiced(10.0, 0.3, &[(3.0, 5.0), (7.0, 9.0)]);
+        let mut heard_times = 0;
+        let mut hear = |_: &[f32]| -> io::Result<Vec<Segment>> {
+            heard_times += 1;
+            Ok(vec![wrote(3.0, 5.0, "Oui."), wrote(7.0, 9.0, "...")])
+        };
+        let heard = listened(&sound, &mut hear).unwrap();
+        let texts: Vec<&str> = heard.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!((texts, heard_times), (vec!["Oui."], 1));
     }
 
     #[test]
