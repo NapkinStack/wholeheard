@@ -11,6 +11,9 @@ cd "$(dirname "$0")/.."
 mkdir -p .evidence
 : > .evidence/e2e.txt
 say() { echo "$*" | tee -a .evidence/e2e.txt; }
+# The run's logs and screenshots, where NapkinStack reads them after it (nstack e2e shell).
+evidence=${NSTACK_EVIDENCE:-$PWD/.evidence/e2e}
+mkdir -p "$evidence"
 
 watcher="org.kde.StatusNotifierWatcher /StatusNotifierWatcher org.kde.StatusNotifierWatcher"
 if ! command -v busctl >/dev/null || ! busctl --user get-property $watcher RegisteredStatusNotifierItems >/dev/null 2>&1; then
@@ -431,8 +434,8 @@ else
   # Its pages as they were drawn, kept for an eye against D11's boards — the author's first.
   # Kept where the user says, untouched; by default in the evidence, this run's alone.
   if [ -z "${WHOLEHEARD_SCREENSHOTS:-}" ]; then
-    export WHOLEHEARD_SCREENSHOTS="$PWD/.evidence/shots"
-    rm -rf .evidence/shots
+    export WHOLEHEARD_SCREENSHOTS="$evidence/shots"
+    rm -rf "$WHOLEHEARD_SCREENSHOTS"
   fi
   # A window that stops answering fails the run, never holds it: it takes about 6 minutes.
   if ! timeout --kill-after=30 1200 uv run --quiet --with selenium==4.51.0 python scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt; then
@@ -448,7 +451,7 @@ check test -z "$(grep -F "$work" <<< "$shell_log")"
 check test ! -s "$work/errors"
 # Every warning and error logged is one a scenario provokes, and each one named is logged: the
 # logs read, not thrown away with the run's folder (D29).
-logs_read() { python3 scripts/e2e_logs.py "$work" .evidence scripts/e2e-logged.txt | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
+logs_read() { uv run --quiet --with pyyaml==6.0.3 python scripts/e2e_logs.py "$work" "$evidence" MANIFEST.yaml | tee -a .evidence/e2e.txt; return "${PIPESTATUS[0]}"; }
 check logs_read
 [ -s "$work/errors" ] && sed 's/^/    /' "$work/errors" >> .evidence/e2e.txt
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"

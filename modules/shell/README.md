@@ -132,9 +132,10 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 `e2e` drives Wholeheard on the desktop: the tray's menu over the session bus, then the window over
 WebDriver — WebKitGTK's own (`WebKitWebDriver`, in Fedora's `webkit2gtk4.1-devel`) behind
 `tauri-driver`, which the script installs when it is missing (`scripts/e2e_window.py`). Its run's logs
-are read after it, and kept in `.evidence/logs` with the pages' screenshots in `.evidence/shots`:
-every warning and error must be one a scenario provokes, named with it in
-`scripts/e2e-logged.txt`, and each one named must be logged — any other fails the run, quoted.
+are read after it, and kept in `$NSTACK_EVIDENCE` (`.evidence/e2e/`), in `logs/` with the pages'
+screenshots in `shots/`: every warning and error must be one a scenario provokes, declared with it
+in the manifest's `evidence.provoked`, and each one declared must be logged — any other fails the
+run, quoted. `nstack e2e shell` audits the same logs after the run.
 
 ## Contracts
 
