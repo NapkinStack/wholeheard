@@ -118,6 +118,16 @@ commands:
   e2e: bash scripts/e2e.sh
   clean: cargo clean
 
+# Each warning or error a scenario of the e2e provokes on purpose, as its log line says it (D29):
+# NapkinStack audits the run's logs, in $NSTACK_EVIDENCE, against it (M12).
+evidence:
+  provoked:
+    # A source that stops and comes back, twice (H), and one mute from its start (I): the gaps of
+    # zeros the remote track is filled with, each counted by its scenario.
+    - pattern: '"message":"capture\.zeros"'
+      level: warning
+      scenario: H
+
 docs:
   readme: README.md
   agents: AGENTS.md

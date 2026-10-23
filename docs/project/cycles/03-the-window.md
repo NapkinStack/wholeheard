@@ -530,7 +530,8 @@ notation, a short length, a maker not known. NapkinStack 0.14.0 audits the logs 
 version an error it does not declare (`evidence.provoked`) fails the run: that move comes next.
 Done on 2026-10-23 for the shell: its e2e writes its logs and screenshots to `$NSTACK_EVIDENCE`,
 and its manifest declares what the scenarios provoke, in place of `scripts/e2e-logged.txt`.
-Capture's e2e follows.
+Capture's too, the same day: its logs go to `$NSTACK_EVIDENCE`, and its manifest declares the
+gaps of zeros its scenarios H and I provoke.
 
 ## Out of scope
 
