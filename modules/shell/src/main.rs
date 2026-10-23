@@ -735,11 +735,10 @@ fn diagnostic(shell: State<'_, Shell>, name: String) -> Result<String, String> {
 }
 
 /// A failure of the window's page, as it reports its own (D29): an error, its kind and where in
-/// the page's code — never its sentence ([`log::page_failure`]).
+/// the page's code — never its sentence ([`log::page_failed`]).
 #[tauri::command]
 fn page_failed(kind: String, file: String, line: u32, column: u32) {
-    let (kind, file) = log::page_failure(&kind, &file);
-    tracing::error!(kind, file, line, column, "shell.page_failed");
+    log::page_failed(&kind, &file, line, column);
 }
 
 /// Opens the logs' folder in the system's file manager, made when nothing was logged yet.

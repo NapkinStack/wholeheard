@@ -88,14 +88,15 @@ pub fn without(said: &str, sessions: Option<&Path>) -> String {
     kept
 }
 
-/// What the log may hold of a failure of the window's page: its kind and the page's file it was
-/// thrown in — names of the page's code. Its sentence is never taken, which may hold a meeting's
-/// words; what is no such name is left out, empty.
-pub fn page_failure<'a>(kind: &'a str, file: &'a str) -> (&'a str, &'a str) {
+/// Logs a failure of the window's page, as it reports its own: its kind and the page's file it
+/// was thrown in — names of the page's code —, and where. Its sentence is never taken, which may
+/// hold a meeting's words; what is no such name is left out, empty.
+pub fn page_failed(kind: &str, file: &str, line: u32, column: u32) {
     let named =
         |name: &str, marks: &str| (1..=64).contains(&name.len()) && name.chars().all(|c| c.is_ascii_alphanumeric() || marks.contains(c));
     let file = file.rsplit('/').next().unwrap_or_default();
-    (if named(kind, "") { kind } else { "" }, if named(file, "._-") { file } else { "" })
+    let (kind, file) = (if named(kind, "") { kind } else { "" }, if named(file, "._-") { file } else { "" });
+    tracing::error!(kind, file, line, column, "shell.page_failed");
 }
 
 /// `info` unless `WHOLEHEARD_LOG` names a level, `off` included — or, for whoever knows them, a filter.
