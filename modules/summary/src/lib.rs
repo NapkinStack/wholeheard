@@ -124,7 +124,10 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
          A person the meeting talks about is not a participant: never give them an action.\n\
          In the transcript, \"me\" is what the recording machine's microphone heard — the \
          person who recorded and whoever sat beside them — and \"others\" is everyone heard \
-         through the machine.\n\n\
+         through the machine. These two are the transcript's words, not the meeting's: never \
+         write the words \"me\" or \"others\" in the minutes — write, in the meeting's language, \
+         the person who recorded and the other participants, or the names the meeting or the \
+         context gives.\n\n\
          The transcript was written by a speech recogniser, and holds its errors: a word heard \
          as another that sounds alike, a name or a figure misheard, a sentence written twice or \
          several times in a row, a sentence of \"others\" written again under \"me\" as an echo, \
@@ -250,6 +253,22 @@ fn not_minutes(body: &str) -> Option<String> {
     said.contains(&false).then(|| "a section is empty".into())
 }
 
+/// An answer without the one title of first level a model may write above the minutes — the
+/// habit of local models (#353): left out, never judged. Any other title stays, and is judged.
+fn without_title(body: &str) -> &str {
+    use pulldown_cmark::{Event, HeadingLevel, Parser, Tag};
+
+    match Parser::new(body).into_offset_iter().next() {
+        Some((
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H1, ..
+            }),
+            range,
+        )) if body[range.clone()].chars().any(char::is_alphanumeric) => body[range.end..].trim_start(),
+        _ => body,
+    }
+}
+
 /// A text as one YAML string: quoted, on one line, with every character a YAML reader
 /// refuses or reads otherwise written as its escape.
 fn quoted(text: &str) -> String {
@@ -274,7 +293,7 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
     // One way to end a line, before anything reads it: readers do not agree on a lone
     // carriage return, and the file is written with the line ends it was judged with.
     let unified = answer.replace("\r\n", "\n").replace('\r', "\n");
-    let body = unified.trim().trim_start_matches('\u{feff}').trim();
+    let body = without_title(unified.trim().trim_start_matches('\u{feff}').trim());
     if let Some(why) = not_minutes(body) {
         return refused("answer.not_minutes", format!("the provider's answer is not minutes: {why}"));
     }

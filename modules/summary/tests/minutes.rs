@@ -111,6 +111,8 @@ fn the_provider_is_asked_with_the_meeting_the_rules_and_the_users_context() {
         "an owner without doubt only when the meeting names them",
         "with \"probably\", or none",
         "an echo",
+        // The rehearsal of D23: an action given to "me" and "others", the transcript's words (#354).
+        "never write the words \"me\" or \"others\" in the minutes",
     ] {
         assert!(asked.contains(rule), "the request lost the rule: {rule}");
     }
@@ -319,6 +321,38 @@ fn a_transcript_only_started_or_written_on_two_lines_is_refused_for_what_it_is()
         transcript(&[r#"{"type": "segment", "speaker": "me", "start": 0.0, "end": 1.0, "text": "Bonjour."}"#])
     );
     assert_eq!(read_transcript(&marked).unwrap().len(), 1);
+}
+
+#[test]
+fn a_title_a_model_writes_above_the_minutes_is_left_out() {
+    // The rehearsal of D23: qwen3:8b titled its minutes once in two, and they were refused (#353).
+    for answer in [
+        "# Compte rendu de la réunion\n\n## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n",
+        "Compte rendu\n============\n\n## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n",
+        "\u{feff}#   **Compte rendu**  \n## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n",
+    ] {
+        let written = minutes(answer, &made(None)).unwrap_or_else(|why| panic!("refused: {answer:?} — {why:?}"));
+        let body = written.as_str().split_once("\n---\n\n").unwrap().1;
+        assert_eq!(body, "## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n", "{answer:?}");
+    }
+    // One title, above the first section, and nothing else: the rest is judged as before.
+    for (answer, expected) in [
+        (
+            "# Un\n\n# Deux\n\n## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n",
+            "a title above its sections",
+        ),
+        (
+            "# Titre\n\nVoici.\n\n## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n",
+            "does not open on its first section",
+        ),
+        ("# Titre\n\n## A\n\nx\n\n## B\n\n- a\n", "2 section(s)"),
+        ("#\n\n## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n", "a title above its sections"),
+    ] {
+        let Err(Refused(why, _)) = minutes(answer, &made(None)) else {
+            panic!("accepted: {answer:?}")
+        };
+        assert!(why.contains(expected), "{answer:?}: {why}");
+    }
 }
 
 #[test]
