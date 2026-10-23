@@ -365,7 +365,7 @@ fn unlooped(
 fn listened(sound: &[f32], hear: &mut dyn FnMut(&[f32]) -> io::Result<Vec<Segment>>) -> io::Result<Vec<Segment>> {
     let segments = hear(sound)?;
     let segments = unlooped(sound, segments, hear, AGAIN)?;
-    heard_again(
+    let mut heard = heard_again(
         sound,
         segments,
         &mut |stretch| {
@@ -373,7 +373,11 @@ fn listened(sound: &[f32], hear: &mut dyn FnMut(&[f32]) -> io::Result<Vec<Segmen
             unlooped(stretch, segments, hear, AGAIN)
         },
         AGAIN,
-    )
+    )?;
+    // What holds no letter nor digit — "..." on a track's silence — is no line (#355). Left out
+    // last: until then it stands where the engine wrote, as the loops and the stretches read it.
+    heard.retain(|segment| segment.text.chars().any(char::is_alphanumeric));
+    Ok(heard)
 }
 
 /// What a span gave, with each [`unwritten`] stretch heard again alone and put back in its
@@ -497,6 +501,22 @@ mod tests {
         let cut = cut(&tokens(&[(100, " calendrier"), (190, " ?"), (300, " Oui")]));
         let texts: Vec<&str> = cut.iter().map(|s| s.text.as_str()).collect();
         assert_eq!(texts, ["calendrier ?", "Oui"]);
+    }
+
+    #[test]
+    fn what_holds_no_word_is_no_line_of_the_transcript() {
+        // The rehearsal of D23: "..." alone, on a track's silence, shown as a line (#355).
+        let sound = voiced(10.0, 0.3, &[(3.0, 5.0)]);
+        let mut first = true;
+        let mut hear = |_: &[f32]| -> io::Result<Vec<Segment>> {
+            Ok(match std::mem::replace(&mut first, false) {
+                true => vec![wrote(0.0, 0.0, "..."), wrote(3.0, 5.0, "Oui."), wrote(8.0, 8.0, "…")],
+                false => vec![],
+            })
+        };
+        let heard = listened(&sound, &mut hear).unwrap();
+        let texts: Vec<&str> = heard.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(texts, ["Oui."]);
     }
 
     #[test]
