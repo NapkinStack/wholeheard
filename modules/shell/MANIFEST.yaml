@@ -206,6 +206,40 @@ commands:
   e2e: bash scripts/e2e.sh
   clean: cargo clean
 
+# Each warning or error a scenario of the e2e provokes on purpose, as its log line says it (D29).
+# Any other warning or error logged fails the run, and so does one declared and never logged
+# (scripts/e2e_logs.py); NapkinStack audits the same logs, in $NSTACK_EVIDENCE (M12).
+evidence:
+  provoked:
+    # The played recorder says the output has no device left (D31), at each of its starts: A, B, C, F, G, M, S.
+    - pattern: '"message":"shell\.recording_lost"'
+      level: warning
+      scenario: A
+    # No recorder where Wholeheard looks for one.
+    - pattern: '"message":"shell\.recording_failed"'
+      level: error
+      scenario: D
+    # The played engine fails once; the window's N has a transcript redone that fails.
+    - pattern: '"message":"shell\.transcript_failed"'
+      level: error
+      scenario: F
+    # What is fetched is not the published model, and is removed.
+    - pattern: '"message":"shell\.model_fetch_failed"'
+      level: error
+      scenario: G
+    # The settings name a provider that is no address.
+    - pattern: '"message":"shell\.minutes_refused"'
+      level: warning
+      scenario: M
+    # Tester, a service that refuses the key.
+    - pattern: '"message":"shell\.test_failed"'
+      level: error
+      scenario: K
+    # The played summary answers no minutes.
+    - pattern: '"message":"shell\.minutes_failed"'
+      level: error
+      scenario: N
+
 docs:
   readme: README.md
   agents: AGENTS.md

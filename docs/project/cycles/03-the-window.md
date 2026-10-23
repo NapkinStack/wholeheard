@@ -528,6 +528,9 @@ of cycle, #347 fixed what those screenshots showed wrong (#312): the shortcut in
 notation, a short length, a maker not known. NapkinStack 0.14.0 audits the logs of
 `$NSTACK_EVIDENCE` too. The shell's e2e does not write there yet, and from the next minor
 version an error it does not declare (`evidence.provoked`) fails the run: that move comes next.
+Done on 2026-10-23 for the shell: its e2e writes its logs and screenshots to `$NSTACK_EVIDENCE`,
+and its manifest declares what the scenarios provoke, in place of `scripts/e2e-logged.txt`.
+Capture's e2e follows.
 
 ## Out of scope
 
