@@ -10,6 +10,8 @@ cd "$(dirname "$0")/.."
 mkdir -p .evidence
 : > .evidence/e2e.txt
 say() { echo "$*" | tee -a .evidence/e2e.txt; }
+# The run's logs, where NapkinStack reads them after it (nstack e2e capture).
+evidence=${NSTACK_EVIDENCE:-$PWD/.evidence/e2e}
 
 if ! command -v pactl >/dev/null || ! pactl info >/dev/null 2>&1; then
   say "e2e: NOT RUN — no sound server here"; exit 0
@@ -34,8 +36,9 @@ if [ "$(cut -d. -f1 /proc/loadavg)" -ge "$quiet" ]; then
 fi
 bin=${CARGO_TARGET_DIR:-$PWD/target}/release/wholeheard-capture   # where cargo built it
 work=$(mktemp -d)
-# Its logs in the run's folder, never the user's (ADR-0007).
-export WHOLEHEARD_LOG_DIR="$work/logs"
+# Its logs in the run's evidence, this run's alone, never the user's (ADR-0007).
+export WHOLEHEARD_LOG_DIR="$evidence/logs"
+rm -rf "$WHOLEHEARD_LOG_DIR"
 # A run that was killed outright could not put anything back: its devices are removed first,
 # and the system falls back on its own.
 for stale in $(pactl list short modules | awk '/wholeheard_e2e_/ {print $1}'); do
@@ -66,9 +69,9 @@ measure() { python3 scripts/e2e_measure.py "$@" 2>&1 | tee -a .evidence/e2e.txt;
 # Whether the run of an id logged these steps, in this order among its own, no level, and never a path of the run's folder.
 logged() {
   python3 - "$work" "$@" <<'PY'
-import json, pathlib, sys
+import json, os, pathlib, sys
 work, trace, wanted = sys.argv[1], sys.argv[2], sys.argv[3:]
-text = "".join(path.read_text() for path in sorted(pathlib.Path(work, "logs").glob("capture.*.jsonl")))
+text = "".join(path.read_text() for path in sorted(pathlib.Path(os.environ["WHOLEHEARD_LOG_DIR"]).glob("capture.*.jsonl")))
 steps = [line["message"] for line in map(json.loads, text.splitlines()) if line.get("span", {}).get("trace") == trace]
 mine = iter(steps)
 # The levels, ten a second, are said to the shell and never logged.
@@ -143,9 +146,9 @@ tone 440 40 "$work/me.wav"; tone 880 8 "$work/others-a.wav"; tone 880 8 "$work/o
 # How many gaps of zeros the run of an id logged — and where the first was, in seconds.
 zeros() {
   python3 - "$work" "$@" <<'PY'
-import json, pathlib, sys
+import json, os, pathlib, sys
 work, trace, count = sys.argv[1], sys.argv[2], int(sys.argv[3])
-lines = [json.loads(line) for path in pathlib.Path(work, "logs").glob("capture.*.jsonl") for line in path.read_text().splitlines()]
+lines = [json.loads(line) for path in pathlib.Path(os.environ["WHOLEHEARD_LOG_DIR"]).glob("capture.*.jsonl") for line in path.read_text().splitlines()]
 gaps = [line for line in lines if line.get("span", {}).get("trace") == trace and line["message"] == "capture.zeros"]
 first = float(sys.argv[4]) if len(sys.argv) > 4 else None
 ok = len(gaps) == count and all(gap["track"] == "remote" for gap in gaps) and (first is None or abs(gaps[0]["at"] - first) < 0.5)
