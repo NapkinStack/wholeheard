@@ -1309,6 +1309,24 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_element(By.ID, "weight").is_displayed())
         one = browser.find_element(By.ID, "taken").text
         check("one meeting is said in the singular", one == "taken by 1 meeting · 10 min of audio", one)
+        # A failure of the page's own, thrown and rejected: logged by the shell (declared in the
+        # manifest), its kind and where — never its sentence.
+        browser.execute_script(
+            "class ScenarioI extends Error { name = 'ScenarioI' }"
+            " setTimeout(() => { throw new ScenarioI('Réunion avec Paul-Scenario') });"
+            " setTimeout(() => Promise.reject(new ScenarioI('Réunion avec Paul-Scenario')))")
+        logs = WORK / "state" / "wholeheard" / "logs"
+        logged = lambda: "".join(p.read_text() for p in logs.glob("shell.*.jsonl")).count('"shell.page_failed"')
+        wait_for(browser, lambda b: logged() >= 2, 10)
+        text = "".join(p.read_text() for p in logs.glob("shell.*.jsonl"))
+        check("the page's failures reach the log, never their sentence", logged() >= 2 and "Paul-Scenario" not in text)
+        # What the notification plugin's own script asks at each page's start is answered: refused,
+        # it failed every page, a rejection nobody catches.
+        asked = browser.execute_async_script(
+            "const done = arguments[arguments.length - 1];"
+            " window.__TAURI_INTERNALS__.invoke('plugin:notification|is_permission_granted')"
+            ".then(() => done('answered'), (why) => done('refused: ' + why))")
+        check("the notification plugin's question at a page's start is answered", asked == "answered", asked)
 
     print("R. a meeting listened to, its words following (D26) — muted: nothing reaches the speakers")
     listening = WORK / "listening"

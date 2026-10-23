@@ -2,6 +2,18 @@
 // reads nothing itself and changes nothing; it asks again whenever the window comes forward.
 "use strict";
 
+// A failure of the page's own reaches the shell's log (D29): its kind and where it was thrown —
+// never its sentence, which may hold a meeting's words. A rejection says where from its stack.
+function pageFailed(error, file, line, column) {
+  const kind = error instanceof Error ? error.name : "";
+  window.__TAURI__.core.invoke("page_failed", { kind, file: file || "", line: line || 0, column: column || 0 }).catch(() => {});
+}
+window.addEventListener("error", (event) => pageFailed(event.error, event.filename, event.lineno, event.colno));
+window.addEventListener("unhandledrejection", (event) => {
+  const at = /([^\s@()]*):(\d+):(\d+)/.exec(event.reason instanceof Error ? event.reason.stack || "" : "");
+  pageFailed(event.reason, at?.[1], Number(at?.[2]), Number(at?.[3]));
+});
+
 const fill = (template, ...values) => values.reduce((text, value) => text.replace("{}", value), template);
 
 function size(bytes, words) {

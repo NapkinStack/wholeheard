@@ -239,6 +239,10 @@ evidence:
     - pattern: '"message":"shell\.minutes_failed"'
       level: error
       scenario: N
+    # A failure of the page's own, thrown then rejected; any other kind of the page's is not provoked.
+    - pattern: '^(?=.*"message":"shell\.page_failed")(?=.*"kind":"ScenarioI")'
+      level: error
+      scenario: I
 
 docs:
   readme: README.md
