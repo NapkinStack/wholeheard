@@ -127,6 +127,9 @@ start fr_FR.UTF-8 "transcript = false" "$work/wholeheard-capture"
 check is "$(labels)" "Ouvrir Wholeheard|Démarrer l’enregistrement|Transcrire le dernier enregistrement|Faire le compte rendu du dernier enregistrement|Quitter Wholeheard"
 # A window is a web view, a process of WebKit's under Wholeheard: none before the user asks.
 check is "$(windows)" 0
+# Started with the user's session from its first start, in the tray alone (D32).
+check grep -qx 'Exec=wholeheard' "$work/config/autostart/dev.wholeheard.Wholeheard.desktop"
+check grep -qx 'autostart = true' "$work/config/wholeheard/settings.toml"
 click 2; sleep 2
 check test "$(windows)" -ge 1
 click 4                                           # no session yet: said, nothing heard
