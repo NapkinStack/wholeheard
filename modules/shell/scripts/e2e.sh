@@ -17,7 +17,7 @@ mkdir -p "$evidence"
 
 watcher="org.kde.StatusNotifierWatcher /StatusNotifierWatcher org.kde.StatusNotifierWatcher"
 if ! command -v busctl >/dev/null || ! busctl --user get-property $watcher RegisteredStatusNotifierItems >/dev/null 2>&1; then
-  say "e2e: NOT RUN — no desktop session that shows tray items here"; exit 0
+  say "e2e: NOT RUN — no desktop session that shows tray items here"; exit 77
 fi
 # The user's own Wholeheard shares the desktop's bus and microphones: it would be offered the
 # run's calls, and take its clicks into its own settings (D23's trial, 2026-10-24).
