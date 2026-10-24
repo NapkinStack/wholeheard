@@ -138,6 +138,7 @@ check grep -qx 'Exec=wholeheard' "$work/config/autostart/dev.wholeheard.Wholehea
 check grep -qx 'autostart = true' "$work/config/wholeheard/settings.toml"
 # Started again that way while it runs: one Wholeheard, and still no window (D35, #386).
 again
+sleep 2                                           # as long as a window takes to open, below
 check is "$(windows)" 0
 # From the applications' menu, while it runs: the running one shows its window, the second leaves.
 check grep -qx 'Exec=wholeheard --window' linux/dev.wholeheard.Wholeheard.desktop

@@ -102,7 +102,7 @@ WHOLEHEARD_CAPTURE=$PWD/modules/capture/target/release/wholeheard-capture \
 | The shortcut | The desktop grants it to an application it can find: a desktop entry of Wholeheard's name in the user's `applications` folder, **whose `Exec` line is the program's whole path** — the desktop reads no entry whose program it cannot find, and says so as "App info not found". The line under the table installs it. Then start Wholeheard again and accept the desktop's question. Refused, Wholeheard says so once; the menu still does the same |
 
 ```bash
-sed "s#^Exec=.*#Exec=$PWD/modules/shell/target/release/wholeheard#" modules/shell/linux/dev.wholeheard.Wholeheard.desktop \
+sed "s#^Exec=wholeheard#Exec=$PWD/modules/shell/target/release/wholeheard#" modules/shell/linux/dev.wholeheard.Wholeheard.desktop \
   > "${XDG_DATA_HOME:-$HOME/.local/share}/applications/dev.wholeheard.Wholeheard.desktop"
 ```
 
