@@ -85,7 +85,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         (Said::Started(..), _) if !reminder => return None,
         (Said::Heard(_) | Said::Level(..), _) => return None,
         // The microphone is named, so that one other than the call's shows at once.
-        (Said::Started(_, microphone), English) => {
+        (Said::Started(_, microphone, _), English) => {
             let named = microphone
                 .as_ref()
                 .map(|name| format!("Microphone recorded: {name}. "))
@@ -95,7 +95,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
                 format!("{named}Tell the participants that this meeting is being recorded."),
             );
         }
-        (Said::Started(_, microphone), French) => {
+        (Said::Started(_, microphone, _), French) => {
             let named = microphone
                 .as_ref()
                 .map(|name| format!("Micro enregistré\u{a0}: {name}. "))

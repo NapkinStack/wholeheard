@@ -31,7 +31,7 @@ use wholeheard_shell::{
     model::{self, Published},
     player,
     providers::{self, Online},
-    recording::{Recording, Said, Source},
+    recording::{self, Recording, Said, Source},
     sessions::{self, Listed},
     settings::{self, After, KeepAudio, Log, Settings},
     summarising::{self, Summarising},
@@ -79,6 +79,8 @@ struct Shell {
     hearing: Mutex<Option<PathBuf>>,
     /// The recording's meter, for the small window: when it started, and each source's level now.
     meter: Mutex<(Option<Instant>, [f32; 2])>,
+    /// What the recording running is recorded from, for the small window (D33).
+    devices: Mutex<recording::Devices>,
     /// The list's small reliefs, by transcript, kept until it changes.
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
@@ -289,6 +291,7 @@ fn main() {
                 minuting: Mutex::new(None),
                 shapes: Mutex::new(HashMap::new()),
                 meter: Mutex::new((None, [0.0, 0.0])),
+                devices: Mutex::new(recording::Devices::default()),
                 redoing: Mutex::new(None),
                 hearing: Mutex::new(None),
                 writing_minutes: Mutex::new(None),
@@ -632,6 +635,8 @@ struct Now {
     recording: bool,
     seconds: f64,
     levels: [f32; 2],
+    /// The microphone and the output recorded now, as the system names them (D33).
+    devices: [Option<String>; 2],
     /// Whether the transcript is made at the stop, by itself: the small window says so then only.
     transcript_follows: bool,
 }
@@ -643,6 +648,7 @@ fn recording_now(shell: State<'_, Shell>) -> Now {
         recording: shell.recording.lock().unwrap().is_some() && started.is_some(),
         seconds: started.map_or(0.0, |started| started.elapsed().as_secs_f64()),
         levels,
+        devices: shell.devices.lock().unwrap().names(),
         transcript_follows: shell.settings.lock().unwrap().after != settings::After::Nothing,
     }
 }
@@ -1780,7 +1786,8 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     let mut sides = words::Sides::default();
     for event in said {
         started |= matches!(event, Said::Started(..));
-        if let Said::Started(folder, _) = &event {
+        shell.devices.lock().unwrap().heard(&event);
+        if let Said::Started(folder, ..) = &event {
             *shell.recorded.lock().unwrap() = Some(folder.clone());
             *shell.meter.lock().unwrap() = (Some(Instant::now()), [0.0, 0.0]);
         }
@@ -1805,6 +1812,7 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     }
     shell.recorded.lock().unwrap().take();
     *shell.meter.lock().unwrap() = (None, [0.0, 0.0]);
+    *shell.devices.lock().unwrap() = recording::Devices::default();
     // The small window has nothing left to show: it closes, as the board has it.
     if let Some(small) = app.get_webview_window("small") {
         let _ = small.close();

@@ -211,7 +211,8 @@ commands:
 # (scripts/e2e_logs.py); NapkinStack audits the same logs, in $NSTACK_EVIDENCE (M12).
 evidence:
   provoked:
-    # The played recorder says the output has no device left (D31), at each of its starts: A, B, C, F, G, M, S.
+    # The played recorder says the output has no device left (D31), at each of its starts: A, B, C, F, G, M, S;
+    # and the window's Q, when it asks (D33).
     - pattern: '"message":"shell\.recording_lost"'
       level: warning
       scenario: A

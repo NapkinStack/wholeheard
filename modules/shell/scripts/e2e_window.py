@@ -82,6 +82,9 @@ echo '{"event":"started","folder":"'"$folder"'","sources":{"me":"Mic","others":"
 n=0
 while ! read -t 0.1 line; do
   n=$((n + 1)); echo '{"event":"level","source":"me","level":0.'$((n % 9 + 1))'}'; echo '{"event":"level","source":"others","level":0.5}'
+  # A device changed, or gone, when the scenario says so (D31, D33).
+  if [ -e "$2/move" ]; then rm "$2/move"; echo '{"event":"device","source":"me","device":"AirPods Pro"}'; fi
+  if [ -e "$2/lose" ]; then rm "$2/lose"; echo '{"event":"device","source":"others","device":null}'; fi
 done
 printf '{"contract":"session-audio/v2","started":"2026-10-18T12:00:00+02:00","stopped":"2026-10-18T12:00:05+02:00","tracks":{}}' > "$folder/session.json"
 echo '{"event":"stopped","folder":"'"$folder"'","seconds":5.0}'
@@ -1309,6 +1312,15 @@ def main() -> int:
         clock = browser.find_element(By.CSS_SELECTOR, "#small .time").text
         check("it shows the time recorded and the levels, moving as sound comes", clock.startswith("00:00:0") and clock != "00:00:00" and len(moving) > 1, (clock, moving))
         check("the meeting's level too", "50%" in browser.find_element(By.ID, "level-others").get_attribute("style"))
+        # What each side is recorded from, named under its level, and followed (D33).
+        named = lambda b: (b.find_element(By.ID, "device-me").text, b.find_element(By.ID, "device-others").text)
+        check("it names the microphone and the output recorded", named(browser) == ("Mic", "Speaker"), named(browser))
+        (taping / "move").touch()
+        moved = wait_for(browser, lambda b: named(b) == ("AirPods Pro", "Speaker"), 1.5)
+        (taping / "lose").touch()
+        lost = wait_for(browser, lambda b: named(b) == ("AirPods Pro", ""), 1.5)
+        check("a device changed is named within a second; a side with none names none", moved and lost, named(browser))
+        shot(browser, "6-small-devices")
         check("nothing follows the stop here: the small window does not say the transcript writes itself", not browser.find_element(By.CSS_SELECTOR, "#small .says").is_displayed())
         stop_from_small(browser)
         browser.switch_to.window(main)
