@@ -126,7 +126,7 @@ deliverables:
   - id: D33
     title: "While recording, the small window names the microphone and the output recorded, as they change"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a recording, when the small window is open, then under Votre micro and La réunion it names the device each is recorded from, as the system names it"
       - "Given a recording, when the system's microphone or output changes — a headset plugged, earbuds put in, the built-in microphone chosen again —, then the small window names the new device within a second; when a side has no device, it names none"
@@ -581,6 +581,10 @@ user switch il peut se poser la question de se dire si son switch est bien pris 
 then "oui D33". D31 tells a change; nothing names what is recorded while nothing changes. The
 capture already says each device (`recording/v1`, `started` and `device`); the shell shows
 them in the small window (board 6), under each level. The end date does not move.
+
+**Built (2026-10-24), verified by an independent session; acceptance is the decider's, with
+earbuds put in while recording (D23):** #375 — the device each side is recorded from, as capture
+says it at `started` and on each `device`, named under its level; none named when a side has none.
 
 ## Out of scope
 
