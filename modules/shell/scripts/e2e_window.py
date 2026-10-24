@@ -1461,11 +1461,16 @@ def main() -> int:
         lasts = wait_for(browser, lambda b: b.execute_script("return document.querySelector('audio.track')?.duration || 0") > 0, 10)
         length = browser.execute_script("return document.querySelector('audio.track').duration || 0")
         check("the sound lasts to the end of the last track", lasts and abs(length - 7.5) < 0.05, length)
+        # The lines below the window's edge, the page at its top: playing moves nothing (the decider, 2026-10-24).
+        browser.execute_script("document.querySelector('#meeting .columns').style.marginTop = '2000px'; window.scrollTo(0, 0)")
         press(browser, "play")
         moving = wait_for(browser, lambda b: at(b) > 1.9, 10)
         check("Écouter plays the meeting", moving and playing(browser))
         marked = wait_for(browser, lambda b: b.execute_script("return document.querySelector('.lines li.now')?.dataset.start") == "0.4", 5)
         check("the line being said is marked", marked, browser.execute_script("return document.querySelector('.lines li.now')?.textContent"))
+        still = browser.execute_script("return [window.scrollY, document.querySelector('.lines li.now').getBoundingClientRect().top > window.innerHeight]")
+        check("the page stays where the user left it: the line marked is not brought into view", still == [0, True], still)
+        browser.execute_script("document.querySelector('#meeting .columns').style.marginTop = ''")
         shot(browser, "10-playing")
         lasting = browser.find_element(By.CSS_SELECTOR, "#meeting .length").text
         check("a meeting under a minute says its seconds (#312)", lasting == "6 s", lasting)

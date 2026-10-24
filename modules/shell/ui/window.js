@@ -810,7 +810,8 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
   page.dataset.name = nameOf(session);
   page.replaceChildren(top, title, drawn, columns);
-  // The line being said, marked and kept in view while it plays (D26).
+  // The line being said, marked while it plays; the page stays where the user left it (D26, the
+  // decider, 2026-10-24: following the line was intrusive).
   if (player?.name === nameOf(session)) {
     const lines = [...page.querySelectorAll(".lines li")];
     let marked = null;
@@ -822,7 +823,6 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
       if (now === marked) return;
       marked?.classList.remove("now");
       now?.classList.add("now");
-      if (now && followed.playing()) now.scrollIntoView({ block: "nearest" });
       marked = now;
     });
     followed.listeners.forEach((listener) => listener(followed.time()));
