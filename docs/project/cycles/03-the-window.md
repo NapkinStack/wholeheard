@@ -134,7 +134,7 @@ deliverables:
   - id: D34
     title: "Spike — Wholeheard opens small: the small window at rest, drawn before it is built, and the way to the full window"
     module: null
-    state: ready
+    state: in-progress
     acceptance:
       - "Given the small window as board 6 drew it for a recording, when it is drawn at rest — what opens when the user opens Wholeheard from the applications' menu or the tray; what it shows and lets do with no recording, drawn with the framer's proposals for the open questions the section names; the way to the full window and back — in a light and a dark theme, then the decider sees the drawings and says what they change"
       - "Given the open questions the section names, when the decider answers them on the drawings, then each answer is recorded beside its question"
@@ -649,6 +649,10 @@ Open questions, for the decider on the drawings:
 - What the small window at rest holds beyond *Enregistrer*: the last meeting and where it stands,
   what the meetings weigh, a reminder of the shortcut?
 - Does it stay above the other windows, as while recording (board 6)?
+
+**Drawn (2026-10-24), first round:** [the small window at rest](../drawings/d34-the-small-window-at-rest/README.md),
+light and dark, with the framer's proposals beside each open question; shown to the decider, their
+word owed.
 
 ## Out of scope
 
