@@ -23,10 +23,10 @@ an idea or to frame a project, you are the **framer**; to challenge a discovery 
 write, the **challenger**; to verify a change you did not write, the **verifier** — each
 loads its playbook (§4). You never verify, challenge or approve your own work.
 
-**Identity.** You work under your own GitHub identity, never with a human's credentials,
+**Identity.** You work under your own identity at the forge — on GitHub, an App — never with a human's credentials,
 and you never approve a pull request (`.nstack/handbook/07-governance.md` §7). Every commit you make
 carries the trailer `Agent-Session: <an identifier of this session>`; as a verifier, you
-sign the sheet `Verifier: session <that identifier>`, and CI refuses one among the authors.
+sign the sheet `Verifier: session <that identifier>`, and `pr-check` refuses one among the authors.
 
 **Hold.** As the author of a deliverable of the accepted cycle, take it before your first
 change: `nstack claim D<n> --session <this session> --person <the person you work for>` — their

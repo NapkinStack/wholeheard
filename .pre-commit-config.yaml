@@ -2,7 +2,8 @@
 # Bypassable (--no-verify), therefore never a guarantee: CI runs the same
 # configuration (the "Hooks and secrets" job). Install with: pre-commit install
 #
-# Updates: Dependabot (.github/dependabot.yml). It does not know the version of
+# Updates: Dependabot on GitHub (.github/dependabot.yml), by hand elsewhere; off GitHub the
+# hooks on GitHub's files find none: skipped, or passed. Dependabot does not know the version of
 # gitleaks-history: align it with the one of the gitleaks hook.
 # pre-commit autoupdate only sees tags on the default branch: do not use it.
 
