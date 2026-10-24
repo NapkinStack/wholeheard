@@ -1313,7 +1313,8 @@ def main() -> int:
         check("it shows the time recorded and the levels, moving as sound comes", clock.startswith("00:00:0") and clock != "00:00:00" and len(moving) > 1, (clock, moving))
         check("the meeting's level too", "50%" in browser.find_element(By.ID, "level-others").get_attribute("style"))
         # What each side is recorded from, named under its level, and followed (D33).
-        named = lambda b: (b.find_element(By.ID, "device-me").text, b.find_element(By.ID, "device-others").text)
+        # Read from the page: WebKitWebDriver leaves this line out of an element's text, though drawn (shot 6-small-devices).
+        named = lambda b: tuple(b.execute_script("return ['device-me', 'device-others'].map(id => document.getElementById(id).textContent)"))
         check("it names the microphone and the output recorded", named(browser) == ("Mic", "Speaker"), named(browser))
         (taping / "move").touch()
         moved = wait_for(browser, lambda b: named(b) == ("AirPods Pro", "Speaker"), 1.5)
@@ -1343,7 +1344,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop"))
         time.sleep(1)
         fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
-        said = browser.find_element(By.CSS_SELECTOR, "#small .said").text
+        said = browser.find_element(By.CSS_SELECTOR, "#small .said .name").text
         check("in English too, it holds in its window", said == "Your microphone" and fits[0] <= fits[1], (said, fits))
         starts = browser.execute_script("return [...document.querySelectorAll('#small .track')].map(t => t.getBoundingClientRect().left)")
         check("the two meters start at the same place", len(starts) == 2 and starts[0] == starts[1], starts)

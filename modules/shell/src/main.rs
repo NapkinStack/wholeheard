@@ -668,7 +668,8 @@ fn small_window(app: AppHandle, shell: State<'_, Shell>) {
     }
     let _ = WebviewWindowBuilder::new(&app, "small", WebviewUrl::App("index.html#/small".into()))
         .title("Wholeheard")
-        .inner_size(380.0, 260.0)
+        // Tall enough for each level under the device it is recorded from (D33).
+        .inner_size(380.0, 300.0)
         .resizable(false)
         .always_on_top(true)
         .build();
