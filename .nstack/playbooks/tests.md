@@ -56,8 +56,15 @@ reads the log files the run wrote there:
   warning fails from criticality `high` and is reported below. The first NapkinStack version that
   brings the audit only reports; the project's next minor version judges.
 - **Declare** what the scenarios provoke on purpose, in the manifest — a pattern, its level, the
-  scenario that provokes it (M12). A line a scenario *expects* is asserted by the scenario; a
-  warning or an error it *provokes* is declared in the manifest — never both.
+  scenario that provokes it (M12). The manifest is the one place the audit reads: a warning or
+  an error a scenario provokes is declared there, even when the scenario asserts it too. A module
+  that declares lines and whose run wrote no log into `$NSTACK_EVIDENCE` fails when judged — they
+  were checked against nothing.
+- **Not run here.** A run that cannot run on this machine — no desktop, no sound server — says
+  why on its output and exits 77, the code Automake and Meson read as a skipped test: the run is
+  recorded *not run here*, what it logged is shown and nothing judged, and it passes. Exit 0 means
+  it ran; 77 for any other reason — some tools use it for a refused permission — reads as *not
+  run*, so a run that fails exits with another code.
 
 ```yaml
 evidence:

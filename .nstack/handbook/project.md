@@ -101,7 +101,7 @@ With several contributors, a deliverable is **held** before its first change, so
 them never deliver it twice:
 
 ```bash
-nstack claim D30 --person @alice --session <session>   # held; its first work branch d30-… made
+nstack claim D30 --person @alice --session <session>   # held; its first work branch d30-… made, unless one exists
 nstack plan                                             # who holds what, since when; what is stale
 nstack unclaim D30                                      # given back: by its holder, the decider, anyone once stale
 nstack claim D30 --take-over                            # a hold nobody worked on for hold_days

@@ -13,6 +13,12 @@ on:
 permissions:
   contents: read
 
+# Each event's run reads the description and the head as they were at that event: a later event
+# of the same pull request cancels the earlier run, so the verdict shown is the last one's.
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   description:
     name: Test sheet and cycle

@@ -57,4 +57,12 @@ Desktop.ini
 id_rsa*
 id_ed25519*
 .envrc
-secrets.*
+# Secret files by their data formats, never secrets.*: where git ignores case, as on macOS,
+# that also left out source code such as Secrets.swift.
+secrets.env
+secrets.json
+secrets.yaml
+secrets.yml
+secrets.toml
+secrets.ini
+secrets.txt

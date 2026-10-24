@@ -55,7 +55,9 @@ You verify on someone's machine, beside work that goes on. Leave it as you found
    - *automated* — the module's `e2e` verb, or its `test` verb when it declares no `e2e`;
      the evidence is the CI run on the head commit, or its artefact — for a change to a
      visible surface, read the run's screenshots and logs (`.evidence/e2e/`, its `audit.json`)
-     and cite what they showed: never "rendering not seen" on a scenario passed;
+     and cite what they showed: never "rendering not seen" on a scenario passed. An audit
+     `not run` (exit 77) ran no scenario: each one it stood for is *not verified*, or run where
+     it can run;
    - *explored* — drive the interface yourself, in a browser, an emulator or on a device,
      with the tools of the tooling profile; capture the screen at the step that proves the
      result;
@@ -75,6 +77,21 @@ You verify on someone's machine, beside work that goes on. Leave it as you found
    it?** A suite that always passes what the user never passes is green on a path nobody takes.
 6. **Report** the failures first — observed, expected, evidence — then any optional
    remark, marked as such.
+
+### Mutants
+
+To show that a test pins what it claims, change the code it claims to pin and watch it fail — a
+mutant. A mutant can make the code loop forever, so it is never run unbounded:
+
+- **The language's tool first**, rather than a loop of your own: `cargo-mutants` (Rust; `--file`
+  to aim it, `--timeout` to bound it), `mutmut` (Python), Stryker (JavaScript, TypeScript, C#,
+  Scala), PIT (Java).
+- **By hand**, one mutant per run, each run under a time limit — `timeout 120 <the module's test
+  command>`; a timeout counts as killed: the mutant changed what the code does.
+- **The source restored on every exit**, not only at the end — `trap 'git checkout -- <file>'
+  EXIT`, or mutate in a throwaway worktree.
+- **Report the counts** — killed, survived, timed out — and each survivor with its line: a
+  survivor is a test that does not pin what it claims.
 
 ---
 

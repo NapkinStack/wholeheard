@@ -288,10 +288,16 @@ run that fails when a commit reached the protected branch outside a pull request
 record, not a barrier, and it is worth exactly what a record is worth: the thing nobody would
 otherwise have been told. Reading it as a guarantee is the mistake it exists to prevent.
 
+**Off GitHub**, this version reads none of the forge's settings and ships no CI there: `doctor`
+lists what the forge should refuse, never reports it in place, and says the repository
+*unguarded*; each change's checks are attested; the record of commits on main does not run. The
+forge's own protections still hold — set them as `INSTALL.md` lists them — but nothing here
+vouches for them. With no forge at all, nothing refuses a change but the team.
+
 **And when the forge cannot run the checks.** A runner down, the hosted minutes spent, a team
 that works off the forge: the checks still run, where the team works. `nstack attest` runs the
 CI's own checks — one list, bound to the workflows by a test — on a clean head, and records the
-run on the commit in git (`refs/notes/nstack/checks`, pushed with the branch), shown on GitHub
+run on the commit in git (`refs/notes/nstack/checks`, pushed with the branch), shown — on GitHub only —
 as `nstack / local checks`, a name no CI job has. Such a change is **attested**, never
 *checked*: the record makes a claim traceable — who ran it, on which commit, with what output
 — not true. Whether a record stands in for the forge's CI is the decider's word, the project's
@@ -300,14 +306,22 @@ requires a complete, passed record of the head (A1, A2). Where the answer is `fo
 information, and on a guarded repository the forge's required checks stay the barrier — a
 decider who wants the record to gate a protected branch requires its name at the forge.
 
+The record names who ran it, as git would sign a commit made in that checkout, and travels to the
+remote with the notes: it never publishes an address the project's history does not already show.
+A checkout whose identity is unknown there — a fresh clone falls back on the workstation's own,
+often personal — is refused before any check runs; set the checkout's identity, or, for a first
+record of a new contributor, `nstack attest --accept-identity`. GitHub's noreply address is always
+accepted, and enough. A repository with no remote is never refused: nothing travels.
+
 ### Agents and approval
 
 A pull request's author cannot approve it. An agent working with a human's credentials
 *is* that human: it can approve a colleague's pull request in their name, then merge. Four
 settings close that door, and they only hold together:
 
-1. **The agent has its own identity** — a GitHub App installed on the repository: tokens
-   that expire within the hour, never the Administration permission. Its session reaches
+1. **The agent has its own identity** — on GitHub, an App installed on the repository: tokens
+   that expire within the hour, never the Administration permission; elsewhere, a bot account
+   with the same limits. Its session reaches
    no human credential — no SSH key, token or command-line login of a human — through a
    sandbox, a container or a dedicated system user.
 2. **The merge requires a human code owner's approval**, and `CODEOWNERS` starts with a

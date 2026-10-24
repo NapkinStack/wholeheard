@@ -303,7 +303,8 @@ criticality are read before and after the change, and the stricter applies:
 - **Run by a verifier who is not the author**: another agent session with a fresh
   context, or a human (`.nstack/playbooks/verification.md`). The session that wrote the code
   shares its misunderstandings. CI compares the verifier's name with the change's authors —
-  the pull request's, the commits' GitHub accounts (read from their noreply addresses), and
+  the pull request's, the commits' GitHub accounts (read from their noreply addresses; off GitHub
+  no other address names a person), and
   the sessions their `Agent-Session` trailers name — and refuses a match: a declaration
   checked against the history, not a proof of identity.
 - **No result without evidence**, tied to the commit tested. A new commit does not send the
@@ -326,7 +327,8 @@ criticality are read before and after the change, and the stricter applies:
   the reason, listed apart for the approver.
 - **A scenario that waits on a person** — a device, a real call, a colleague's machine — is
   not asked in a conversation, which nobody finds again, nor left in a pull request held open
-  for days. It is asked in an **acceptance issue** (`.github/ISSUE_TEMPLATE/`), assigned to
+  for days. It is asked in an **acceptance issue** (on GitHub, its form in `.github/ISSUE_TEMPLATE/`;
+  elsewhere an issue of the forge, or the team's tracker), assigned to
   whoever runs it; their answer is a comment, and the sheet's Evidence cell links it. The same
   issue serves a deliverable several pull requests deliver: it says which criterion each
   sheet holds, and which nobody holds yet. It copies no criterion and sets no state — both
