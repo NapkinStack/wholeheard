@@ -217,6 +217,19 @@ setting or to rewrite a ruleset:
 nstack settings
 ```
 
+Or have it make them, in one gesture of yours, under a token of yours that you revoke afterwards — a
+fine-grained token limited to the repository, Administration: write and Issues: write. Never
+your agent's: a credential that administers a repository can always give itself the right to
+push, so this gesture stays a person's — it refuses a GitHub App's token, and CI. Run it in
+your own terminal, never through your agent's session, and keep the token out of your
+history:
+
+```bash
+read -rs GH_TOKEN && export GH_TOKEN   # paste the token: it is neither shown nor kept
+nstack settings --apply                # each change printed, then nstack doctor reads the result
+unset GH_TOKEN                         # then revoke the token at the forge
+```
+
 Then check, read-only:
 
 ```bash
@@ -269,7 +282,7 @@ nstack claim D<n> --session <s> --person @<you>   # takes a deliverable before i
 nstack board [--dry-run]   # the cycles shown on GitHub as milestones and issues — CI runs it on every merge
 nstack skills        # generates the Claude Code skills from the playbooks
 nstack doctor        # the workstation and the forge's settings, read-only
-nstack settings      # the calls that would bring the forge's settings to the checklist
+nstack settings      # the calls that would bring the forge's settings to the checklist; --apply: yours makes them
 nstack new-module <name> <owner> <criticality> [--user-facing]   # --user-facing: a user sees it, which decides a test sheet
 nstack new-contract <name>   # a contract, and the first time the module that holds them all
 nstack check [module]   # the module's commands.check; default: every module
