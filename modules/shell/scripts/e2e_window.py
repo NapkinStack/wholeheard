@@ -1524,17 +1524,19 @@ def main() -> int:
         browser.execute_script("location.hash = '#/meeting/2026-10-19_07-00'")
         unread = wait_for(browser, lambda b: b.find_elements(By.ID, "no-player") and "ne s’écoute pas ici" in b.find_element(By.ID, "no-player").text, 10)
         check("a track no player reads is said not playable here", unread)
+        # The page before stays drawn until the next one is: its sentence is waited for, read in
+        # the page at once — an element found then read may be the page before's, drawn again.
+        no_player = "return document.getElementById('no-player')?.innerText || ''"
         browser.execute_script("location.hash = '#/meeting/2026-10-19_09-00'")
-        none = wait_for(browser, lambda b: b.find_elements(By.ID, "no-player"), 10)
+        none = wait_for(browser, lambda b: "libéré" in b.execute_script(no_player), 10)
         check("a meeting whose audio was freed has no player, and says why",
-              none and not browser.find_elements(By.ID, "play") and "libéré" in browser.find_element(By.ID, "no-player").text
+              none and not browser.find_elements(By.ID, "play")
               and not browser.execute_script("return document.querySelectorAll('audio.track').length"),
-              browser.find_element(By.ID, "no-player").text if none else "")
+              browser.execute_script(no_player))
         browser.execute_script("location.hash = '#/meeting/2026-10-19_08-00'")
-        there = wait_for(browser, lambda b: b.find_elements(By.ID, "no-player") and "libéré" not in b.find_element(By.ID, "no-player").text, 10)
+        there = wait_for(browser, lambda b: "ne s’écoute pas ici" in b.execute_script(no_player), 10)
         check("a meeting whose audio is there but not playable is not said freed",
-              there and "ne s’écoute pas ici" in browser.find_element(By.ID, "no-player").text,
-              browser.find_element(By.ID, "no-player").text if there else "")
+              there and "libéré" not in browser.execute_script(no_player), browser.execute_script(no_player))
     return 1 if FAILED else 0
 
 
