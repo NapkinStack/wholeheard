@@ -85,6 +85,12 @@ start() { # the language, the settings file's text, the recorder
   done
   bus=${item%@*}; menu=${item#*@}/Menu
 }
+again() { # a second start, the first one's settings: it hands over to the running one and leaves
+  LANGUAGE= LC_ALL=fr_FR.UTF-8 LANG=fr_FR.UTF-8 XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" XDG_STATE_HOME="$work/state" \
+    WHOLEHEARD_KEYRING=memory timeout 10 "$bin" "$@" 2>> "$work/errors" && left=0 || left=$?
+  check is "$left" 0
+  check is "$(pgrep -c -f "^$bin" || true)" 1
+}
 greyed() { busctl --user call "$bus" "$menu" com.canonical.dbusmenu GetLayout iias 0 -- -1 0 | grep -o '"enabled" b false' | wc -l; }
 labels() { # busctl writes what is not ASCII as escapes: printf reads them back
   printf '%b' "$(busctl --user call "$bus" "$menu" com.canonical.dbusmenu GetLayout iias 0 -- -1 0 | grep -o '"label" s "[^"]*"' | cut -d'"' -f4 | paste -sd'|')"
@@ -130,6 +136,14 @@ check is "$(windows)" 0
 # Started with the user's session from its first start, in the tray alone (D32).
 check grep -qx 'Exec=wholeheard' "$work/config/autostart/dev.wholeheard.Wholeheard.desktop"
 check grep -qx 'autostart = true' "$work/config/wholeheard/settings.toml"
+# Started again that way while it runs: one Wholeheard, and still no window (D35, #386).
+again
+check is "$(windows)" 0
+# From the applications' menu, while it runs: the running one shows its window, the second leaves.
+check grep -qx 'Exec=wholeheard --window' linux/dev.wholeheard.Wholeheard.desktop
+again --window
+for _ in $(seq 50); do [ "$(windows)" -ge 1 ] && break; sleep 0.1; done
+check test "$(windows)" -ge 1
 click 2; sleep 2
 check test "$(windows)" -ge 1
 click 4                                           # no session yet: said, nothing heard

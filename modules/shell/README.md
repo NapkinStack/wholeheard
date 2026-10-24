@@ -47,6 +47,11 @@ Settings' *Lancer Wholeheard à l'ouverture de session* writes or removes it, an
 desktop's tools leave it (`Hidden`, `X-GNOME-Autostart-enabled`). `autostart` in the settings
 file says Wholeheard wrote it once: turned off, it is never written again by itself.
 
+**One Wholeheard** per session (D35): a second start hands its arguments to the running one and
+leaves ([tauri-plugin-single-instance](https://v2.tauri.app/plugin/single-instance/)). The
+applications' menu runs `wholeheard --window`, so its window opens, running or not; started again
+with the session, nothing opens.
+
 **The window** (cycle 03, from D11's drawings) is opened by *Open Wholeheard* in the menu — or at
 once by `wholeheard --window` — and never without a gesture: the meetings in the sessions'
 folder by week, newest first, each with its day, its length, what it holds and what its
