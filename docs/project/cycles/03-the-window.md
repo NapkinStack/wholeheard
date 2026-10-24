@@ -115,6 +115,14 @@ deliverables:
       - "Given a recording, when the user switches the device the computer uses — a headset plugged or unplugged, a Bluetooth headset, the built-in microphone, the speakers, earphones with their microphone —, then the recording goes on with the new device and does not end, each track keeping the format it opened with, and no zeros are written there for longer than capture's tolerance of 1.5 seconds (measured as #149 measured it)"
       - "Given such a switch, then the shell tells the user which microphone and which output are now recorded; when a device is taken away with nothing to replace it, it says that side is not recorded for now and the recording goes on with the other; when a device comes back, it is recorded again"
       - "Given a session recorded across several devices, when it is read later, then it says each device it recorded and from when"
+  - id: D32
+    title: "Wholeheard starts with the user's session, in the tray, so a call is offered after a restart"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given Wholeheard installed and started once, its setting untouched, when the user's session opens again, then Wholeheard starts in the tray alone — no window opens (D17) — and a call started then is offered (D30)"
+      - "Given Settings, when the user turns Lancer Wholeheard à l'ouverture de session off, then nothing starts at the next session, and Wholeheard never turns it back on by itself; turned on again, it starts; what the desktop's own tools change of it is what Settings show"
+      - "Given the package removed, when the session opens, then nothing starts and nothing is said"
 ---
 
 # Cycle 03 — the window
@@ -532,6 +540,25 @@ Done on 2026-10-23 for the shell: its e2e writes its logs and screenshots to `$N
 and its manifest declares what the scenarios provoke, in place of `scripts/e2e-logged.txt`.
 Capture's too, the same day: its logs go to `$NSTACK_EVIDENCE`, and its manifest declares the
 gaps of zeros its scenarios H and I provoke.
+
+### D32
+
+**Added on the decider's word, 2026-10-24**, during D23's trial: "il faut aussi prévoir dans
+les reglage 'lancer au demarage'", then "on avance bien plus vite que prevu donc oui pou d32".
+D30 offers a call only while Wholeheard runs; nothing starts it with the session today, so after
+each restart no call is offered until the user starts it by hand. It fits what is left of the
+appetite; the end date does not move.
+
+- **How.** The desktop's convention, the [XDG Autostart specification](https://specifications.freedesktop.org/autostart-spec/latest/):
+  a desktop entry in the user's `~/.config/autostart`, its name the package's
+  (`dev.wholeheard.Wholeheard.desktop`), `Exec=wholeheard` — the tray, no window — and
+  `TryExec=wholeheard`, so a removed package starts nothing. The file is the setting: GNOME's
+  own tools see and change the same file. Written by the shell, no dependency: Tauri's
+  autostart plugin is for when macOS and Windows come (*Later*).
+- **On by default**, written once at the first start, as call applications do (Discord, Zoom):
+  without it, the offer (D30) breaks at the first restart. Once the user turns it off, it stays
+  off — Wholeheard never writes it again by itself.
+- Board 4 gains one line, *Lancer Wholeheard à l'ouverture de session*, beside the offer's.
 
 ## Out of scope
 
