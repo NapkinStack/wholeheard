@@ -582,6 +582,10 @@ appetite; the end date does not move.
   capture's failures call for a gesture of their own: no source; a disk full while recording;
   a folder that cannot be written, which the shell already says before it starts. Transcription has no contract for
   how it runs and fails, only for the file it writes, so it would need one first.
+- Correcting the transcript in the window — a word misheard, a sentence of a television in the
+  room taken out — before the minutes are written from it: the decider's idea, 2026-10-24,
+  during D23's trial. Today the window writes no transcript (D18, `transcript/v1`); it would
+  need a version of that contract, or a file of corrections beside it.
 
 ## Open questions
 
