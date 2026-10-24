@@ -549,6 +549,22 @@ def main() -> int:
         changed(lambda: Select(browser.find_element(By.ID, "offer")).select_by_value("offer"))
         offer_again = "offer = true" in window.file.read_text()
         changed(lambda: Select(browser.find_element(By.ID, "offer")).select_by_value("nothing"))
+        # Started with the user's session (D32): on from the first start, the desktop's own entry;
+        # off, then turned off by the desktop's tools, then on again, each read from the entry.
+        entry = window.file.parent.parent / "autostart" / "dev.wholeheard.Wholeheard.desktop"
+        switch = lambda: browser.find_element(By.ID, "autostart")
+        start_on = switch().is_selected() and entry.is_file() and "Exec=wholeheard\n" in entry.read_text()
+        changed(lambda: switch().click())
+        start_off = not switch().is_selected() and not entry.exists() and "autostart = false" in window.file.read_text()
+        entry.write_text("[Desktop Entry]\nType=Application\nExec=wholeheard\nX-GNOME-Autostart-enabled=false\n")
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
+        to_settings()
+        tools_off = not switch().is_selected()
+        changed(lambda: switch().click())
+        start_again = switch().is_selected() and "TryExec=wholeheard\n" in entry.read_text() and "autostart = true" in window.file.read_text()
+        check("the session starts Wholeheard from its first start; turned off here or by the desktop's tools, on again",
+              start_on and start_off and tools_off and start_again, (start_on, start_off, tools_off, start_again))
         text = window.file.read_text()
         check(
             "each choice is in the settings file, the user's lines kept, a change by hand too",

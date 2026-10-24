@@ -1146,6 +1146,18 @@ function showSettings(shown, minutes, words) {
   offerPick.value = shown.offer ? "offer" : "nothing";
   offerPick.addEventListener("change", () => save({ offer: offerPick.value === "offer" }));
   offer.append(offerSaid, offerPick);
+  // Started with the user's session (D32): the desktop's own entry, turned on or off here.
+  const start = element("label", "row");
+  const startBox = element("input");
+  startBox.type = "checkbox";
+  startBox.id = "autostart";
+  startBox.setAttribute("role", "switch");
+  startBox.checked = shown.autostart;
+  startBox.disabled = locked;
+  startBox.addEventListener("change", () => save({ autostart: startBox.checked }));
+  const startSaid = element("span", "said");
+  startSaid.append(element("span", "name", words.autostart[0]), element("span", "says", words.autostart[1]));
+  start.append(startSaid, startBox);
   const keep = element("div", "row");
   const keepSaid = element("label", "said");
   keepSaid.htmlFor = "keep";
@@ -1254,7 +1266,7 @@ function showSettings(shown, minutes, words) {
     );
     keys.append(open);
   }
-  more.append(remind, offer, keys, where, keep);
+  more.append(remind, offer, start, keys, where, keep);
   parts.push(more);
 
   // The transcription model's state: there and ready, or offered at the first transcript.

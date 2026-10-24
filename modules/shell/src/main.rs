@@ -24,7 +24,7 @@ use tauri::{
 };
 use tauri_plugin_notification::NotificationExt;
 use wholeheard_shell::{
-    desktop, keys, log,
+    autostart, desktop, keys, log,
     meeting::{self, Read, Transcript},
     microphone, migrate,
     minutes::{self, Minutes},
@@ -218,6 +218,16 @@ fn main() {
                     tell(app.handle(), &words::carry_failed(language));
                 }
                 _ => {}
+            }
+            // Started with the user's session from now on, written once by itself (D32); a
+            // settings file that cannot be read writes nothing, and is said below.
+            if let (Some(entry), Some(file)) = (autostart::file(), settings::file()) {
+                match autostart::first(&entry, &file) {
+                    Ok(true) => tracing::info!("shell.autostart_written"),
+                    Ok(false) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {}
+                    Err(error) => tracing::warn!(kind = ?error.kind(), "shell.autostart_refused"),
+                }
             }
             let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
             let toggle = MenuItem::with_id(app, "toggle", labels.start, true, None::<&str>)?;
@@ -900,6 +910,8 @@ struct SettingsShown {
     reminder: bool,
     /// A call another application starts is offered to be recorded (D30).
     offer: bool,
+    /// Wholeheard starts with the user's session (D32): its entry, as the desktop reads it.
+    autostart: bool,
     keep_audio: KeepAudio,
     model: PathBuf,
     models: Vec<Model>,
@@ -942,6 +954,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         after: settings.after,
         reminder: settings.reminder,
         offer: settings.offer,
+        autostart: autostart::file().is_some_and(|entry| autostart::on(&entry)),
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
@@ -958,6 +971,7 @@ struct Change {
     after: Option<After>,
     reminder: Option<bool>,
     offer: Option<bool>,
+    autostart: Option<bool>,
     keep_audio: Option<KeepAudio>,
     model: Option<PathBuf>,
     developer: Option<bool>,
@@ -991,6 +1005,12 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
     }
     if let Some(offer) = change.offer {
         settings.offer = offer;
+    }
+    // The entry first: the settings say what Wholeheard wrote of it, once it is written.
+    if let Some(on) = change.autostart {
+        let entry = autostart::file().ok_or("this system names no folder for the session's start")?;
+        autostart::set(&entry, on).map_err(|error| format!("{}: {error}", entry.display()))?;
+        settings.autostart = Some(on);
     }
     if let Some(developer) = change.developer {
         settings.developer = developer;

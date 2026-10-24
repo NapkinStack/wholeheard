@@ -71,6 +71,9 @@ pub struct Settings {
     pub log: Log,
     /// Offer to record when another application takes a microphone (D30).
     pub offer: bool,
+    /// Whether Wholeheard wrote its entry of the session's start, and as what (D32): none, never
+    /// — it is written at the next start. The entry itself is the setting.
+    pub autostart: Option<bool>,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -91,6 +94,7 @@ impl Default for Settings {
             keep_audio: KeepAudio::Always,
             developer: false,
             offer: true,
+            autostart: None,
             log: Log::Info,
         }
     }
@@ -135,6 +139,7 @@ struct Written {
     keep_audio: Option<toml::Spanned<toml::Value>>,
     developer: Option<bool>,
     offer: Option<bool>,
+    autostart: Option<bool>,
     log: Option<Log>,
 }
 
@@ -170,6 +175,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.reminder = written.reminder.unwrap_or(settings.reminder);
     settings.developer = written.developer.unwrap_or(settings.developer);
     settings.offer = written.offer.unwrap_or(settings.offer);
+    settings.autostart = written.autostart;
     settings.log = written.log.unwrap_or(settings.log);
     settings.after = match (written.after, written.transcript) {
         (Some(after), _) => after,
@@ -242,6 +248,11 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     }
     if settings.offer != before.offer {
         set(&mut document, "offer", Value::from(settings.offer));
+    }
+    if let Some(autostart) = settings.autostart
+        && settings.autostart != before.autostart
+    {
+        set(&mut document, "autostart", Value::from(autostart));
     }
     if settings.log != before.log {
         set(&mut document, "log", Value::from(settings.log.as_str()));
