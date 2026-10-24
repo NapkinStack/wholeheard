@@ -144,12 +144,12 @@ deliverables:
     module: shell
     state: ready
     acceptance:
-      - "Given Wholeheard running in the tray, when the user opens it from the applications' menu or the tray's Ouvrir Wholeheard, then the window they last left opens — the small one the first time — and a second start shows the running Wholeheard instead of starting another (#386)"
-      - "Given the small window at rest, then it shows Démarrer un enregistrement and the shortcut as the desktop granted it (or that none is, and where to choose one); the last meeting and where it stands — being transcribed, being summarised, ready, failed in plain words —; what the meetings weigh; Toute la fenêtre. With no meeting yet, it says so and offers the recording alone"
-      - "Given the small window at rest, when a recording starts — from it, the tray, the shortcut or an offer —, then the same window shows the recording (board 6, D33) above the other windows; at the stop it comes back to rest, not above them, the meeting just recorded as its last, its transcript on the way"
-      - "Given either window, when the user goes to the other (Toute la fenêtre, Petite fenêtre — at rest too), then one replaces the other, never both; Lire le compte rendu, Toutes les réunions, an agreement (board 5) or the settings open the full window there; the choice left is the one reopened"
+      - "Given Wholeheard not running, or running in the tray, when the user opens it from the applications' menu or the tray's Ouvrir Wholeheard, then the window they last left opens — the small one the first time, the choice kept in the settings across quitting and restarting — and a second start shows the running Wholeheard instead of starting another (#386)"
+      - "Given Wholeheard started with the session, or started again that way while one runs, then no window opens (D17, D32); and given no window open, when a recording starts from the tray, the shortcut or an offer, then none opens either (D22)"
+      - "Given the small window, when it opens at rest, then it shows Démarrer un enregistrement and the shortcut as the desktop granted it (or that none is, and where to choose one); the last meeting and where it stands — being transcribed, being summarised, ready, failed in plain words —; what the meetings weigh; Toute la fenêtre; with no meeting yet, it says so and offers the recording alone; in the system's light or dark theme, as board 1 of D34"
+      - "Given the small window, at rest or opened during a recording from the full window, when a recording runs, then it shows it (board 6, D33) above the other windows; at the stop it comes back to rest, not above them, the meeting just recorded as its last, its transcript on the way"
+      - "Given either window, when the user goes to the other (Toute la fenêtre, Petite fenêtre — at rest too), then one replaces the other, never both; Lire le compte rendu, Toutes les réunions, the settings, or an agreement (board 5) — also when the minutes that follow a transcript ask for one — open the full window there, in place of the small one; the window left is the one reopened"
       - "Given the small window, when it is used with the keyboard alone, then every control is reached with Tab, the focus visible, Démarrer un enregistrement focused at opening; its words are the product's in French and English"
-
 ---
 
 # Cycle 03 — the window
@@ -665,8 +665,8 @@ Open questions, for the decider on the drawings:
 light and dark, with the framer's proposals beside each open question; shown to the decider, their
 word owed.
 
-**Accepted by the decider, 2026-10-25**: "oui aux 5 propositions", and "vérifie la cohérence, et
-l'expérience user". Their answers, beside the open questions: a compact window first, the full one
+**Accepted by the decider, 2026-10-25**: "pour moi oui aux 5 propositions", and "verifie la
+cohérence, et l'experience user". Their answers, beside the open questions: a compact window first, the full one
 behind it — yes; opened small from the applications' menu and *Ouvrir Wholeheard*, the shortcut
 still records — yes; the size left is the one reopened — yes; at rest, *Démarrer un
 enregistrement* and the shortcut, the last meeting and where it stands, what the meetings weigh —
@@ -674,24 +674,27 @@ yes; above the other windows while recording only — yes. They become D35's cri
 
 ### D35
 
-**Added on the decider's word, 2026-10-25** ("oui aux 5 propositions … continue en autonomie"),
-built from D34's accepted board. The framer's reading for coherence and the user's experience
-(`ux.md`) added what the board left open, each in a criterion:
+**Added on the decider's word, 2026-10-25** ("pour moi oui aux 5 propositions, continue en
+autonomie"), built from D34's accepted board. The framer's reading for coherence and the user's
+experience (`ux.md`) added what the board left open, each in a criterion; the two that change
+what is built were asked of the decider, who chose them the same day:
 
-- **One window at a time.** Going from one to the other replaces it: two windows open at once
-  would show the recording twice. Today the full
-  window stays open beside the small one, and the small one closes at the stop (`main.rs`).
+- **One window at a time** — the decider's choice: going from one to the other replaces it; two
+  windows open at once would show the recording twice. Today the full window stays open beside
+  the small one.
 - **The states the board did not draw** (`ux.md`, its eight states): no meeting yet; the last one
   being transcribed or summarised; failed, in the sentence the full window already uses; no
   shortcut granted by the desktop.
-- **The stop closes the loop.** The small window comes back to rest with the meeting just
-  recorded as its last, its transcript on the way: what the user waits for is shown where they
-  are, not only in a notification.
+- **The stop closes the loop** — the decider's choice: the small window comes back to rest with
+  the meeting just recorded as its last, its transcript on the way, where today it closes (D22,
+  `main.rs`); what the user waits for is shown where they are, not only in a notification.
 - **What needs room opens the full window**, as today: the agreements (board 5), the settings, a
-  meeting to read.
-- **What does not change**: Wholeheard started with the session stays in the tray, no window
-  (D17, D32); a recording started from the tray, the shortcut or an offer opens no window when
-  none is open (D22).
+  meeting to read — the agreement also without a gesture, when the minutes that follow a
+  transcript need it (D21).
+- **What does not change**, a criterion of its own: Wholeheard started with the session stays in
+  the tray, no window (D17, D32) — its entry keeps `Exec=wholeheard`, the applications' menu
+  gets its own argument; a recording started from the tray, the shortcut or an offer opens no
+  window when none is open (D22).
 - **One Wholeheard**: a second start brings the running one forward (#386) — on Tauri, its
   single-instance plugin ([tauri-plugin-single-instance](https://v2.tauri.app/plugin/single-instance/)),
   a new dependency, read against `security.md`.
