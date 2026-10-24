@@ -217,6 +217,40 @@ class Window:
             self.driver_process.wait(timeout=10)
 
 
+# The run's own output, made by e2e.sh: the window's sound goes there, never to the speakers.
+QUIET = os.environ.get("PULSE_SINK", "")
+# What WirePlumber remembers of an application's sound, by its name: the user's own Wholeheard
+# shares it, so a run that changes a volume there changes theirs.
+REMEMBERED = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "wireplumber" / "stream-properties"
+
+
+def remembered() -> str | None:
+    """The volume the system keeps for Wholeheard's sound, as its line says it."""
+    if not REMEMBERED.exists():
+        return None
+    return next((line for line in REMEMBERED.read_text().splitlines() if line.startswith("Output/Audio:application.name:wholeheard=")), None)
+
+
+def played_to(window: "Window") -> set[str]:
+    """The outputs the sound of this window — its web view, under its driver — is linked to."""
+    def under(pid: int) -> bool:
+        while pid > 1:
+            if pid == window.driver_process.pid:
+                return True
+            try:
+                pid = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1])
+            except (OSError, IndexError, ValueError):
+                return False
+        return False
+
+    objects = json.loads(subprocess.run(["pw-dump"], capture_output=True, text=True, check=True).stdout)
+    nodes = {o["id"]: (o.get("info") or {}).get("props") or {} for o in objects if o.get("type") == "PipeWire:Interface:Node"}
+    streams = {i for i, props in nodes.items() if props.get("media.class") == "Stream/Output/Audio"
+               and under(int(props.get("application.process.id") or 0))}
+    return {nodes.get(o["info"]["input-node-id"], {}).get("node.name", "?") for o in objects
+            if o.get("type") == "PipeWire:Interface:Link" and o["info"]["output-node-id"] in streams}
+
+
 def rows(browser) -> list[tuple[str, str, str]]:
     """Each listed session: its group's heading, its first line, and what it holds."""
     return browser.execute_script(
@@ -1328,7 +1362,8 @@ def main() -> int:
             ".then(() => done('answered'), (why) => done('refused: ' + why))")
         check("the notification plugin's question at a page's start is answered", asked == "answered", asked)
 
-    print("R. a meeting listened to, its words following (D26) — muted: nothing reaches the speakers")
+    print("R. a meeting listened to, its words following (D26) — played to the run's own output, nothing reaches the speakers")
+    kept = remembered()
     listening = WORK / "listening"
     played = listening / "2026-10-19_10-00"
     session(played, now - dt.timedelta(hours=1), 0.1, {})
@@ -1386,11 +1421,10 @@ def main() -> int:
                                            + b"fmt " + struct.pack("<I", len(fmt)) + fmt + b"data" + struct.pack("<I", len(noise)) + noise)
     (unreadable / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n')
     shutil.copy(played / "transcript.jsonl", unreadable / "transcript.jsonl")
-    with Window(listening, "fr_FR.UTF-8") as browser:
+    with (window := Window(listening, "fr_FR.UTF-8")) as browser:
         browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
         ready = wait_for(browser, lambda b: b.find_elements(By.ID, "play") and len(b.execute_script("return document.querySelectorAll('audio.track')")) == 1, 10)
         check("a meeting with its audio has a player: its tracks as one sound (ADR-0009)", ready)
-        browser.execute_script("document.querySelectorAll('audio.track').forEach(a => { a.muted = true; a.volume = 0; })")
         # The session's time is the one sound's, while it plays.
         at = lambda b: b.execute_script("const a = document.querySelector('audio.track'); return a && !a.paused ? a.currentTime : 0")
         playing = lambda b: b.execute_script("const a = document.querySelector('audio.track'); return !!a && !a.paused")
@@ -1486,8 +1520,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
         browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
-        browser.execute_script("const a = document.querySelector('audio.track'); a.muted = true; a.volume = 0;"
-                               " document.getElementById('play').click(); document.getElementById('play').click()")
+        browser.execute_script("document.getElementById('play').click(); document.getElementById('play').click()")
         time.sleep(1)
         check("a play paused at once is no failure", not browser.find_element(By.ID, "not-played").text and not playing(browser))
         # Its audio freed while it plays: it stops, and says so.
@@ -1503,9 +1536,10 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
         browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
-        browser.execute_script("document.querySelectorAll('audio.track').forEach(a => { a.muted = true; a.volume = 0; })")
         press(browser, "play")
         wait_for(browser, lambda b: at(b) > 0.3, 5)
+        heard = played_to(window)
+        check("its sound goes to the run's own output, never the speakers", bool(QUIET) and heard == {QUIET}, heard)
         browser.execute_script("location.hash = '#/'")
         stopped = wait_for(browser, lambda b: not b.execute_script("return document.querySelectorAll('audio.track').length"), 10)
         check("the list shown, nothing plays", stopped)
@@ -1513,7 +1547,6 @@ def main() -> int:
         # it asked for that the player had not read: said, never silence.
         browser.execute_script("location.hash = '#/meeting/2026-10-19_06-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.execute_script("return document.querySelector('audio.track')?.duration || 0") > 0, 10)
-        browser.execute_script("document.querySelectorAll('audio.track').forEach(a => { a.muted = true; a.volume = 0; })")
         (long / "local.wav").rename(listening / "aside-long.wav")
         browser.find_element(By.CSS_SELECTOR, ".drawing").send_keys(Keys.END)
         press(browser, "play")
@@ -1537,6 +1570,7 @@ def main() -> int:
         there = wait_for(browser, lambda b: "ne s’écoute pas ici" in b.execute_script(no_player), 10)
         check("a meeting whose audio is there but not playable is not said freed",
               there and "libéré" not in browser.execute_script(no_player), browser.execute_script(no_player))
+    check("the volume the system remembers for the user's Wholeheard is left as it was", remembered() == kept, remembered())
     return 1 if FAILED else 0
 
 

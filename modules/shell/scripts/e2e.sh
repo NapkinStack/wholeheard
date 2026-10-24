@@ -19,11 +19,16 @@ watcher="org.kde.StatusNotifierWatcher /StatusNotifierWatcher org.kde.StatusNoti
 if ! command -v busctl >/dev/null || ! busctl --user get-property $watcher RegisteredStatusNotifierItems >/dev/null 2>&1; then
   say "e2e: NOT RUN — no desktop session that shows tray items here"; exit 0
 fi
+# The user's own Wholeheard shares the desktop's bus and microphones: it would be offered the
+# run's calls, and take its clicks into its own settings (D23's trial, 2026-10-24).
+if pgrep -x wholeheard >/dev/null; then
+  say "e2e: NOT RUN — a Wholeheard is running outside the run: quit it first (its menu, Quitter Wholeheard)"; exit 1
+fi
 cargo build --locked 2>&1 | tail -1 >> .evidence/e2e.txt
 bin=${CARGO_TARGET_DIR:-$PWD/target}/debug/wholeheard
 work=$(mktemp -d)
 app=""
-mic_module=""; old_source=""
+mic_module=""; old_source=""; quiet_module=""
 ended() {
   [ -z "$app" ] || kill "$app" 2>/dev/null || true; pkill -P $$ 2>/dev/null || true
   # The bus's watcher by its own number: an e2e stopped outright left it running for days.
@@ -32,6 +37,7 @@ ended() {
   # Scenario S's microphone, made for the run, taken away; the system's default put back.
   [ -z "$old_source" ] || pactl set-default-source "$old_source" 2>/dev/null || true
   [ -z "$mic_module" ] || pactl unload-module "$mic_module" 2>/dev/null || true
+  [ -z "$quiet_module" ] || pactl unload-module "$quiet_module" 2>/dev/null || true
   rm -rf "$work"
 }
 trap ended EXIT
@@ -437,6 +443,10 @@ else
     export WHOLEHEARD_SCREENSHOTS="$evidence/shots"
     rm -rf "$WHOLEHEARD_SCREENSHOTS"
   fi
+  # The window plays a meeting (D26) to an output made for the run, never the speakers: its
+  # volume left alone, as the system remembers it for the user's own Wholeheard.
+  quiet_module=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_quiet)
+  export PULSE_SINK=wholeheard_e2e_quiet
   # A window that stops answering fails the run, never holds it: it takes about 6 minutes.
   if ! timeout --kill-after=30 1200 uv run --quiet --with selenium==4.51.0 python scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt; then
     failed=1
