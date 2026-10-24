@@ -814,15 +814,18 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   if (player?.name === nameOf(session)) {
     const lines = [...page.querySelectorAll(".lines li")];
     let marked = null;
-    player.listeners.add((at) => {
+    // The player it follows, not the page's: a stopped one still says its last pause, after the
+    // page let it go.
+    const followed = player;
+    followed.listeners.add((at) => {
       const now = lines.findLast((line) => Number(line.dataset.start) <= at) ?? null;
       if (now === marked) return;
       marked?.classList.remove("now");
       now?.classList.add("now");
-      if (now && player.playing()) now.scrollIntoView({ block: "nearest" });
+      if (now && followed.playing()) now.scrollIntoView({ block: "nearest" });
       marked = now;
     });
-    player.listeners.forEach((listener) => listener(player.time()));
+    followed.listeners.forEach((listener) => listener(followed.time()));
   }
   const search = document.getElementById("search");
   if (search && searching) {
