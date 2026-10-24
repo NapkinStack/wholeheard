@@ -14,16 +14,16 @@ say() { echo "$*" | tee -a .evidence/e2e.txt; }
 evidence=${NSTACK_EVIDENCE:-$PWD/.evidence/e2e}
 
 if ! command -v pactl >/dev/null || ! pactl info >/dev/null 2>&1; then
-  say "e2e: NOT RUN — no sound server here"; exit 0
+  say "e2e: NOT RUN — no sound server here"; exit 77
 fi
 if [ -n "$(pactl list short source-outputs)" ]; then
-  say "e2e: NOT RUN — an application holds a microphone: a call may be in progress"; exit 0
+  say "e2e: NOT RUN — an application holds a microphone: a call may be in progress"; exit 77
 fi
 if pactl list short sinks | awk -v d="$(pactl get-default-sink)" '$2 == d && $NF == "RUNNING" {found = 1} END {exit !found}'; then
-  say "e2e: NOT RUN — the system is playing sound: its output would be taken from it"; exit 0
+  say "e2e: NOT RUN — the system is playing sound: its output would be taken from it"; exit 77
 fi
 for tool in ffmpeg ffprobe pw-play pw-dump pw-cli python3; do
-  command -v "$tool" >/dev/null || { say "e2e: NOT RUN — $tool is missing"; exit 0; }
+  command -v "$tool" >/dev/null || { say "e2e: NOT RUN — $tool is missing"; exit 77; }
 done
 
 cargo build --release --locked 2>&1 | tail -3 >> .evidence/e2e.txt
@@ -32,7 +32,7 @@ cargo build --release --locked 2>&1 | tail -3 >> .evidence/e2e.txt
 quiet=$(( $(nproc) > 1 ? $(nproc) / 2 : 1 ))   # one processor: under 1
 for _ in $(seq 60); do [ "$(cut -d. -f1 /proc/loadavg)" -lt "$quiet" ] && break; sleep 5; done
 if [ "$(cut -d. -f1 /proc/loadavg)" -ge "$quiet" ]; then
-  say "e2e: NOT RUN — the machine is busy (load $(cut -d' ' -f1 /proc/loadavg), $(nproc) processors): a clock cannot be measured on it"; exit 0
+  say "e2e: NOT RUN — the machine is busy (load $(cut -d' ' -f1 /proc/loadavg), $(nproc) processors): a clock cannot be measured on it"; exit 77
 fi
 bin=${CARGO_TARGET_DIR:-$PWD/target}/release/wholeheard-capture   # where cargo built it
 work=$(mktemp -d)
