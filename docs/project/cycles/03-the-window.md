@@ -126,7 +126,7 @@ deliverables:
   - id: D33
     title: "While recording, the small window names the microphone and the output recorded, as they change"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given a recording, when the small window is open, then under Votre micro and La réunion it names the device each is recorded from, as the system names it"
       - "Given a recording, when the system's microphone or output changes — a headset plugged, earbuds put in, the built-in microphone chosen again —, then the small window names the new device within a second; when a side has no device, it names none"
@@ -585,6 +585,12 @@ them in the small window (board 6), under each level. The end date does not move
 **Built (2026-10-24), verified by an independent session; acceptance is the decider's, with
 earbuds put in while recording (D23):** #375 — the device each side is recorded from, as capture
 says it at `started` and on each `device`, named under its level; none named when a side has none.
+
+**Accepted by the decider, 2026-10-24** ("d33 ok"), on their own laptop with `wholeheard-0.2.0`
+built from fc44ea6: a recording started on the built-in devices, earbuds put in while it ran;
+the small window named *Ryzen…* then *AirPods…*, and the recording was heard. The session's
+own record agrees: the output went to the earbuds at 27 s while the system kept the built-in
+microphone, recorded and named as such, until it moved to the earbuds at 58 s.
 
 ## Out of scope
 
