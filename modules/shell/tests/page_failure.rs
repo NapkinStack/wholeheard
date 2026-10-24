@@ -29,6 +29,7 @@ fn logged(kind: &str, file: &str) -> serde_json::Value {
     let subscriber = tracing_subscriber::fmt()
         .json()
         .flatten_event(true)
+        .with_target(false)
         .with_writer(move || writer.clone())
         .finish();
     tracing::subscriber::with_default(subscriber, || page_failed(kind, file, 17, 74));
@@ -39,6 +40,10 @@ fn logged(kind: &str, file: &str) -> serde_json::Value {
 fn said(kind: &str, file: &str) -> (String, String) {
     let line = logged(kind, file);
     assert_eq!((&line["message"], &line["level"]), (&"shell.page_failed".into(), &"ERROR".into()));
+    // Nothing more than these: no field may carry what the page sent.
+    let mut fields: Vec<&str> = line.as_object().unwrap().keys().map(String::as_str).collect();
+    fields.sort_unstable();
+    assert_eq!(fields, ["column", "file", "kind", "level", "line", "message", "timestamp"]);
     (
         line["kind"].as_str().unwrap().to_string(),
         line["file"].as_str().unwrap().to_string(),
