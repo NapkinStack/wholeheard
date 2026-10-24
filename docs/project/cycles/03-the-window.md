@@ -53,7 +53,7 @@ deliverables:
   - id: D23
     title: "The decider goes through one real meeting with the window"
     module: shell
-    state: ready
+    state: accepted
     acceptance:
       - "Given the window and the tray's menu on the decider's laptop, when the decider goes through one real meeting with them — record, transcript, minutes, read, free space — then the decider writes what stood in the way; the deliverable is accepted when the decider reads nothing blocking in that list"
   - id: D24
@@ -80,9 +80,9 @@ deliverables:
   - id: D26
     title: "A user listens to a meeting, its words following"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
-      - "Given a meeting with its audio and its transcript, when the user plays it, then both sides are heard together, the line being said is marked and kept in view, and who spoke shows where the playback is; a click on a line or on who spoke moves the playback there; the space bar plays and pauses; a meeting whose audio went to the trash offers no player and says why"
+      - "Given a meeting with its audio and its transcript, when the user plays it, then both sides are heard together, the line being said is marked and the page stays where the user put it, and who spoke shows where the playback is; a click on a line or on who spoke moves the playback there; the space bar plays and pauses; a meeting whose audio went to the trash offers no player and says why"
   - id: D28
     title: "Summit becomes Wholeheard, and nothing of the user's is lost on the way"
     module: shell
@@ -93,7 +93,7 @@ deliverables:
   - id: D29
     title: "What Wholeheard does is logged, never what was said; a failure reaches the user in plain words"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given each program run — by the window or by hand —, when it works or fails, then its steps and its failures are written, one JSON line each, in the user's state folder under the id of the making they belong to, a file a day kept fourteen days; and the logs of a run on a known meeting hold none of its words, its context, nor a key"
       - "Given a making that fails, when the user is told, then the page and the notification say it in one plain sentence in their language, with what to do, and never the technical detail"
@@ -101,7 +101,7 @@ deliverables:
   - id: D30
     title: "A call starts in another application, and Wholeheard offers to record it"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given Wholeheard running and not recording, with the setting at its default, when another application starts taking a microphone — a call in Discord, in WhatsApp Web or another browser tab, in any program —, then within 3 seconds a notification names that application and offers Record and Not this time; no window opens for it (D17), and nothing is recorded without the gesture"
       - "Given an application that takes a microphone, then the offer is made once for as long as it holds one — however many streams it opens —, never while recording, never for Wholeheard's own capture, never for a stream that reads what the computer plays (a sink's monitor) nor for a level meter (Settings, pavucontrol); a noise filter that holds the microphone from the start is offered once, and Not this time sets it aside until it lets the microphone go"
@@ -110,7 +110,7 @@ deliverables:
   - id: D31
     title: "The recording follows the user's devices, and says which it records"
     module: capture
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given a recording, when the user switches the device the computer uses — a headset plugged or unplugged, a Bluetooth headset, the built-in microphone, the speakers, earphones with their microphone —, then the recording goes on with the new device and does not end, each track keeping the format it opened with, and no zeros are written there for longer than capture's tolerance of 1.5 seconds (measured as #149 measured it)"
       - "Given such a switch, then the shell tells the user which microphone and which output are now recorded; when a device is taken away with nothing to replace it, it says that side is not recorded for now and the recording goes on with the other; when a device comes back, it is recorded again"
@@ -324,6 +324,13 @@ setting, and in English the two meters' tracks not starting at the same place.
 
 The trial that closes the cycle, as cycle 01's D7 had it.
 
+**Accepted by the decider, 2026-10-24** ("le test est ok"), after their real meeting with the
+window and the tray: nothing blocking. What they wrote stood in the way, and where each went:
+the page following the line being said, intrusive — D26 changed (#383); opening small, the full
+window behind — D34; correcting the transcript, and an offer to record with earbuds just
+connected — *Later*; a first word written twice and a sentence written on a silence — the
+engine's, accepted (#362, #355).
+
 ### D24
 
 **Added on the decider's word, 2026-10-18** ("fais ce qu'il reste en autonomie… mes
@@ -431,6 +438,11 @@ serves the tracks as one sound, mixed as they are read
 the loopback server of [ADR-0008](../../adr/0008-the-window-plays-a-meeting-from-a-loopback-server.md).
 Not yet offered for acceptance: the decider's trial is D23's meeting.
 
+**Accepted by the decider, 2026-10-24**, after their real meeting (D23). On their word the
+criterion changed: the line being said is marked and the page no longer follows it ("faire
+bouger le focus est un peu contre nature"; asked, they chose that it never moves by itself) —
+built by #383, checked by e2e R.
+
 ### D30 and D31
 
 **Added on the decider's word, 2026-10-20**: "si je démarre n'importe quel appel, discord,
@@ -484,6 +496,10 @@ decider's, on real devices and real calls (D23):**
 - **D30:** the offer (#311, `pw-dump --monitor` read in `microphone.rs`); Settings' *Quand une
   application prend le micro* (#346, board 4). Out of reach, as #311's verifier noted: a call
   stays unwatched for 60 seconds after `pw-dump` exits, until it is started again.
+
+**Both accepted by the decider, 2026-10-24**, after their real calls and devices (D23): the
+offer made for Discord, taken and refused (D30); earbuds put in while recording, each change
+said and recorded, and named in the small window as it was recorded (D31, D33).
 
 ### D28
 
@@ -556,6 +572,8 @@ Done on 2026-10-23 for the shell: its e2e writes its logs and screenshots to `$N
 and its manifest declares what the scenarios provoke, in place of `scripts/e2e-logged.txt`.
 Capture's too, the same day: its logs go to `$NSTACK_EVIDENCE`, and its manifest declares the
 gaps of zeros its scenarios H and I provoke.
+
+**Accepted by the decider, 2026-10-24**, after their real meeting (D23).
 
 ### D32
 
