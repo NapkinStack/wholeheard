@@ -1422,7 +1422,8 @@ function showSmall(words) {
   full.setAttribute("aria-label", words.small_full);
   full.addEventListener("click", () => window.__TAURI__.core.invoke("full_window"));
   top.append(element("span", "live-dot"), time, full);
-  const meter = (label, id) => {
+  // Each level under what it is recorded from, as the system names it (D33).
+  const meter = (label, id, device) => {
     const row = element("div", "meter");
     const bar = element("span", "track");
     bar.setAttribute("role", "meter");
@@ -1432,7 +1433,11 @@ function showSmall(words) {
     const fill_ = element("span", "fill");
     fill_.id = id;
     bar.append(fill_);
-    row.append(element("span", "said", label), bar);
+    const said = element("span", "said");
+    const named = element("span", "device");
+    named.id = device;
+    said.append(element("span", "side", label), named);
+    row.append(said, bar);
     return row;
   };
   const stop = element("button", "danger", words.small_stop);
@@ -1440,7 +1445,7 @@ function showSmall(words) {
   stop.id = "small-stop";
   stop.addEventListener("click", () => window.__TAURI__.core.invoke("record"));
   const meters = element("div", "meters");
-  meters.append(meter(words.small_mic, "level-me"), meter(words.small_meeting, "level-others"));
+  meters.append(meter(words.small_mic, "level-me", "device-me"), meter(words.small_meeting, "level-others", "device-others"));
   const note = element("p", "says", words.small_note);
   note.hidden = true;
   page.replaceChildren(top, meters, stop, note);
@@ -1454,6 +1459,11 @@ function showSmall(words) {
       const fill_ = document.getElementById(id);
       fill_.style.width = `${percent}%`;
       fill_.parentElement.setAttribute("aria-valuenow", String(percent));
+    }
+    for (const [index, id] of ["device-me", "device-others"].entries()) {
+      const named = document.getElementById(id);
+      named.textContent = now.devices[index] ?? "";
+      named.title = now.devices[index] ?? "";
     }
     stop.disabled = !now.recording;
     note.hidden = !now.transcript_follows;

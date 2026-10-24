@@ -26,7 +26,7 @@ fn the_interface_follows_the_systems_language_and_any_other_is_english() {
 
 #[test]
 fn the_reminder_is_a_setting_and_a_source_that_comes_back_calls_for_no_word() {
-    let started = Said::Started(PathBuf::from("/s"), None);
+    let started = Said::Started(PathBuf::from("/s"), None, None);
     for language in BOTH {
         assert_eq!(words::of(&started, false, language), None);
         assert_eq!(words::of(&Said::Heard(Source::Me), true, language), None);
@@ -50,7 +50,7 @@ fn the_reminder_is_a_setting_and_a_source_that_comes_back_calls_for_no_word() {
 
 #[test]
 fn the_recording_names_the_microphone_it_records() {
-    let started = Said::Started(PathBuf::from("/s"), Some("Headset Mic".into()));
+    let started = Said::Started(PathBuf::from("/s"), Some("Headset Mic".into()), None);
     assert_eq!(
         told(&started, true, Language::English).1,
         "Microphone recorded: Headset Mic. Tell the participants that this meeting is being recorded."
@@ -127,8 +127,8 @@ fn french_is_written_as_french_is_printed() {
     );
     // No straight apostrophe in a sentence of ours, in either language.
     let all = [
-        Said::Started("/s".into(), None),
-        Said::Started("/s".into(), Some("Mic".into())),
+        Said::Started("/s".into(), None, None),
+        Said::Started("/s".into(), Some("Mic".into()), None),
         Said::Unavailable(Source::Me, String::new()),
         Said::Unavailable(Source::Others, String::new()),
         Said::Silent(Source::Me),

@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use wholeheard_shell::recording::{Recording, Said, Source, read};
+use wholeheard_shell::recording::{Devices, Recording, Said, Source, read};
 
 /// A recording by a program played here: a script given the same arguments, `record
 /// <sessions>`. One at a time: a script still open for writing in one thread while another
@@ -55,7 +55,7 @@ echo '{"event":"silent","source":"me"}'"#,
     );
     let session = folder.path().join("2026-10-13_14-05");
     let before = [
-        Said::Started(session.clone(), Some("Mic".into())),
+        Said::Started(session.clone(), Some("Mic".into()), Some("Speaker".into())),
         Said::Silent(Source::Others),
         Said::Heard(Source::Others),
         // A level read; one without its level is no event.
@@ -100,7 +100,7 @@ exit 1"#,
     assert_eq!(
         all(&heard),
         [
-            Said::Started(folder.path().join("s"), Some("Mic".into())),
+            Said::Started(folder.path().join("s"), Some("Mic".into()), Some("Speaker".into())),
             Said::Failed(String::new())
         ]
     );
@@ -120,7 +120,7 @@ touch "$sessions/still-recording""#,
     );
     assert_eq!(
         heard.recv_timeout(Duration::from_secs(10)).unwrap(),
-        Said::Started(folder.path().join("s"), Some("Mic".into()))
+        Said::Started(folder.path().join("s"), Some("Mic".into()), Some("Speaker".into()))
     );
     drop(recording);
     std::thread::sleep(Duration::from_millis(1800));
@@ -148,7 +148,11 @@ fn a_line_is_read_as_the_contract_describes_it_or_passed_over() {
         ("   ", None),
     ] {
         let line = format!(r#"{{"event":"started","folder":"/s","sources":{{"me":"{me}","others":"Speaker"}}}}"#);
-        assert_eq!(read(&line), Some(Said::Started("/s".into(), named.map(str::to_string))), "{me}");
+        assert_eq!(
+            read(&line),
+            Some(Said::Started("/s".into(), named.map(str::to_string), Some("Speaker".into()))),
+            "{me}"
+        );
     }
     // Another device, named as `started` names one; none left (D31).
     assert_eq!(
@@ -182,4 +186,26 @@ fn a_line_is_read_as_the_contract_describes_it_or_passed_over() {
     ] {
         assert_eq!(read(passed_over), None, "{passed_over}");
     }
+}
+
+#[test]
+fn what_each_side_is_recorded_from_is_followed() {
+    // The output too, as `started` names it (D33).
+    assert_eq!(
+        read(r#"{"event":"started","folder":"/s","sources":{"me":"Mic","others":"  Speaker\tout"}}"#),
+        Some(Said::Started("/s".into(), Some("Mic".into()), Some("Speaker out".into())))
+    );
+    let mut devices = Devices::default();
+    assert_eq!(devices.names(), [None, None]);
+    devices.heard(&Said::Started("/s".into(), Some("Mic".into()), Some("Speaker".into())));
+    assert_eq!(devices.names(), [Some("Mic".into()), Some("Speaker".into())]);
+    devices.heard(&Said::Moved(Source::Me, Some("AirPods Pro".into())));
+    devices.heard(&Said::Level(Source::Me, 0.5));
+    devices.heard(&Said::Silent(Source::Others));
+    assert_eq!(devices.names(), [Some("AirPods Pro".into()), Some("Speaker".into())]);
+    devices.heard(&Said::Lost(Source::Others));
+    assert_eq!(devices.names(), [Some("AirPods Pro".into()), None]);
+    devices.heard(&Said::Moved(Source::Others, None));
+    devices.heard(&Said::Unavailable(Source::Me, "no microphone".into()));
+    assert_eq!(devices.names(), [None, None]);
 }

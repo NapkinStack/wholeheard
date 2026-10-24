@@ -25,9 +25,9 @@ pub enum Source {
 pub enum Said {
     /// A source could not be opened: its file will be silence, the other is still recorded.
     Unavailable(Source, String),
-    /// The recording runs, in this session's folder, from this microphone — as the system names
-    /// it, or nothing when it did not say which one.
-    Started(PathBuf, Option<String>),
+    /// The recording runs, in this session's folder, from this microphone and this output — as
+    /// the system names each, or nothing when it did not say which one.
+    Started(PathBuf, Option<String>, Option<String>),
     /// A source has given no sound for a while.
     Silent(Source),
     /// A source that was silent gives sound again.
@@ -59,7 +59,11 @@ pub fn read(line: &str) -> Option<Said> {
             source()?,
             event["reason"].as_str().unwrap_or_default().to_string(),
         )),
-        "started" => Some(Said::Started(folder()?, event["sources"]["me"].as_str().and_then(device))),
+        "started" => Some(Said::Started(
+            folder()?,
+            event["sources"]["me"].as_str().and_then(device),
+            event["sources"]["others"].as_str().and_then(device),
+        )),
         "silent" => Some(Said::Silent(source()?)),
         "heard" => Some(Said::Heard(source()?)),
         // Another device, or none: a name, or null — anything else is no event (recording/v1).
@@ -71,6 +75,27 @@ pub fn read(line: &str) -> Option<Said> {
         "level" => Some(Said::Level(source()?, event["level"].as_f64()?.clamp(0.0, 1.0) as f32)),
         "stopped" => Some(Said::Stopped(folder()?, event["seconds"].as_f64().unwrap_or(0.0))),
         _ => None,
+    }
+}
+
+/// What each side is recorded from now, as the recording said it: the microphone, then the
+/// output — none when it named none, or has none (D33).
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Devices([Option<String>; 2]);
+
+impl Devices {
+    pub fn heard(&mut self, said: &Said) {
+        let side = |source: &Source| usize::from(*source == Source::Others);
+        match said {
+            Said::Started(_, me, others) => self.0 = [me.clone(), others.clone()],
+            Said::Moved(source, name) => self.0[side(source)] = name.clone(),
+            Said::Lost(source) | Said::Unavailable(source, _) => self.0[side(source)] = None,
+            _ => {}
+        }
+    }
+
+    pub fn names(&self) -> [Option<String>; 2] {
+        self.0.clone()
     }
 }
 
@@ -141,7 +166,7 @@ impl Recording {
             for event in lines(output).filter_map(|line| read(&line)) {
                 let last = matches!(event, Said::Stopped(..));
                 match &event {
-                    Said::Started(folder, _) => info!(session = %crate::transcription::named(folder), "shell.recording_started"),
+                    Said::Started(folder, ..) => info!(session = %crate::transcription::named(folder), "shell.recording_started"),
                     Said::Unavailable(source, why) => warn!(source = ?source, detail = %why, "shell.recording_unavailable"),
                     Said::Moved(source, _) => info!(source = ?source, "shell.recording_moved"),
                     Said::Lost(source) => warn!(source = ?source, "shell.recording_lost"),
