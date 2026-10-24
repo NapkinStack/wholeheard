@@ -39,6 +39,14 @@ Discord, a browser tab —, a notification names it and offers *Record*, *Not th
 with `pw-dump --monitor`; what it sees is shown in the notification and kept nowhere.
 `offer = false` in the settings file turns the offers off.
 
+**Started with the session** (D32, Linux), so that a call is offered after a restart: at its
+first start, Wholeheard writes `~/.config/autostart/dev.wholeheard.Wholeheard.desktop`
+([XDG Autostart](https://specifications.freedesktop.org/autostart-spec/latest/)) — the tray
+alone, no window; `TryExec`, so a removed package starts nothing. The entry is the setting:
+Settings' *Lancer Wholeheard à l'ouverture de session* writes or removes it, and reads it as the
+desktop's tools leave it (`Hidden`, `X-GNOME-Autostart-enabled`). `autostart` in the settings
+file says Wholeheard wrote it once: turned off, it is never written again by itself.
+
 **The window** (cycle 03, from D11's drawings) is opened by *Open Wholeheard* in the menu — or at
 once by `wholeheard --window` — and never without a gesture: the meetings in the sessions'
 folder by week, newest first, each with its day, its length, what it holds and what its

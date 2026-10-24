@@ -134,31 +134,38 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
         return Err(Refused("nothing was sent: what is sent could not be said first".into(), None));
     }
     info!(host = %provider.host(), model, key = key.is_some(), characters = asked.chars().count(), "summary.sending");
-    let sent = Instant::now();
-    let answer = provider.ask(&asked)?;
-    info!(
-        milliseconds = sent.elapsed().as_millis() as u64,
-        characters = answer.chars().count(),
-        "summary.answered"
-    );
-    // A provider that sends the key back in its answer does not get it written in a file.
-    if key.as_deref().is_some_and(|key| !key.is_empty() && answer.contains(key)) {
-        return Err(Refused(
-            format!("{} sent the key back in its answer: nothing was written", provider.named()),
-            None,
-        ));
-    }
-
-    let at = chrono::Local::now().fixed_offset();
-    let written = minutes(
-        &answer,
-        &Made {
+    // An answer that is not minutes is asked for once more — a model's form varies from one
+    // answer to the next (#366); any other failure is not.
+    let mut again = true;
+    let written = loop {
+        let sent = Instant::now();
+        let answer = provider.ask(&asked)?;
+        info!(
+            milliseconds = sent.elapsed().as_millis() as u64,
+            characters = answer.chars().count(),
+            "summary.answered"
+        );
+        // A provider that sends the key back in its answer does not get it written in a file.
+        if key.as_deref().is_some_and(|key| !key.is_empty() && answer.contains(key)) {
+            return Err(Refused(
+                format!("{} sent the key back in its answer: nothing was written", provider.named()),
+                None,
+            ));
+        }
+        let at = chrono::Local::now().fixed_offset();
+        let made = Made {
             at,
             provider: &provider.host(),
             model,
             context: context.as_deref(),
-        },
-    )?;
+        };
+        match minutes(&answer, &made) {
+            Err(Refused(why, Some("answer.not_minutes"))) if std::mem::take(&mut again) => {
+                info!(detail = %why, "summary.asked_again");
+            }
+            done => break done?,
+        }
+    };
     write_minutes(folder, &written)
         .map_err(|error| Refused(format!("the minutes could not be written ({error})"), Some("minutes.unwritable")))?;
     info!("summary.written");

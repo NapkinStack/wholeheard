@@ -56,7 +56,7 @@ section, with its own stack's commands.
 | `check` | All the fast validations: format, lint, types | In under 2 minutes |
 | `test` | The module's test suite | With no dependency on another module |
 | `run` | Start the module locally | With doubles for the dependencies |
-| `e2e` | The module's end-to-end scenarios; logs and screenshots written to `$NSTACK_EVIDENCE` (`.evidence/e2e/`), read after the run | Against the running module, in CI |
+| `e2e` | The module's end-to-end scenarios; logs and screenshots written to `$NSTACK_EVIDENCE` (`.evidence/e2e/`), read after the run; exit 77 when it cannot run here | Against the running module, in CI |
 | `clean` | Remove what the module's commands left in its folder — build outputs | After its checks in CI on a self-hosted runner, even failed ones |
 | `compat` | Tell whether a change to a contract version is compatible: exit 0 when `$NSTACK_HEAD_PATH` accepts what `$NSTACK_BASE_PATH` did | On the module holding contracts, once one is consumed or stable |
 | `contracts` | Validate and generate the contract artefacts | On every contract change |
@@ -143,9 +143,9 @@ project/
 │   ├── tooling-profile.md         # mapping capabilities → the tools of the moment
 │   └── skills.yaml                # playbooks exposed as skills
 │
-└── .github/
-    ├── ISSUE_TEMPLATE/
-    ├── workflows/
+└── .github/                       # on GitHub; elsewhere CODEOWNERS at the root, and the
+    ├── ISSUE_TEMPLATE/            #   pull request form where the forge reads it
+    ├── workflows/                 #   (.nstack/handbook/INSTALL.md)
     ├── CODEOWNERS
     └── pull_request_template.md
 ```

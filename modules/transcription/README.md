@@ -82,6 +82,20 @@ engine left unwritten is then heard again as before, where it still is. On the b
 draws in eight whose remote track looped fall from 113 and 139 remote words wrong to 22 and 21;
 every other draw, the television and the trial meeting are unchanged (cycle 02, D10).
 
+**What the engine writes on a silence it was given stays.** Within a span that holds a voice,
+Whisper may write on a side's silence a sentence nobody said — the *Sous-titrage …* class.
+It is the engine's, kept as it is: a list of known phrases would tune to one model, and the
+levers tried against it were refuted (cycle 02, D10). Accepted by the decider on 2026-10-24
+([#355](https://github.com/NapkinStack/wholeheard/issues/355)); what holds no word at all is
+left out (#357).
+
+**A first word may be written twice on a microphone that rests far from zero** — a laptop's
+built-in one at a quarter of full scale: its rest reads as loud as a voice, is heard again
+alone, and the engine writes there the start of the word cut at its end, a line of no
+duration. Kept as it is, accepted by the decider on 2026-10-24
+([#362](https://github.com/NapkinStack/wholeheard/issues/362)): measuring the level without the
+offset took the word out and moved the engine's inventions elsewhere on the trial's sessions.
+
 **Attach a context** — `context.txt` in the session's folder: names and words of the trade
 the engine would otherwise write as it hears them.
 

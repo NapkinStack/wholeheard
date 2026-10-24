@@ -85,7 +85,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         (Said::Started(..), _) if !reminder => return None,
         (Said::Heard(_) | Said::Level(..), _) => return None,
         // The microphone is named, so that one other than the call's shows at once.
-        (Said::Started(_, microphone), English) => {
+        (Said::Started(_, microphone, _), English) => {
             let named = microphone
                 .as_ref()
                 .map(|name| format!("Microphone recorded: {name}. "))
@@ -95,7 +95,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
                 format!("{named}Tell the participants that this meeting is being recorded."),
             );
         }
-        (Said::Started(_, microphone), French) => {
+        (Said::Started(_, microphone, _), French) => {
             let named = microphone
                 .as_ref()
                 .map(|name| format!("Micro enregistré\u{a0}: {name}. "))
@@ -342,6 +342,8 @@ pub struct Window {
     pub offer: [&'static str; 2],
     /// Its two choices: offer to record, do nothing.
     pub offer_choices: [&'static str; 2],
+    /// Started with the user's session (D32): its name and line.
+    pub autostart: [&'static str; 2],
     pub keep_audio: [&'static str; 2],
     /// The settings' last card, and its one switch: what a program said of a failure, shown on
     /// the page under the sentence (D29).
@@ -568,6 +570,10 @@ pub fn window(language: Language) -> Window {
                 "A call starting, most often. Wholeheard never records without you knowing.",
             ],
             offer_choices: ["Offer to record", "Do nothing"],
+            autostart: [
+                "Start Wholeheard when you log in",
+                "In the tray, no window: a call is offered even after a restart.",
+            ],
             advanced_title: "Advanced",
             developer: [
                 "Developer mode",
@@ -780,6 +786,10 @@ pub fn window(language: Language) -> Window {
                 "Un appel qui commence, le plus souvent. Wholeheard n’enregistre jamais sans que vous le sachiez.",
             ],
             offer_choices: ["Proposer d’enregistrer", "Ne rien faire"],
+            autostart: [
+                "Lancer Wholeheard à l’ouverture de session",
+                "Dans la barre système, sans fenêtre\u{a0}: un appel vous est proposé même après un redémarrage.",
+            ],
             advanced_title: "Avancé",
             developer: [
                 "Mode développeur",

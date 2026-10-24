@@ -814,15 +814,18 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   if (player?.name === nameOf(session)) {
     const lines = [...page.querySelectorAll(".lines li")];
     let marked = null;
-    player.listeners.add((at) => {
+    // The player it follows, not the page's: a stopped one still says its last pause, after the
+    // page let it go.
+    const followed = player;
+    followed.listeners.add((at) => {
       const now = lines.findLast((line) => Number(line.dataset.start) <= at) ?? null;
       if (now === marked) return;
       marked?.classList.remove("now");
       now?.classList.add("now");
-      if (now && player.playing()) now.scrollIntoView({ block: "nearest" });
+      if (now && followed.playing()) now.scrollIntoView({ block: "nearest" });
       marked = now;
     });
-    player.listeners.forEach((listener) => listener(player.time()));
+    followed.listeners.forEach((listener) => listener(followed.time()));
   }
   const search = document.getElementById("search");
   if (search && searching) {
@@ -1143,6 +1146,18 @@ function showSettings(shown, minutes, words) {
   offerPick.value = shown.offer ? "offer" : "nothing";
   offerPick.addEventListener("change", () => save({ offer: offerPick.value === "offer" }));
   offer.append(offerSaid, offerPick);
+  // Started with the user's session (D32): the desktop's own entry, turned on or off here.
+  const start = element("label", "row");
+  const startBox = element("input");
+  startBox.type = "checkbox";
+  startBox.id = "autostart";
+  startBox.setAttribute("role", "switch");
+  startBox.checked = shown.autostart;
+  startBox.disabled = locked;
+  startBox.addEventListener("change", () => save({ autostart: startBox.checked }));
+  const startSaid = element("span", "said");
+  startSaid.append(element("span", "name", words.autostart[0]), element("span", "says", words.autostart[1]));
+  start.append(startSaid, startBox);
   const keep = element("div", "row");
   const keepSaid = element("label", "said");
   keepSaid.htmlFor = "keep";
@@ -1251,7 +1266,7 @@ function showSettings(shown, minutes, words) {
     );
     keys.append(open);
   }
-  more.append(remind, offer, keys, where, keep);
+  more.append(remind, offer, start, keys, where, keep);
   parts.push(more);
 
   // The transcription model's state: there and ready, or offered at the first transcript.
@@ -1407,7 +1422,8 @@ function showSmall(words) {
   full.setAttribute("aria-label", words.small_full);
   full.addEventListener("click", () => window.__TAURI__.core.invoke("full_window"));
   top.append(element("span", "live-dot"), time, full);
-  const meter = (label, id) => {
+  // Each level under what it is recorded from, as the system names it (D33).
+  const meter = (label, id, device) => {
     const row = element("div", "meter");
     const bar = element("span", "track");
     bar.setAttribute("role", "meter");
@@ -1417,7 +1433,11 @@ function showSmall(words) {
     const fill_ = element("span", "fill");
     fill_.id = id;
     bar.append(fill_);
-    row.append(element("span", "said", label), bar);
+    const said = element("span", "said");
+    const named = element("span", "device");
+    named.id = device;
+    said.append(element("span", "side", label), named);
+    row.append(said, bar);
     return row;
   };
   const stop = element("button", "danger", words.small_stop);
@@ -1425,7 +1445,7 @@ function showSmall(words) {
   stop.id = "small-stop";
   stop.addEventListener("click", () => window.__TAURI__.core.invoke("record"));
   const meters = element("div", "meters");
-  meters.append(meter(words.small_mic, "level-me"), meter(words.small_meeting, "level-others"));
+  meters.append(meter(words.small_mic, "level-me", "device-me"), meter(words.small_meeting, "level-others", "device-others"));
   const note = element("p", "says", words.small_note);
   note.hidden = true;
   page.replaceChildren(top, meters, stop, note);
@@ -1439,6 +1459,11 @@ function showSmall(words) {
       const fill_ = document.getElementById(id);
       fill_.style.width = `${percent}%`;
       fill_.parentElement.setAttribute("aria-valuenow", String(percent));
+    }
+    for (const [index, id] of ["device-me", "device-others"].entries()) {
+      const named = document.getElementById(id);
+      named.textContent = now.devices[index] ?? "";
+      named.title = now.devices[index] ?? "";
     }
     stop.disabled = !now.recording;
     note.hidden = !now.transcript_follows;

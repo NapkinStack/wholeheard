@@ -24,14 +24,14 @@ use tauri::{
 };
 use tauri_plugin_notification::NotificationExt;
 use wholeheard_shell::{
-    desktop, keys, log,
+    autostart, desktop, keys, log,
     meeting::{self, Read, Transcript},
     microphone, migrate,
     minutes::{self, Minutes},
     model::{self, Published},
     player,
     providers::{self, Online},
-    recording::{Recording, Said, Source},
+    recording::{self, Recording, Said, Source},
     sessions::{self, Listed},
     settings::{self, After, KeepAudio, Log, Settings},
     summarising::{self, Summarising},
@@ -79,6 +79,8 @@ struct Shell {
     hearing: Mutex<Option<PathBuf>>,
     /// The recording's meter, for the small window: when it started, and each source's level now.
     meter: Mutex<(Option<Instant>, [f32; 2])>,
+    /// What the recording running is recorded from, for the small window (D33).
+    devices: Mutex<recording::Devices>,
     /// The list's small reliefs, by transcript, kept until it changes.
     shapes: Mutex<Shapes>,
     /// The minutes being written, when they are: one at a time, taken from the gesture on.
@@ -219,6 +221,16 @@ fn main() {
                 }
                 _ => {}
             }
+            // Started with the user's session from now on, written once by itself (D32); a
+            // settings file that cannot be read writes nothing, and is said below.
+            if let (Some(entry), Some(file)) = (autostart::file(), settings::file()) {
+                match autostart::first(&entry, &file) {
+                    Ok(true) => tracing::info!("shell.autostart_written"),
+                    Ok(false) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {}
+                    Err(error) => tracing::warn!(kind = ?error.kind(), "shell.autostart_refused"),
+                }
+            }
             let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
             let toggle = MenuItem::with_id(app, "toggle", labels.start, true, None::<&str>)?;
             let again = MenuItem::with_id(app, "transcribe", labels.transcribe, true, None::<&str>)?;
@@ -279,6 +291,7 @@ fn main() {
                 minuting: Mutex::new(None),
                 shapes: Mutex::new(HashMap::new()),
                 meter: Mutex::new((None, [0.0, 0.0])),
+                devices: Mutex::new(recording::Devices::default()),
                 redoing: Mutex::new(None),
                 hearing: Mutex::new(None),
                 writing_minutes: Mutex::new(None),
@@ -622,6 +635,8 @@ struct Now {
     recording: bool,
     seconds: f64,
     levels: [f32; 2],
+    /// The microphone and the output recorded now, as the system names them (D33).
+    devices: [Option<String>; 2],
     /// Whether the transcript is made at the stop, by itself: the small window says so then only.
     transcript_follows: bool,
 }
@@ -633,6 +648,7 @@ fn recording_now(shell: State<'_, Shell>) -> Now {
         recording: shell.recording.lock().unwrap().is_some() && started.is_some(),
         seconds: started.map_or(0.0, |started| started.elapsed().as_secs_f64()),
         levels,
+        devices: shell.devices.lock().unwrap().names(),
         transcript_follows: shell.settings.lock().unwrap().after != settings::After::Nothing,
     }
 }
@@ -652,7 +668,8 @@ fn small_window(app: AppHandle, shell: State<'_, Shell>) {
     }
     let _ = WebviewWindowBuilder::new(&app, "small", WebviewUrl::App("index.html#/small".into()))
         .title("Wholeheard")
-        .inner_size(380.0, 260.0)
+        // Tall enough for each level under the device it is recorded from (D33).
+        .inner_size(380.0, 300.0)
         .resizable(false)
         .always_on_top(true)
         .build();
@@ -900,6 +917,8 @@ struct SettingsShown {
     reminder: bool,
     /// A call another application starts is offered to be recorded (D30).
     offer: bool,
+    /// Wholeheard starts with the user's session (D32): its entry, as the desktop reads it.
+    autostart: bool,
     keep_audio: KeepAudio,
     model: PathBuf,
     models: Vec<Model>,
@@ -942,6 +961,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         after: settings.after,
         reminder: settings.reminder,
         offer: settings.offer,
+        autostart: autostart::file().is_some_and(|entry| autostart::on(&entry)),
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
@@ -958,6 +978,7 @@ struct Change {
     after: Option<After>,
     reminder: Option<bool>,
     offer: Option<bool>,
+    autostart: Option<bool>,
     keep_audio: Option<KeepAudio>,
     model: Option<PathBuf>,
     developer: Option<bool>,
@@ -991,6 +1012,12 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
     }
     if let Some(offer) = change.offer {
         settings.offer = offer;
+    }
+    // The entry first: the settings say what Wholeheard wrote of it, once it is written.
+    if let Some(on) = change.autostart {
+        let entry = autostart::file().ok_or("this system names no folder for the session's start")?;
+        autostart::set(&entry, on).map_err(|error| format!("{}: {error}", entry.display()))?;
+        settings.autostart = Some(on);
     }
     if let Some(developer) = change.developer {
         settings.developer = developer;
@@ -1760,7 +1787,8 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     let mut sides = words::Sides::default();
     for event in said {
         started |= matches!(event, Said::Started(..));
-        if let Said::Started(folder, _) = &event {
+        shell.devices.lock().unwrap().heard(&event);
+        if let Said::Started(folder, ..) = &event {
             *shell.recorded.lock().unwrap() = Some(folder.clone());
             *shell.meter.lock().unwrap() = (Some(Instant::now()), [0.0, 0.0]);
         }
@@ -1785,6 +1813,7 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     }
     shell.recorded.lock().unwrap().take();
     *shell.meter.lock().unwrap() = (None, [0.0, 0.0]);
+    *shell.devices.lock().unwrap() = recording::Devices::default();
     // The small window has nothing left to show: it closes, as the board has it.
     if let Some(small) = app.get_webview_window("small") {
         let _ = small.close();

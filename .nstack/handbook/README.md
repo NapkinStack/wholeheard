@@ -83,7 +83,8 @@ preserving them.
 │       ├── 08-quality.md         Tests, security, reliability, data, UX, QA, UAT
 │       ├── 09-platform.md        Standard verbs, layout, tooling, onboarding
 │       └── 10-measurement.md     Metrics, feedback loop, decision review
-└── .github/                      CI, CODEOWNERS, issue and pull request templates
+└── .github/                      CI, CODEOWNERS, issue and pull request templates — on GitHub;
+                                  elsewhere CODEOWNERS at the root, the form where the forge reads it
 ```
 
 ---

@@ -39,6 +39,9 @@ Writes the minutes of a transcript.
 
 - A model that opens with a sentence before the sections is refused, by design. One title of
   first level above them, the habit of local models, is left out of the file instead (#353).
+- An answer that is not minutes is asked for once more, never a third time and never for
+  another failure: a local model's form varies from one answer to the next (#366). What is judged
+  stays the same.
 - The transcript's speakers, `me` and `others`, are asked never to reach the minutes (#354).
 - Reading a format by hand: an answer was once read line by line, an address split by hand —
   each cost several rounds of verification. An answer goes through a CommonMark reader, an
