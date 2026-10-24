@@ -123,6 +123,14 @@ deliverables:
       - "Given Wholeheard installed and started once, its setting untouched, when the user's session opens again, then Wholeheard starts in the tray alone — no window opens (D17) — and a call started then is offered (D30)"
       - "Given Settings, when the user turns Lancer Wholeheard à l'ouverture de session off, then nothing starts at the next session, and Wholeheard never turns it back on by itself; turned on again, it starts; what the desktop's own tools change of it is what Settings show"
       - "Given the package removed, when the session opens, then nothing starts and nothing is said"
+  - id: D33
+    title: "While recording, the small window names the microphone and the output recorded, as they change"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given a recording, when the small window is open, then under Votre micro and La réunion it names the device each is recorded from, as the system names it"
+      - "Given a recording, when the system's microphone or output changes — a headset plugged, earbuds put in, the built-in microphone chosen again —, then the small window names the new device within a second; when a side has no device, it names none"
+      - "Given earbuds connected while the system keeps another microphone, then the small window still names the one recorded: what is recorded is never left to guess"
 ---
 
 # Cycle 03 — the window
@@ -564,6 +572,16 @@ appetite; the end date does not move.
 real restart (D23):** #370 — the entry written once at the first start, `autostart` in the
 settings file saying so; Settings' switch reading the entry as the desktop's tools leave it.
 
+### D33
+
+**Added on the decider's word, 2026-10-24**, during D23's trial: they put their earbuds in
+halfway through a recording; the computer kept its built-in microphone, Wholeheard recorded it,
+and nothing said so — "les sources audio ne semblent pas apparaître dans l'application … si un
+user switch il peut se poser la question de se dire si son switch est bien pris en compte",
+then "oui D33". D31 tells a change; nothing names what is recorded while nothing changes. The
+capture already says each device (`recording/v1`, `started` and `device`); the shell shows
+them in the small window (board 6), under each level. The end date does not move.
+
 ## Out of scope
 
 - Recording by itself when an application takes the microphone, and stopping when it lets it
@@ -586,6 +604,11 @@ settings file saying so; Settings' switch reading the entry as the desktop's too
   capture's failures call for a gesture of their own: no source; a disk full while recording;
   a folder that cannot be written, which the shell already says before it starts. Transcription has no contract for
   how it runs and fails, only for the file it writes, so it would need one first.
+- Offering to record from a device just connected — "earbuds connected: record with them?",
+  as Discord offers to switch: the decider's idea, 2026-10-24 (D33 names the device, never
+  changes it). Wholeheard follows the system's devices (D31): offering would mean changing the
+  whole computer's microphone, or capture choosing its own — a contract change — and earbuds
+  that switch to their microphone lower the call's sound; to frame with the decider.
 - Correcting the transcript in the window — a word misheard, a sentence of a television in the
   room taken out — before the minutes are written from it: the decider's idea, 2026-10-24,
   during D23's trial. Today the window writes no transcript (D18, `transcript/v1`); it would
