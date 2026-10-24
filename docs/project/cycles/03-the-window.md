@@ -118,7 +118,7 @@ deliverables:
   - id: D32
     title: "Wholeheard starts with the user's session, in the tray, so a call is offered after a restart"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given Wholeheard installed and started once, its setting untouched, when the user's session opens again, then Wholeheard starts in the tray alone — no window opens (D17) — and a call started then is offered (D30)"
       - "Given Settings, when the user turns Lancer Wholeheard à l'ouverture de session off, then nothing starts at the next session, and Wholeheard never turns it back on by itself; turned on again, it starts; what the desktop's own tools change of it is what Settings show"
@@ -559,6 +559,10 @@ appetite; the end date does not move.
   without it, the offer (D30) breaks at the first restart. Once the user turns it off, it stays
   off — Wholeheard never writes it again by itself.
 - Board 4 gains one line, *Lancer Wholeheard à l'ouverture de session*, beside the offer's.
+
+**Built (2026-10-24), verified by an independent session; acceptance is the decider's, after a
+real restart (D23):** #370 — the entry written once at the first start, `autostart` in the
+settings file saying so; Settings' switch reading the entry as the desktop's tools leave it.
 
 ## Out of scope
 
