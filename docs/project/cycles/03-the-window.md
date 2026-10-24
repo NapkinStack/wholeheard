@@ -144,7 +144,7 @@ deliverables:
     module: shell
     state: ready
     acceptance:
-      - "Given Wholeheard not running, or running in the tray, when the user opens it from the applications' menu or the tray's Ouvrir Wholeheard, then the window they last left opens — the small one the first time, the choice kept in the settings across quitting and restarting — and a second start shows the running Wholeheard instead of starting another (#386)"
+      - "Given Wholeheard not running, or running in the tray, when the user opens it from the applications' menu or the tray's Ouvrir Wholeheard, then the window they last left opens — the small one the first time, the choice kept in the settings across quitting and restarting — and a second start from the menu shows the running Wholeheard instead of starting another (#386)"
       - "Given Wholeheard started with the session, or started again that way while one runs, then no window opens (D17, D32); and given no window open, when a recording starts from the tray, the shortcut or an offer, then none opens either (D22)"
       - "Given the small window, when it opens at rest, then it shows Démarrer un enregistrement and the shortcut as the desktop granted it (or that none is, and where to choose one); the last meeting and where it stands — being transcribed, being summarised, ready, failed in plain words —; what the meetings weigh; Toute la fenêtre; with no meeting yet, it says so and offers the recording alone; in the system's light or dark theme, as board 1 of D34"
       - "Given the small window, at rest or opened during a recording from the full window, when a recording runs, then it shows it (board 6, D33) above the other windows; at the stop it comes back to rest, not above them, the meeting just recorded as its last, its transcript on the way"
@@ -677,7 +677,8 @@ yes; above the other windows while recording only — yes. They become D35's cri
 **Added on the decider's word, 2026-10-25** ("pour moi oui aux 5 propositions, continue en
 autonomie"), built from D34's accepted board. The framer's reading for coherence and the user's
 experience (`ux.md`) added what the board left open, each in a criterion; the two that change
-what is built were asked of the decider, who chose them the same day:
+what is built were asked of the decider, who chose them the same day — "Une seule à la fois",
+"Revient au repos":
 
 - **One window at a time** — the decider's choice: going from one to the other replaces it; two
   windows open at once would show the recording twice. Today the full window stays open beside
