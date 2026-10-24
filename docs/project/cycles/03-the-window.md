@@ -136,7 +136,7 @@ deliverables:
     module: null
     state: ready
     acceptance:
-      - "Given the small window as board 6 drew it for a recording, when it is drawn at rest — what opens when the user opens Wholeheard from the applications' menu or the tray; what it shows and lets do with no recording: record, the last meeting and where it stands (transcript, minutes), the way to the full window; and the way back — in a light and a dark theme, then the decider sees the drawings and says what they change"
+      - "Given the small window as board 6 drew it for a recording, when it is drawn at rest — what opens when the user opens Wholeheard from the applications' menu or the tray; what it shows and lets do with no recording, drawn with the framer's proposals for the open questions the section names; the way to the full window and back — in a light and a dark theme, then the decider sees the drawings and says what they change"
       - "Given the open questions the section names, when the decider answers them on the drawings, then each answer is recorded beside its question"
       - "Given the decider's changes, when the drawings are made again, then the cycle records what was accepted and what refused: the accepted becomes the criteria of the deliverable that builds it. A drawing refused is a delivered answer"
 ---
@@ -606,22 +606,26 @@ the small window named *Ryzen…* then *AirPods…*, and the recording was heard
 own record agrees: the output went to the earbuds at 27 s while the system kept the built-in
 microphone, recorded and named as such, until it moved to the earbuds at 58 s.
 
-
 ### D34
 
 **Added on the decider's word, 2026-10-24**, after their real meeting (D23): "quand on ouvre
 l'application je trouve mieux d'ouvrir la petite fenêtre et de pouvoir basculer sur le full mode
 que l'inverse", then "oui cadre D34". Today the small window exists only while recording
-(board 6); opening Wholeheard opens the full window (D17). A small window at rest is a new
-surface: it is drawn first, as D11 drew the window, in a folder of its own under
-`docs/project/drawings/`, and built only from what the decider accepts in it — a deliverable
-framed then, if the cycle's appetite holds it. The end date does not move.
+(board 6). The full window opens from the tray's *Ouvrir Wholeheard*, or with `--window` (D17);
+the applications' menu runs `wholeheard` without it — no window — and nothing stops a second
+Wholeheard from starting beside the one D32 started with the session (#386). Opening from the
+menu therefore takes one running Wholeheard that a second start brings forward: on Tauri, its
+single-instance plugin ([tauri-plugin-single-instance](https://v2.tauri.app/plugin/single-instance/)),
+a cost of the build, not of the drawing.
 
-The convention *(framer, to confirm on the drawings)*: an application that lives in the tray
-opens a compact panel and offers its full window from it, as Dropbox's and Krisp's do.
+A small window at rest is a new surface: it is drawn first, as D11 drew the window, in a folder
+of its own under `docs/project/drawings/`, and built only from what the decider accepts in it —
+a deliverable framed then, if the cycle's appetite holds it. The end date does not move.
 
 Open questions, for the decider on the drawings:
 
+- A compact window first, the full window behind it: the pattern of tray applications, which the
+  framer proposes without a source to cite — is it the one they want?
 - Which gestures open it small: the applications' menu, the tray's *Ouvrir*, the shortcut?
 - Is the size remembered — opened as it was left, small or full — or always small?
 - What the small window at rest holds beyond *Enregistrer*: the last meeting and where it stands,
