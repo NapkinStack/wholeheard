@@ -67,7 +67,9 @@ D16).
 A key, when the provider wants one, is read from `WHOLEHEARD_PROVIDER_KEY` and written nowhere.
 Whatever fails — no network, a refused key, no credit left with the provider, an unknown
 model, an answer cut short or that is not minutes — the reason is one sentence on the error
-stream, the transcript is untouched and the minutes that were there are still there.
+stream, the transcript is untouched and the minutes that were there are still there. An answer
+that is not minutes is asked for once more first, the same request: with `qwen3:8b` on this
+laptop, one answer in eleven had another form (#366).
 
 What it does is logged — each step and each failure with its detail, never a word of the
 meeting, its context or a key (ADR-0007): one JSON line per step in

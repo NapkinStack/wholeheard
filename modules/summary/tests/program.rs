@@ -5,7 +5,7 @@ mod common;
 
 use std::{fs, path::Path, process::Output};
 
-use common::{MINUTES, answering, program, provider};
+use common::{MINUTES, answering, program, provider, providing};
 
 const TRANSCRIPT: &str = concat!(
     r#"{"type": "header", "contract": "transcript/v1", "engine": "an-engine", "model": "a-model", "language": "fr", "context": null}"#,
@@ -671,4 +671,47 @@ fn a_failure_a_person_acts_on_differently_ends_the_output_with_its_code() {
     let folder = session(None);
     let (address, _received) = provider("200 OK", answering(&format!("{MINUTES}\n- Bearer a-key-for-the-test\n"), "stop"));
     uncoded(&run(folder.path(), &address, Some("a-key-for-the-test")));
+}
+
+#[test]
+fn an_answer_that_is_not_minutes_is_asked_for_once_more_and_only_that_one() {
+    // Not minutes, then minutes: written, from the second answer, the same request sent twice.
+    let folder = session(None);
+    let (address, received) = providing(vec![
+        (
+            "200 OK",
+            answering("## Réunion\n\nUn titre et deux sections.\n\n## Actions\n\n- Aucune.\n", "stop"),
+        ),
+        ("200 OK", answering(MINUTES, "stop")),
+    ]);
+    let output = run(folder.path(), &address, None);
+    let (out, err) = said(&output);
+    assert!(output.status.success(), "{err}");
+    assert!(fs::read_to_string(folder.path().join("minutes.md")).unwrap().ends_with(MINUTES));
+    let (first, second) = (received.recv().unwrap().1, received.recv().unwrap().1);
+    assert_eq!(first, second);
+    assert!(received.try_recv().is_err(), "asked a third time");
+    // What leaves is said once, before anything leaves.
+    assert_eq!(out.matches(r#""event":"sending""#).count(), 1, "{out}");
+    // Not minutes twice: failed as before, after two requests, nothing written.
+    let folder = session(None);
+    let (address, received) = provider("200 OK", answering("Bien sûr ! Voici le compte rendu.", "stop"));
+    let output = run(folder.path(), &address, None);
+    let (out, err) = said(&output);
+    assert!(
+        !output.status.success() && err.contains("is not minutes") && out.contains(r#""code":"answer.not_minutes""#),
+        "{err}"
+    );
+    assert!(received.recv().is_ok() && received.recv().is_ok() && received.try_recv().is_err());
+    assert!(!folder.path().join("minutes.md").exists());
+    // Any other failure is not asked again: one request.
+    for (status, body) in [
+        ("200 OK", answering(MINUTES, "length")),
+        ("500 Internal Server Error", "oops".to_string()),
+    ] {
+        let folder = session(None);
+        let (address, received) = provider(status, body);
+        assert!(!run(folder.path(), &address, None).status.success());
+        assert!(received.recv().is_ok() && received.try_recv().is_err(), "{status}: asked again");
+    }
 }
