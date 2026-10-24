@@ -26,7 +26,7 @@
   .brand svg { width: 22px; height: 22px; }
   .icon { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); display: grid; place-items: center; color: var(--ink); font-size: 18px; }
   .primary { display: block; width: 100%; padding: 13px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font: 600 16px system-ui, sans-serif; text-align: center; }
-  .danger { background: var(--red); color: #15171C; }
+  .danger { background: var(--red); color: var(--surface); }
   .hint { margin: -8px 0 0; text-align: center; color: var(--soft); font-size: 13px; }
   kbd { font: 12px ui-monospace, monospace; padding: 1px 5px; border: 1px solid var(--line); border-radius: 5px; background: var(--raised); }
   .last { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
@@ -73,7 +73,7 @@
         <div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div>
         <div class="icon" title="Toute la fenêtre">⤢</div>
       </div>
-      <div class="primary">Enregistrer</div>
+      <div class="primary">Démarrer un enregistrement</div>
       <p class="hint">ou <kbd>Super</kbd> + <kbd>Alt</kbd> + <kbd>M</kbd>, de n’importe où</p>
       <div class="last">
         <span class="label">Dernière réunion</span>
@@ -103,7 +103,7 @@
       <p class="hint" style="margin:0;text-align:left">À l’arrêt, le transcript s’écrit tout seul. Vous serez prévenu.</p>
     </div>
     <div class="note"><b>Proposition</b>
-      « Enregistrer » change la fenêtre sur place : elle passe au-dessus des autres le temps de l’enregistrement, puis revient au repos à l’arrêt — elle ne se ferme plus.</div>
+      « Démarrer un enregistrement » change la fenêtre sur place : elle passe au-dessus des autres le temps de l’enregistrement, puis revient au repos à l’arrêt — elle ne se ferme plus.</div>
   </section>
 
   <section>
@@ -116,18 +116,16 @@
       </div>
       <div class="page"><div class="line" style="width:70%"></div><div class="line"></div><div class="line" style="width:85%"></div><div class="line" style="width:60%"></div></div>
     </div>
-    <h2 style="margin-top:22px">La barre système</h2>
+    <h2 style="margin-top:22px">La barre système — telle qu’elle est</h2>
     <div class="tray">
-      <div class="em">Ouvrir Wholeheard</div>
+      <div>Ouvrir Wholeheard</div>
       <div>Démarrer l’enregistrement</div>
-      <hr>
       <div>Transcrire le dernier enregistrement</div>
       <div>Faire le compte rendu du dernier enregistrement</div>
-      <hr>
       <div>Quitter Wholeheard</div>
     </div>
     <div class="note"><b>Propositions</b>
-      Wholeheard rouvre la taille où vous l’avez laissé. Un second lancement, depuis le menu, montre celui qui tourne déjà au lieu d’en démarrer un autre (#386).</div>
+      « Petite fenêtre » reste dans la grande même sans enregistrement (aujourd’hui, pendant un enregistrement seulement). Wholeheard rouvre la taille où vous l’avez laissé. Un second lancement, depuis le menu, montre celui qui tourne déjà au lieu d’en démarrer un autre (#386).</div>
   </section>
 </div>
 </body>
