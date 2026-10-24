@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>D34 — la petite fenêtre au repos</title>
+<!-- The source of the two images beside it, rendered at 1280 px by chromium-browser --headless;
+     the colours are ui/window.css's. ?dark draws the dark theme. -->
+<style>
+  :root {
+    --ground: #F2F4F7; --surface: #FFFFFF; --raised: #EEF1F5; --line: #D9DDE5;
+    --ink: #15171C; --soft: #4C5464; --accent: #2253CF; --ok: #16794A; --red: #C2352D;
+    --on-accent: #FFFFFF; --note: #7A5A00; --note-ground: #FFF6DB;
+  }
+  :root.dark {
+    --ground: #15171C; --surface: #1E2129; --raised: #282C37; --line: #343946;
+    --ink: #EEF0F4; --soft: #AAB1BF; --accent: #8AB0FF; --ok: #63D49C; --red: #FF7A72;
+    --on-accent: #15171C; --note: #F2CC6B; --note-ground: #2E2A1E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1280px; padding: 34px; background: var(--ground); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: repeat(3, 380px); gap: 36px; align-items: start; }
+  h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; flex: 1; }
+  .brand svg { width: 22px; height: 22px; }
+  .icon { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); display: grid; place-items: center; color: var(--ink); font-size: 18px; }
+  .primary { display: block; width: 100%; padding: 13px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font: 600 16px system-ui, sans-serif; text-align: center; }
+  .danger { background: var(--red); color: var(--surface); }
+  .hint { margin: -8px 0 0; text-align: center; color: var(--soft); font-size: 13px; }
+  kbd { font: 12px ui-monospace, monospace; padding: 1px 5px; border: 1px solid var(--line); border-radius: 5px; background: var(--raised); }
+  .last { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .last .label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+  .last .what { font-weight: 600; }
+  .last .when { color: var(--soft); font-size: 13px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--raised); color: var(--soft); }
+  .chip.done { color: var(--ok); }
+  .link { color: var(--accent); font-weight: 600; font-size: 14px; }
+  .foot { display: flex; justify-content: space-between; color: var(--soft); font-size: 13px; }
+  .time { display: flex; align-items: center; gap: 12px; font: 600 30px ui-monospace, monospace; flex: 1; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--red); }
+  .meters { display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; align-items: center; }
+  .side { display: flex; flex-direction: column; }
+  .device { color: var(--soft); font-size: 12px; max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { height: 8px; border-radius: 4px; background: var(--raised); overflow: hidden; }
+  .fill { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+  .fill.others { background: var(--ok); }
+  .full { padding: 0; overflow: hidden; gap: 0; }
+  .bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .bar .brand { flex: 0 0 auto; }
+  .nav { display: flex; gap: 4px; flex: 1; }
+  .nav span { padding: 6px 10px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+  .nav span.on { background: var(--raised); }
+  .ghost { padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); font-weight: 600; font-size: 13px; white-space: nowrap; }
+  .page { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .line { height: 10px; border-radius: 5px; background: var(--raised); }
+  .tray { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 6px 0; font-size: 14px; }
+  .tray div { padding: 6px 14px; }
+  .tray .em { font-weight: 600; }
+  .tray hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+  .note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--note-ground); color: var(--note); font-size: 13px; line-height: 1.4; }
+  .note b { display: block; margin-bottom: 2px; }
+</style>
+<script>if (location.search.includes("dark")) document.documentElement.classList.add("dark");</script>
+</head>
+<body>
+<div class="row">
+  <section>
+    <h2>À l’ouverture — la petite fenêtre, au repos</h2>
+    <div class="card">
+      <div class="top">
+        <div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div>
+        <div class="icon" title="Toute la fenêtre">⤢</div>
+      </div>
+      <div class="primary">Démarrer un enregistrement</div>
+      <p class="hint">ou <kbd>Super</kbd> + <kbd>Alt</kbd> + <kbd>M</kbd>, de n’importe où</p>
+      <div class="last">
+        <span class="label">Dernière réunion</span>
+        <span class="what">Aujourd’hui, 21:39 · 1 min 14 s</span>
+        <div class="chips"><span class="chip done">✓ Transcript</span><span class="chip done">✓ Compte rendu</span></div>
+        <span class="link">Lire le compte rendu</span>
+      </div>
+      <div class="foot"><span>12 réunions · 2,4 Go</span><span class="link">Toutes les réunions</span></div>
+    </div>
+    <div class="note"><b>Propositions, pour vos réponses</b>
+      Le menu des applications et « Ouvrir Wholeheard » ouvrent cette fenêtre, ou la grande si c’est elle que vous avez laissée.
+      Au repos, elle ne reste pas au-dessus des autres fenêtres.</div>
+  </section>
+
+  <section>
+    <h2>Enregistrer — la même fenêtre (planche 6, D33)</h2>
+    <div class="card">
+      <div class="top">
+        <div class="time"><span class="dot"></span>00:16:42</div>
+        <div class="icon" title="Toute la fenêtre">⤢</div>
+      </div>
+      <div class="meters">
+        <span class="side">Votre micro<span class="device">AirPods Pro</span></span><span class="track"><span class="fill" style="width:62%"></span></span>
+        <span class="side">La réunion<span class="device">Ryzen HD Audio Controller Speaker</span></span><span class="track"><span class="fill others" style="width:38%"></span></span>
+      </div>
+      <div class="primary danger">Arrêter</div>
+      <p class="hint" style="margin:0;text-align:left">À l’arrêt, le transcript s’écrit tout seul. Vous serez prévenu.</p>
+    </div>
+    <div class="note"><b>Proposition</b>
+      « Démarrer un enregistrement » change la fenêtre sur place : elle passe au-dessus des autres le temps de l’enregistrement, puis revient au repos à l’arrêt — elle ne se ferme plus.</div>
+  </section>
+
+  <section>
+    <h2>Toute la fenêtre — et le retour</h2>
+    <div class="card full">
+      <div class="bar">
+        <div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></div>
+        <div class="nav"><span class="on">Réunions</span><span>Réglages</span></div>
+        <span class="ghost">⤡ Petite fenêtre</span>
+      </div>
+      <div class="page"><div class="line" style="width:70%"></div><div class="line"></div><div class="line" style="width:85%"></div><div class="line" style="width:60%"></div></div>
+    </div>
+    <h2 style="margin-top:22px">La barre système — telle qu’elle est</h2>
+    <div class="tray">
+      <div>Ouvrir Wholeheard</div>
+      <div>Démarrer l’enregistrement</div>
+      <div>Transcrire le dernier enregistrement</div>
+      <div>Faire le compte rendu du dernier enregistrement</div>
+      <div>Quitter Wholeheard</div>
+    </div>
+    <div class="note"><b>Propositions</b>
+      « Petite fenêtre » reste dans la grande même sans enregistrement (aujourd’hui, pendant un enregistrement seulement). Wholeheard rouvre la taille où vous l’avez laissé. Un second lancement, depuis le menu, montre celui qui tourne déjà au lieu d’en démarrer un autre (#386).</div>
+  </section>
+</div>
+</body>
+</html>
