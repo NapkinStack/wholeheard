@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The window calls the shell's own command, which needs no permission; it is allowed nothing.",
-  "windows": ["main"],
-  "permissions": []
+  "description": "The windows call the shell's own commands, which need no permission. They are allowed one thing more: asking whether notifications are permitted, which the notification plugin's own script asks at each page's start — refused, it fails the page (D29). Nothing is sent from a page.",
+  "windows": ["main", "small"],
+  "permissions": ["notification:allow-is-permission-granted"]
 }

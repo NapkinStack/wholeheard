@@ -113,7 +113,9 @@ how it ended, a failure with its detail; never a word of a meeting, a key, nor a
 beyond its folder's name (ADR-0007): one JSON line per step in
 `$XDG_STATE_HOME/wholeheard/logs/shell.<date>.jsonl` (UTC), beside the programs' own; day files
 kept fourteen days and the folder under 50 MB. Each making has an id, logged here and passed to
-its program as `WHOLEHEARD_TRACE`: one id finds both sides. `WHOLEHEARD_LOG` and
+its program as `WHOLEHEARD_TRACE`: one id finds both sides. A failure of the window's page — an
+error it throws or a rejection it leaves — is logged as `shell.page_failed`, its kind and where in
+the page's code, never its sentence. `WHOLEHEARD_LOG` and
 `WHOLEHEARD_LOG_DIR` (an absolute path) are passed on as they are set.
 
 A failure reaches the user in plain words — what failed, what still holds, what to do — in a
