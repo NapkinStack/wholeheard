@@ -1344,7 +1344,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop"))
         time.sleep(1)
         fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
-        said = browser.find_element(By.CSS_SELECTOR, "#small .said .name").text
+        said = browser.find_element(By.CSS_SELECTOR, "#small .said .side").text
         check("in English too, it holds in its window", said == "Your microphone" and fits[0] <= fits[1], (said, fits))
         starts = browser.execute_script("return [...document.querySelectorAll('#small .track')].map(t => t.getBoundingClientRect().left)")
         check("the two meters start at the same place", len(starts) == 2 and starts[0] == starts[1], starts)

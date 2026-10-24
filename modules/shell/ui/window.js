@@ -1436,7 +1436,7 @@ function showSmall(words) {
     const said = element("span", "said");
     const named = element("span", "device");
     named.id = device;
-    said.append(element("span", "name", label), named);
+    said.append(element("span", "side", label), named);
     row.append(said, bar);
     return row;
   };
