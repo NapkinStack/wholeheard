@@ -150,6 +150,13 @@ deliverables:
       - "Given the small window, at rest or opened during a recording from the full window, when a recording runs, then it shows it (board 6, D33) above the other windows; at the stop it comes back to rest, not above them, the meeting just recorded as its last, its transcript on the way"
       - "Given either window, when the user goes to the other (Toute la fenêtre, Petite fenêtre — at rest too), then one replaces the other, never both; Lire le compte rendu, Toutes les réunions, the settings, or an agreement (board 5) — also when the minutes that follow a transcript ask for one — open the full window there, in place of the small one; the window left is the one reopened"
       - "Given the small window, when it is used with the keyboard alone, then every control is reached with Tab, the focus visible, Démarrer un enregistrement focused at opening; its words are the product's in French and English"
+  - id: D36
+    title: "The window offers the transcription model where it says it is missing"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given the default Whisper model not on this computer, when the user opens Settings or a meeting waiting for it, then the window offers Télécharger le modèle with its size and host beside the sentence that says it is missing; a click fetches it on the user's word, as the tray's entry does — the same fetch, verified by its published fingerprint —, the window says it is coming, and the meetings in line are transcribed once it is ready — none other: with none in line, no transcript is made"
+      - "Given the model being fetched, from the window or the tray, then neither offers it again; given the fetch cut or refused, then it is said and the window offers it again; given a model the user named that is not on this computer, then nothing is offered: it is theirs"
 ---
 
 # Cycle 03 — the window
@@ -730,6 +737,18 @@ recording and the two themes; a recording from the shortcut or an offer; the set
 agreement opening the full window from the small one; the menu while a
 Wholeheard started with the session runs — the same hand-over as a second start from the menu.
 
+### D36
+
+**Added on the decider's word, 2026-10-25**, asking whether the tray's offer of the model "ca ne
+fonctionne qu'une fois et apres ca disparait et c'est perdu ?", then "GO" to the framer's
+proposal. It is not lost: the tray's entry stays until the model is there, and comes back at
+the next transcript while it is missing. But only the tray offers it: Settings say "il est proposé
+au premier transcript" and a meeting waiting for it says "téléchargez-le depuis le menu de
+Wholeheard", with no gesture where the user reads it. The window offers the same fetch there, the
+tray's own; nothing else changes. Fetching a model of Ollama for the minutes goes to *Later*.
+
+**Appetite.** One pull request in the 13 days left; the end date does not move.
+
 ## Out of scope
 
 - Recording by itself when an application takes the microphone, and stopping when it lets it
@@ -742,6 +761,10 @@ Wholeheard started with the session runs — the same hand-over as a second star
 
 ## Later
 
+- Offering the minutes' recommended model (`qwen3:8b`, about 5 GB) to be fetched by Ollama, on
+  the user's word, when Ollama is on the computer without it — the framer's proposal B, 2026-10-25,
+  put here with the decider's "GO". Installing Ollama itself is not proposed: another
+  publisher's program and service, installed by ours.
 - Recording by itself when an application takes the microphone, and stopping when it lets it go
   (board 6); the offer is D30.
 - Windows and macOS, with the two colleagues.
