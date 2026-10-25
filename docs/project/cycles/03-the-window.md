@@ -163,8 +163,8 @@ deliverables:
     state: ready
     acceptance:
       - "Given Settings, when the user opens its models, then a short list shipped with Wholeheard is shown — Whisper large v3 turbo (874 MB, recommended), Whisper small (264 MB, faster, less exact, for a modest computer), and for the minutes qwen3:8b through Ollama (about 5 GB) —, each with its size, what it is good for, and where it stands: on this computer, being downloaded and how far, or Télécharger"
-      - "Given a Whisper model of the list clicked, then it is fetched on the user's word from huggingface.co as D36's — a part file, its published SHA-256 checked —, into Wholeheard's models folder, then offered among the models to choose; the choice made stays the user's; cut or refused, it is said and offered again; one fetch at a time"
-      - "Given qwen3:8b clicked and Ollama answering on this computer, then Ollama fetches it, how far said, and once there it is offered first among the minutes' models; given no Ollama answering, then the row says Ollama is needed and where to get it, with no button: Wholeheard never installs Ollama"
+      - "Given a Whisper model of the list clicked, then it is fetched on the user's word from huggingface.co as D36's — a part file, its published SHA-256 checked —, into Wholeheard's models folder, then offered among the models to choose; the choice made stays the user's; cut or refused, it is said and offered again; one fetch at a time — the turbo's row and D36's offer are the same fetch"
+      - "Given qwen3:8b clicked and Ollama answering on this computer, then Ollama fetches it, how far said, and once there it is offered first among the minutes' models; cut or refused, or Ollama stopping, it is said and offered again; given no Ollama answering, then the row says Ollama is needed and where to get it, with no button: Wholeheard never installs Ollama"
 ---
 
 # Cycle 03 — the window
@@ -784,8 +784,8 @@ left; the shell's log says nothing of what they saw.
 registry kept online, the framer answered that the missing piece is first a choice in the window,
 and proposed a short list shipped with Wholeheard — the decider: "“1. Une courte liste de modèles
 à télécharger” on le mets dans le lot, pas besoin de remettre a plus tard". It takes in D36's
-proposal B, which leaves *Later*. As MacWhisper and Buzz do, the list comes with the application,
-changed with a release; on Linux, `dnf` and `apt` bring releases. Proposed by the framer, to
+proposal B, which leaves *Later*. The list comes with the application, changed with a release;
+on Linux, `dnf` and `apt` bring releases. Proposed by the framer, to
 confirm in the decider's trial: Whisper small in the default's own quantization (`q8_0`, 264 MB,
 huggingface.co's listing, 2026-10-25), and `qwen3:8b`, recommended since #261, fetched by Ollama's
 own pull.
@@ -810,8 +810,10 @@ date does not move.
   (the framer, 2026-10-25, with D37).
 - The list of D37 read from a registry kept open on GitHub, signed — a key of Wholeheard's in the
   application, the private one never in a repository —, read only when the user opens the list,
-  never at the start, the copy shipped kept for when it cannot be read; only once the list changes
-  faster than the releases. The decider's idea, 2026-10-25; Homebrew's way.
+  never at the start, the copy shipped kept for when it cannot be read. A registry kept open on
+  GitHub is the decider's idea, 2026-10-25, as Homebrew keeps its own
+  ([homebrew-core](https://github.com/Homebrew/homebrew-core)); the framer's condition: only once
+  the list changes faster than the releases.
 - Recording by itself when an application takes the microphone, and stopping when it lets it go
   (board 6); the offer is D30.
 - Windows and macOS, with the two colleagues.
