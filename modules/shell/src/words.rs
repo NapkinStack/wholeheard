@@ -588,7 +588,7 @@ pub fn window(language: Language) -> Window {
             model_chosen_missing: "{} — not on this computer yet",
             offered_ollama_size: "about 5 GB",
             offered_ollama_good: "For the minutes, on this computer, through Ollama",
-            offered_needs_ollama: "Needs Ollama, installed from ollama.com",
+            offered_needs_ollama: "Needs Ollama — install it from ollama.com",
             installed: "installed, {}",
             keep_other: "Another number of days…",
             keep_not_days: "{} is no number of days: from 1 to 36,500",
