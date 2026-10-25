@@ -160,7 +160,7 @@ deliverables:
   - id: D37
     title: "Settings offer a short list of models to download, each said by what it is good for"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given Settings, when the user opens its models, then a short list shipped with Wholeheard is shown — Whisper large v3 turbo (874 MB, recommended), Whisper small (264 MB, faster, less exact, for a modest computer), and for the minutes qwen3:8b through Ollama (about 5 GB) —, each with its size, what it is good for, and where it stands: on this computer, being downloaded and how far, or Télécharger"
       - "Given a Whisper model of the list clicked, then it is fetched on the user's word from huggingface.co as D36's — a part file, its published SHA-256 checked —, into Wholeheard's models folder, then offered among the models to choose; the choice made stays the user's; cut or refused, it is said and offered again; one fetch at a time — the turbo's row and D36's offer are the same fetch"

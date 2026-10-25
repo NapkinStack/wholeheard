@@ -111,6 +111,9 @@ main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 56px; display: flex
 .picks input { width: 96px; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; }
 #settings .state { flex-direction: row; align-items: center; justify-content: space-between; }
 .ready { color: var(--ok); font-weight: 700; white-space: nowrap; }
+/* The models to download (D37): a row each, its state at its end. */
+.step h3 { margin: 6px 0 0; font-size: 14px; font-weight: 700; }
+.offered { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .choice { display: flex; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); cursor: pointer; }
 .choice:has(input:checked) { border-color: var(--accent); background: var(--raised); }
 .choice input, .row input[type="checkbox"] { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); }
@@ -211,7 +214,7 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .freeable.busy { cursor: default; opacity: 0.6; }
 .free-total { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding: 20px 24px; background: var(--raised); }
 .danger { min-height: 48px; padding: 0 22px; border: 0; border-radius: 12px; background: var(--red); color: var(--surface); font: inherit; font-weight: 700; cursor: pointer; }
-.danger:disabled, .primary:disabled { opacity: 0.45; cursor: default; }
+.danger:disabled, .primary:disabled, .open:disabled { opacity: 0.45; cursor: default; }
 .page-top { display: flex; align-items: baseline; gap: 18px; }
 .page-top h1 { margin: 0; font-size: 20px; }
 .free-total .total { display: flex; align-items: baseline; gap: 8px; }

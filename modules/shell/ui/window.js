@@ -114,7 +114,9 @@ function transcriptState(name) {
   if (makings.transcript?.name === name) return { kind: "making", ...makings.transcript };
   const waiting = makings.transcripts_waiting.indexOf(name);
   // Nothing being made and the model not there: the line waits for it, not for a turn.
-  if (waiting >= 0 && makings.transcript === null && makings.model_needed) return { kind: "model", coming: makings.model_coming };
+  if (waiting >= 0 && makings.transcript === null && makings.model_needed) {
+    return { kind: "model", coming: makings.model_coming, busy: makings.model_fetching !== null && !makings.model_coming };
+  }
   if (waiting >= 0) return { kind: "waiting", before: waiting + 1 };
   if (makings.transcripts_failed[name] !== undefined) return { kind: "failed", why: makings.transcripts_failed[name] };
   return null;
@@ -147,7 +149,7 @@ function paintState(said, shown, of) {
     said.replaceChildren(element("span", "what", fill(words.minutes_waiting, shown.before)));
   } else if (shown.kind === "model") {
     if (shown.coming) said.replaceChildren(element("span", "what", words.transcript_model_coming));
-    else said.replaceChildren(element("span", "what", words.transcript_model_needed), modelFetch());
+    else said.replaceChildren(element("span", "what", words.transcript_model_needed), modelFetch(shown.busy));
   } else if (shown.kind === "awaiting") {
     const agree = element("a", "open", words.agree_open);
     agree.id = "minutes-agree";
@@ -173,10 +175,11 @@ function paintState(said, shown, of) {
 }
 
 // The tray's own fetch of the default model, offered where the window says it is missing (D36).
-function modelFetch() {
-  const fetch_ = element("button", "open", makings.model_offer);
+function modelFetch(busy = false) {
+  const fetch_ = element("button", "open", fill(words.model_offer, size(makings.model_offer_bytes, words), makings.model_offer_host));
   fetch_.type = "button";
   fetch_.id = "model-fetch";
+  fetch_.disabled = busy;
   fetch_.addEventListener("click", async () => {
     fetch_.disabled = true;
     await window.__TAURI__.core.invoke("model_fetch").catch(() => {});
@@ -185,23 +188,60 @@ function modelFetch() {
   return fetch_;
 }
 
+// Each model of Settings' list: here, coming and how far, or offered — one fetch at a time (D37).
+function paintOffered(list = document.getElementById("offered")) {
+  if (!list || makings === null) return;
+  const coming = makings.model_fetching;
+  for (const item of list.children) {
+    const far = coming?.file === item.dataset.offered ? Math.floor((100 * coming.held) / Math.max(coming.bytes, 1)) : null;
+    const kind = item.dataset.here === "true" ? "here" : far !== null ? `far ${far}` : coming ? "busy" : "offered";
+    if (item.dataset.kind === kind) continue;
+    item.dataset.kind = kind;
+    const state = item.querySelector(".state");
+    if (kind === "here") state.replaceChildren(element("span", "ready", `✓ ${words.on_this_computer}`));
+    else if (far !== null) state.replaceChildren(element("span", "says", fill(words.offered_far, far)));
+    else {
+      const fetch_ = element("button", "open", words.offered_fetch);
+      fetch_.type = "button";
+      fetch_.disabled = kind === "busy";
+      fetch_.addEventListener("click", async () => {
+        fetch_.disabled = true;
+        await window.__TAURI__.core.invoke("model_offered_fetch", { file: item.dataset.offered }).catch(() => {});
+        readMakings();
+      });
+      state.replaceChildren(fetch_);
+    }
+  }
+}
+
 // Settings' model, not on this computer: coming, offered, or one the user named — theirs (D36).
 function paintModel(state = document.getElementById("model-state")) {
   if (!state?.dataset.missing || makings === null) return;
-  const kind = makings.model_coming ? "coming" : makings.model_needed ? "needed" : "named";
+  const busy = makings.model_fetching !== null && !makings.model_coming;
+  const kind = makings.model_coming ? "coming" : makings.model_needed ? (busy ? "needed busy" : "needed") : "named";
   if (state.dataset.kind === kind) return;
   // Offered or coming, and now neither: the default model came — the page drawn as it now is,
   // once: the drawing paints the makings again, this card still in it.
   const came = kind === "named" && state.dataset.kind;
   state.dataset.kind = kind;
   if (came) return refresh();
-  state.querySelector(".says").textContent = { coming: words.model_coming, needed: words.model_missing, named: words.model_named_missing }[kind];
+  state.querySelector(".says").textContent = { coming: words.model_coming, named: words.model_named_missing }[kind] ?? words.model_missing;
   state.querySelector("#model-fetch")?.remove();
-  if (kind === "needed") state.append(modelFetch());
+  // Another model coming: offered, not yet clickable — one fetch at a time (D37).
+  if (kind.startsWith("needed")) state.append(modelFetch(busy));
 }
 
+// The model being fetched when the page was last painted: once it ends, Settings are drawn again.
+let lastFetching = null;
+
 function paintMakings() {
+  // Drawn again first, never painted then drawn over: what is under the focus stays one drawing.
+  const fetching = makings?.model_fetching?.file ?? null;
+  const ended = lastFetching !== null && fetching === null;
+  lastFetching = fetching;
+  if (ended && document.getElementById("offered")) return refresh();
   paintModel();
+  paintOffered();
   for (const chip_ of document.querySelectorAll(".chip.making")) {
     // The minutes' state first; else the transcript's, which comes before them.
     const minutes = minutesState(chip_.dataset.name);
@@ -1134,6 +1174,13 @@ function showSettings(shown, minutes, words) {
   const pick = element("select");
   pick.id = "model";
   pick.disabled = locked;
+  // The model chosen, not here yet: said so in the choice, never shown as another (D37).
+  if (!shown.models.some((model) => model.path === shown.model)) {
+    const missing = element("option", "", fill(words.model_chosen_missing, spoken(shown.model.split("/").pop())));
+    missing.disabled = true;
+    missing.selected = true;
+    pick.append(missing);
+  }
   for (const model of shown.models) {
     const option = element("option", "", `${spoken(model.name)} — ${fill(words.installed, size(model.bytes, words))}`);
     option.value = model.path;
@@ -1145,6 +1192,21 @@ function showSettings(shown, minutes, words) {
   const here = element("p", "status here", words.on_this_computer);
   here.append(element("code", "tag", words.builtin));
   step.append(row, here);
+  // The short list of models to download, each said by what it is good for (D37).
+  const offered = element("ul", "offered");
+  offered.id = "offered";
+  offered.setAttribute("aria-label", words.offered_title);
+  for (const model of shown.offered) {
+    const item = element("li", "row");
+    item.dataset.offered = model.file;
+    item.dataset.here = String(model.here);
+    const said_ = element("div", "said");
+    said_.append(element("span", "name", `${spoken(model.file)} · ${size(model.bytes, words)}`), element("span", "says", model.good));
+    item.append(said_, element("span", "state"));
+    offered.append(item);
+  }
+  step.append(element("h3", "", words.offered_title), offered);
+  paintOffered(offered);
   models.append(step, minutesRow(minutes, words, locked), element("p", "says", words.models_note));
   parts.push(models);
 
@@ -1744,11 +1806,14 @@ async function refresh() {
   }
   let opened = null;
   let seen = makings;
-  if (wanted) {
+  // Settings too: their models' states are drawn with the page, not at the next reading (D37).
+  if (wanted || settings) {
     // What is being made, read before the meeting: the counts its page keeps are never ahead of
     // what it shows, never behind what was made before it was read — drawn again only for what
     // was made since.
     seen = await window.__TAURI__.core.invoke("makings").catch(() => makings);
+  }
+  if (wanted) {
     // A meeting no longer there, or a name that is none, goes back to the list.
     try {
       opened = await window.__TAURI__.core.invoke("opened", { name: decodeURIComponent(wanted[1]) });
@@ -1781,6 +1846,7 @@ async function refresh() {
       window.__TAURI__.core.invoke("minutes_shown"),
     ]);
     if (mine !== drawing) return;
+    makings = seen;
     showSettings(shown, minutes, words);
   }
 }
