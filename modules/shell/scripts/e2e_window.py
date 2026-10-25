@@ -1247,8 +1247,10 @@ def main() -> int:
         busy = [r.text for r in browser.find_elements(By.CSS_SELECTOR, "#free .freeable.busy")]
         check("while its minutes are written, the meeting is busy on the page that frees space", held and "compte rendu" in " ".join(busy), busy)
         # Elsewhere when they are written — the settings, being changed —: that page is left alone.
+        # Settings drawn before stay in the page, hidden: the one kept is the drawing this visit makes (#409).
+        browser.execute_script("window.__before = document.getElementById('settings').firstElementChild")
         browser.execute_script("location.hash = '#/settings'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "minutes"), 5)
+        wait_for(browser, lambda b: b.execute_script("const first = document.getElementById('settings').firstElementChild; return first !== null && first !== window.__before"), 5)
         browser.execute_script("window.__kept = document.getElementById('settings').firstElementChild")
         made = wait_for(browser, lambda b: (asked / "minutes.md").exists(), 10)
         check("what a meeting lacks is offered, and made on the word", made)
