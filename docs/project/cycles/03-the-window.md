@@ -153,7 +153,7 @@ deliverables:
   - id: D36
     title: "The window offers the transcription model where it says it is missing"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given the default Whisper model not on this computer, when the user opens Settings or a meeting waiting for it, then the window offers Télécharger le modèle with its size and host beside the sentence that says it is missing; a click fetches it on the user's word, as the tray's entry does — the same fetch, verified by its published fingerprint —, the window says it is coming, and the meetings in line are transcribed once it is ready — none other: with none in line, no transcript is made"
       - "Given the model being fetched, from the window or the tray, then neither offers it again; given the fetch cut or refused, then it is said and the window offers it again; given a model the user named that is not on this computer, then nothing is offered: it is theirs"
@@ -758,6 +758,17 @@ this computer, is not offered: "Pas sur cet ordinateur : remettez-le à sa place
 un autre." Left to the decider: the button in both themes, and a real fetch from huggingface.co. Known:
 Settings opened within 1.5 s of the window show the model's card empty for about 1.3 s, until the
 first reading of what is being made.
+
+**Accepted by the decider, 2026-10-25** ("D36 ok"), after a trial an agent session ran on their
+desktop, on the installed package, with a profile of its own — their model and settings
+untouched by it: Settings offered *Download the model (874 MB, huggingface.co)*; clicked, the button
+went while the model came from huggingface.co, then it was in place, the same bytes as the
+decider's own, and offered no more; the shell's log held no warning nor error. Not seen by that
+trial: the button in both themes, and a meeting's offer over the real network — held by #400's
+scenario T on a local server. Then the decider looked themselves, in their own profile: at 10:41
+Wholeheard was started twice from the applications' menu, their model set aside in their home
+folder between the two, as the framer's steps said; their settings kept every key, the full window
+left; the shell's log says nothing of what they saw.
 
 ## Out of scope
 
