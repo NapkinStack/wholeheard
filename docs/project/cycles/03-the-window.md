@@ -142,7 +142,7 @@ deliverables:
   - id: D35
     title: "Wholeheard opens small: the small window at rest, the full window behind it, one Wholeheard running"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given Wholeheard not running, or running in the tray, when the user opens it from the applications' menu or the tray's Ouvrir Wholeheard, then the window they last left opens — the small one the first time, the choice kept in the settings across quitting and restarting — and a second start from the menu shows the running Wholeheard instead of starting another (#386)"
       - "Given Wholeheard started with the session, or started again that way while one runs, then no window opens (D17, D32); and given no window open, when a recording starts from the tray, the shortcut or an offer, then none opens either (D22)"
@@ -702,6 +702,16 @@ what is built were asked of the decider, who chose them the same day — "Une se
 
 **Appetite.** Two pull requests in the 13 days left: one Wholeheard (#386), then the small window
 at rest. The end date does not move; what does not fit goes to *Later*.
+
+**Built (2026-10-25), each pull request verified by an independent session; acceptance is the
+decider's, on their own desktop:** #393 — one Wholeheard: a second start hands over and leaves,
+the applications' menu runs `wholeheard --window`, the session's start opens nothing; #394 — the
+small window at rest opens first, a recording shows in it above the other windows and it comes
+back to rest at the stop, one window at a time, the window left kept as `window` in the
+settings, a settings file that cannot be read opening the full window. One size for both states,
+380×400: GTK does not shrink a window the user cannot resize. Left to the decider: the window
+above the others while recording only, both themes, and the menu with the session's Wholeheard
+running.
 
 ## Out of scope
 
