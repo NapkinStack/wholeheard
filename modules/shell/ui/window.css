@@ -233,6 +233,19 @@ body.small-window .bar { display: none; }
 .meter .fill { display: block; height: 100%; width: 0; border-radius: 4px; background: var(--accent); transition: width 90ms linear; }
 #level-others { background: var(--ok); }
 #small .danger { width: 100%; }
+/* At rest (D35, D34's board): the recording's gesture, the last meeting, the way to the full window. */
+.small-rest, .small-live { display: flex; flex-direction: column; gap: 12px; }
+.small-brand { font-weight: 700; font-size: 16px; }
+#small .primary { width: 100%; justify-content: center; }
+#small .hint { margin: -6px 0 0; padding: 0; border: 0; background: none; color: var(--soft); font: inherit; font-size: 13px; text-align: center; }
+#small .hint:enabled { cursor: pointer; text-decoration: underline; }
+#small .hint:disabled { opacity: 1; }
+#small .last { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+#small .last .label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+#small .last .what { font-weight: 600; }
+#small .none { margin: 0; color: var(--soft); }
+#small .link { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; }
+.small-foot { display: flex; justify-content: space-between; align-items: center; color: var(--soft); font-size: 13px; }
 
 /* What is made in the background (D25): said on the meeting's page, and on a list's row. */
 .chip.making { color: var(--accent); font-weight: 600; }

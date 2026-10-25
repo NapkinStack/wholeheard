@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path};
 
-use wholeheard_shell::settings::{After, KeepAudio, Log, Settings, file, read, whisper_models, write};
+use wholeheard_shell::settings::{After, KeepAudio, Log, Settings, Window, file, read, whisper_models, write};
 
 fn written(text: &str) -> Result<Settings, String> {
     let folder = tempfile::tempdir().unwrap();
@@ -395,4 +395,22 @@ fn a_call_is_offered_to_be_recorded_unless_the_user_said_nothing_is() {
     let text = fs::read_to_string(&path).unwrap();
     assert!(text.contains("# mine") && text.contains("offer = false"), "{text}");
     assert!(!read(&path).unwrap().offer);
+}
+
+#[test]
+fn wholeheard_opens_the_window_it_was_left_in_the_small_one_first() {
+    // D35: small by default, `window = "full"` when the full one was left; written back as left.
+    assert_eq!(Settings::default().window, Window::Small);
+    assert_eq!(written("window = \"full\"\n").unwrap().window, Window::Full);
+    assert_eq!(written("window = \"small\"\n").unwrap().window, Window::Small);
+    assert!(written("window = \"huge\"\n").is_err());
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "# mine\nreminder = false\n").unwrap();
+    let mut left = read(&path).unwrap();
+    left.window = Window::Full;
+    write(&path, &left).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("# mine") && text.contains("window = \"full\""), "{text}");
+    assert_eq!(read(&path).unwrap().window, Window::Full);
 }

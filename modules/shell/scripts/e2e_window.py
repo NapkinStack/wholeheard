@@ -178,11 +178,14 @@ def session(folder: Path, started: dt.datetime, minutes: float | None, files: di
 class Window:
     """Wholeheard with its window, for as long as the `with` lasts."""
 
-    def __init__(self, sessions: Path, language: str, more: str = "", ollama: str = "http://127.0.0.1:9") -> None:
+    def __init__(self, sessions: Path, language: str, more: str = "", ollama: str = "http://127.0.0.1:9", small: bool = False) -> None:
         config = WORK / f"config-{language}-{sessions.name}"
         (config / "wholeheard").mkdir(parents=True, exist_ok=True)
         self.file = config / "wholeheard" / "settings.toml"
-        self.file.write_text(f'sessions = "{sessions}"\n{more}')
+        # The full window, as the scenarios before D35 knew it; the small one, opened first, where asked.
+        self.small = small
+        opened = "" if small else 'window = "full"\n'
+        self.file.write_text(f'sessions = "{sessions}"\n{opened}{more}')
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), XDG_STATE_HOME=str(WORK / "state"), LANGUAGE="")
         # An Ollama and a keyring of the scenario's, never the user's own.
         self.env.update(LANG=language, LC_ALL=language, WHOLEHEARD_OLLAMA=ollama, WHOLEHEARD_KEYRING="memory", WHOLEHEARD_SUMMARY=str(SUMMARY), WHOLEHEARD_TRANSCRIPTION=str(HEARING), WHOLEHEARD_CAPTURE=str(RECORDER))
@@ -209,7 +212,8 @@ class Window:
             self.driver_process.terminate()
             self.driver_process.wait(timeout=10)
             raise SystemExit("tauri-driver did not answer")
-        wait_for(self.browser, lambda b: b.execute_script("return document.getElementById('meetings').textContent !== ''"))
+        # Whichever window opened: the small one at rest, or the full one's sections named.
+        wait_for(self.browser, lambda b: b.find_elements(By.ID, "small-record") or b.execute_script("return document.getElementById('meetings').textContent !== ''"))
         return self.browser
 
     def __exit__(self, *_) -> None:
@@ -391,9 +395,9 @@ def main() -> int:
         json.dumps(lines[0]) + "\n" + json.dumps({"type": "segment", "speaker": "me", "track": "local", "voice": None, "start": 1.0, "end": 2.0, "text": "Une autre réunion."}) + "\n"
     )
     with Window(meetings, "fr_FR.UTF-8") as browser:
-        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB, Keys.TAB)
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB, Keys.TAB, Keys.TAB)
         focused = browser.execute_script("return document.activeElement.id")
-        check("Tab reaches the header's gesture after the two sections", focused == "record", focused)
+        check("Tab reaches the header's gesture after the two sections and the small window's (D35)", focused == "record", focused)
         browser.find_element(By.ID, "record").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.id")
         check("then freeing space, beside the weights", focused == "free-link", focused)
@@ -788,8 +792,10 @@ def main() -> int:
         check("an address that is none is said, and nothing changes", said and window.file.read_text() == text, browser.find_element(By.ID, "not-saved").text)
     broken = WORK / "broken"
     broken.mkdir()
-    window = Window(broken, "fr_FR.UTF-8", "keep_audio = 0\n")
+    # No window named: a file that cannot be read opens the full one, where it is said (D35).
+    window = Window(broken, "fr_FR.UTF-8", "keep_audio = 0\n", small=True)
     with window as browser:
+        check("a settings file that cannot be read opens the full window, not the small one", not browser.find_elements(By.ID, "small-record") and browser.find_element(By.ID, "settings-link").is_displayed())
         browser.find_element(By.ID, "settings-link").click()
         wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#settings .warn"))
         warned = browser.find_element(By.CSS_SELECTOR, "#settings .warn").text
@@ -1291,20 +1297,31 @@ def main() -> int:
         listed = wait_for(browser, lambda b: len(b.find_elements(By.CSS_SELECTOR, "#groups .session")) == 2, 5)
         check("a meeting whose audio was freed is still listed; the whole one is not", listed)
 
-    print("Q. while recording, the small window: the time, the two levels, stop — opened on a gesture only")
+    print("Q. the small window (D35): opened first, at rest; recording in it; back to rest at the stop; one window at a time")
     taping = WORK / "taping"
     taping.mkdir()
-    with Window(taping, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
-        main = browser.current_window_handle
-        browser.find_element(By.ID, "record").click()
-        offered = wait_for(browser, lambda b: b.find_element(By.ID, "small-link").is_displayed(), 5)
-        check("while recording, the header offers the small window — none opened by itself", offered and browser.window_handles == [main], browser.window_handles)
-        browser.find_element(By.ID, "small-link").click()
-        opened = wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
-        check("the small window opens on the gesture", opened, browser.window_handles)
-        browser.switch_to.window([h for h in browser.window_handles if h != main][0])
+    with (window := Window(taping, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True)) as browser:
+        small = browser.current_window_handle
+        start = browser.find_element(By.ID, "small-record")
+        check("opened from the menu the first time, the small window, at rest, alone", start.text == "Démarrer un enregistrement" and browser.window_handles == [small], (start.text, browser.window_handles))
+        check("the recording's gesture has the focus", browser.execute_script("return document.activeElement.id") == "small-record")
+        reached = []
+        for _ in range(4):
+            browser.switch_to.active_element.send_keys(Keys.TAB)
+            reached.append(browser.execute_script("return document.activeElement.id"))
+        check("Tab reaches each of its controls, then comes back round", "small-full" in reached and "small-record" in reached, reached)
+        check("no meeting yet: said, the recording offered alone", browser.find_element(By.CSS_SELECTOR, "#small .none").text == "Aucune réunion pour l’instant." and not browser.find_elements(By.CSS_SELECTOR, "#small .last"))
+        hint = browser.find_element(By.ID, "small-keys").text
+        # The desktop's grant is the desktop's: the hint says the keys, or that none were granted and where to choose.
+        check("the shortcut is said under the gesture, as the desktop granted it — or where to choose one", hint.endswith("de n’importe où") or "Réglages" in hint, hint)
+        fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
+        check("at rest it holds in its window, nothing to scroll", fits[0] <= fits[1], fits)
+        shot(browser, "6-small-rest")
+        start.click()
         wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop"))
         time.sleep(1.5)
+        check("Démarrer un enregistrement records in the same window", browser.window_handles == [small], browser.window_handles)
+        tall = browser.execute_script("return window.innerHeight")
         shot(browser, "6-small")
         fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
         check("it holds in its window, nothing to scroll", fits[0] <= fits[1], fits)
@@ -1323,21 +1340,41 @@ def main() -> int:
         check("a device changed is named within a second; a side with none names none", moved and lost, named(browser))
         shot(browser, "6-small-devices")
         check("nothing follows the stop here: the small window does not say the transcript writes itself", not browser.find_element(By.CSS_SELECTOR, "#small .says").is_displayed())
-        stop_from_small(browser)
-        browser.switch_to.window(main)
-        closed = wait_for(browser, lambda b: len(b.window_handles) == 1, 5)
+        browser.find_element(By.ID, "small-stop").click()
+        rest = wait_for(browser, lambda b: b.find_elements(By.ID, "small-record") and b.find_element(By.ID, "small-record").is_displayed(), 5)
         stopped = '"stopped"' in (taping / "2026-10-18_12-00" / "session.json").read_text()
-        check("Arrêter stops the recording, and the small window goes", closed and stopped, browser.window_handles)
-        # The header's offer is hidden by a poll: a click after the stop opens nothing.
-        browser.execute_script('window.__TAURI__.core.invoke("small_window")')
-        time.sleep(1)
-        check("once stopped, nothing opens it again", len(browser.window_handles) == 1, browser.window_handles)
+        check("Arrêter stops the recording, and the small window comes back to rest — it does not close", rest and stopped and browser.window_handles == [small], browser.window_handles)
+        last = wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#small .last"), 5)
+        check("the meeting just recorded is its last", last and browser.find_element(By.CSS_SELECTOR, "#small .last .what").text != "")
+        check("at rest and recording, the window keeps its size: nothing jumps", browser.execute_script("return window.innerHeight") == tall, (tall, browser.execute_script("return window.innerHeight")))
+        shot(browser, "6-small-after")
+        try:
+            browser.find_element(By.ID, "small-full").click()
+        except NoSuchWindowException:
+            pass  # the small window goes with the click, sometimes before the driver has answered it
+        full = wait_for(browser, lambda b: len(b.window_handles) == 1 and b.window_handles != [small], 5)
+        check("Toute la fenêtre replaces the small one: one window", full, browser.window_handles)
+        browser.switch_to.window(browser.window_handles[0])
+        wait_for(browser, lambda b: b.execute_script("return document.getElementById('meetings').textContent !== ''"))
+        check("the full window left is the one kept in the settings", 'window = "full"' in window.file.read_text(), window.file.read_text())
+        back = browser.find_element(By.ID, "small-link")
+        check("at rest too, the full window offers the small one", back.is_displayed() and back.text == "Petite fenêtre", back.text)
+        main = browser.current_window_handle
+        back.click()
+        smaller = wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
+        browser.switch_to.window([h for h in browser.window_handles if h != main][0])
+        shown = wait_for(browser, lambda b: b.find_elements(By.ID, "small-record"), 5)
+        browser.switch_to.window(main)
+        hidden = browser.execute_script("return document.visibilityState")
+        check("Petite fenêtre replaces the full one, hidden behind it", smaller and shown and hidden == "hidden", (browser.window_handles, hidden))
+        check("the small window left is the one kept in the settings", 'window = "small"' in window.file.read_text(), window.file.read_text())
     taping_en = WORK / "taping-en"
     taping_en.mkdir()
     with Window(taping_en, "en_GB.UTF-8", "reminder = false\n") as browser:
         main = browser.current_window_handle
         browser.find_element(By.ID, "record").click()
-        wait_for(browser, lambda b: b.find_element(By.ID, "small-link").is_displayed(), 5)
+        wait_for(browser, lambda b: b.find_element(By.ID, "record").get_attribute("class").find("live") >= 0, 5)
+        check("a recording started from the full window opens no other window", browser.window_handles == [main], browser.window_handles)
         browser.find_element(By.ID, "small-link").click()
         wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
         browser.switch_to.window([h for h in browser.window_handles if h != main][0])
@@ -1350,9 +1387,32 @@ def main() -> int:
         check("the two meters start at the same place", len(starts) == 2 and starts[0] == starts[1], starts)
         note = browser.find_element(By.CSS_SELECTOR, "#small .says")
         check("the transcript follows the stop: the small window says so", note.is_displayed() and "transcript" in note.text, note.text)
-        stop_from_small(browser)
+        browser.find_element(By.ID, "small-stop").click()
+        rest = wait_for(browser, lambda b: b.find_elements(By.ID, "small-record") and b.find_element(By.ID, "small-record").is_displayed(), 5)
+        check("opened from the full window during a recording, it too comes back to rest, in English", rest and browser.find_element(By.ID, "small-record").text == "Start a recording")
+        # Measured once its last meeting is drawn.
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-read"), 5)
+        time.sleep(0.5)
+        fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
+        check("at rest, in English, with its last meeting, it holds in its window", fits[0] <= fits[1], fits)
+        try:
+            browser.find_element(By.ID, "small-read").click()
+        except NoSuchWindowException:
+            pass  # the small window goes with the click
         browser.switch_to.window(main)
-        wait_for(browser, lambda b: len(b.window_handles) == 1, 5)
+        opened = wait_for(browser, lambda b: b.execute_script("return location.hash").startswith("#/meeting/") and len(b.window_handles) == 1, 5)
+        check("its last meeting opens in the full window, in place of the small one", opened, (browser.execute_script("return location.hash"), browser.window_handles))
+        browser.find_element(By.ID, "small-link").click()
+        wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
+        browser.switch_to.window([h for h in browser.window_handles if h != main][0])
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-all"), 5)
+        try:
+            browser.find_element(By.ID, "small-all").click()
+        except NoSuchWindowException:
+            pass
+        browser.switch_to.window(main)
+        listed = wait_for(browser, lambda b: b.execute_script("return location.hash") in ("#/", "") and b.find_element(By.ID, "list").is_displayed() and len(b.window_handles) == 1, 5)
+        check("All meetings opens the full window's list", listed, browser.execute_script("return location.hash"))
 
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"
