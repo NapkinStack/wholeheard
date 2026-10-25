@@ -121,6 +121,12 @@ dependencies:
     exit_strategy: >
       src/main.rs and the page in ui/ alone know it; the library beside it holds every
       decision and knows no toolkit.
+  - name: tauri-plugin-single-instance
+    purpose: "One Wholeheard per session — a second start hands its arguments to the running one and leaves (D35, #386)"
+    adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
+    exit_strategy: >
+      One plugin and its callback in src/main.rs; a lock file and a socket, or the session bus's
+      own name ownership, replace it.
   - name: tauri-plugin-notification
     purpose: Shows a notification on the three systems
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md

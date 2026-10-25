@@ -47,6 +47,11 @@ Settings' *Lancer Wholeheard à l'ouverture de session* writes or removes it, an
 desktop's tools leave it (`Hidden`, `X-GNOME-Autostart-enabled`). `autostart` in the settings
 file says Wholeheard wrote it once: turned off, it is never written again by itself.
 
+**One Wholeheard** per session (D35): a second start hands its arguments to the running one and
+leaves ([tauri-plugin-single-instance](https://v2.tauri.app/plugin/single-instance/)). The
+applications' menu runs `wholeheard --window`, so its window opens, running or not; started again
+with the session, nothing opens.
+
 **The window** (cycle 03, from D11's drawings) is opened by *Open Wholeheard* in the menu — or at
 once by `wholeheard --window` — and never without a gesture: the meetings in the sessions'
 folder by week, newest first, each with its day, its length, what it holds and what its
@@ -97,7 +102,7 @@ WHOLEHEARD_CAPTURE=$PWD/modules/capture/target/release/wholeheard-capture \
 | The shortcut | The desktop grants it to an application it can find: a desktop entry of Wholeheard's name in the user's `applications` folder, **whose `Exec` line is the program's whole path** — the desktop reads no entry whose program it cannot find, and says so as "App info not found". The line under the table installs it. Then start Wholeheard again and accept the desktop's question. Refused, Wholeheard says so once; the menu still does the same |
 
 ```bash
-sed "s#^Exec=.*#Exec=$PWD/modules/shell/target/release/wholeheard#" modules/shell/linux/dev.wholeheard.Wholeheard.desktop \
+sed "s#^Exec=wholeheard#Exec=$PWD/modules/shell/target/release/wholeheard#" modules/shell/linux/dev.wholeheard.Wholeheard.desktop \
   > "${XDG_DATA_HOME:-$HOME/.local/share}/applications/dev.wholeheard.Wholeheard.desktop"
 ```
 

@@ -172,6 +172,14 @@ fn main() {
     let _run = log::start("shell");
     tracing::info!("shell.started");
     let app = tauri::Builder::default()
+        // One Wholeheard per session: a second start hands its arguments over and leaves — from
+        // the applications' menu (`--window`) its window opens; started again with the session,
+        // nothing does (D35, #386). The plugin comes first, as its documentation asks.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if args.iter().skip(1).any(|arg| arg == "--window") {
+                open_window(app);
+            }
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
