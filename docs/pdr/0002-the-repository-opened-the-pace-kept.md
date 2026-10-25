@@ -42,8 +42,11 @@ level arrives on the day the first build reaches people outside the project.
   it.
 - Accepting a contribution from outside the project.
 - The trademark search and the domains (PDR-0001's *Impacts*, a condition of the opening
-  there): not decided here. It is put to the decider before the visibility changes, as is
-  leaving the session links of five commits (*Impacts*).
+  there): ~~not decided here. It is put to the decider before the visibility changes, as is
+  leaving the session links of five commits (*Impacts*).~~ Answered by the decider on
+  2026-10-26: the searches are done, the name is kept, and it can still change if it has to
+  ("pour l’instant on conserve le nom, les recherche on déjà été faite, on pourra changer de
+  nom si jamais"). The session links: see *Impacts*.
 
 ---
 
@@ -151,8 +154,16 @@ before the opening is reconsidered.
   pull request's head and the notes), no audio, and nothing of a real meeting. It did find
   the workstation's local paths in the attest records, reported to the framework
   (NapkinStack/engineering-os#277), and session links in five commits of 2026-10-12.
-  Removing them would rewrite `main`; whether they are left is the decider's, asked before
-  the visibility changes.
+  ~~Removing them would rewrite `main`; whether they are left is the decider's, asked before
+  the visibility changes.~~ Left as they are, on the decider's delegation of 2026-10-26 ("fais
+  une analyse"): they are the squash merges of #13 to #17, more than 300 commits below `main`'s head,
+  and the heads of those pull requests carry the same link in five more commits. GitHub keeps
+  a pull request's head, which its owner cannot delete, only GitHub Support ([GitHub Docs,
+  *Removing sensitive data from a repository*](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository),
+  not read again here), so rewriting `main` would change every later commit, the attest
+  notes and the holds, and still leave the link public. The link names one session of
+  2026-10-12; what it can show is that session's own setting, which is the decider's to
+  check, never a file here.
 - **The decider's settings** (not a file here): the `NSTACK_RUNS_ON` variable removed, the
   visibility, the rulesets of decision 4, private vulnerability reporting turned on
   (`SECURITY.md`), and workflow approval for every outside contributor.
