@@ -761,11 +761,14 @@ first reading of what is being made.
 
 **Accepted by the decider, 2026-10-25** ("D36 ok"), after a trial an agent session ran on their
 desktop, on the installed package, with a profile of its own — their model and settings
-untouched: Settings offered *Download the model (874 MB, huggingface.co)*; clicked, the button
+untouched by it: Settings offered *Download the model (874 MB, huggingface.co)*; clicked, the button
 went while the model came from huggingface.co, then it was in place, the same bytes as the
 decider's own, and offered no more; the shell's log held no warning nor error. Not seen by that
 trial: the button in both themes, and a meeting's offer over the real network — held by #400's
-scenario T on a local server.
+scenario T on a local server. Then the decider looked themselves, in their own profile: at 10:41
+Wholeheard was started twice from the applications' menu, their model set aside in their home
+folder between the two, as the framer's steps said; their settings kept every key, the full window
+left; the shell's log says nothing of what they saw.
 
 ## Out of scope
 
