@@ -153,7 +153,7 @@ deliverables:
   - id: D36
     title: "The window offers the transcription model where it says it is missing"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given the default Whisper model not on this computer, when the user opens Settings or a meeting waiting for it, then the window offers Télécharger le modèle with its size and host beside the sentence that says it is missing; a click fetches it on the user's word, as the tray's entry does — the same fetch, verified by its published fingerprint —, the window says it is coming, and the meetings in line are transcribed once it is ready — none other: with none in line, no transcript is made"
       - "Given the model being fetched, from the window or the tray, then neither offers it again; given the fetch cut or refused, then it is said and the window offers it again; given a model the user named that is not on this computer, then nothing is offered: it is theirs"
@@ -748,6 +748,14 @@ Wholeheard", with no gesture where the user reads it. The window offers the same
 tray's own; nothing else changes. Fetching a model of Ollama for the minutes goes to *Later*.
 
 **Appetite.** One pull request in the 13 days left; the end date does not move.
+
+**Built (2026-10-25), verified by an independent session; acceptance is the decider's:** #400 —
+Settings and a meeting waiting for the default model offer *Télécharger le modèle* with its size
+and host, the tray's own fetch; while it comes, nothing is offered again; refused, it is offered
+again; fetched, Settings say it ready and the meetings in line alone are transcribed — the fetch
+no longer makes the latest meeting's transcript when none waits. A model the user named, not on
+this computer, is not offered: "Pas sur cet ordinateur : remettez-le à sa place, ou choisissez-en
+un autre." Left to the decider: the button in both themes, and a real fetch from huggingface.co.
 
 ## Out of scope
 
