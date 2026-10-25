@@ -793,6 +793,16 @@ own pull.
 **Appetite.** Two pull requests in the 13 days left — the Whisper models, then Ollama's —; the end
 date does not move.
 
+**Built (2026-10-25), each pull request verified by an independent session; acceptance is the
+decider's:** #405 — *Modèles à télécharger* in Settings: Whisper large v3 turbo and Whisper small,
+each with its size, what it is good for and where it stands, fetched as D36's, one at a time; a
+model fetched joins those to choose, the choice the user's, its notice saying so; a chosen model
+not here said so in the choice. The second — `qwen3:8b` fetched by Ollama's own pull, how far
+said, cut or refused said and offered again, then first among the minutes' models; with no Ollama
+answering, "Nécessite Ollama, à installer depuis ollama.com", no button. Left to the decider: the
+list in both themes, and real fetches — Whisper small from huggingface.co, `qwen3:8b` through their
+Ollama.
+
 ## Out of scope
 
 - Recording by itself when an application takes the microphone, and stopping when it lets it

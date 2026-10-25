@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use wholeheard_shell::providers::{self, ONLINE, host, local, ollama_address, ollama_models};
+use wholeheard_shell::providers::{self, ONLINE, host, local, ollama_address, ollama_listed, ollama_models, ollama_pull};
 
 /// A server that answers each request with `body`, as many times as asked.
 fn answering(body: &'static str, times: usize) -> String {
@@ -142,4 +142,45 @@ fn an_address_is_local_exactly_when_wholeheard_summary_reads_it_as_this_machine(
     ] {
         assert!(!local(refused), "{refused}");
     }
+}
+
+/// An Ollama whose pull says `lines`, one per line, then closes (D37).
+fn pulling(lines: &'static str) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("http://{}", listener.local_addr().unwrap());
+    thread::spawn(move || {
+        let mut stream = listener.incoming().next().unwrap().unwrap();
+        let mut asked = [0u8; 4096];
+        let _ = stream.read(&mut asked);
+        let reply = format!("HTTP/1.1 200 OK\r\ncontent-type: application/x-ndjson\r\nconnection: close\r\n\r\n{lines}");
+        let _ = stream.write_all(reply.as_bytes());
+    });
+    address
+}
+
+#[test]
+fn ollama_s_pull_is_whole_only_when_it_says_so_and_how_far_is_told() {
+    let mut told = Vec::new();
+    let whole =
+        pulling("{\"status\":\"pulling manifest\"}\n{\"status\":\"pulling a\",\"total\":10,\"completed\":4}\n{\"status\":\"success\"}\n");
+    assert_eq!(ollama_pull(&whole, "qwen3:8b", &mut |held, all| told.push((held, all))), Ok(()));
+    assert_eq!(told, [(4, 10)]);
+    // Refused with its words, cut before success, or not answering: said, never whole.
+    let refused = pulling("{\"error\":\"pull model manifest: file does not exist\"}\n");
+    assert!(
+        ollama_pull(&refused, "qwen3:8b", &mut |_, _| ())
+            .unwrap_err()
+            .contains("file does not exist")
+    );
+    let cut = pulling("{\"status\":\"pulling a\",\"total\":10,\"completed\":4}\n");
+    assert!(ollama_pull(&cut, "qwen3:8b", &mut |_, _| ()).is_err());
+    let closed = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+    assert!(ollama_pull(&format!("http://{closed}"), "qwen3:8b", &mut |_, _| ()).is_err());
+}
+
+#[test]
+fn ollama_answering_with_no_model_is_not_ollama_missing() {
+    assert_eq!(ollama_listed(&answering(r#"{"models":[]}"#, 1)), Some(Vec::new()));
+    let closed = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+    assert_eq!(ollama_listed(&format!("http://{closed}")), None);
 }

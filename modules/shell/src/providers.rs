@@ -42,17 +42,21 @@ pub fn ollama_address(base: &str) -> String {
 /// The models Ollama at `base` holds, by name — none when it does not answer quickly: Ollama not
 /// running is no fault, only no model on this computer.
 pub fn ollama_models(base: &str) -> Vec<String> {
+    ollama_listed(base).unwrap_or_default()
+}
+
+/// The same, or none when Ollama does not answer: Ollama there with no model is not Ollama
+/// missing (D37).
+pub fn ollama_listed(base: &str) -> Option<Vec<String>> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(2)))
         .build()
         .into();
     let answer = agent.get(format!("{}/api/tags", base.trim_end_matches('/'))).call();
-    let Ok(mut answer) = answer else { return Vec::new() };
-    let Ok(text) = answer.body_mut().read_to_string() else {
-        return Vec::new();
-    };
+    let mut answer = answer.ok()?;
+    let text = answer.body_mut().read_to_string().ok()?;
     let Ok(tags) = serde_json::from_str::<serde_json::Value>(&text) else {
-        return Vec::new();
+        return Some(Vec::new());
     };
     let mut names: Vec<String> = tags
         .get("models")
@@ -66,7 +70,46 @@ pub fn ollama_models(base: &str) -> Vec<String> {
     // The recommended first, the others by name.
     names.sort_by(|a, b| (a != RECOMMENDED).cmp(&(b != RECOMMENDED)).then(a.cmp(b)));
     names.dedup();
-    names
+    Some(names)
+}
+
+/// Asks Ollama at `base` to fetch `model` — its own pull, which it takes up where a cut left it —
+/// and tells `progress` the bytes it holds of the layer it fetches, of how many. Whole only when
+/// Ollama says `success`; a cut, an error it names, or Ollama stopping is said (D37).
+pub fn ollama_pull(base: &str, model: &str, progress: &mut dyn FnMut(u64, u64)) -> Result<(), String> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(Duration::from_secs(5)))
+        .timeout_recv_response(Some(Duration::from_secs(60)))
+        .http_status_as_error(false)
+        .build()
+        .into();
+    let asked = serde_json::json!({ "model": model, "stream": true }).to_string();
+    let mut answer = agent
+        .post(format!("{}/api/pull", base.trim_end_matches('/')))
+        .header("content-type", "application/json")
+        .send(asked.as_str())
+        .map_err(|error| format!("Ollama could not be asked ({error})"))?;
+    if answer.status() != 200 {
+        return Err(format!("Ollama refused the pull (HTTP {})", answer.status().as_u16()));
+    }
+    let reader = std::io::BufReader::new(answer.body_mut().as_reader());
+    for line in std::io::BufRead::lines(reader) {
+        let line = line.map_err(|error| format!("the pull was cut ({error})"))?;
+        let Ok(said) = serde_json::from_str::<serde_json::Value>(&line) else {
+            continue;
+        };
+        if let Some(error) = said.get("error").and_then(serde_json::Value::as_str) {
+            return Err(format!("Ollama said: {error}"));
+        }
+        if said.get("status").and_then(serde_json::Value::as_str) == Some("success") {
+            return Ok(());
+        }
+        let count = |key: &str| said.get(key).and_then(serde_json::Value::as_u64);
+        if let (Some(total), Some(completed)) = (count("total"), count("completed")) {
+            progress(completed, total);
+        }
+    }
+    Err("the pull ended before Ollama said it was whole".into())
 }
 
 /// The host a provider's address names: what its key is filed under — the same for the same

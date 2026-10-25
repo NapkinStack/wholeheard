@@ -337,6 +337,11 @@ pub struct Window {
     pub offered_fetch: &'static str,
     pub offered_far: &'static str,
     pub model_chosen_missing: &'static str,
+    /// The minutes' model of the list, fetched by Ollama (D37): its size, what it is good for,
+    /// and Ollama needed when none answers.
+    pub offered_ollama_size: &'static str,
+    pub offered_ollama_good: &'static str,
+    pub offered_needs_ollama: &'static str,
     /// The model's name as people say it, and its size once installed.
     pub installed: &'static str,
     /// Another number of days, typed; and what is said of one that is none.
@@ -581,6 +586,9 @@ pub fn window(language: Language) -> Window {
             offered_fetch: "Download",
             offered_far: "Downloading… {} %",
             model_chosen_missing: "{} — not on this computer yet",
+            offered_ollama_size: "about 5 GB",
+            offered_ollama_good: "For the minutes, on this computer, through Ollama",
+            offered_needs_ollama: "Needs Ollama, installed from ollama.com",
             installed: "installed, {}",
             keep_other: "Another number of days…",
             keep_not_days: "{} is no number of days: from 1 to 36,500",
@@ -813,6 +821,9 @@ pub fn window(language: Language) -> Window {
             offered_fetch: "Télécharger",
             offered_far: "Téléchargement… {} %",
             model_chosen_missing: "{} — pas encore sur cet ordinateur",
+            offered_ollama_size: "environ 5 Go",
+            offered_ollama_good: "Pour les comptes rendus, sur cet ordinateur, par Ollama",
+            offered_needs_ollama: "Nécessite Ollama, à installer depuis ollama.com",
             installed: "installé, {}",
             keep_other: "Autre nombre de jours…",
             keep_not_days: "{} n’est pas un nombre de jours : de 1 à 36 500",
@@ -1591,6 +1602,24 @@ pub fn model_needed(language: Language, size: &str, host: &str) -> Notice {
             format!(
                 "Il est téléchargé une fois, sur votre accord\u{a0}: choisissez «\u{a0}{entry}\u{a0}» dans le menu de Wholeheard. L’enregistrement est conservé."
             ),
+        ),
+    };
+    notice(title, body).expect("always said")
+}
+
+/// Said when Ollama's pull of a model ended: there, offered first for the minutes — or not, and
+/// offered again (D37).
+pub fn pulled(outcome: &Result<(), String>, model: &str, language: Language) -> Notice {
+    let (title, body) = match (outcome, language) {
+        (Ok(()), Language::English) => ("Model ready", format!("{model} is in Ollama: it is offered first for the minutes.")),
+        (Ok(()), Language::French) => (
+            "Modèle prêt",
+            format!("{model} est dans Ollama : il est proposé en premier pour les comptes rendus."),
+        ),
+        (Err(_), Language::English) => ("The model was not downloaded", "Nothing of it is used. It is offered again.".into()),
+        (Err(_), Language::French) => (
+            "Le modèle n’a pas été téléchargé",
+            "Rien n’en est utilisé. Il est proposé à nouveau.".into(),
         ),
     };
     notice(title, body).expect("always said")
