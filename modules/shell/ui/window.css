@@ -214,7 +214,7 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .freeable.busy { cursor: default; opacity: 0.6; }
 .free-total { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding: 20px 24px; background: var(--raised); }
 .danger { min-height: 48px; padding: 0 22px; border: 0; border-radius: 12px; background: var(--red); color: var(--surface); font: inherit; font-weight: 700; cursor: pointer; }
-.danger:disabled, .primary:disabled { opacity: 0.45; cursor: default; }
+.danger:disabled, .primary:disabled, .open:disabled { opacity: 0.45; cursor: default; }
 .page-top { display: flex; align-items: baseline; gap: 18px; }
 .page-top h1 { margin: 0; font-size: 20px; }
 .free-total .total { display: flex; align-items: baseline; gap: 8px; }

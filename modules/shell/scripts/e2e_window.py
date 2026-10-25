@@ -324,7 +324,7 @@ def model_offered(now: dt.datetime) -> None:
         browser.find_element(By.ID, "settings-link").click()
         offered = wait_for(browser, lambda b: b.find_elements(By.ID, "model-fetch"))
         label = browser.find_element(By.ID, "model-fetch").text if offered else ""
-        check("Settings offer the missing model, with its size and host", offered and label == f"Télécharger le modèle (0 MB, {host})", label)
+        check("Settings offer the missing model, with its size and host", offered and label == f"Télécharger le modèle (300 ko, {host})", label)
         check("nothing is fetched before the click", asked == [], asked)
         button = browser.find_element(By.ID, "model-fetch")
         time.sleep(3.5)
@@ -335,7 +335,7 @@ def model_offered(now: dt.datetime) -> None:
         again = wait_for(browser, lambda b: b.find_elements(By.ID, "model-fetch"), 15)
         check("a file that is not the published one: nothing kept, offered again", again and not fetched.exists() and asked != [], asked)
         (served / "model.bin").write_bytes(right)
-        browser.find_element(By.ID, "model-fetch").click()
+        press(browser, "model-fetch")
         ready = wait_for(browser, lambda b: "Prêt" in b.execute_script(said), 15)
         check("fetched from Settings, the model is ready there", ready and fetched.read_bytes() == right, browser.execute_script(said))
         time.sleep(1)
@@ -400,7 +400,8 @@ def models_listed(now: dt.datetime) -> None:
     threading.Thread(target=server.serve_forever, daemon=True).start()
     at = f"http://127.0.0.1:{server.server_address[1]}"
     meetings, data = WORK / "listing", WORK / "data-listing"
-    meetings.mkdir()
+    session(meetings / "2026-10-25_11-00", now - dt.timedelta(hours=1), 5, {"local.wav": 2000})
+    heard = meetings / "2026-10-25_11-00" / "transcript.jsonl"
     models = data / "wholeheard" / "models"
     window = Window(meetings, "fr_FR.UTF-8")
     window.env.update(XDG_DATA_HOME=str(data), WHOLEHEARD_MODEL_PUBLISHED=";".join([
@@ -421,6 +422,17 @@ def models_listed(now: dt.datetime) -> None:
         check("nothing is fetched before a click", asked == [], asked)
         chosen = browser.execute_script("return document.getElementById('model').selectedOptions[0]?.text || ''")
         check("the model chosen and missing is said so in the choice, not shown as another", "pas encore" in chosen, chosen)
+        # A meeting waiting for the model chosen, the small one coming: its offer waits too.
+        browser.execute_script("location.hash = '#/meeting/2026-10-25_11-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-transcript"))
+        press(browser, "make-transcript")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#transcript-state #model-fetch"))
+        browser.execute_script("window.__TAURI__.core.invoke('model_offered_fetch', {file: 'ggml-small-q8_0.bin'})")
+        waits = wait_for(browser, lambda b: b.execute_script("return document.getElementById('model-fetch')?.disabled === true"), 5)
+        check("another model coming, a meeting waiting for the chosen one offers it greyed", waits)
+        wait_for(browser, lambda b: b.execute_script("return document.getElementById('model-fetch')?.disabled === false"), 15)
+        browser.find_element(By.ID, "settings-link").click()
+        wait_for(browser, lambda b: b.execute_script(small_row) and "Télécharger" in b.execute_script(small_row))
         browser.execute_script("document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button').click()")
         far = wait_for(browser, lambda b: "%" in b.execute_script(small_row), 5)
         check("being downloaded, how far is said on its row", far, browser.execute_script(small_row))
@@ -428,9 +440,20 @@ def models_listed(now: dt.datetime) -> None:
         again = wait_for(browser, lambda b: "Télécharger" in b.execute_script(small_row) and "%" not in b.execute_script(small_row), 15)
         check("a file that is not the published one: nothing kept, offered again", again and not (models / "ggml-small-q8_0.bin").exists())
         (served / "small.bin").write_bytes(small)
+        notified = WORK / "notified-small"
+        monitor = subprocess.Popen(
+            ["dbus-monitor", "--session", "interface='org.freedesktop.Notifications',member='Notify'"],
+            stdout=open(notified, "w"), stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.5)
         browser.execute_script("document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button').click()")
         here = wait_for(browser, lambda b: "Sur cet ordinateur" in b.execute_script(small_row), 15)
         check("fetched, its row says it is on this computer", here and (models / "ggml-small-q8_0.bin").read_bytes() == small, browser.execute_script(small_row))
+        told = wait_for(browser, lambda b: "Choisissez-le" in notified.read_text(), 5)
+        monitor.terminate()
+        monitor.wait(timeout=10)
+        check("its notice says to choose it, never that a transcript begins",
+              told and "La transcription est en cours" not in notified.read_text() and not heard.exists(), notified.read_text()[-400:])
         names = [o.text for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
         check("it is offered among the models to choose", any(name.startswith("Whisper small") for name in names), names)
         check("the choice stays the user's", "ggml-small" not in window.file.read_text()

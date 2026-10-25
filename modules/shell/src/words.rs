@@ -330,6 +330,7 @@ pub struct Window {
     /// One the user named, not on this computer: theirs, nothing offered (D36).
     pub model_named_missing: &'static str,
     pub model_coming: &'static str,
+    pub model_offer: &'static str,
     /// The short list of models to download (D37): its heading, the gesture, how far, and the
     /// model chosen that is not here yet, in the choice.
     pub offered_title: &'static str,
@@ -575,6 +576,7 @@ pub fn window(language: Language) -> Window {
             model_missing: "Not on this computer yet.",
             model_named_missing: "Not on this computer: put it back where it was, or choose another.",
             model_coming: "Being downloaded.",
+            model_offer: "Download the model ({}, {})",
             offered_title: "Models to download",
             offered_fetch: "Download",
             offered_far: "Downloading… {} %",
@@ -806,6 +808,7 @@ pub fn window(language: Language) -> Window {
             model_missing: "Pas encore sur cet ordinateur.",
             model_named_missing: "Pas sur cet ordinateur : remettez-le à sa place, ou choisissez-en un autre.",
             model_coming: "En cours de téléchargement.",
+            model_offer: "Télécharger le modèle ({}, {})",
             offered_title: "Modèles à télécharger",
             offered_fetch: "Télécharger",
             offered_far: "Téléchargement… {} %",

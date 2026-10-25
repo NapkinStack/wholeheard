@@ -1431,8 +1431,9 @@ struct Makings {
     /// The line waits for the default Whisper model, offered in the menu, or coming.
     model_needed: bool,
     model_coming: bool,
-    /// The window's offer of it, as the tray's entry says it: its size and host (D36).
-    model_offer: String,
+    /// The window's offer of it: its size and host, the size said as the window says sizes (D36).
+    model_offer_bytes: u64,
+    model_offer_host: &'static str,
     /// Any model being fetched, and how far (D37).
     model_fetching: Option<Fetching>,
     /// A making not made, by its meeting's name: what its program said of it in developer mode,
@@ -1526,10 +1527,8 @@ fn makings(shell: State<'_, Shell>) -> Makings {
         // The default model coming, not another: one fetch at a time, said as such (D37).
         model_coming: fetched.as_ref().is_some_and(|(file, ..)| file == model::file(&model::DEFAULT)),
         model_fetching: fetched.map(|(file, held, bytes)| Fetching { file, held, bytes }),
-        model_offer: {
-            let wanted = published();
-            words::download(shell.language, &model::size(wanted.bytes), wanted.host)
-        },
+        model_offer_bytes: published().bytes,
+        model_offer_host: published().host,
         transcripts_failed: shell
             .transcripts_failed
             .lock()

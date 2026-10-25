@@ -176,7 +176,7 @@ function paintState(said, shown, of) {
 
 // The tray's own fetch of the default model, offered where the window says it is missing (D36).
 function modelFetch(busy = false) {
-  const fetch_ = element("button", "open", makings.model_offer);
+  const fetch_ = element("button", "open", fill(words.model_offer, size(makings.model_offer_bytes, words), makings.model_offer_host));
   fetch_.type = "button";
   fetch_.id = "model-fetch";
   fetch_.disabled = busy;
@@ -235,12 +235,13 @@ function paintModel(state = document.getElementById("model-state")) {
 let lastFetching = null;
 
 function paintMakings() {
-  paintModel();
-  paintOffered();
+  // Drawn again first, never painted then drawn over: what is under the focus stays one drawing.
   const fetching = makings?.model_fetching?.file ?? null;
   const ended = lastFetching !== null && fetching === null;
   lastFetching = fetching;
   if (ended && document.getElementById("offered")) return refresh();
+  paintModel();
+  paintOffered();
   for (const chip_ of document.querySelectorAll(".chip.making")) {
     // The minutes' state first; else the transcript's, which comes before them.
     const minutes = minutesState(chip_.dataset.name);
