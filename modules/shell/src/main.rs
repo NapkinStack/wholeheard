@@ -184,6 +184,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             listed,
+            model_fetch,
             header,
             makings,
             record,
@@ -1405,6 +1406,8 @@ struct Makings {
     /// The line waits for the default Whisper model, offered in the menu, or coming.
     model_needed: bool,
     model_coming: bool,
+    /// The window's offer of it, as the tray's entry says it: its size and host (D36).
+    model_offer: String,
     /// A making not made, by its meeting's name: what its program said of it in developer mode,
     /// else nothing — the page says it in plain words (D29).
     transcripts_failed: HashMap<String, String>,
@@ -1486,6 +1489,10 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             *model == Settings::default().model && !model.is_file()
         },
         model_coming: *shell.fetching.lock().unwrap(),
+        model_offer: {
+            let wanted = published();
+            words::download(shell.language, &model::size(wanted.bytes), wanted.host)
+        },
         transcripts_failed: shell
             .transcripts_failed
             .lock()
@@ -2184,6 +2191,16 @@ fn offer(app: &AppHandle) {
     });
 }
 
+/// The window's offer of the default model, where it says it is missing (D36): the tray's own
+/// fetch. One the user named is theirs: nothing is fetched for it.
+#[tauri::command]
+fn model_fetch(app: AppHandle) {
+    let model = app.state::<Shell>().settings().model;
+    if model == Settings::default().model && !model.is_file() {
+        fetch(&app);
+    }
+}
+
 /// Fetches the default model, on the user's click — their agreement. Ready, the entry leaves
 /// the menu and the waiting transcript is made; cut or refused, it is said, and the entry
 /// takes it up again.
@@ -2226,13 +2243,8 @@ fn fetch(app: &AppHandle) {
             let shell = handle.state::<Shell>();
             let _ = shell.menu.remove(&shell.download);
         });
-        if shell.waiting.lock().unwrap().is_empty() {
-            if let Some(folder) = transcription::latest(&shell.settings().sessions) {
-                transcribe(&app, folder);
-            }
-        } else {
-            transcribe_next(&app);
-        }
+        // The meetings in line, none other: fetched from Settings, none may wait (D36).
+        transcribe_next(&app);
     });
 }
 
