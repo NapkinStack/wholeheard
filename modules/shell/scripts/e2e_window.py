@@ -445,13 +445,15 @@ def models_listed(now: dt.datetime) -> None:
             ["dbus-monitor", "--session", "interface='org.freedesktop.Notifications',member='Notify'"],
             stdout=open(notified, "w"), stderr=subprocess.DEVNULL,
         )
-        time.sleep(0.5)
-        browser.execute_script("document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button').click()")
-        here = wait_for(browser, lambda b: "Sur cet ordinateur" in b.execute_script(small_row), 15)
-        check("fetched, its row says it is on this computer", here and (models / "ggml-small-q8_0.bin").read_bytes() == small, browser.execute_script(small_row))
-        told = wait_for(browser, lambda b: "Choisissez-le" in notified.read_text(), 5)
-        monitor.terminate()
-        monitor.wait(timeout=10)
+        try:
+            time.sleep(0.5)
+            browser.execute_script("document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button').click()")
+            here = wait_for(browser, lambda b: "Sur cet ordinateur" in b.execute_script(small_row), 15)
+            check("fetched, its row says it is on this computer", here and (models / "ggml-small-q8_0.bin").read_bytes() == small, browser.execute_script(small_row))
+            told = wait_for(browser, lambda b: "Choisissez-le" in notified.read_text(), 5)
+        finally:
+            monitor.terminate()
+            monitor.wait(timeout=10)
         check("its notice says to choose it, never that a transcript begins",
               told and "La transcription est en cours" not in notified.read_text() and not heard.exists(), notified.read_text()[-400:])
         names = [o.text for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
@@ -464,6 +466,118 @@ def models_listed(now: dt.datetime) -> None:
         check("the turbo's row and the missing model's offer are one fetch", both, browser.execute_script(turbo_row))
         ready = wait_for(browser, lambda b: "Sur cet ordinateur" in b.execute_script(turbo_row) and "Prêt" in (b.execute_script("return document.getElementById('model-state')?.innerText || ''")), 20)
         check("fetched, the model chosen is ready", ready and (models / "ggml-large-v3-turbo-q8_0.bin").read_bytes() == turbo)
+    server.shutdown()
+
+
+def ollama_pulled(now: dt.datetime) -> None:
+    """V. The minutes' recommended model fetched by Ollama, on the user's click (D37)."""
+    print("V. Settings: qwen3:8b fetched by Ollama on the user's click; without Ollama, said where to get it (D37)")
+    held, pulls, ways = ["mistral:7b"], [], ["cut", "refused", "whole"]
+
+    # An Ollama of the scenario's: its models, and a pull that is cut, then refused, then whole —
+    # each said in lines, slowly, as Ollama streams it.
+    class Ollama(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_GET(self):
+            body = json.dumps({"models": [{"name": name} for name in held]}).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            pulls.append(json.loads(self.rfile.read(int(self.headers["content-length"]))))
+            way = ways.pop(0)
+            self.send_response(200)
+            self.send_header("content-type", "application/x-ndjson")
+            self.end_headers()
+            self.wfile.write(b'{"status":"pulling manifest"}\n')
+            for done in range(0, 1001, 100):
+                if way == "cut" and done == 300:
+                    return
+                if way == "refused" and done == 300:
+                    self.wfile.write(b'{"error":"pull model manifest: file does not exist"}\n')
+                    return
+                self.wfile.write(json.dumps({"status": "pulling a1b2", "digest": "sha256:a1b2", "total": 1000, "completed": done}).encode() + b"\n")
+                self.wfile.flush()
+                time.sleep(0.3)
+            held.append("qwen3:8b")
+            self.wfile.write(b'{"status":"success"}\n')
+
+        def log_message(self, *_):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Ollama)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    # Whisper small served slowly, and not as published: a fetch that comes, then is refused.
+    class Slow(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("content-length", "100000")
+            self.end_headers()
+            for _ in range(10):
+                self.wfile.write(b"x" * 10_000)
+                self.wfile.flush()
+                time.sleep(0.3)
+
+        def log_message(self, *_):
+            pass
+
+    whisper = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Slow)
+    threading.Thread(target=whisper.serve_forever, daemon=True).start()
+    at = f"http://127.0.0.1:{whisper.server_address[1]}"
+    meetings = WORK / "pulling"
+    meetings.mkdir()
+    window = Window(meetings, "fr_FR.UTF-8", ollama=f"http://127.0.0.1:{server.server_address[1]}")
+    window.env.update(XDG_DATA_HOME=str(WORK / "data-pulling"), WHOLEHEARD_MODEL_PUBLISHED=f"{at}/turbo.bin 1 {'0' * 64};{at}/small.bin 100000 {'0' * 64}")
+    row = "return document.querySelector('[data-offered=\"qwen3:8b\"]')?.innerText || ''"
+    pull = "document.querySelector('[data-offered=\"qwen3:8b\"] button').click()"
+    offers = "return [...document.querySelectorAll('#offered button, #model-fetch')].filter(b => !b.disabled).length"
+    notified = WORK / "notified-pull"
+    monitor = subprocess.Popen(
+        ["dbus-monitor", "--session", "interface='org.freedesktop.Notifications',member='Notify'"],
+        stdout=open(notified, "w"), stderr=subprocess.DEVNULL,
+    )
+    try:
+        with window as browser:
+            browser.find_element(By.ID, "settings-link").click()
+            listed = wait_for(browser, lambda b: "Télécharger" in b.execute_script(row))
+            said = browser.execute_script(row)
+            check("qwen3:8b is offered for the minutes, its size and what it is good for said", listed and "qwen3:8b" in said and "5 Go" in said and "comptes rendus" in said, said)
+            check("nothing is fetched before a click", pulls == [], pulls)
+            # A Whisper model coming: the pull waits — its row greyed, and asked all the same, Ollama is not.
+            browser.execute_script("document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button').click()")
+            wait_for(browser, lambda b: "%" in b.execute_script(row.replace("qwen3:8b", "ggml-small-q8_0.bin")), 5)
+            greyed = browser.execute_script("return document.querySelector('[data-offered=\"qwen3:8b\"] button')?.disabled === true")
+            browser.execute_script("window.__TAURI__.core.invoke('ollama_pull_offered')")
+            time.sleep(1)
+            check("a Whisper model coming, the pull waits: its row greyed, Ollama not asked", greyed and pulls == [], (greyed, pulls))
+            wait_for(browser, lambda b: "Télécharger" in b.execute_script(row.replace("qwen3:8b", "ggml-small-q8_0.bin")) and "%" not in b.execute_script(row.replace("qwen3:8b", "ggml-small-q8_0.bin")), 15)
+            wait_for(browser, lambda b: b.execute_script("return document.querySelector('[data-offered=\"qwen3:8b\"] button')?.disabled === false"), 5)
+            for way in ("cut", "refused"):
+                browser.execute_script(pull)
+                far = wait_for(browser, lambda b: "%" in b.execute_script(row), 5)
+                check(f"{way}: how far is said while Ollama fetches it, nothing else offered meanwhile", far and browser.execute_script(offers) == 0, browser.execute_script(row))
+                again = wait_for(browser, lambda b: "Télécharger" in b.execute_script(row), 15)
+                check(f"{way}: said, and offered again", again and "n’a pas été téléchargé" in notified.read_text(), notified.read_text()[-300:])
+            browser.execute_script(pull)
+            here = wait_for(browser, lambda b: "Sur cet ordinateur" in b.execute_script(row), 20)
+            check("whole: on this computer, Ollama asked for qwen3:8b", here and pulls[-1].get("model") == "qwen3:8b", (browser.execute_script(row), pulls))
+            first = browser.execute_script("return document.querySelector('#minutes optgroup option')?.textContent || ''")
+            check("it is offered first among the minutes' models", "qwen3:8b" in first, first)
+            check("its notice says it is ready for the minutes", wait_for(browser, lambda b: "comptes rendus" in notified.read_text(), 5), notified.read_text()[-300:])
+    finally:
+        monitor.terminate()
+        monitor.wait(timeout=10)
+        whisper.shutdown()
+    # No Ollama answering: where to get it is said, and nothing offered — Wholeheard never installs it.
+    with Window(meetings, "fr_FR.UTF-8") as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        absent = wait_for(browser, lambda b: "ollama.com" in b.execute_script(row))
+        check("no Ollama: the row says it is needed and where to get it, with no button",
+              absent and not browser.find_elements(By.CSS_SELECTOR, '[data-offered="qwen3:8b"] button'), browser.execute_script(row))
     server.shutdown()
 
 
@@ -1847,6 +1961,7 @@ def main() -> int:
     check("the volume the system remembers for the user's Wholeheard is left as it was", remembered() == kept, remembered())
     model_offered(now)
     models_listed(now)
+    ollama_pulled(now)
     return 1 if FAILED else 0
 
 

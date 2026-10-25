@@ -188,6 +188,7 @@ fn main() {
             listed,
             model_fetch,
             model_offered_fetch,
+            ollama_pull_offered,
             header,
             makings,
             record,
@@ -1218,6 +1219,8 @@ fn ollama() -> String {
 #[derive(serde::Serialize)]
 struct MinutesShown {
     ollama: Vec<String>,
+    /// Whether Ollama answers here: one with no model is not one missing (D37).
+    ollama_answers: bool,
     ollama_address: String,
     /// The local model recommended for the minutes, said so when Ollama holds it (#261).
     recommended: &'static str,
@@ -1241,10 +1244,14 @@ async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, String> 
         .is_some();
     // Ollama is asked away from the window and the tray: one that does not answer holds neither.
     let base = ollama();
-    let models = tauri::async_runtime::spawn_blocking(move || providers::ollama_models(&base)).await;
+    let models = tauri::async_runtime::spawn_blocking(move || providers::ollama_listed(&base))
+        .await
+        .ok()
+        .flatten();
     let provider_local = settings.minutes_provider.as_deref().is_some_and(providers::local);
     Ok(MinutesShown {
         provider_local,
+        ollama_answers: models.is_some(),
         ollama: models.unwrap_or_default(),
         ollama_address: providers::ollama_address(&ollama()),
         recommended: providers::RECOMMENDED,
@@ -2242,6 +2249,46 @@ fn model_fetch(app: AppHandle) {
     if model == Settings::default().model && !model.is_file() {
         fetch(&app, 0);
     }
+}
+
+/// The minutes' recommended model, fetched by Ollama on the user's click, unless a fetch is on (D37).
+#[tauri::command]
+fn ollama_pull_offered(app: AppHandle) {
+    pull(&app);
+}
+
+/// Ollama's own pull of the minutes' recommended model, one fetch at a time with the Whisper ones:
+/// how far said as theirs is, the tray's entry waiting meanwhile (D37).
+fn pull(app: &AppHandle) {
+    let shell = app.state::<Shell>();
+    if std::mem::replace(&mut *shell.fetching.lock().unwrap(), true) {
+        return;
+    }
+    let language = shell.language;
+    *shell.fetched.lock().unwrap() = Some((providers::RECOMMENDED.to_owned(), 0, 0));
+    let waiting = |app: &AppHandle, enabled: bool| {
+        let app = app.clone();
+        let _ = app.clone().run_on_main_thread(move || {
+            let _ = app.state::<Shell>().download.set_enabled(enabled);
+        });
+    };
+    waiting(app, false);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let outcome = providers::ollama_pull(&ollama(), providers::RECOMMENDED, &mut |held, bytes| {
+            if let Some((_, far, all)) = app.state::<Shell>().fetched.lock().unwrap().as_mut() {
+                (*far, *all) = (held, bytes);
+            }
+        });
+        let shell = app.state::<Shell>();
+        *shell.fetched.lock().unwrap() = None;
+        *shell.fetching.lock().unwrap() = false;
+        if let Err(why) = &outcome {
+            tracing::error!(detail = %why, "shell.model_pull_failed");
+        }
+        tell(&app, &words::pulled(&outcome, providers::RECOMMENDED, language));
+        waiting(&app, true);
+    });
 }
 
 /// One of the models Settings offer, fetched on the user's click, unless it is there (D37).

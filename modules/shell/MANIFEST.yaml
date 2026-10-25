@@ -234,6 +234,10 @@ evidence:
     - pattern: '"message":"shell\.model_fetch_failed"'
       level: error
       scenario: G
+    # Ollama's pull of the minutes' model cut, then refused (the window's V, D37).
+    - pattern: '"message":"shell\.model_pull_failed"'
+      level: error
+      scenario: V
     # The settings name a provider that is no address.
     - pattern: '"message":"shell\.minutes_refused"'
       level: warning

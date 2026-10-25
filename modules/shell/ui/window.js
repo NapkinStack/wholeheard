@@ -194,19 +194,23 @@ function paintOffered(list = document.getElementById("offered")) {
   const coming = makings.model_fetching;
   for (const item of list.children) {
     const far = coming?.file === item.dataset.offered ? Math.floor((100 * coming.held) / Math.max(coming.bytes, 1)) : null;
-    const kind = item.dataset.here === "true" ? "here" : far !== null ? `far ${far}` : coming ? "busy" : "offered";
+    const absent = item.dataset.by === "absent";
+    const kind = item.dataset.here === "true" ? "here" : far !== null ? `far ${far}` : absent ? "absent" : coming ? "busy" : "offered";
     if (item.dataset.kind === kind) continue;
     item.dataset.kind = kind;
     const state = item.querySelector(".state");
     if (kind === "here") state.replaceChildren(element("span", "ready", `✓ ${words.on_this_computer}`));
     else if (far !== null) state.replaceChildren(element("span", "says", fill(words.offered_far, far)));
+    else if (absent) state.replaceChildren(element("span", "says", words.offered_needs_ollama));
     else {
       const fetch_ = element("button", "open", words.offered_fetch);
       fetch_.type = "button";
       fetch_.disabled = kind === "busy";
       fetch_.addEventListener("click", async () => {
         fetch_.disabled = true;
-        await window.__TAURI__.core.invoke("model_offered_fetch", { file: item.dataset.offered }).catch(() => {});
+        const { invoke } = window.__TAURI__.core;
+        const asked = item.dataset.by ? invoke("ollama_pull_offered") : invoke("model_offered_fetch", { file: item.dataset.offered });
+        await asked.catch(() => {});
         readMakings();
       });
       state.replaceChildren(fetch_);
@@ -1205,6 +1209,15 @@ function showSettings(shown, minutes, words) {
     item.append(said_, element("span", "state"));
     offered.append(item);
   }
+  // The minutes' recommended model, fetched by Ollama — never Ollama itself (D37).
+  const pulled = element("li", "row");
+  pulled.dataset.offered = minutes.recommended;
+  pulled.dataset.here = String(minutes.ollama.includes(minutes.recommended));
+  pulled.dataset.by = minutes.ollama_answers ? "ollama" : "absent";
+  const pulledSaid = element("div", "said");
+  pulledSaid.append(element("span", "name", `${minutes.recommended} · ${words.offered_ollama_size}`), element("span", "says", words.offered_ollama_good));
+  pulled.append(pulledSaid, element("span", "state"));
+  offered.append(pulled);
   step.append(element("h3", "", words.offered_title), offered);
   paintOffered(offered);
   models.append(step, minutesRow(minutes, words, locked), element("p", "says", words.models_note));
