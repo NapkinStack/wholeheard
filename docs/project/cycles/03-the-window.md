@@ -726,7 +726,8 @@ window; a recording from the tray with no window open, none opened. The shell's 
 warning nor error. Held by #394's e2e, not tried again: the keyboard's order and the focus, no
 meeting yet, *Read the minutes* and *All meetings* opening the full window, a settings file that
 cannot be read. Not seen: on Wayland without a screenshot, the window above the others while
-recording and the two themes; a recording from the shortcut or an offer; the menu while a
+recording and the two themes; a recording from the shortcut or an offer; the settings and the
+agreement opening the full window from the small one; the menu while a
 Wholeheard started with the session runs — the same hand-over as a second start from the menu.
 
 ## Out of scope
