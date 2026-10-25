@@ -142,7 +142,7 @@ deliverables:
   - id: D35
     title: "Wholeheard opens small: the small window at rest, the full window behind it, one Wholeheard running"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given Wholeheard not running, or running in the tray, when the user opens it from the applications' menu or the tray's Ouvrir Wholeheard, then the window they last left opens — the small one the first time, the choice kept in the settings across quitting and restarting — and a second start from the menu shows the running Wholeheard instead of starting another (#386)"
       - "Given Wholeheard started with the session, or started again that way while one runs, then no window opens (D17, D32); and given no window open, when a recording starts from the tray, the shortcut or an offer, then none opens either (D22)"
@@ -712,6 +712,19 @@ settings, a settings file that cannot be read opening the full window. One size 
 380×400: GTK does not shrink a window the user cannot resize. Left to the decider: the window
 above the others while recording only, both themes, and the menu with the session's Wholeheard
 running.
+
+**Accepted by the decider, 2026-10-25** ("test et valide, tu es autonome"), then, the package's
+trace showing no trial yet, "Fais les t'es en autonomie": the trial was run on their own desktop
+by an agent session, on the installed package, through the window's accessibility tree, a silent
+virtual microphone the system's default while it ran. Seen: opened from the applications' menu, the
+small window at rest, *Start a recording* focused; a second start from the menu leaves one
+Wholeheard; a recording shown in the same window and back to rest at the stop, its transcript
+written; started in the full window, shown in the small one; one window at a time, `window` in
+the settings following each change, and the window left reopened after quitting; closed, then
+*Open Wholeheard* from the tray; started as the session starts it, alone or with one running, no
+window; a recording from the tray with no window open, none opened. The shell's log agrees, no
+warning nor error. Not seen, on Wayland without a screenshot: the window above the others while
+recording, and the two themes.
 
 ## Out of scope
 
