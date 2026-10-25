@@ -146,7 +146,8 @@ function paintState(said, shown, of) {
   } else if (shown.kind === "waiting") {
     said.replaceChildren(element("span", "what", fill(words.minutes_waiting, shown.before)));
   } else if (shown.kind === "model") {
-    said.replaceChildren(element("span", "what", shown.coming ? words.transcript_model_coming : words.transcript_model_needed));
+    if (shown.coming) said.replaceChildren(element("span", "what", words.transcript_model_coming));
+    else said.replaceChildren(element("span", "what", words.transcript_model_needed), modelFetch());
   } else if (shown.kind === "awaiting") {
     const agree = element("a", "open", words.agree_open);
     agree.id = "minutes-agree";
@@ -171,7 +172,36 @@ function paintState(said, shown, of) {
   }
 }
 
+// The tray's own fetch of the default model, offered where the window says it is missing (D36).
+function modelFetch() {
+  const fetch_ = element("button", "open", makings.model_offer);
+  fetch_.type = "button";
+  fetch_.id = "model-fetch";
+  fetch_.addEventListener("click", async () => {
+    fetch_.disabled = true;
+    await window.__TAURI__.core.invoke("model_fetch").catch(() => {});
+    readMakings();
+  });
+  return fetch_;
+}
+
+// Settings' model, not on this computer: coming, offered, or one the user named — theirs (D36).
+function paintModel(state = document.getElementById("model-state")) {
+  if (!state?.dataset.missing || makings === null) return;
+  const kind = makings.model_coming ? "coming" : makings.model_needed ? "needed" : "named";
+  if (state.dataset.kind === kind) return;
+  // Offered or coming, and now neither: the default model came — the page drawn as it now is,
+  // once: the drawing paints the makings again, this card still in it.
+  const came = kind === "named" && state.dataset.kind;
+  state.dataset.kind = kind;
+  if (came) return refresh();
+  state.querySelector(".says").textContent = { coming: words.model_coming, needed: words.model_missing, named: words.model_named_missing }[kind];
+  state.querySelector("#model-fetch")?.remove();
+  if (kind === "needed") state.append(modelFetch());
+}
+
 function paintMakings() {
+  paintModel();
   for (const chip_ of document.querySelectorAll(".chip.making")) {
     // The minutes' state first; else the transcript's, which comes before them.
     const minutes = minutesState(chip_.dataset.name);
@@ -1270,17 +1300,19 @@ function showSettings(shown, minutes, words) {
   more.append(remind, offer, start, keys, where, keep);
   parts.push(more);
 
-  // The transcription model's state: there and ready, or offered at the first transcript.
+  // The transcription model's state: there and ready; else said, and offered, by paintModel.
   const chosen = shown.models.find((model) => model.path === shown.model);
   const state = element("section", "card group state");
   const stateSaid = element("div", "said");
   stateSaid.append(
     element("span", "name", words.model_state),
-    element("span", "says", chosen ? fill(words.model_here, size(chosen.bytes, words)) : words.model_missing),
+    element("span", "says", chosen ? fill(words.model_here, size(chosen.bytes, words)) : ""),
   );
   state.append(stateSaid);
   if (chosen) state.append(element("span", "ready", `✓ ${words.model_ready}`));
+  else state.dataset.missing = "true";
   state.id = "model-state";
+  paintModel(state);
   parts.push(state);
 
   // Last, for whoever looks into a failure: the developer mode (D29).

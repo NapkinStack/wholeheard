@@ -9,6 +9,7 @@ Prints one line per check, `ok` or `FAIL`, and exits 1 on any failure.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import http.server
 import json
 import math
@@ -285,6 +286,91 @@ def group(day: dt.datetime | None, now: dt.datetime) -> str:
     if (day.year, day.month) == (now.year, now.month):
         return f"Plus tôt en {MONTHS_FR[day.month - 1]}"
     return f"{MONTHS_FR[day.month - 1].capitalize()} {day.year}"
+
+
+def model_offered(now: dt.datetime) -> None:
+    """T. The default model missing: the window offers the tray's own fetch where it says so (D36)."""
+    print("T. the transcription model missing: offered in the window too, where it says so (D36)")
+    served, right = WORK / "served", os.urandom(300_000)
+    served.mkdir()
+    (served / "model.bin").write_bytes(os.urandom(300_000))  # served first: not the published file
+    asked = []
+
+    # Served slowly — 30 kB every 0.3 s, three seconds a fetch — so that its coming is seen.
+    class Slow(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(served), **kwargs)
+
+        def log_message(self, *_):
+            asked.append(self.path)
+
+        def copyfile(self, source, sink):
+            while chunk := source.read(30_000):
+                sink.write(chunk)
+                sink.flush()
+                time.sleep(0.3)
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Slow)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    host = f"127.0.0.1:{server.server_address[1]}"
+    meetings, data = WORK / "fetching", WORK / "data-fetching"
+    session(meetings / "2026-10-25_10-00", now - dt.timedelta(hours=1), 5, {"local.wav": 2000})
+    heard = meetings / "2026-10-25_10-00" / "transcript.jsonl"
+    fetched = data / "wholeheard" / "models" / "ggml-large-v3-turbo-q8_0.bin"
+    window = Window(meetings, "fr_FR.UTF-8")
+    window.env.update(XDG_DATA_HOME=str(data), WHOLEHEARD_MODEL_PUBLISHED=f"http://{host}/model.bin 300000 {hashlib.sha256(right).hexdigest()}")
+    said = "return document.getElementById('model-state')?.innerText || ''"
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        offered = wait_for(browser, lambda b: b.find_elements(By.ID, "model-fetch"))
+        label = browser.find_element(By.ID, "model-fetch").text if offered else ""
+        check("Settings offer the missing model, with its size and host", offered and label == f"Télécharger le modèle (0 MB, {host})", label)
+        check("nothing is fetched before the click", asked == [], asked)
+        button = browser.find_element(By.ID, "model-fetch")
+        time.sleep(3.5)
+        check("in Settings too, the offer is not drawn again while nothing changes", not staleness_of(button)(browser))
+        browser.find_element(By.ID, "model-fetch").click()
+        coming = wait_for(browser, lambda b: "En cours de téléchargement" in b.execute_script(said) and not b.find_elements(By.ID, "model-fetch"), 3)
+        check("once clicked, it is said coming, and not offered again", coming, browser.execute_script(said))
+        again = wait_for(browser, lambda b: b.find_elements(By.ID, "model-fetch"), 15)
+        check("a file that is not the published one: nothing kept, offered again", again and not fetched.exists() and asked != [], asked)
+        (served / "model.bin").write_bytes(right)
+        browser.find_element(By.ID, "model-fetch").click()
+        ready = wait_for(browser, lambda b: "Prêt" in b.execute_script(said), 15)
+        check("fetched from Settings, the model is ready there", ready and fetched.read_bytes() == right, browser.execute_script(said))
+        time.sleep(1)
+        check("with none in line, no transcript is made", not heard.exists())
+        # The model gone again, a meeting waits for it: offered on its page, where it waits.
+        fetched.unlink()
+        browser.execute_script("location.hash = '#/meeting/2026-10-25_10-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-transcript"))
+        browser.find_element(By.ID, "make-transcript").click()
+        waits = "return document.getElementById('transcript-state')?.innerText || ''"
+        offered = wait_for(browser, lambda b: "En attente du modèle Whisper" in b.execute_script(waits) and b.find_elements(By.CSS_SELECTOR, "#transcript-state #model-fetch"))
+        check("a meeting waiting for the model offers it on its page", offered, browser.execute_script(waits))
+        # Offered, it stays the same button across the page's readings: a focus on it is kept.
+        button = browser.find_element(By.ID, "model-fetch")
+        time.sleep(3.5)
+        check("the offer is not drawn again while nothing changes", not staleness_of(button)(browser))
+        browser.find_element(By.ID, "model-fetch").click()
+        coming = wait_for(browser, lambda b: "en cours de téléchargement" in b.execute_script(waits) and not b.find_elements(By.ID, "model-fetch"), 3)
+        check("while it comes, the meeting says so and offers it no more", coming, browser.execute_script(waits))
+        made = wait_for(browser, lambda b: heard.exists(), 15)
+        check("fetched from the meeting, its transcript is made", made and fetched.read_bytes() == right)
+    # A model the user named, not on this computer: theirs, nothing offered.
+    named = Window(meetings, "fr_FR.UTF-8", f'model = "{WORK / "mine.bin"}"\n')
+    named.env.update(XDG_DATA_HOME=str(WORK / "data-named"), WHOLEHEARD_MODEL_PUBLISHED=window.env["WHOLEHEARD_MODEL_PUBLISHED"])
+    with named as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        drawn = wait_for(browser, lambda b: "Pas sur cet ordinateur" in b.execute_script(said))
+        time.sleep(1)
+        check("a model the user named is not offered: theirs", drawn and not browser.find_elements(By.ID, "model-fetch")
+              and "proposé" not in browser.execute_script(said), browser.execute_script(said))
+        before = len(asked)
+        browser.execute_script("window.__TAURI__.core.invoke('model_fetch')")
+        time.sleep(1.5)
+        check("asked all the same, nothing is fetched for it", len(asked) == before and not (WORK / "data-named" / "wholeheard" / "models").exists(), asked)
+    server.shutdown()
 
 
 def main() -> int:
@@ -1665,6 +1751,7 @@ def main() -> int:
         check("a meeting whose audio is there but not playable is not said freed",
               there and "libéré" not in browser.execute_script(no_player), browser.execute_script(no_player))
     check("the volume the system remembers for the user's Wholeheard is left as it was", remembered() == kept, remembered())
+    model_offered(now)
     return 1 if FAILED else 0
 
 

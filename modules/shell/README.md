@@ -92,7 +92,8 @@ another waits for it. Quitting Wholeheard ends a transcript being made; it goes 
 so, and puts one entry in its menu: *Download the model (874 MB, huggingface.co)*. Nothing is
 fetched before it is chosen. The model comes into a part file beside its place. A cut is
 taken up where it stopped, and the model is used only whole and with the SHA-256 its authors
-publish. Then the waiting transcript is made. A model the settings name, and which is not
+publish. Then the waiting transcripts are made, none other. The window offers the same fetch where it says
+the model is missing: in *Réglages*, and on a meeting waiting for it (D36). A model the settings name, and which is not
 there, is said with where it was looked for: it is the user's own, never fetched.
 
 ```bash
