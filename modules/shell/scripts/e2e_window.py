@@ -289,8 +289,8 @@ def group(day: dt.datetime | None, now: dt.datetime) -> str:
 
 
 def model_offered(now: dt.datetime) -> None:
-    """S. The default model missing: the window offers the tray's own fetch where it says so (D36)."""
-    print("S. the transcription model missing: offered in the window too, where it says so (D36)")
+    """T. The default model missing: the window offers the tray's own fetch where it says so (D36)."""
+    print("T. the transcription model missing: offered in the window too, where it says so (D36)")
     served, right = WORK / "served", os.urandom(300_000)
     served.mkdir()
     (served / "model.bin").write_bytes(os.urandom(300_000))  # served first: not the published file
