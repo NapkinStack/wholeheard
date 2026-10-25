@@ -144,6 +144,16 @@ def stop_from_small(browser) -> None:
         pass
 
 
+def read(browser, reads):
+    """What the page says, as it is: drawn again under the driver, it is read afresh (#409)."""
+    for _ in range(5):
+        try:
+            return reads(browser)
+        except StaleElementReferenceException:
+            time.sleep(0.2)
+    return reads(browser)
+
+
 def wait_for(browser, holds, seconds: float = 10) -> bool:
     until = time.monotonic() + seconds
     while time.monotonic() < until:
@@ -951,7 +961,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         browser.execute_script("location.hash = '#/settings'")
         silent = wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-silent"), 5)
-        said = " ".join(p.text for p in browser.find_elements(By.CSS_SELECTOR, "#minutes-where, #minutes-silent, #minutes-lacking"))
+        said = read(browser, lambda b: " ".join(p.text for p in b.find_elements(By.CSS_SELECTOR, "#minutes-where, #minutes-silent, #minutes-lacking")))
         check("this computer's Ollama not answering: said so, here, never a model said missing",
               silent and "Sur cet ordinateur" in said and "ne répond pas" in said and not browser.find_elements(By.ID, "minutes-lacking"), said)
         window.file.write_text(kept)
