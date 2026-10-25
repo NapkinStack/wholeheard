@@ -267,7 +267,8 @@ function show({ words, folder, sessions, shapes, recording, shortcut }) {
   document.getElementById("free-link").textContent = words.free;
   const small = document.getElementById("small-link");
   small.textContent = words.small;
-  small.hidden = !recording;
+  // At rest too: the small window is the user's to choose (D35).
+  small.hidden = false;
   document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
   document.getElementById("record").classList.toggle("live", recording);
   const keys = document.getElementById("header-keys");
@@ -1408,20 +1409,43 @@ function showAgreement(name, agreement, words) {
   send.focus();
 }
 
-// The small window while recording (D11's sixth board): the time, the two levels, the way to
-// stop and the way to the whole window — asked ten times a second.
+// The small window (D35): at rest — the recording's gesture and the shortcut, the last meeting and
+// where it stands, what the meetings weigh, the way to the full window —, or while recording
+// (D11's sixth board): the time, the two levels, the way to stop. The recording asked ten times a
+// second; at rest, the meetings as often as the full window asks.
 function showSmall(words) {
   const page = document.getElementById("small");
   document.body.classList.add("small-window");
+  const invoke = window.__TAURI__.core.invoke;
+  const full = (where) => invoke("full_window", { page: where ?? null });
+  const toFull = (id) => {
+    const button = element("button", "open icon", "⤢");
+    button.type = "button";
+    button.id = id;
+    button.title = words.small_full;
+    button.setAttribute("aria-label", words.small_full);
+    button.addEventListener("click", () => full());
+    return button;
+  };
+
+  const rest = element("div", "small-rest");
+  const restTop = element("div", "small-top");
+  restTop.append(element("span", "small-brand", "Wholeheard"), toFull("small-full"));
+  const start = element("button", "primary", words.record_start);
+  start.type = "button";
+  start.id = "small-record";
+  start.addEventListener("click", () => invoke("record"));
+  const keys = element("button", "hint");
+  keys.type = "button";
+  keys.id = "small-keys";
+  const last = element("div", "small-last");
+  const foot = element("div", "small-foot");
+  rest.append(restTop, start, keys, last, foot);
+
+  const live = element("div", "small-live");
   const time = element("span", "time", "00:00:00");
   const top = element("div", "small-top");
-  const full = element("button", "open icon", "⤢");
-  full.type = "button";
-  full.id = "small-full";
-  full.title = words.small_full;
-  full.setAttribute("aria-label", words.small_full);
-  full.addEventListener("click", () => window.__TAURI__.core.invoke("full_window"));
-  top.append(element("span", "live-dot"), time, full);
+  top.append(element("span", "live-dot"), time, toFull("small-full-live"));
   // Each level under what it is recorded from, as the system names it (D33).
   const meter = (label, id, device) => {
     const row = element("div", "meter");
@@ -1443,15 +1467,66 @@ function showSmall(words) {
   const stop = element("button", "danger", words.small_stop);
   stop.type = "button";
   stop.id = "small-stop";
-  stop.addEventListener("click", () => window.__TAURI__.core.invoke("record"));
+  stop.addEventListener("click", () => invoke("record"));
   const meters = element("div", "meters");
   meters.append(meter(words.small_mic, "level-me", "device-me"), meter(words.small_meeting, "level-others", "device-others"));
   const note = element("p", "says", words.small_note);
   note.hidden = true;
-  page.replaceChildren(top, meters, stop, note);
+  live.append(top, meters, stop, note);
+  live.hidden = true;
+  page.replaceChildren(rest, live);
+
+  // At rest: drawn again only when what it says changes, so that a link under the focus stays.
+  const drawRest = async () => {
+    const listing = await invoke("listed").catch(() => null);
+    if (listing === null) return;
+    await readMakings();
+    const sessions = listing.sessions.filter((session) => session.state !== "recording");
+    const shown = sessions[0] ?? null;
+    const key = JSON.stringify([listing.shortcut, shown && [nameOf(shown), shown.minutes, shown.transcript, shown.audio], sessions.length]);
+    if (rest.dataset.key !== key) {
+      rest.dataset.key = key;
+      keys.textContent = listing.shortcut ? fill(words.small_keys, listing.shortcut) : words.small_no_keys;
+      keys.disabled = Boolean(listing.shortcut);
+      keys.onclick = listing.shortcut ? null : () => full("#/settings");
+      if (shown === null) {
+        last.replaceChildren(element("p", "none", words.small_none));
+        foot.replaceChildren();
+      } else {
+        const card = element("div", "last");
+        const when = shown.seconds === null ? heading(shown, words) : `${heading(shown, words)} · ${length(shown.seconds)}`;
+        const open = element("button", "open link", shown.minutes ? words.small_read : words.small_open);
+        open.type = "button";
+        open.id = "small-read";
+        open.addEventListener("click", () => full(`#/meeting/${encodeURIComponent(nameOf(shown))}`));
+        card.append(element("span", "label", words.small_last), element("span", "what", when), holdings(shown, words), open);
+        last.replaceChildren(card);
+        const weight = sessions.reduce((sum, session) => sum + session.audio + session.text, 0);
+        const count = fill(sessions.length === 1 ? words.small_count_one : words.small_count, sessions.length, size(weight, words));
+        const all = element("button", "open link", words.small_all);
+        all.type = "button";
+        all.id = "small-all";
+        all.addEventListener("click", () => full("#/"));
+        foot.replaceChildren(element("span", "count", count), all);
+      }
+    }
+    paintMakings();
+  };
+
+  let recording = null;
   const tick = async () => {
-    const now = await window.__TAURI__.core.invoke("recording_now").catch(() => null);
+    const now = await invoke("recording_now").catch(() => null);
     if (now === null) return;
+    if (now.recording !== recording) {
+      const first = recording === null;
+      recording = now.recording;
+      rest.hidden = recording;
+      live.hidden = !recording;
+      if (!recording) await drawRest();
+      // Opened at rest, the recording's gesture has the focus.
+      if (first && !recording) start.focus();
+    }
+    if (!recording) return;
     const whole = Math.floor(now.seconds);
     time.textContent = [Math.floor(whole / 3600), Math.floor((whole % 3600) / 60), whole % 60].map((n) => String(n).padStart(2, "0")).join(":");
     for (const [index, id] of ["level-me", "level-others"].entries()) {
@@ -1469,6 +1544,7 @@ function showSmall(words) {
     note.hidden = !now.transcript_follows;
   };
   setInterval(tick, 100);
+  setInterval(() => recording === false && drawRest(), 1500);
   tick();
 }
 
@@ -1691,7 +1767,6 @@ setInterval(async () => {
   if (asked === null) return;
   readMakings();
   const { recording, shortcut } = asked;
-  document.getElementById("small-link").hidden = !recording;
   document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
   document.getElementById("record").classList.toggle("live", recording);
   const keys = document.getElementById("header-keys");

@@ -416,8 +416,23 @@ fn offer_recording(app: &AppHandle, application: String) {
     });
 }
 
-/// Opens the window, or brings it forward when it is open. Only ever on a gesture of the user.
+/// Opens the window the user last left — the small one the first time — or brings it forward.
+/// Only ever on a gesture of the user (D35).
 fn open_window(app: &AppHandle) {
+    // A settings file that cannot be read is said in the full window, which the small one has no
+    // room for: it opens there.
+    match app.state::<Shell>().reread().map(|settings| settings.window) {
+        Ok(settings::Window::Small) => show_small(app),
+        Ok(settings::Window::Full) | Err(_) => show_full(app),
+    }
+}
+
+/// The full window, in place of the small one: one window at a time (D35).
+fn show_full(app: &AppHandle) {
+    left(app, settings::Window::Full);
+    if let Some(small) = app.get_webview_window("small") {
+        let _ = small.close();
+    }
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();
@@ -429,6 +444,68 @@ fn open_window(app: &AppHandle) {
         .inner_size(1100.0, 800.0)
         .min_inner_size(420.0, 400.0)
         .build();
+}
+
+/// The small window: at rest it holds more than while recording (D35; D33 for the devices).
+const SMALL_AT_REST: (f64, f64) = (380.0, 440.0);
+const SMALL_RECORDING: (f64, f64) = (380.0, 300.0);
+
+/// The small window, in place of the full one, which is hidden: at rest, or showing the
+/// recording above the other windows (D35, board 6).
+fn show_small(app: &AppHandle) {
+    left(app, settings::Window::Small);
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.hide();
+    }
+    if let Some(window) = app.get_webview_window("small") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+    let recording = app.state::<Shell>().recording.lock().unwrap().is_some();
+    let (width, height) = if recording { SMALL_RECORDING } else { SMALL_AT_REST };
+    let _ = WebviewWindowBuilder::new(app, "small", WebviewUrl::App("index.html#/small".into()))
+        .title("Wholeheard")
+        .inner_size(width, height)
+        .resizable(false)
+        .always_on_top(recording)
+        .build();
+}
+
+/// A recording begins or ends: the small window, when open, is above the others while it runs
+/// only, and sized for what it shows (D35).
+fn small_recording(app: &AppHandle, recording: bool) {
+    if let Some(small) = app.get_webview_window("small") {
+        let (width, height) = if recording { SMALL_RECORDING } else { SMALL_AT_REST };
+        let _ = small.set_always_on_top(recording);
+        let _ = small.set_size(tauri::LogicalSize::new(width, height));
+    }
+}
+
+/// Keeps the window left in the settings, for the next opening — on a thread of its own: a window
+/// opens from paths that may hold the settings' locks, and never waits for them. A file that
+/// cannot be read is said in the full window, and kept as it is; one that cannot be written
+/// keeps what it says: the window opens all the same.
+fn left(app: &AppHandle, window: settings::Window) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let shell = app.state::<Shell>();
+        let _saving = shell.saving.lock().unwrap();
+        let Ok(mut settings) = shell.reread() else {
+            return;
+        };
+        if settings.window == window {
+            return;
+        }
+        settings.window = window;
+        let written = settings::file()
+            .ok_or_else(|| "this system names no folder for settings".to_string())
+            .and_then(|file| settings::write(&file, &settings).map_err(|error| error.to_string()));
+        match written {
+            Ok(()) => *shell.settings.lock().unwrap() = settings,
+            Err(error) => tracing::warn!(detail = %error, "shell.window_not_kept"),
+        }
+    });
 }
 
 /// What the window shows: its words, the folder it reads, and the sessions in it.
@@ -661,32 +738,22 @@ fn recording_now(shell: State<'_, Shell>) -> Now {
     }
 }
 
-/// Opens the small window, on the user's gesture only: while a recording runs, its time, its
-/// two levels and the way to stop it, kept above the other windows.
+/// From the full window to the small one, at rest or recording (D35). Asynchronous, as is
+/// `full_window`: each hides or closes the window that asked, which its own call, run where the
+/// windows are, would wait for.
 #[tauri::command]
-fn small_window(app: AppHandle, shell: State<'_, Shell>) {
-    // The header's offer can outlive the recording by a poll: after it, there is nothing to show.
-    if shell.recording.lock().unwrap().is_none() {
-        return;
-    }
-    if let Some(window) = app.get_webview_window("small") {
-        let _ = window.show();
-        let _ = window.set_focus();
-        return;
-    }
-    let _ = WebviewWindowBuilder::new(&app, "small", WebviewUrl::App("index.html#/small".into()))
-        .title("Wholeheard")
-        // Tall enough for each level under the device it is recorded from (D33).
-        .inner_size(380.0, 300.0)
-        .resizable(false)
-        .always_on_top(true)
-        .build();
+async fn small_window(app: AppHandle) {
+    show_small(&app);
 }
 
-/// From the small window to the full one.
+/// From the small window to the full one, on one of its pages when named: a meeting, the
+/// list, the settings (D35).
 #[tauri::command]
-fn full_window(app: AppHandle) {
-    open_window(&app);
+async fn full_window(app: AppHandle, page: Option<String>) {
+    match page.filter(|page| page.starts_with("#/")) {
+        Some(page) => open_window_at(&app, &page),
+        None => show_full(&app),
+    }
 }
 
 /// The header's button: starts a recording, or stops the one running — as the tray and the
@@ -1683,11 +1750,15 @@ fn minuting(app: &AppHandle, now: bool) {
     });
 }
 
-/// Opens the window on one of its pages.
+/// Opens the full window on one of its pages, in place of the small one (D35).
 fn open_window_at(app: &AppHandle, page: &str) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.eval(format!("location.hash = {}", serde_json::to_string(page).unwrap_or_default()));
-        return open_window(app);
+        return show_full(app);
+    }
+    left(app, settings::Window::Full);
+    if let Some(small) = app.get_webview_window("small") {
+        let _ = small.close();
     }
     let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(format!("index.html{page}").into()))
         .title("Wholeheard")
@@ -1799,6 +1870,7 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
         if let Said::Started(folder, ..) = &event {
             *shell.recorded.lock().unwrap() = Some(folder.clone());
             *shell.meter.lock().unwrap() = (Some(Instant::now()), [0.0, 0.0]);
+            small_recording(app, true);
         }
         if let Said::Level(source, level) = &event {
             shell.meter.lock().unwrap().1[usize::from(*source == Source::Others)] = *level;
@@ -1822,10 +1894,8 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     shell.recorded.lock().unwrap().take();
     *shell.meter.lock().unwrap() = (None, [0.0, 0.0]);
     *shell.devices.lock().unwrap() = recording::Devices::default();
-    // The small window has nothing left to show: it closes, as the board has it.
-    if let Some(small) = app.get_webview_window("small") {
-        let _ = small.close();
-    }
+    // The small window comes back to rest, below the other windows again (D35).
+    small_recording(app, false);
     let ended = shell.recording.lock().unwrap().take();
     *shell.stopping.lock().unwrap() = false;
     show(app, Shown::Idle);

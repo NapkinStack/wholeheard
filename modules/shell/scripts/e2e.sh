@@ -466,7 +466,7 @@ else
   quiet_module=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_quiet)
   export PULSE_SINK=wholeheard_e2e_quiet
   # A window that stops answering fails the run, never holds it: it takes about 6 minutes.
-  if ! timeout --kill-after=30 1200 uv run --quiet --with selenium==4.51.0 python scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt; then
+  if ! timeout --kill-after=30 1200 uv run --quiet --with selenium==4.51.0 python -u scripts/e2e_window.py "$bin" "$work/window" | tee -a .evidence/e2e.txt; then
     failed=1
   fi
 fi

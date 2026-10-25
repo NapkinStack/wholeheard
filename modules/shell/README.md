@@ -68,6 +68,13 @@ in the settings file; one Wholeheard could not read is said, and not written ove
 longer than the settings say goes to the system's trash — at start, then every hour, said once —
 from sessions whose transcript is whole; their transcript and minutes stay.
 
+**The small window** (D35, D34's board) opens first: *Démarrer un enregistrement* and the shortcut
+as the desktop granted it — or where to choose one —, the last meeting and where it stands, what
+the meetings weigh, and the way to the full window. A recording shows in it (board 6, D33), above
+the other windows until the stop; then it comes back to rest. One window at a time: going from one
+to the other replaces it, and the one left — `window` in the settings, `small` or `full` — is the
+one reopened. A settings file that cannot be read opens the full window, where it is said.
+
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification
 says when it is there, and a click on it opens the session's folder under a Linux desktop.

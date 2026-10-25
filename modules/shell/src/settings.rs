@@ -38,6 +38,23 @@ impl Log {
     }
 }
 
+/// The window Wholeheard opens: the one the user left, the small one first (D35).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Window {
+    Small,
+    Full,
+}
+
+impl Window {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Window::Small => "small",
+            Window::Full => "full",
+        }
+    }
+}
+
 /// How long a session's audio is kept; its transcript and minutes stay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -74,6 +91,8 @@ pub struct Settings {
     /// Whether Wholeheard wrote its entry of the session's start, and as what (D32): none, never
     /// — it is written at the next start. The entry itself is the setting.
     pub autostart: Option<bool>,
+    /// The window opened from the menu or the tray: the one left (D35).
+    pub window: Window,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -95,6 +114,7 @@ impl Default for Settings {
             developer: false,
             offer: true,
             autostart: None,
+            window: Window::Small,
             log: Log::Info,
         }
     }
@@ -140,6 +160,7 @@ struct Written {
     developer: Option<bool>,
     offer: Option<bool>,
     autostart: Option<bool>,
+    window: Option<Window>,
     log: Option<Log>,
 }
 
@@ -176,6 +197,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.developer = written.developer.unwrap_or(settings.developer);
     settings.offer = written.offer.unwrap_or(settings.offer);
     settings.autostart = written.autostart;
+    settings.window = written.window.unwrap_or(settings.window);
     settings.log = written.log.unwrap_or(settings.log);
     settings.after = match (written.after, written.transcript) {
         (Some(after), _) => after,
@@ -253,6 +275,9 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
         && settings.autostart != before.autostart
     {
         set(&mut document, "autostart", Value::from(autostart));
+    }
+    if settings.window != before.window {
+        set(&mut document, "window", Value::from(settings.window.as_str()));
     }
     if settings.log != before.log {
         set(&mut document, "log", Value::from(settings.log.as_str()));
