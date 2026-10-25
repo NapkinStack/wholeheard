@@ -755,7 +755,9 @@ and host, the tray's own fetch; while it comes, nothing is offered again; refuse
 again; fetched, Settings say it ready and the meetings in line alone are transcribed — the fetch
 no longer makes the latest meeting's transcript when none waits. A model the user named, not on
 this computer, is not offered: "Pas sur cet ordinateur : remettez-le à sa place, ou choisissez-en
-un autre." Left to the decider: the button in both themes, and a real fetch from huggingface.co.
+un autre." Left to the decider: the button in both themes, and a real fetch from huggingface.co. Known:
+Settings opened within 1.5 s of the window show the model's card empty for about 1.3 s, until the
+first reading of what is being made.
 
 ## Out of scope
 
