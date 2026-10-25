@@ -723,8 +723,11 @@ written; started in the full window, shown in the small one; one window at a tim
 the settings following each change, and the window left reopened after quitting; closed, then
 *Open Wholeheard* from the tray; started as the session starts it, alone or with one running, no
 window; a recording from the tray with no window open, none opened. The shell's log agrees, no
-warning nor error. Not seen, on Wayland without a screenshot: the window above the others while
-recording, and the two themes.
+warning nor error. Held by #394's e2e, not tried again: the keyboard's order and the focus, no
+meeting yet, *Read the minutes* and *All meetings* opening the full window, a settings file that
+cannot be read. Not seen: on Wayland without a screenshot, the window above the others while
+recording and the two themes; a recording from the shortcut or an offer; the menu while a
+Wholeheard started with the session runs — the same hand-over as a second start from the menu.
 
 ## Out of scope
 
