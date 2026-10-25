@@ -1321,6 +1321,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop"))
         time.sleep(1.5)
         check("Démarrer un enregistrement records in the same window", browser.window_handles == [small], browser.window_handles)
+        tall = browser.execute_script("return window.innerHeight")
         shot(browser, "6-small")
         fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
         check("it holds in its window, nothing to scroll", fits[0] <= fits[1], fits)
@@ -1345,6 +1346,7 @@ def main() -> int:
         check("Arrêter stops the recording, and the small window comes back to rest — it does not close", rest and stopped and browser.window_handles == [small], browser.window_handles)
         last = wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#small .last"), 5)
         check("the meeting just recorded is its last", last and browser.find_element(By.CSS_SELECTOR, "#small .last .what").text != "")
+        check("at rest and recording, the window keeps its size: nothing jumps", browser.execute_script("return window.innerHeight") == tall, (tall, browser.execute_script("return window.innerHeight")))
         shot(browser, "6-small-after")
         try:
             browser.find_element(By.ID, "small-full").click()
@@ -1388,9 +1390,11 @@ def main() -> int:
         browser.find_element(By.ID, "small-stop").click()
         rest = wait_for(browser, lambda b: b.find_elements(By.ID, "small-record") and b.find_element(By.ID, "small-record").is_displayed(), 5)
         check("opened from the full window during a recording, it too comes back to rest, in English", rest and browser.find_element(By.ID, "small-record").text == "Start a recording")
-        fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
-        check("at rest, in English, it holds in its window", fits[0] <= fits[1], fits)
+        # Measured once its last meeting is drawn.
         wait_for(browser, lambda b: b.find_elements(By.ID, "small-read"), 5)
+        time.sleep(0.5)
+        fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
+        check("at rest, in English, with its last meeting, it holds in its window", fits[0] <= fits[1], fits)
         try:
             browser.find_element(By.ID, "small-read").click()
         except NoSuchWindowException:

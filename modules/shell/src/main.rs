@@ -446,9 +446,9 @@ fn show_full(app: &AppHandle) {
         .build();
 }
 
-/// The small window: at rest it holds more than while recording (D35; D33 for the devices).
-const SMALL_AT_REST: (f64, f64) = (380.0, 440.0);
-const SMALL_RECORDING: (f64, f64) = (380.0, 300.0);
+/// The small window's size, the same at rest and recording: GTK does not shrink a window the
+/// user cannot resize, and a window that changes size under the pointer is one more surprise (D35).
+const SMALL: (f64, f64) = (380.0, 400.0);
 
 /// The small window, in place of the full one, which is hidden: at rest, or showing the
 /// recording above the other windows (D35, board 6).
@@ -463,22 +463,19 @@ fn show_small(app: &AppHandle) {
         return;
     }
     let recording = app.state::<Shell>().recording.lock().unwrap().is_some();
-    let (width, height) = if recording { SMALL_RECORDING } else { SMALL_AT_REST };
     let _ = WebviewWindowBuilder::new(app, "small", WebviewUrl::App("index.html#/small".into()))
         .title("Wholeheard")
-        .inner_size(width, height)
+        .inner_size(SMALL.0, SMALL.1)
         .resizable(false)
         .always_on_top(recording)
         .build();
 }
 
 /// A recording begins or ends: the small window, when open, is above the others while it runs
-/// only, and sized for what it shows (D35).
+/// only (D35).
 fn small_recording(app: &AppHandle, recording: bool) {
     if let Some(small) = app.get_webview_window("small") {
-        let (width, height) = if recording { SMALL_RECORDING } else { SMALL_AT_REST };
         let _ = small.set_always_on_top(recording);
-        let _ = small.set_size(tauri::LogicalSize::new(width, height));
     }
 }
 

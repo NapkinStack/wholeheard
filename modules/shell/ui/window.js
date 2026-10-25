@@ -1483,7 +1483,8 @@ function showSmall(words) {
     await readMakings();
     const sessions = listing.sessions.filter((session) => session.state !== "recording");
     const shown = sessions[0] ?? null;
-    const key = JSON.stringify([listing.shortcut, shown && [nameOf(shown), shown.minutes, shown.transcript, shown.audio], sessions.length]);
+    const weight = sessions.reduce((sum, session) => sum + session.audio + session.text, 0);
+    const key = JSON.stringify([listing.shortcut, shown && [nameOf(shown), shown.minutes, shown.transcript, shown.audio, shown.seconds], sessions.length, weight]);
     if (rest.dataset.key !== key) {
       rest.dataset.key = key;
       keys.textContent = listing.shortcut ? fill(words.small_keys, listing.shortcut) : words.small_no_keys;
@@ -1501,7 +1502,6 @@ function showSmall(words) {
         open.addEventListener("click", () => full(`#/meeting/${encodeURIComponent(nameOf(shown))}`));
         card.append(element("span", "label", words.small_last), element("span", "what", when), holdings(shown, words), open);
         last.replaceChildren(card);
-        const weight = sessions.reduce((sum, session) => sum + session.audio + session.text, 0);
         const count = fill(sessions.length === 1 ? words.small_count_one : words.small_count, sessions.length, size(weight, words));
         const all = element("button", "open link", words.small_all);
         all.type = "button";
