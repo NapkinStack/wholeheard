@@ -47,6 +47,11 @@ lively meeting misses or mishears about one word in four. The window is drawn an
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md) — how a change is proposed, verified and merged here.
 
+## Licence
+
+GPL-3.0 ([`LICENSE`](LICENSE)). Built from source, Wholeheard is free on every system; the
+signed builds for macOS and Windows are what is sold ([PDR-0001](docs/pdr/0001-wholeheard-open-on-linux-paid-on-macos-and-windows.md)).
+
 ## Decisions
 
 | What | Where |

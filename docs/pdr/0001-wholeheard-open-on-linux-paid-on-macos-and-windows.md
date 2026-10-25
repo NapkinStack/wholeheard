@@ -1,7 +1,8 @@
 # PDR-0001 — Wholeheard: be in the meeting; open and free on Linux, paid once on macOS and Windows
 
 - **Status**: Accepted — the decider's word, 2026-10-19 ("ok pour tes recommandations",
-  "ok pour Wholeheard")
+  "ok pour Wholeheard"); its *Impacts* on the opening amended by
+  [PDR-0002](./0002-the-repository-opened-the-pace-kept.md), 2026-10-25
 - **Date**: 2026-10-19
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Modules affected**: all — the name; `install` (where users get it, how it updates); a

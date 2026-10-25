@@ -63,9 +63,12 @@ known, once the repository is opened. Nothing measures it yet.
 - **One builder, with agents; no budget.** The decider builds and tests on Fedora only.
   Windows and macOS are verified by the two colleagues, on their machines and their time.
 - **The three systems, latest versions.**
-- **Private repository first**; opened once the software is proven in use. What "proven"
+- ~~**Private repository first**; opened once the software is proven in use. What "proven"
   means is an open question. **Opening it has a price already set**: the module that captures
-  and keeps recordings becomes `critical` first (risks).
+  and keeps recordings becomes `critical` first (risks).~~ Changed 2026-10-25 by
+  [PDR-0002](../pdr/0002-the-repository-opened-the-pace-kept.md): opened then, under GPL-3.0;
+  the module that captures becomes `critical` before the first build published for people
+  outside the project.
 - **Recording law: France now, anywhere later.** The defaults must hold where the rule is
   strictest. In France the Penal Code, art. 226-1, presumes consent only when the recording
   is made in the sight and knowledge of the people recorded — the other participants, not the
@@ -86,7 +89,7 @@ known, once the repository is opened. Nothing measures it yet.
 
 | Risk | What it would cost | What follows |
 |---|---|---|
-| A recording is made that a participant did not know about | A criminal offence for the user, in France; the end of the product's reason to exist | Accepted by the decider as the user's responsibility (constraints). By the handbook's own rule — a module that "touches someone's personal data is `critical`" (`.nstack/handbook/05-workflow.md` §7) — the capture module would be **critical**. **The decider declares it `standard` for now, and `critical` before the repository is opened** (2026-10-12): three users who agreed, a private repository, one builder. A deviation from the handbook's rule, taken knowingly; the day strangers install Wholeheard it ends |
+| A recording is made that a participant did not know about | A criminal offence for the user, in France; the end of the product's reason to exist | Accepted by the decider as the user's responsibility (constraints). By the handbook's own rule — a module that "touches someone's personal data is `critical`" (`.nstack/handbook/05-workflow.md` §7) — the capture module would be **critical**. **The decider declares it `standard` for now (2026-10-12), and `critical` before the first build published for people outside the project** (PDR-0002, 2026-10-25; until then, ~~before the repository is opened~~): three users who agreed, no build published outside the project, one builder. A deviation from the handbook's rule, taken knowingly; the day strangers install Wholeheard it ends |
 | A recording or a transcript leaves the machine without the user choosing it | The one promise the product keeps against a bot, broken | `.nstack/playbooks/security.md` applies from the first cycle; a rule of the project is proposed (`rules/security.md`) |
 | A recording is lost: a crash, a full disk | A meeting that cannot be held again | Part of the capture module's criticality |
 | The nearest product works after all | Nothing to build; perhaps a contribution | **Not tested, by the decider's choice** (2026-10-12): "on ne le fait pas, on a déjà acté le dev Summit". The spike the discovery carried is dropped, and the objection it answered stays open: nobody ran the nearest product's Linux build |
@@ -139,6 +142,7 @@ The framer's, accepted with the discovery:
   decider: yes, as the idea file says (C7) — shown out of the box, a setting removes it. The
   framer had said no: the announcement is the only thing that makes a recording lawful.
 - Which product was tried on Fedora, and with which error — it shapes the first spike.
-- What "proven in use" means for opening the repository.
+- ~~What "proven in use" means for opening the repository.~~ Answered 2026-10-25 by
+  [PDR-0002](../pdr/0002-the-repository-opened-the-pace-kept.md): the opening no longer waits for it.
 - ~~Whether the context given to a step is in the first version.~~ Answered 2026-10-12: yes, in cycle 01, for the transcript and the minutes.
 - Which bots the three people use today, and what they cost.

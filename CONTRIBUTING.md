@@ -1,5 +1,10 @@
 # Contributing
 
+> **Outside contributions are not merged for now.** The code is public under GPL-3.0
+> ([`LICENSE`](LICENSE)); it stays the project's alone until a contributor agreement exists
+> ([PDR-0002](docs/pdr/0002-the-repository-opened-the-pace-kept.md), 2026-10-25). An issue — a
+> defect, an idea — is welcome.
+
 ## Before you start
 
 1. Pick a **ready** deliverable of the current cycle (`docs/project/cycles/`) and **take it**:
