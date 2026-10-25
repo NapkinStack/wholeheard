@@ -160,7 +160,7 @@ deliverables:
   - id: D37
     title: "Settings offer a short list of models to download, each said by what it is good for"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given Settings, when the user opens its models, then a short list shipped with Wholeheard is shown — Whisper large v3 turbo (874 MB, recommended), Whisper small (264 MB, faster, less exact, for a modest computer), and for the minutes qwen3:8b through Ollama (about 5 GB) —, each with its size, what it is good for, and where it stands: on this computer, being downloaded and how far, or Télécharger"
       - "Given a Whisper model of the list clicked, then it is fetched on the user's word from huggingface.co as D36's — a part file, its published SHA-256 checked —, into Wholeheard's models folder, then offered among the models to choose; the choice made stays the user's; cut or refused, it is said and offered again; one fetch at a time — the turbo's row and D36's offer are the same fetch"
@@ -802,6 +802,17 @@ said, cut or refused said and offered again, then first among the minutes' model
 answering, "Nécessite Ollama, à installer depuis ollama.com", no button. Left to the decider: the
 list in both themes, and real fetches — Whisper small from huggingface.co, `qwen3:8b` through their
 Ollama.
+
+**Accepted by the decider, 2026-10-25** ("c'est ok"), after a trial an agent session ran on their
+desktop, on the binary of the package built from d8c5431 — the one they then installed, the same
+SHA-256 —, with a profile of its own, their model, settings and Ollama untouched by it — Ollama read
+only: Settings listed Whisper large v3 turbo (874 MB, recommended), Whisper small (264 MB) and
+`qwen3:8b` (about 5 GB) said on this computer, already in their Ollama; the choice said the turbo,
+absent from that profile, not on this computer yet. Whisper small clicked came from huggingface.co,
+how far said, the other downloads greyed meanwhile; then it was in place — 264 464 607 bytes, its
+published SHA-256 —, offered among the models to choose, the choice unchanged; the shell's log held
+no warning nor error. Not seen by that trial: the list in both themes, and a real pull by Ollama —
+`qwen3:8b` was already theirs; held by #406's scenario V on a local stand-in.
 
 ## Out of scope
 
