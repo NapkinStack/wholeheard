@@ -385,7 +385,9 @@ say "S. a call takes a microphone in another application: offered once, named; n
 # The call is pw-record on a microphone made for the run, the system's default meanwhile, so
 # that nothing reaches the computer's own: nobody is recorded.
 if ! command -v pw-record >/dev/null || [ -n "$(pactl list short source-outputs 2>/dev/null)" ]; then
-  say "  NOT RUN — pw-record missing, or an application holds a microphone: a call may be in progress"
+  # Not run is not passed, as H: D30's checks would be missing from a run that reads green (#384).
+  say "  NOT RUN — pw-record missing, or an application holds a microphone: a call may be in progress; run it again after the call"
+  failed=1
 else
   old_source=$(pactl get-default-source)
   mic_module=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_offer media.class=Audio/Source/Virtual)
