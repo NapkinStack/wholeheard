@@ -20,7 +20,7 @@
 
 The two colleagues on Windows and macOS cannot get a build. The decider's Fedora cannot make
 one, and on a private repository macOS minutes are counted ten to one against a monthly
-quota. Opening the repository is also how the project is meant to make the decider's company
+quota ([GitHub Actions billing](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions), not read again here). Opening the repository is also how the project is meant to make the decider's company
 known (charter).
 
 Opening it, as the charter and PDR-0001 set it, comes with three costs before anyone outside
@@ -41,7 +41,9 @@ level arrives on the day the first build reaches people outside the project.
 - Publishing a build to Copr or a PPA: that is the event this record waits for, not part of
   it.
 - Accepting a contribution from outside the project.
-- The trademark search and the domains (PDR-0001's *Impacts*): still owed, not decided here.
+- The trademark search and the domains (PDR-0001's *Impacts*, a condition of the opening
+  there): not decided here. It is put to the decider before the visibility changes, as is
+  leaving the session links of five commits (*Impacts*).
 
 ---
 
@@ -82,10 +84,11 @@ someone outside to protect.
    holds after the opening: the agent merges on a passed record of its head, a compliant
    `pr-check` and an independent verifier, and never approves. `nstack doctor` will report
    G2 and G3 (no approving review, no code owner review) as gaps: they are taken knowingly.
-   The rulesets that refuse without slowing the work are set: no direct push to `main`,
-   required checks, no force push, `main` not deletable, holds protected.
-5. **No self-hosted runner** once the repository is public. Hosted runners are unlimited
-   there, macOS included.
+   The rulesets that refuse without slowing the work are the decider's to set (*Impacts*): no
+   direct push to `main`, required checks, no force push, `main` not deletable, holds
+   protected; no approving review, no code owner review.
+5. **No self-hosted runner** once the repository is public. Hosted runners are free
+   there, macOS included ([GitHub Actions billing](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions), not read again here).
 
 ---
 
@@ -117,7 +120,7 @@ brings.
 
 ## Success criterion
 
-> We will consider this was the right call if **by 2026-12-31 a macOS build is made by the
+> The author's criterion, proposed with this record. We will consider this was the right call if **by 2026-12-31 a macOS build is made by the
 > hosted runners and the project still merges at today's pace**. The pace is read in the
 > cycle's own log: no deliverable held back by the process.
 
@@ -128,8 +131,8 @@ before the opening is reconsidered.
 
 ## Removal condition
 
-> Decision 4 ends **on the first contribution from outside the project or the first public
-> build, whichever comes first**. The approval is then required, as the framework sets it.
+> Decisions 3 and 4 are put back to the decider **when the project wants its first
+> contribution from outside it**. Nothing else ends them.
 
 ---
 
@@ -139,15 +142,17 @@ before the opening is reconsidered.
   "`critical` before the repository is opened" now read "before the first build published
   for people outside the project". Its open question "what proven in use means" is answered:
   the opening no longer waits for it.
-- **PDR-0001**: its *Impacts* line on the capture and its decision 2's contributor agreement
-  are amended by decisions 2 and 3.
+- **PDR-0001**: its *Impacts* on the opening (the capture `critical`, the licence and the
+  contributor agreement before it) are amended by decisions 2 and 3; its decision 2 holds.
 - **Rule 2** of `docs/project/rules/always.md`: kept after the opening, until this record's
   removal condition.
 - **What becomes public**: the whole history, the issues, the test sheets and the notes of
   `nstack attest`. Its audit of 2026-10-25 found no secret (gitleaks, 1128 commits with every
   pull request's head and the notes), no audio, and nothing of a real meeting. It did find
   the workstation's local paths in the attest records, reported to the framework
-  (NapkinStack/engineering-os#277), and session links in five commits of 2026-10-12, left as
-  they are.
+  (NapkinStack/engineering-os#277), and session links in five commits of 2026-10-12.
+  Removing them would rewrite `main`; whether they are left is the decider's, asked before
+  the visibility changes.
 - **The decider's settings** (not a file here): the `NSTACK_RUNS_ON` variable removed, the
-  visibility, and the rulesets of decision 4.
+  visibility, the rulesets of decision 4, private vulnerability reporting turned on
+  (`SECURITY.md`), and workflow approval for every outside contributor.
