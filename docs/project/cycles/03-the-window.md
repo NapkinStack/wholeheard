@@ -155,7 +155,7 @@ deliverables:
     module: shell
     state: ready
     acceptance:
-      - "Given the default Whisper model not on this computer, when the user opens Settings or a meeting waiting for it, then the window offers Télécharger le modèle with its size and host beside the sentence that says it is missing; a click fetches it on the user's word, as the tray's entry does — the same fetch, verified by its published fingerprint —, the window says it is coming, and the meetings in line are transcribed once it is ready"
+      - "Given the default Whisper model not on this computer, when the user opens Settings or a meeting waiting for it, then the window offers Télécharger le modèle with its size and host beside the sentence that says it is missing; a click fetches it on the user's word, as the tray's entry does — the same fetch, verified by its published fingerprint —, the window says it is coming, and the meetings in line are transcribed once it is ready — none other: with none in line, no transcript is made"
       - "Given the model being fetched, from the window or the tray, then neither offers it again; given the fetch cut or refused, then it is said and the window offers it again; given a model the user named that is not on this computer, then nothing is offered: it is theirs"
 ---
 
