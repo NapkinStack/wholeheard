@@ -373,6 +373,77 @@ def model_offered(now: dt.datetime) -> None:
     server.shutdown()
 
 
+def models_listed(now: dt.datetime) -> None:
+    """U. Settings offer a short list of models to download, each said by what it is good for (D37)."""
+    print("U. Settings: a short list of models to download, each said by what it is good for (D37)")
+    served, turbo, small = WORK / "served-list", os.urandom(200_000), os.urandom(100_000)
+    served.mkdir()
+    (served / "turbo.bin").write_bytes(turbo)
+    (served / "small.bin").write_bytes(os.urandom(100_000))  # served first: not the published file
+    asked = []
+
+    # Served slowly — 20 kB every 0.3 s — so that how far it is can be read.
+    class Slow(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(served), **kwargs)
+
+        def log_message(self, *_):
+            asked.append(self.path)
+
+        def copyfile(self, source, sink):
+            while chunk := source.read(20_000):
+                sink.write(chunk)
+                sink.flush()
+                time.sleep(0.3)
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Slow)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    at = f"http://127.0.0.1:{server.server_address[1]}"
+    meetings, data = WORK / "listing", WORK / "data-listing"
+    meetings.mkdir()
+    models = data / "wholeheard" / "models"
+    window = Window(meetings, "fr_FR.UTF-8")
+    window.env.update(XDG_DATA_HOME=str(data), WHOLEHEARD_MODEL_PUBLISHED=";".join([
+        f"{at}/turbo.bin 200000 {hashlib.sha256(turbo).hexdigest()}",
+        f"{at}/small.bin 100000 {hashlib.sha256(small).hexdigest()}",
+    ]))
+    row = "return document.querySelector('[data-offered=\"{}\"]')?.innerText || ''"
+    turbo_row, small_row = row.format("ggml-large-v3-turbo-q8_0.bin"), row.format("ggml-small-q8_0.bin")
+    offers = "return [...document.querySelectorAll('#offered button, #model-fetch')].filter(b => !b.disabled).length"
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        listed = wait_for(browser, lambda b: b.execute_script(turbo_row) and b.execute_script(small_row))
+        said = (browser.execute_script(turbo_row), browser.execute_script(small_row))
+        check("Settings list Whisper large v3 turbo and Whisper small, each with its size and what it is good for",
+              listed and "Whisper large v3 turbo" in said[0] and "200 ko" in said[0] and "Recommandé" in said[0]
+              and "Whisper small" in said[1] and "ordinateur modeste" in said[1], said)
+        check("each not on this computer is offered", "Télécharger" in said[0] and "Télécharger" in said[1], said)
+        check("nothing is fetched before a click", asked == [], asked)
+        chosen = browser.execute_script("return document.getElementById('model').selectedOptions[0]?.text || ''")
+        check("the model chosen and missing is said so in the choice, not shown as another", "pas encore" in chosen, chosen)
+        browser.execute_script("document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button').click()")
+        far = wait_for(browser, lambda b: "%" in b.execute_script(small_row), 5)
+        check("being downloaded, how far is said on its row", far, browser.execute_script(small_row))
+        check("one fetch at a time: nothing else is offered meanwhile", browser.execute_script(offers) == 0, browser.execute_script(offers))
+        again = wait_for(browser, lambda b: "Télécharger" in b.execute_script(small_row) and "%" not in b.execute_script(small_row), 15)
+        check("a file that is not the published one: nothing kept, offered again", again and not (models / "ggml-small-q8_0.bin").exists())
+        (served / "small.bin").write_bytes(small)
+        browser.execute_script("document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button').click()")
+        here = wait_for(browser, lambda b: "Sur cet ordinateur" in b.execute_script(small_row), 15)
+        check("fetched, its row says it is on this computer", here and (models / "ggml-small-q8_0.bin").read_bytes() == small, browser.execute_script(small_row))
+        names = [o.text for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
+        check("it is offered among the models to choose", any(name.startswith("Whisper small") for name in names), names)
+        check("the choice stays the user's", "ggml-small" not in window.file.read_text()
+              and "pas encore" in browser.execute_script("return document.getElementById('model').selectedOptions[0]?.text || ''"))
+        # The turbo's row and D36's offer are the same fetch.
+        browser.execute_script("document.querySelector('[data-offered=\"ggml-large-v3-turbo-q8_0.bin\"] button').click()")
+        both = wait_for(browser, lambda b: "%" in b.execute_script(turbo_row) and not b.find_elements(By.ID, "model-fetch"), 5)
+        check("the turbo's row and the missing model's offer are one fetch", both, browser.execute_script(turbo_row))
+        ready = wait_for(browser, lambda b: "Sur cet ordinateur" in b.execute_script(turbo_row) and "Prêt" in (b.execute_script("return document.getElementById('model-state')?.innerText || ''")), 20)
+        check("fetched, the model chosen is ready", ready and (models / "ggml-large-v3-turbo-q8_0.bin").read_bytes() == turbo)
+    server.shutdown()
+
+
 def main() -> int:
     now = dt.datetime.now().astimezone()
     sessions = WORK / "sessions"
@@ -1752,6 +1823,7 @@ def main() -> int:
               there and "libéré" not in browser.execute_script(no_player), browser.execute_script(no_player))
     check("the volume the system remembers for the user's Wholeheard is left as it was", remembered() == kept, remembered())
     model_offered(now)
+    models_listed(now)
     return 1 if FAILED else 0
 
 

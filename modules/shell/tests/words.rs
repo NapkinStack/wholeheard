@@ -222,7 +222,7 @@ fn no_notice_of_a_failure_carries_what_a_program_or_the_system_said() {
             words::made(&Made::Failed(SAID.into()), language),
             words::minutes(&Minutes::Failed(None), language),
             words::minutes(&Minutes::RedoFailed(None), language),
-            words::fetched(&Err(SAID.into()), language),
+            words::fetched(&Err(SAID.into()), true, language),
         ];
         for said in [
             Said::Failed(SAID.into()),
@@ -355,11 +355,16 @@ fn the_model_is_offered_with_its_size_and_host_and_its_fetch_is_said() {
             !checking.contains('%') && checking != words::downloading(language, 100),
             "{checking}"
         );
-        let refused = words::fetched(&Err("what came is not the published model".into()), language);
+        let refused = words::fetched(&Err("what came is not the published model".into()), true, language);
         assert!(!refused.body.contains("published model"), "{}", refused.body);
-        assert_ne!(words::fetched(&Ok(()), language).title, refused.title);
+        assert_ne!(words::fetched(&Ok(()), true, language).title, refused.title);
+        // Another than the one chosen: no transcript said begun, the choice left to the user (D37).
+        assert_ne!(
+            words::fetched(&Ok(()), false, language).body,
+            words::fetched(&Ok(()), true, language).body
+        );
     }
-    assert_eq!(words::fetched(&Ok(()), Language::French).title, "Modèle prêt");
+    assert_eq!(words::fetched(&Ok(()), true, Language::French).title, "Modèle prêt");
 }
 
 #[test]

@@ -111,6 +111,9 @@ main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 56px; display: flex
 .picks input { width: 96px; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; }
 #settings .state { flex-direction: row; align-items: center; justify-content: space-between; }
 .ready { color: var(--ok); font-weight: 700; white-space: nowrap; }
+/* The models to download (D37): a row each, its state at its end. */
+.step h3 { margin: 6px 0 0; font-size: 14px; font-weight: 700; }
+.offered { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .choice { display: flex; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); cursor: pointer; }
 .choice:has(input:checked) { border-color: var(--accent); background: var(--raised); }
 .choice input, .row input[type="checkbox"] { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); }

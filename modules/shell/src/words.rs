@@ -330,6 +330,12 @@ pub struct Window {
     /// One the user named, not on this computer: theirs, nothing offered (D36).
     pub model_named_missing: &'static str,
     pub model_coming: &'static str,
+    /// The short list of models to download (D37): its heading, the gesture, how far, and the
+    /// model chosen that is not here yet, in the choice.
+    pub offered_title: &'static str,
+    pub offered_fetch: &'static str,
+    pub offered_far: &'static str,
+    pub model_chosen_missing: &'static str,
     /// The model's name as people say it, and its size once installed.
     pub installed: &'static str,
     /// Another number of days, typed; and what is said of one that is none.
@@ -569,6 +575,10 @@ pub fn window(language: Language) -> Window {
             model_missing: "Not on this computer yet.",
             model_named_missing: "Not on this computer: put it back where it was, or choose another.",
             model_coming: "Being downloaded.",
+            offered_title: "Models to download",
+            offered_fetch: "Download",
+            offered_far: "Downloading… {} %",
+            model_chosen_missing: "{} — not on this computer yet",
             installed: "installed, {}",
             keep_other: "Another number of days…",
             keep_not_days: "{} is no number of days: from 1 to 36,500",
@@ -796,6 +806,10 @@ pub fn window(language: Language) -> Window {
             model_missing: "Pas encore sur cet ordinateur.",
             model_named_missing: "Pas sur cet ordinateur : remettez-le à sa place, ou choisissez-en un autre.",
             model_coming: "En cours de téléchargement.",
+            offered_title: "Modèles à télécharger",
+            offered_fetch: "Télécharger",
+            offered_far: "Téléchargement… {} %",
+            model_chosen_missing: "{} — pas encore sur cet ordinateur",
             installed: "installé, {}",
             keep_other: "Autre nombre de jours…",
             keep_not_days: "{} n’est pas un nombre de jours : de 1 à 36 500",
@@ -1579,23 +1593,39 @@ pub fn model_needed(language: Language, size: &str, host: &str) -> Notice {
     notice(title, body).expect("always said")
 }
 
+/// What each model of Settings' list is good for, in the order of `model::OFFERED` (D37).
+pub fn offered_good(language: Language, index: usize) -> &'static str {
+    match (language, index) {
+        (Language::English, 0) => "Recommended: the most exact, quick on a recent computer",
+        (Language::French, 0) => "Recommandé : le plus juste, rapide sur un ordinateur récent",
+        (Language::English, _) => "Faster, less exact: for a modest computer",
+        (Language::French, _) => "Plus rapide, moins juste : pour un ordinateur modeste",
+    }
+}
+
 /// Said when the model's fetch ended: ready, and the transcript begun — or not, with why, and
 /// that nothing of it was used.
-pub fn fetched(outcome: &Result<(), String>, language: Language) -> Notice {
+pub fn fetched(outcome: &Result<(), String>, chosen: bool, language: Language) -> Notice {
     use Language::{English, French};
-    let (title, body) = match (outcome, language) {
-        (Ok(()), English) => (
+    let (title, body) = match (outcome, chosen, language) {
+        (Ok(()), true, English) => (
             "Model ready",
             "Checked against its published fingerprint. The transcript is being made.",
         ),
-        (Ok(()), French) => ("Modèle prêt", "Vérifié par son empreinte publiée. La transcription est en cours."),
-        (Err(_), English) => (
-            "The model was not downloaded",
-            "Nothing of it is used. The menu’s entry tries again.",
+        (Ok(()), true, French) => ("Modèle prêt", "Vérifié par son empreinte publiée. La transcription est en cours."),
+        // Another than the one chosen: the choice stays the user's (D37).
+        (Ok(()), false, English) => (
+            "Model ready",
+            "Checked against its published fingerprint. Choose it in Settings for your next transcripts.",
         ),
-        (Err(_), French) => (
+        (Ok(()), false, French) => (
+            "Modèle prêt",
+            "Vérifié par son empreinte publiée. Choisissez-le dans les Réglages pour vos prochains transcripts.",
+        ),
+        (Err(_), _, English) => ("The model was not downloaded", "Nothing of it is used. It is offered again."),
+        (Err(_), _, French) => (
             "Le modèle n’a pas été téléchargé",
-            "Rien n’en est utilisé. L’entrée du menu réessaie.",
+            "Rien n’en est utilisé. Il est proposé à nouveau.",
         ),
     };
     notice(title, body.to_string()).expect("always said")

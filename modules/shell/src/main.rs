@@ -129,6 +129,8 @@ struct Shell {
     download: MenuItem<Wry>,
     /// The model is coming.
     fetching: Mutex<bool>,
+    /// The model being fetched, by its file, and how far: the bytes held, of how many (D37).
+    fetched: Mutex<Option<(String, u64, u64)>>,
 }
 
 impl Shell {
@@ -185,6 +187,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             listed,
             model_fetch,
+            model_offered_fetch,
             header,
             makings,
             record,
@@ -277,7 +280,7 @@ fn main() {
                             None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
                         }
                     }
-                    "download" => fetch(app),
+                    "download" => fetch(app, 0),
                     "quit" => leave(app),
                     _ => {}
                 })
@@ -320,6 +323,7 @@ fn main() {
                 menu,
                 download,
                 fetching: Mutex::new(false),
+                fetched: Mutex::new(None),
             });
             if let Err(why) = read {
                 tell(app.handle(), &words::trouble(&Trouble::Settings(why), language));
@@ -967,6 +971,15 @@ fn opening(folder: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// One of the models to download: its file, its size, what it is good for, whether it is here.
+#[derive(serde::Serialize)]
+struct Offered {
+    file: &'static str,
+    bytes: u64,
+    good: &'static str,
+    here: bool,
+}
+
 /// A Whisper model the settings page offers.
 #[derive(serde::Serialize)]
 struct Model {
@@ -995,6 +1008,8 @@ struct SettingsShown {
     keep_audio: KeepAudio,
     model: PathBuf,
     models: Vec<Model>,
+    /// The short list of models to download, each said by what it is good for (D37).
+    offered: Vec<Offered>,
     developer: bool,
     log: Log,
     unreadable: Option<String>,
@@ -1038,6 +1053,16 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
+        offered: model::OFFERED
+            .iter()
+            .enumerate()
+            .map(|(index, offered)| Offered {
+                file: model::file(offered),
+                bytes: published_at(index).bytes,
+                good: words::offered_good(shell.language, index),
+                here: models_folder().join(model::file(offered)).is_file(),
+            })
+            .collect(),
         developer: settings.developer,
         log: settings.log,
         unreadable,
@@ -1408,6 +1433,8 @@ struct Makings {
     model_coming: bool,
     /// The window's offer of it, as the tray's entry says it: its size and host (D36).
     model_offer: String,
+    /// Any model being fetched, and how far (D37).
+    model_fetching: Option<Fetching>,
     /// A making not made, by its meeting's name: what its program said of it in developer mode,
     /// else nothing — the page says it in plain words (D29).
     transcripts_failed: HashMap<String, String>,
@@ -1417,6 +1444,13 @@ struct Makings {
     failed_said: HashMap<String, String>,
     awaiting: HashMap<String, String>,
     made: HashMap<String, u64>,
+}
+
+#[derive(serde::Serialize)]
+struct Fetching {
+    file: String,
+    held: u64,
+    bytes: u64,
 }
 
 #[derive(serde::Serialize)]
@@ -1447,6 +1481,7 @@ fn makings(shell: State<'_, Shell>) -> Makings {
     let said = |why: &String| words::shown_detail(why, developer);
     // Read under one hold: a second hold of the same lock in the struct below would never be
     // given, its first still held to the statement's end.
+    let fetched = shell.fetched.lock().unwrap().clone();
     let (failed, failed_said) = {
         let failures = shell.minutes_failed.lock().unwrap();
         let failed = failures.iter().map(|(folder, (why, _))| (named(folder), said(why))).collect();
@@ -1488,7 +1523,9 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             let model = &shell.settings().model;
             *model == Settings::default().model && !model.is_file()
         },
-        model_coming: *shell.fetching.lock().unwrap(),
+        // The default model coming, not another: one fetch at a time, said as such (D37).
+        model_coming: fetched.as_ref().is_some_and(|(file, ..)| file == model::file(&model::DEFAULT)),
+        model_fetching: fetched.map(|(file, held, bytes)| Fetching { file, held, bytes }),
         model_offer: {
             let wanted = published();
             words::download(shell.language, &model::size(wanted.bytes), wanted.host)
@@ -2152,7 +2189,14 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
 /// The default model as published — or, for whoever tries Wholeheard, as `WHOLEHEARD_MODEL_PUBLISHED`
 /// says: its address, its size in bytes and its SHA-256, separated by spaces.
 fn published() -> Published {
+    published_at(0)
+}
+
+/// One of the models offered, as published — or as `WHOLEHEARD_MODEL_PUBLISHED` says, its
+/// entries separated by `;` in the order of `model::OFFERED`.
+fn published_at(index: usize) -> Published {
     let named = std::env::var("WHOLEHEARD_MODEL_PUBLISHED").ok().and_then(|named| {
+        let named = named.split(';').nth(index)?.to_owned();
         let [address, bytes, sha256] = named.split(' ').collect::<Vec<_>>()[..] else {
             return None;
         };
@@ -2165,7 +2209,7 @@ fn published() -> Published {
             sha256: leaked(sha256),
         })
     });
-    named.unwrap_or(model::DEFAULT)
+    named.unwrap_or(model::OFFERED[index])
 }
 
 /// Puts the entry that fetches the model in the menu, and says why: nothing is fetched yet.
@@ -2197,46 +2241,76 @@ fn offer(app: &AppHandle) {
 fn model_fetch(app: AppHandle) {
     let model = app.state::<Shell>().settings().model;
     if model == Settings::default().model && !model.is_file() {
-        fetch(&app);
+        fetch(&app, 0);
+    }
+}
+
+/// One of the models Settings offer, fetched on the user's click, unless it is there (D37).
+#[tauri::command]
+fn model_offered_fetch(app: AppHandle, file: String) {
+    let Some(index) = model::OFFERED.iter().position(|offered| model::file(offered) == file) else {
+        return;
+    };
+    if !models_folder().join(&file).is_file() {
+        fetch(&app, index);
     }
 }
 
 /// Fetches the default model, on the user's click — their agreement. Ready, the entry leaves
 /// the menu and the waiting transcript is made; cut or refused, it is said, and the entry
 /// takes it up again.
-fn fetch(app: &AppHandle) {
+fn fetch(app: &AppHandle, index: usize) {
     let shell = app.state::<Shell>();
     if std::mem::replace(&mut *shell.fetching.lock().unwrap(), true) {
         return;
     }
-    let (wanted, to, language) = (published(), shell.settings().model.clone(), shell.language);
-    let label = |app: &AppHandle, text: String, enabled: bool| {
+    let (wanted, language) = (published_at(index), shell.language);
+    let file = model::file(&model::OFFERED[index]);
+    let to = models_folder().join(file);
+    // The tray's entry is the default model's: it says how far that one is, and waits while
+    // another comes — one fetch at a time.
+    let label = move |app: &AppHandle, text: Option<String>, enabled: bool| {
         let app = app.clone();
         let _ = app.clone().run_on_main_thread(move || {
             let shell = app.state::<Shell>();
-            let _ = shell.download.set_text(text);
+            if let Some(text) = text {
+                let _ = shell.download.set_text(text);
+            }
             let _ = shell.download.set_enabled(enabled);
         });
     };
-    label(app, words::fetching(language, 0, wanted.bytes), false);
+    let said = move |held: u64| (index == 0).then(|| words::fetching(language, held, wanted.bytes));
+    *shell.fetched.lock().unwrap() = Some((file.to_owned(), 0, wanted.bytes));
+    label(app, said(0), false);
     let app = app.clone();
     std::thread::spawn(move || {
         let mut shown = String::new();
         let outcome = model::fetch(&wanted, wanted.address, &to, &mut |held| {
+            if let Some((_, far, _)) = app.state::<Shell>().fetched.lock().unwrap().as_mut() {
+                *far = held;
+            }
             let text = words::fetching(language, held, wanted.bytes);
             if text != shown {
                 shown.clone_from(&text);
-                label(&app, text, false);
+                label(&app, said(held), false);
             }
         });
         let shell = app.state::<Shell>();
+        *shell.fetched.lock().unwrap() = None;
         *shell.fetching.lock().unwrap() = false;
         if let Err(why) = &outcome {
             tracing::error!(detail = %why, "shell.model_fetch_failed");
         }
-        tell(&app, &words::fetched(&outcome, language));
+        // The one the transcripts are made with: those in line follow it. Another is chosen
+        // in Settings, the choice the user's (D37).
+        let chosen = shell.settings().model == to;
+        tell(&app, &words::fetched(&outcome, chosen, language));
         if outcome.is_err() {
-            return label(&app, words::download(language, &model::size(wanted.bytes), wanted.host), true);
+            let text = words::download(language, &model::size(published().bytes), published().host);
+            return label(&app, Some(text), true);
+        }
+        if index != 0 {
+            return label(&app, None, true);
         }
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || {
@@ -2244,7 +2318,9 @@ fn fetch(app: &AppHandle) {
             let _ = shell.menu.remove(&shell.download);
         });
         // The meetings in line, none other: fetched from Settings, none may wait (D36).
-        transcribe_next(&app);
+        if chosen {
+            transcribe_next(&app);
+        }
     });
 }
 

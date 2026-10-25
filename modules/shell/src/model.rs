@@ -31,6 +31,22 @@ pub const DEFAULT: Published = Published {
     sha256: "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1",
 };
 
+/// Whisper small in the default's own quantization: faster, less exact (D37).
+pub const SMALL: Published = Published {
+    address: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin",
+    host: "huggingface.co",
+    bytes: 264_464_607,
+    sha256: "49c8fb02b65e6049d5fa6c04f81f53b867b5ec9540406812c643f177317f779f",
+};
+
+/// The models Settings offer to download, the default first (D37).
+pub const OFFERED: [Published; 2] = [DEFAULT, SMALL];
+
+/// The file a published model is kept as: its address's last part.
+pub fn file(published: &Published) -> &'static str {
+    published.address.rsplit('/').next().unwrap_or(published.address)
+}
+
 /// The size as a person reads it: megabytes under a gigabyte, then gigabytes, decimal.
 pub fn size(bytes: u64) -> String {
     if bytes < 1_000_000_000 {
