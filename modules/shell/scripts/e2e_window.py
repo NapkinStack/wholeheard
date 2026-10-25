@@ -1305,6 +1305,11 @@ def main() -> int:
         start = browser.find_element(By.ID, "small-record")
         check("opened from the menu the first time, the small window, at rest, alone", start.text == "Démarrer un enregistrement" and browser.window_handles == [small], (start.text, browser.window_handles))
         check("the recording's gesture has the focus", browser.execute_script("return document.activeElement.id") == "small-record")
+        reached = []
+        for _ in range(4):
+            browser.switch_to.active_element.send_keys(Keys.TAB)
+            reached.append(browser.execute_script("return document.activeElement.id"))
+        check("Tab reaches each of its controls, then comes back round", "small-full" in reached and "small-record" in reached, reached)
         check("no meeting yet: said, the recording offered alone", browser.find_element(By.CSS_SELECTOR, "#small .none").text == "Aucune réunion pour l’instant." and not browser.find_elements(By.CSS_SELECTOR, "#small .last"))
         hint = browser.find_element(By.ID, "small-keys").text
         # The desktop's grant is the desktop's: the hint says the keys, or that none were granted and where to choose.
@@ -1385,6 +1390,25 @@ def main() -> int:
         check("opened from the full window during a recording, it too comes back to rest, in English", rest and browser.find_element(By.ID, "small-record").text == "Start a recording")
         fits = browser.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
         check("at rest, in English, it holds in its window", fits[0] <= fits[1], fits)
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-read"), 5)
+        try:
+            browser.find_element(By.ID, "small-read").click()
+        except NoSuchWindowException:
+            pass  # the small window goes with the click
+        browser.switch_to.window(main)
+        opened = wait_for(browser, lambda b: b.execute_script("return location.hash").startswith("#/meeting/") and len(b.window_handles) == 1, 5)
+        check("its last meeting opens in the full window, in place of the small one", opened, (browser.execute_script("return location.hash"), browser.window_handles))
+        browser.find_element(By.ID, "small-link").click()
+        wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
+        browser.switch_to.window([h for h in browser.window_handles if h != main][0])
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-all"), 5)
+        try:
+            browser.find_element(By.ID, "small-all").click()
+        except NoSuchWindowException:
+            pass
+        browser.switch_to.window(main)
+        listed = wait_for(browser, lambda b: b.execute_script("return location.hash") in ("#/", "") and b.find_element(By.ID, "list").is_displayed() and len(b.window_handles) == 1, 5)
+        check("All meetings opens the full window's list", listed, browser.execute_script("return location.hash"))
 
     print("I. the window, in English; and a folder with no session")
     empty = WORK / "empty"
