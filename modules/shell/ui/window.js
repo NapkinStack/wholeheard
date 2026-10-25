@@ -186,8 +186,7 @@ function modelFetch() {
 }
 
 // Settings' model, not on this computer: coming, offered, or one the user named — theirs (D36).
-function paintModel() {
-  const state = document.getElementById("model-state");
+function paintModel(state = document.getElementById("model-state")) {
   if (!state?.dataset.missing || makings === null) return;
   const kind = makings.model_coming ? "coming" : makings.model_needed ? "needed" : "named";
   if (state.dataset.kind === kind) return;
@@ -1313,6 +1312,7 @@ function showSettings(shown, minutes, words) {
   if (chosen) state.append(element("span", "ready", `✓ ${words.model_ready}`));
   else state.dataset.missing = "true";
   state.id = "model-state";
+  paintModel(state);
   parts.push(state);
 
   // Last, for whoever looks into a failure: the developer mode (D29).
@@ -1364,7 +1364,6 @@ function showSettings(shown, minutes, words) {
   }
   parts.push(advanced);
   page.replaceChildren(...parts);
-  paintModel();
 }
 
 // Before a meeting first leaves for a host (D11's fifth board): what leaves, what stays, to

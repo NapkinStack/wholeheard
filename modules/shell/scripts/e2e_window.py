@@ -326,6 +326,9 @@ def model_offered(now: dt.datetime) -> None:
         label = browser.find_element(By.ID, "model-fetch").text if offered else ""
         check("Settings offer the missing model, with its size and host", offered and label == f"Télécharger le modèle (0 MB, {host})", label)
         check("nothing is fetched before the click", asked == [], asked)
+        button = browser.find_element(By.ID, "model-fetch")
+        time.sleep(3.5)
+        check("in Settings too, the offer is not drawn again while nothing changes", not staleness_of(button)(browser))
         browser.find_element(By.ID, "model-fetch").click()
         coming = wait_for(browser, lambda b: "En cours de téléchargement" in b.execute_script(said) and not b.find_elements(By.ID, "model-fetch"), 3)
         check("once clicked, it is said coming, and not offered again", coming, browser.execute_script(said))
@@ -345,7 +348,13 @@ def model_offered(now: dt.datetime) -> None:
         waits = "return document.getElementById('transcript-state')?.innerText || ''"
         offered = wait_for(browser, lambda b: "En attente du modèle Whisper" in b.execute_script(waits) and b.find_elements(By.CSS_SELECTOR, "#transcript-state #model-fetch"))
         check("a meeting waiting for the model offers it on its page", offered, browser.execute_script(waits))
+        # Offered, it stays the same button across the page's readings: a focus on it is kept.
+        button = browser.find_element(By.ID, "model-fetch")
+        time.sleep(3.5)
+        check("the offer is not drawn again while nothing changes", not staleness_of(button)(browser))
         browser.find_element(By.ID, "model-fetch").click()
+        coming = wait_for(browser, lambda b: "en cours de téléchargement" in b.execute_script(waits) and not b.find_elements(By.ID, "model-fetch"), 3)
+        check("while it comes, the meeting says so and offers it no more", coming, browser.execute_script(waits))
         made = wait_for(browser, lambda b: heard.exists(), 15)
         check("fetched from the meeting, its transcript is made", made and fetched.read_bytes() == right)
     # A model the user named, not on this computer: theirs, nothing offered.
@@ -353,10 +362,14 @@ def model_offered(now: dt.datetime) -> None:
     named.env.update(XDG_DATA_HOME=str(WORK / "data-named"), WHOLEHEARD_MODEL_PUBLISHED=window.env["WHOLEHEARD_MODEL_PUBLISHED"])
     with named as browser:
         browser.find_element(By.ID, "settings-link").click()
-        drawn = wait_for(browser, lambda b: b.execute_script(said) != "")
+        drawn = wait_for(browser, lambda b: "Pas sur cet ordinateur" in b.execute_script(said))
         time.sleep(1)
         check("a model the user named is not offered: theirs", drawn and not browser.find_elements(By.ID, "model-fetch")
               and "proposé" not in browser.execute_script(said), browser.execute_script(said))
+        before = len(asked)
+        browser.execute_script("window.__TAURI__.core.invoke('model_fetch')")
+        time.sleep(1.5)
+        check("asked all the same, nothing is fetched for it", len(asked) == before and not (WORK / "data-named" / "wholeheard" / "models").exists(), asked)
     server.shutdown()
 
 
