@@ -524,6 +524,7 @@ def list_refreshed(now: dt.datetime) -> None:
                 listed = wait_for(browser, lambda b: b.execute_script(base), 10)
                 check("read on the click, its models are offered, each with its size, its host and what it is good for",
                       listed and asked == ["/models.json"] and "huggingface.co" in browser.execute_script(base)
+                      and "1 ko" in browser.execute_script(base)
                       and "ordinateur modeste" in browser.execute_script(base), (asked, browser.execute_script(base)))
             else:
                 refused = wait_for(browser, lambda b: "n’a pas pu être mise à jour" in b.execute_script(said), 10)

@@ -52,6 +52,8 @@ pub fn fetch(address: &str) -> Result<Vec<Listed>, String> {
         .timeout_recv_response(Some(Duration::from_secs(20)))
         .timeout_recv_body(Some(Duration::from_secs(20)))
         .http_status_as_error(false)
+        // The host the button names is the one read: a redirect elsewhere is refused.
+        .max_redirects(0)
         .build()
         .into();
     let mut answer = agent

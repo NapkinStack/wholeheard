@@ -2251,7 +2251,14 @@ fn published() -> Published {
 /// One of the models offered, as published — or as `WHOLEHEARD_MODEL_PUBLISHED` says, its
 /// entries separated by `;` in the order of the list offered.
 fn published_at(index: usize) -> Published {
-    let named = std::env::var("WHOLEHEARD_MODEL_PUBLISHED").ok().and_then(|named| {
+    // The list may have been read again since the index was taken: none there is the default.
+    let listed = offered().get(index).map_or(model::DEFAULT, |listed| listed.published);
+    published_named(index).unwrap_or(listed)
+}
+
+/// What `WHOLEHEARD_MODEL_PUBLISHED` says of one of the models offered, if it says it.
+fn published_named(index: usize) -> Option<Published> {
+    std::env::var("WHOLEHEARD_MODEL_PUBLISHED").ok().and_then(|named| {
         let named = named.split(';').nth(index)?.to_owned();
         let [address, bytes, sha256] = named.split(' ').collect::<Vec<_>>()[..] else {
             return None;
@@ -2264,9 +2271,7 @@ fn published_at(index: usize) -> Published {
             bytes: bytes.parse().ok()?,
             sha256: leaked(sha256),
         })
-    });
-    // The list may have been read again since the index was taken: none there is the default.
-    named.unwrap_or_else(|| offered().get(index).map_or(model::DEFAULT, |listed| listed.published))
+    })
 }
 
 /// Puts the entry that fetches the model in the menu, and says why: nothing is fetched yet.
@@ -2361,8 +2366,11 @@ fn fetch(app: &AppHandle, index: usize) {
     if std::mem::replace(&mut *shell.fetching.lock().unwrap(), true) {
         return;
     }
-    let (wanted, language) = (published_at(index), shell.language);
-    let file = model::file(&offered().get(index).map_or(model::DEFAULT, |listed| listed.published));
+    // The list read once: its address and the file it is kept as are one model's, whatever is
+    // read again meanwhile.
+    let listed = offered().get(index).map_or(model::DEFAULT, |listed| listed.published);
+    let (wanted, language) = (published_named(index).unwrap_or(listed), shell.language);
+    let file = model::file(&listed);
     let to = models_folder().join(file);
     // The tray's entry is the default model's: it says how far that one is, and waits while
     // another comes — one fetch at a time.

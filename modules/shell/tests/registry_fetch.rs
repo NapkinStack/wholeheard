@@ -11,6 +11,11 @@ use wholeheard_shell::registry;
 
 /// Answers one request with `status` and `body`, and gives the address it listens at.
 fn served(status: u16, body: String) -> String {
+    served_with(status, body, "")
+}
+
+/// The same, with `headers` — each line ended by CRLF — after the status line.
+fn served_with(status: u16, body: String, headers: &'static str) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = format!("http://{}/models.json", listener.local_addr().unwrap());
     thread::spawn(move || {
@@ -21,7 +26,7 @@ fn served(status: u16, body: String) -> String {
             }
         }
         let head = format!(
-            "HTTP/1.1 {status} Status\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            "HTTP/1.1 {status} Status\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n",
             body.len()
         );
         let _ = stream.write_all(head.as_bytes());
@@ -89,4 +94,12 @@ fn a_server_that_does_not_answer_is_said_so() {
     let address = format!("http://{}/models.json", listener.local_addr().unwrap());
     drop(listener);
     assert!(registry::fetch(&address).is_err());
+}
+
+#[test]
+fn a_list_sent_on_from_another_address_is_refused() {
+    // The host the button names is the one read: a redirect is not followed, wherever it goes.
+    let elsewhere = served(200, with_another());
+    let location: &'static str = Box::leak(format!("Location: {elsewhere}\r\n").into_boxed_str());
+    assert!(registry::fetch(&served_with(302, String::new(), location)).is_err());
 }
