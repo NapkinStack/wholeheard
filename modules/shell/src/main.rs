@@ -37,9 +37,10 @@ use wholeheard_shell::{
     recording::{self, Recording, Said, Source},
     registry,
     sessions::{self, Listed},
-    settings::{self, After, KeepAudio, Log, Settings},
+    settings::{self, After, Engine, KeepAudio, Log, Settings},
+    speech,
     summarising::{self, Summarising},
-    transcription::{self, Made, Transcription},
+    transcription::{self, Hearer, Made, Transcription},
     words::{self, Language, Notice, Refusal, Trouble},
 };
 
@@ -193,6 +194,8 @@ fn main() {
             model_fetch,
             model_offered_fetch,
             registry_refresh,
+            speech_shown,
+            speech_installed,
             ollama_pull_offered,
             header,
             makings,
@@ -1051,6 +1054,8 @@ struct SettingsShown {
     autostart: bool,
     keep_audio: KeepAudio,
     model: PathBuf,
+    /// Who hears: the model above, or Apple's SpeechAnalyzer (D42).
+    engine: Engine,
     models: Vec<Model>,
     /// The short list of models to download, each said by what it is good for (D37), and the
     /// host it is read again from on the user's gesture (D40).
@@ -1098,6 +1103,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         autostart: autostart::file().is_some_and(|entry| autostart::on(&entry)),
         keep_audio: settings.keep_audio,
         model: settings.model,
+        engine: settings.engine,
         models,
         registry_host: registry::host(&registry_address()).to_owned(),
         offered: offered()
@@ -1127,6 +1133,8 @@ struct Change {
     autostart: Option<bool>,
     keep_audio: Option<KeepAudio>,
     model: Option<PathBuf>,
+    /// Apple's SpeechAnalyzer, or Whisper again (D42); a model chosen is Whisper's.
+    engine: Option<Engine>,
     developer: Option<bool>,
     log: Option<Log>,
 }
@@ -1134,7 +1142,8 @@ struct Change {
 /// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
 /// is written over a file that could not be read, and a model is only one found on this computer.
 #[tauri::command]
-fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String> {
+fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Result<(), String> {
+    let apple = change.engine == Some(Engine::SpeechAnalyzer);
     // The change goes onto what the file says now: what the user changed by hand stays.
     let _saving = shell.saving.lock().unwrap();
     let mut settings = shell.reread()?;
@@ -1185,10 +1194,18 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
             return Err(format!("{} is no model on this computer", model.display()));
         }
         settings.model = model;
+        settings.engine = Engine::Whisper;
+    }
+    if let Some(engine) = change.engine {
+        settings.engine = engine;
     }
     let file = settings::file().ok_or("this system names no folder for settings")?;
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
     *shell.settings.lock().unwrap() = settings;
+    // Meetings that waited for the default Whisper model are heard now by SpeechAnalyzer (D42).
+    if apple {
+        transcribe_next(&app);
+    }
     Ok(())
 }
 
@@ -1577,10 +1594,7 @@ fn makings(shell: State<'_, Shell>) -> Makings {
                 seconds: since.elapsed().as_secs(),
             }),
         transcripts_waiting: shell.waiting.lock().unwrap().iter().map(|(folder, _)| named(folder)).collect(),
-        model_needed: {
-            let model = &shell.settings().model;
-            *model == Settings::default().model && !model.is_file()
-        },
+        model_needed: default_model_missing(&shell.settings()),
         // The default model coming, not another: one fetch at a time, said as such (D37).
         model_coming: fetched.as_ref().is_some_and(|(file, ..)| file == model::file(&model::DEFAULT)),
         model_fetching: fetched.map(|(file, held, bytes)| Fetching { file, held, bytes }),
@@ -2022,13 +2036,9 @@ fn wait(shell: &Shell, folder: PathBuf, model: Option<PathBuf>) {
 }
 
 /// A transcript begun: what makes it, said on its page; its last failure gone.
-fn hearing(shell: &Shell, folder: &Path, model: &Path) {
+fn hearing(shell: &Shell, folder: &Path, hearer: &Hearer) {
     *shell.hearing.lock().unwrap() = Some(folder.to_path_buf());
-    let name = model
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    *shell.hearing_by.lock().unwrap() = Some((name, Instant::now()));
+    *shell.hearing_by.lock().unwrap() = Some((hearer.name(), Instant::now()));
     shell.transcripts_failed.lock().unwrap().remove(folder);
 }
 
@@ -2064,10 +2074,7 @@ fn transcribe_next(app: &AppHandle) {
         // Taken from the line under its lock, one at a time, in order. The default model missing,
         // those made with it wait where they are — offered once already —, and the first
         // Refaire… behind them, its model there, is made.
-        let missing = {
-            let model = shell.settings().model;
-            model == Settings::default().model && !model.is_file()
-        };
+        let missing = default_model_missing(&shell.settings());
         let next = {
             let mut waiting = shell.waiting.lock().unwrap();
             let at = waiting.iter().position(|(_, model)| model.is_some() || !missing);
@@ -2116,7 +2123,11 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(format!("the transcript there could not be set aside ({error}): nothing was made")),
     };
-    let started = Transcription::start(&program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"), &folder, &model);
+    let started = Transcription::start(
+        &program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"),
+        &folder,
+        &Hearer::Model(model.clone()),
+    );
     let (transcription, made) = match started {
         Ok(started) => started,
         Err(error) => {
@@ -2130,7 +2141,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
     // Who puts the earlier transcript back, or trashes it: this run's end, or Wholeheard quitting —
     // whichever comes first takes it, the other finds nothing.
     *shell.redoing.lock().unwrap() = previous.clone().map(|previous| (current.clone(), previous));
-    hearing(&shell, &folder, &model);
+    hearing(&shell, &folder, &Hearer::Model(model.clone()));
     drop(running);
     transcribing(app, true);
     let app = app.clone();
@@ -2180,8 +2191,19 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
     }
     shell.transcripts_tried.lock().unwrap().insert(folder.clone(), None);
     let _ = shell.reread();
-    let model = &shell.settings().model;
-    if !model.is_file() {
+    let settings = shell.settings();
+    let model = &settings.model;
+    // Apple's SpeechAnalyzer needs no model file: its own is on the Mac (D42). Chosen and no
+    // longer offered here — an older macOS, the program gone —, Whisper hears, and it is logged.
+    let language = shell.language.code();
+    let hearer = Hearer::chosen(settings.engine, model, language, || {
+        let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
+        speech::status(&program, language).is_some_and(|status| status.offered && status.installed)
+    });
+    if settings.engine == Engine::SpeechAnalyzer && matches!(hearer, Hearer::Model(_)) {
+        tracing::warn!("shell.speech_unavailable");
+    }
+    if matches!(hearer, Hearer::Model(_)) && !model.is_file() {
         // The default model is offered, its size and host shown; one the user named is theirs.
         if *model == Settings::default().model {
             wait(&shell, folder, None);
@@ -2201,7 +2223,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         }
         return;
     }
-    let started = Transcription::start(&program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"), &folder, model);
+    let started = Transcription::start(&program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"), &folder, &hearer);
     let (transcription, made) = match started {
         Ok(started) => started,
         Err(error) => {
@@ -2211,7 +2233,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         }
     };
     *running = Some(transcription);
-    hearing(&shell, &folder, model);
+    hearing(&shell, &folder, &hearer);
     transcribing(app, true);
     let heard_folder = folder;
     let app = app.clone();
@@ -2295,6 +2317,51 @@ fn offer(app: &AppHandle) {
             let _ = shell.menu.insert(&shell.download, 3);
         }
     });
+}
+
+/// What Apple's SpeechAnalyzer offers on this Mac, in the interface's language (D42): asked of
+/// `wholeheard-speech` beside the shell, away from the window; none where it is not.
+#[tauri::command]
+async fn speech_shown(shell: State<'_, Shell>) -> Result<Option<speech::Status>, ()> {
+    let language = shell.language.code();
+    let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
+    Ok(tauri::async_runtime::spawn_blocking(move || speech::status(&program, language))
+        .await
+        .ok()
+        .flatten())
+}
+
+/// Apple's model of the interface's language, fetched by macOS from Apple on the user's click (D42);
+/// then SpeechAnalyzer is who hears. A refusal is logged with what the program said, and said
+/// on the page in a sentence of its own.
+#[tauri::command]
+async fn speech_installed(shell: State<'_, Shell>) -> Result<(), ()> {
+    // One download at a time: a second click while macOS fetches it asks nothing more.
+    static INSTALLING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if INSTALLING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return Err(());
+    }
+    let language = shell.language.code();
+    let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
+    tracing::info!(language, "shell.speech_install");
+    let installed = tauri::async_runtime::spawn_blocking(move || speech::install(&program, language)).await;
+    INSTALLING.store(false, std::sync::atomic::Ordering::SeqCst);
+    match installed.map_err(|error| error.to_string()).and_then(|done| done) {
+        Ok(()) => {
+            tracing::info!(language, "shell.speech_installed");
+            Ok(())
+        }
+        Err(detail) => {
+            tracing::warn!(detail = %detail, "shell.speech_install_failed");
+            Err(())
+        }
+    }
+}
+
+/// The default Whisper model is the one heard with, and not on this computer: offered (D36). Not
+/// when Apple's SpeechAnalyzer hears (D42), nor for a model the user named — theirs.
+fn default_model_missing(settings: &Settings) -> bool {
+    settings.engine == Engine::Whisper && settings.model == Settings::default().model && !settings.model.is_file()
 }
 
 /// The window's offer of the default model, where it says it is missing (D36): the tray's own

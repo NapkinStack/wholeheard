@@ -25,6 +25,34 @@ pub enum Made {
     Failed(String),
 }
 
+/// Who hears it: a Whisper model file, or Apple's SpeechAnalyzer in a language (D42), as
+/// `wholeheard-transcription` takes them.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Hearer {
+    Model(PathBuf),
+    SpeechAnalyzer { language: String },
+}
+
+impl Hearer {
+    /// Who hears, as the settings chose it: Apple's SpeechAnalyzer only while this Mac still offers
+    /// it with its model there (`apple_ready`, asked only then) — otherwise the Whisper model, so
+    /// that a choice the Mac no longer answers never fails every transcript.
+    pub fn chosen(engine: crate::settings::Engine, model: &Path, language: &str, apple_ready: impl FnOnce() -> bool) -> Hearer {
+        match engine {
+            crate::settings::Engine::SpeechAnalyzer if apple_ready() => Hearer::SpeechAnalyzer { language: language.into() },
+            _ => Hearer::Model(model.to_path_buf()),
+        }
+    }
+
+    /// Its name, as the page says who hears.
+    pub fn name(&self) -> String {
+        match self {
+            Hearer::Model(model) => named(model),
+            Hearer::SpeechAnalyzer { .. } => "SpeechAnalyzer".into(),
+        }
+    }
+}
+
 /// A transcript in the making. Dropped, it stops nothing; ended, the program is stopped, and
 /// what it had written is kept for the next run.
 pub struct Transcription {
@@ -32,14 +60,24 @@ pub struct Transcription {
 }
 
 impl Transcription {
-    /// Starts the program that hears on a session's folder, with a model file. How it ended
+    /// Starts the program that hears on a session's folder, with who hears. How it ended
     /// comes once on the receiver: `Written` only when it ended well with the transcript there.
-    pub fn start(program: &Path, folder: &Path, model: &Path) -> io::Result<(Self, Receiver<Made>)> {
+    pub fn start(program: &Path, folder: &Path, hearer: &Hearer) -> io::Result<(Self, Receiver<Made>)> {
         let (trace, making) = crate::log::making();
         let _making = making.enter();
         let mut command = Command::new(program);
-        command.arg(folder).arg("--model").arg(model).env("WHOLEHEARD_TRACE", &trace);
-        info!(session = %named(folder), model = %named(model), "shell.transcript");
+        command.arg(folder).env("WHOLEHEARD_TRACE", &trace);
+        let model = match hearer {
+            Hearer::Model(model) => {
+                command.arg("--model").arg(model);
+                named(model)
+            }
+            Hearer::SpeechAnalyzer { language } => {
+                command.args(["--engine", "speechanalyzer", "--language", language]);
+                "SpeechAnalyzer".to_string()
+            }
+        };
+        info!(session = %named(folder), model = %model, "shell.transcript");
         // A group of its own: ended, whatever it started ends with it.
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut command, 0);

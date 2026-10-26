@@ -26,6 +26,14 @@ impl Language {
         }
     }
 
+    /// Its code, as a transcript's language is asked for: `fr` or `en`.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::French => "fr",
+            Self::English => "en",
+        }
+    }
+
     /// The language the user's system is set to.
     pub fn system() -> Self {
         Self::of(&sys_locale::get_locale().unwrap_or_default())
@@ -347,6 +355,14 @@ pub struct Window {
     /// what is said when it could not be.
     pub offered_refresh: &'static str,
     pub offered_refresh_failed: &'static str,
+    /// Apple's SpeechAnalyzer among who hears, on a Mac with macOS 26 (D42): its name in the
+    /// choice; its model not on the Mac yet; the gesture that has macOS fetch it, and from whom;
+    /// while it comes; when it did not.
+    pub speech_option: &'static str,
+    pub speech_missing: &'static str,
+    pub speech_fetch: &'static str,
+    pub speech_fetching: &'static str,
+    pub speech_failed: &'static str,
     /// The model's name as people say it, and its size once installed.
     pub installed: &'static str,
     /// Another number of days, typed; and what is said of one that is none.
@@ -596,6 +612,11 @@ pub fn window(language: Language) -> Window {
             offered_needs_ollama: "Needs Ollama — install it from ollama.com",
             offered_refresh: "Update the list ({})",
             offered_refresh_failed: "The list could not be updated: the models above are still offered.",
+            speech_option: "Apple's SpeechAnalyzer, on this Mac",
+            speech_missing: "Apple's model is not on this Mac yet",
+            speech_fetch: "Download Apple's model (macOS fetches it from Apple)",
+            speech_fetching: "macOS is downloading Apple's model…",
+            speech_failed: "Apple's model was not downloaded. Try again later; Whisper still hears.",
             installed: "installed, {}",
             keep_other: "Another number of days…",
             keep_not_days: "{} is no number of days: from 1 to 36,500",
@@ -833,6 +854,11 @@ pub fn window(language: Language) -> Window {
             offered_needs_ollama: "Nécessite Ollama, à installer depuis ollama.com",
             offered_refresh: "Mettre à jour la liste ({})",
             offered_refresh_failed: "La liste n’a pas pu être mise à jour : les modèles ci-dessus restent proposés.",
+            speech_option: "SpeechAnalyzer d’Apple, sur ce Mac",
+            speech_missing: "le modèle d’Apple n’est pas encore sur ce Mac",
+            speech_fetch: "Télécharger le modèle d’Apple (macOS le télécharge depuis Apple)",
+            speech_fetching: "macOS télécharge le modèle d’Apple…",
+            speech_failed: "Le modèle d’Apple n’a pas été téléchargé. Réessayez plus tard ; Whisper reste disponible.",
             installed: "installé, {}",
             keep_other: "Autre nombre de jours…",
             keep_not_days: "{} n’est pas un nombre de jours : de 1 à 36 500",

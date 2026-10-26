@@ -1191,11 +1191,49 @@ function showSettings(shown, minutes, words) {
     option.selected = model.path === shown.model;
     pick.append(option);
   }
-  pick.addEventListener("change", () => save({ model: pick.value }));
+  // Apple's SpeechAnalyzer among who hears, where this Mac offers it (D42): asked away from the
+  // page; its model fetched by macOS on the click alone, then it is who hears.
+  const speech = element("div", "speech");
+  speech.id = "speech";
+  const speechSaid = element("p", "says");
+  speechSaid.setAttribute("role", "status");
+  const fetchApple = element("button", "open", words.speech_fetch);
+  fetchApple.type = "button";
+  fetchApple.id = "speech-fetch";
+  fetchApple.hidden = true;
+  fetchApple.addEventListener("click", async () => {
+    fetchApple.disabled = true;
+    speechSaid.textContent = words.speech_fetching;
+    const fetched = await window.__TAURI__.core.invoke("speech_installed").then(() => true, () => false);
+    // Chosen only while it is still the user's choice: Settings may have been drawn again meanwhile.
+    if (fetched && document.getElementById("model")?.value === "speechanalyzer") return save({ engine: "speechanalyzer" });
+    if (fetched) return;
+    fetchApple.disabled = false;
+    speechSaid.textContent = words.speech_failed;
+    // Not fetched: who hears is still the Whisper model, and the choice says so.
+    if (shown.models.some((model) => model.path === shown.model)) pick.value = shown.model;
+  });
+  speech.append(fetchApple, speechSaid);
+  let appleHere = false;
+  window.__TAURI__.core.invoke("speech_shown").then((status) => {
+    if (!status?.offered) return;
+    appleHere = status.installed;
+    const option = element("option", "", status.installed ? words.speech_option : `${words.speech_option} — ${words.speech_missing}`);
+    option.value = "speechanalyzer";
+    option.selected = shown.engine === "speechanalyzer";
+    pick.append(option);
+  }).catch(() => {});
+  pick.addEventListener("change", () => {
+    if (pick.value !== "speechanalyzer") return save({ model: pick.value });
+    if (appleHere) return save({ engine: "speechanalyzer" });
+    // Not chosen until its model is on the Mac: the gesture comes first, never the download.
+    fetchApple.hidden = false;
+    fetchApple.focus();
+  });
   row.append(label, pick);
   const here = element("p", "status here", words.on_this_computer);
   here.append(element("code", "tag", words.builtin));
-  step.append(row, here);
+  step.append(row, speech, here);
   // The short list of models to download, each said by what it is good for (D37).
   const offered = element("ul", "offered");
   offered.id = "offered";
