@@ -11,7 +11,7 @@
 - `scripts/release.sh` makes the package of the system `WHOLEHEARD_TARGET` names: `fedora-<n>` an rpm
   (`wholeheard.spec`), `ubuntu-<n>.<n>` a .deb (`deb/build.sh`, `deb/control.in`); unset, the package
   of the system it runs on (`/etc/os-release`; on a Mac, `macos-<processor>`). `macos-arm64`:
-  `Wholeheard.app`, zipped (`mac/build.sh`), made on a Mac — GitHub's runner, `macos.yml`'s job
+  `Wholeheard.app`, zipped (`mac/build.sh`), made on a Mac — GitHub's runner, `macos-app.yml`'s job
   *the app* — never in a container. Its Info.plist and French strings: `mac/info.py`, from
   `mac/words.json`, the sentences macOS shows when it asks for the microphone and the sound the
   Mac plays.
