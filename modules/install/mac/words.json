@@ -1,0 +1,10 @@
+{
+  "en": {
+    "NSMicrophoneUsageDescription": "Wholeheard records your side of the call with your microphone. It stays on your Mac.",
+    "NSAudioCaptureUsageDescription": "Wholeheard records what your Mac plays — the other side of the call — beside your microphone. It stays on your Mac."
+  },
+  "fr": {
+    "NSMicrophoneUsageDescription": "Wholeheard enregistre votre côté de l’appel avec votre micro. Rien ne quitte votre Mac.",
+    "NSAudioCaptureUsageDescription": "Wholeheard enregistre ce que joue votre Mac — l’autre côté de l’appel — en plus de votre micro. Rien ne quitte votre Mac."
+  }
+}

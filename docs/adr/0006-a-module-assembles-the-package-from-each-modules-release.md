@@ -4,6 +4,9 @@
   reste en autonomie… continue"); the criticality is the decider's to settle
 - **Read at cycle 03's closure, 2026-10-26**: Met: the module's e2e installs and removes the package in a Fedora that never saw it (D24); the decider installed it with `dnf` on 2026-10-19 (#241) and went through a real meeting with the window on 2026-10-24 (D23). The record stays *Proposed*: accepting it is
   the decider's.
+- **Amended**: 2026-10-26, D38 — on a Mac, no container: `install` assembles `Wholeheard.app` from
+  the same artefacts, signs it ad hoc and zips it, on GitHub's macOS runner; Tauri's bundler left
+  for the reason it was left for the rpm (*Prior art*)
 - **Date**: 2026-10-18
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: module install
@@ -76,7 +79,9 @@ declares `assembles: [shell, capture, transcription, summary]` and its release
 (`scripts/release.sh rpm`) builds `wholeheard.spec` in a Fedora of this system's release. A program
 *run* rather than linked is required by name (`pw-metadata`, for capture).
 
-The next system adds its format to the same release — a `dmg` from the same artefacts. **The
+The next system adds its format to the same release — ~~a `dmg`~~ on a Mac, `Wholeheard.app`
+zipped (D38, 2026-10-26: the zip a colleague opens, a `.dmg` out of cycle 04) — from the same
+artefacts. **The
 target is one for every module, named in the environment** (`WHOLEHEARD_TARGET`, D27, 2026-10-19):
 each program's release builds in a container of that system, from its module's own
 `containers/<target>.Containerfile`, and `install` makes that system's package — `fedora-44`
