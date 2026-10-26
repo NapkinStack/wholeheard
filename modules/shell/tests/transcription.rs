@@ -14,12 +14,17 @@ fn made(folder: &Path, script: &str) -> (Transcription, std::sync::mpsc::Receive
 
 /// The same, heard by `hearer` (#459: every script of this file is written and started here).
 fn made_by(folder: &Path, script: &str, hearer: &Hearer) -> (Transcription, std::sync::mpsc::Receiver<Made>) {
+    made_with(folder, script, hearer, None)
+}
+
+/// The same, a service's key handed to the program (D43).
+fn made_with(folder: &Path, script: &str, hearer: &Hearer, key: Option<&str>) -> (Transcription, std::sync::mpsc::Receiver<Made>) {
     static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
     let _held = ONE_AT_A_TIME.lock().unwrap();
     let path = folder.join("wholeheard-transcription");
     fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    Transcription::start(&path, &folder.join("session"), hearer).unwrap()
+    Transcription::start_with(&path, &folder.join("session"), hearer, key).unwrap()
 }
 
 fn end(made: &std::sync::mpsc::Receiver<Made>) -> Made {
@@ -211,22 +216,20 @@ fn a_service_is_asked_for_with_its_address_model_and_language_its_key_in_the_env
     let folder = tempfile::tempdir().unwrap();
     fs::create_dir(folder.path().join("session")).unwrap();
     let asked = folder.path().join("asked");
-    let path = folder.path().join("wholeheard-transcription");
-    fs::write(
-        &path,
-        format!(
-            "#!/bin/sh\necho \"$@ key=$WHOLEHEARD_PROVIDER_KEY\" > '{}'\ntouch \"$1/transcript.jsonl\"\n",
-            asked.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     let hearer = Hearer::Service {
         provider: "http://localhost:8000/v1".into(),
         model: "whisper-1".into(),
         language: "fr".into(),
     };
-    let (_running, made) = Transcription::start_with(&path, &folder.path().join("session"), &hearer, Some("a-key-of-the-test")).unwrap();
+    let (_running, made) = made_with(
+        folder.path(),
+        &format!(
+            "echo \"$@ key=$WHOLEHEARD_PROVIDER_KEY\" > '{}'\ntouch \"$1/transcript.jsonl\"",
+            asked.display()
+        ),
+        &hearer,
+        Some("a-key-of-the-test"),
+    );
     assert!(matches!(end(&made), Made::Written(_)));
     let said = fs::read_to_string(&asked).unwrap();
     assert!(
