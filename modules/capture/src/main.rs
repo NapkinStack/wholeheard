@@ -199,8 +199,10 @@ fn follow(tell: Sender<Moved>, zero: Instant, stop: Arc<AtomicBool>) {
         let _run = run.enter();
         let ours = u64::from(std::process::id());
         let mut followed: Option<(u64, String)> = None;
-        // What feeds each stream, as last read in the graph: a change of it is a move, said even
-        // when the stream itself told none, or was named by a default not yet updated (#352).
+        // What feeds each stream, as last read in the graph: the same on two readings in a row, it is
+        // what the stream records, said even when the stream itself told no move, or was named by
+        // a default not yet updated (#352) — and said again over a later stale name; a repeat of
+        // the name last said is dropped (`said_moved`).
         let mut fed: Option<[Option<String>; 2]> = None;
         let mut warned = false;
         let mut refused = |detail: String| {
@@ -217,7 +219,7 @@ fn follow(tell: Sender<Moved>, zero: Instant, stop: Arc<AtomicBool>) {
             let now = call::linked(&dump, ours);
             if let Some(before) = &fed {
                 for index in 0..2 {
-                    if now[index].is_some() && now[index] != before[index] {
+                    if now[index].is_some() && now[index] == before[index] {
                         let _ = tell.send((index, zero.elapsed().as_secs_f64(), now[index].clone()));
                     }
                 }

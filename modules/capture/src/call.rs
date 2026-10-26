@@ -73,7 +73,8 @@ pub fn linked(dump: &str, ours: u64) -> [Option<String>; 2] {
             .find(|(_, node)| node.class == "Stream/Input/Audio" && node.process == Some(ours) && node.records_an_output == remote)?;
         let (from, _) = graph.links.iter().find(|(_, to)| to == stream)?;
         let node = graph.nodes.get(from)?;
-        Some(node.description.clone().unwrap_or_else(|| node.name.clone()))
+        // Named as cpal names a device (cpal-0.18.2, host/pipewire/device.rs): never two names for one.
+        Some(node.description.clone().unwrap_or_else(|| "unknown".to_string()))
     };
     [fed(false), fed(true)]
 }

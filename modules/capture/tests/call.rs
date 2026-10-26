@@ -202,4 +202,17 @@ fn each_of_capture_s_streams_is_named_by_the_node_it_is_fed_from() {
     let mut unlinked = graph(&[]);
     unlinked.retain(|object| object["id"] != 3);
     assert_eq!(call::linked(&Value::Array(unlinked).to_string(), OURS)[0], None);
+    // A node without a description is "unknown", as cpal names it: one name for one device.
+    let mut nameless = graph(&[136]);
+    for object in &mut nameless {
+        if let Some(props) = object.pointer_mut("/info/props").and_then(Value::as_object_mut)
+            && props.get("node.name").and_then(Value::as_str) == Some("bluez_earbuds_mic")
+        {
+            props.remove("node.description");
+        }
+    }
+    assert_eq!(
+        call::linked(&Value::Array(nameless).to_string(), OURS)[0].as_deref(),
+        Some("unknown")
+    );
 }
