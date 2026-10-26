@@ -143,3 +143,30 @@ fn speechanalyzer_is_asked_for_with_a_language() {
         assert!(!ok && err.contains(expected) && err.trim().lines().count() == 1, "{args:?}: {err}");
     }
 }
+
+#[test]
+fn a_program_that_does_not_answer_is_ended_and_its_span_said() {
+    let folder = tempfile::tempdir().unwrap();
+    let program = played(folder.path(), "sleep 30");
+    let mut engine = SpeechAnalyzer::at(&program, "fr")
+        .unwrap()
+        .patient(std::time::Duration::from_millis(500));
+    let began = std::time::Instant::now();
+    let error = engine.hear(&vec![0.25f32; RATE / 4], Some("fr"), None).unwrap_err();
+    assert!(began.elapsed().as_secs() < 10 && error.to_string().contains("in time"), "{error}");
+}
+
+#[test]
+fn the_span_is_written_in_the_folder_given_and_gone_after() {
+    let folder = tempfile::tempdir().unwrap();
+    let spans = folder.path().join("derived");
+    let program = played(folder.path(), r#"echo '{"start":0.0,"end":0.5,"text":"Oui."}'"#);
+    let mut engine = SpeechAnalyzer::at(&program, "fr").unwrap().spans_in(&spans).unwrap();
+    engine.hear(&vec![0.25f32; RATE], Some("fr"), None).unwrap();
+    let asked = fs::read_to_string(folder.path().join("asked")).unwrap();
+    assert!(
+        asked.split_whitespace().nth(1).unwrap().starts_with(spans.to_str().unwrap()),
+        "{asked}"
+    );
+    assert_eq!(fs::read_dir(&spans).unwrap().count(), 0, "nothing of the span is left");
+}

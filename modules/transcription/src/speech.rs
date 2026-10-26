@@ -4,10 +4,11 @@
 
 use std::{
     fs,
-    io::{self, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::atomic::{AtomicUsize, Ordering},
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -18,9 +19,18 @@ use crate::{
 /// SpeechTranscriber hears one locale, never a guess: the languages the shell speaks, each its own.
 const LOCALES: [(&str, &str); 2] = [("fr", "fr-FR"), ("en", "en-US")];
 
+/// The most the program may say of one span: a few kilobytes of text in truth.
+const SAID: u64 = 4 << 20;
+
 pub struct SpeechAnalyzer {
     program: PathBuf,
     locale: &'static str,
+    /// Where each span's file is written: the session's own `derived/`, where its other derived
+    /// sound is, so that a step killed mid-span leaves nothing of the meeting elsewhere.
+    spans: PathBuf,
+    /// How long a span may take, beyond twice its own length, before the program is ended.
+    patience: Duration,
+    told_of_context: bool,
 }
 
 impl SpeechAnalyzer {
@@ -37,7 +47,23 @@ impl SpeechAnalyzer {
         Ok(SpeechAnalyzer {
             program: program.to_path_buf(),
             locale,
+            spans: std::env::temp_dir(),
+            patience: Duration::from_secs(60),
+            told_of_context: false,
         })
+    }
+
+    /// Each span's file written in `folder`, made if it is not there.
+    pub fn spans_in(mut self, folder: &Path) -> io::Result<Self> {
+        fs::create_dir_all(folder)?;
+        self.spans = folder.to_path_buf();
+        Ok(self)
+    }
+
+    /// How long a span may take beyond twice its length: a minute out of the box.
+    pub fn patient(mut self, patience: Duration) -> Self {
+        self.patience = patience;
+        self
     }
 
     /// Where `wholeheard-speech` is: where `WHOLEHEARD_SPEECH` names it, or beside this program.
@@ -47,6 +73,46 @@ impl SpeechAnalyzer {
             beside.unwrap_or_default().join("wholeheard-speech")
         })
     }
+
+    /// The program run on one span's file, ended once `within` has passed; what it said, read
+    /// as it says it and no more than `SAID`.
+    fn run(&self, file: &Path, within: Duration) -> io::Result<(bool, String, String)> {
+        let mut child = Command::new(&self.program)
+            .arg("transcribe")
+            .arg(file)
+            .arg(self.locale)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+        let reading = |stream: Option<Box<dyn Read + Send>>| {
+            std::thread::spawn(move || {
+                let mut text = String::new();
+                if let Some(stream) = stream {
+                    let _ = stream.take(SAID).read_to_string(&mut text);
+                }
+                text
+            })
+        };
+        let out = reading(child.stdout.take().map(|out| Box::new(out) as Box<dyn Read + Send>));
+        let err = reading(child.stderr.take().map(|err| Box::new(err) as Box<dyn Read + Send>));
+        let given = Instant::now();
+        let status = loop {
+            if let Some(status) = child.try_wait()? {
+                break status;
+            }
+            if given.elapsed() > within {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "SpeechAnalyzer did not answer in time for the span",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        Ok((status.success(), out.join().unwrap_or_default(), err.join().unwrap_or_default()))
+    }
 }
 
 impl Engine for SpeechAnalyzer {
@@ -54,35 +120,29 @@ impl Engine for SpeechAnalyzer {
         ("SpeechAnalyzer".into(), format!("Apple {}", self.locale))
     }
 
-    /// The context the user attached is not given: the program takes none yet (ADR-0012).
-    fn hear(&mut self, sound: &[f32], _language: Option<&str>, _context: Option<&str>) -> io::Result<Vec<Segment>> {
-        // The span's file, this run's alone, removed once heard, whatever the program said.
+    /// The context the user attached is not given: the program takes none yet (ADR-0012); said
+    /// once in the log.
+    fn hear(&mut self, sound: &[f32], _language: Option<&str>, context: Option<&str>) -> io::Result<Vec<Segment>> {
+        if context.is_some() && !std::mem::replace(&mut self.told_of_context, true) {
+            tracing::info!("transcription.context_unused");
+        }
+        // The span's file, this run's alone — made new, never one already there —, removed once
+        // heard, whatever the program said.
         static SPANS: AtomicUsize = AtomicUsize::new(0);
-        let file = std::env::temp_dir().join(format!(
-            "wholeheard-span-{}-{}.wav",
+        let file = self.spans.join(format!(
+            "speechanalyzer-span-{}-{}.wav",
             std::process::id(),
             SPANS.fetch_add(1, Ordering::Relaxed)
         ));
-        let output = write_span(&file, sound).and_then(|()| {
-            Command::new(&self.program)
-                .arg("transcribe")
-                .arg(&file)
-                .arg(self.locale)
-                .stdin(Stdio::null())
-                .output()
-        });
+        let within = self.patience + Duration::from_secs_f64(2.0 * sound.len() as f64 / RATE as f64);
+        let output = write_span(&file, sound).and_then(|()| self.run(&file, within));
         let _ = fs::remove_file(&file);
-        let output = output?;
-        if !output.status.success() {
-            let said = String::from_utf8_lossy(&output.stderr);
-            let why = said.lines().next().unwrap_or("it ended without saying why").trim().to_string();
+        let (succeeded, out, err) = output?;
+        if !succeeded {
+            let why = err.lines().next().unwrap_or("it ended without saying why").trim().to_string();
             return Err(io::Error::other(format!("SpeechAnalyzer did not hear the span: {why}")));
         }
-        String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .map(segment)
-            .collect()
+        out.lines().filter(|line| !line.trim().is_empty()).map(segment).collect()
     }
 }
 
@@ -108,7 +168,7 @@ fn segment(line: &str) -> io::Result<Segment> {
 /// A span as a session's first form holds a track: one channel, 16 kHz, 16-bit.
 fn write_span(path: &Path, sound: &[f32]) -> io::Result<()> {
     let bytes = (sound.len() * 2) as u32;
-    let mut out = io::BufWriter::new(fs::File::create(path)?);
+    let mut out = io::BufWriter::new(fs::OpenOptions::new().write(true).create_new(true).open(path)?);
     out.write_all(b"RIFF")?;
     out.write_all(&(36 + bytes).to_le_bytes())?;
     out.write_all(b"WAVEfmt ")?;

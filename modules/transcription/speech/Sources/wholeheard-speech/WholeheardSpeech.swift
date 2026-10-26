@@ -61,11 +61,16 @@ struct WholeheardSpeech {
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         let audio = try AVAudioFile(forReading: file)
         try await analyzer.start(inputAudioFile: audio, finishAfterFile: true)
+        // A result whose words carry no time is kept where the one before it ended: no word lost.
+        var ended = 0.0
         for try await result in transcriber.results {
             let times = result.text.runs.compactMap(\.audioTimeRange)
             let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let first = times.first, let last = times.last, !text.isEmpty else { continue }
-            say(["start": first.start.seconds, "end": last.end.seconds, "text": text])
+            guard !text.isEmpty else { continue }
+            let start = times.first?.start.seconds ?? ended
+            let end = max(times.last?.end.seconds ?? ended, start)
+            ended = end
+            say(["start": start, "end": end, "text": text])
         }
     }
 
@@ -91,8 +96,11 @@ struct WholeheardSpeech {
         )
     }
 
+    /// One JSON line on the output; one that cannot be written ends the program, never a line lost.
     static func say(_ line: [String: Any]) {
-        guard let data = try? JSONSerialization.data(withJSONObject: line, options: [.sortedKeys]) else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: line, options: [.sortedKeys]) else {
+            fail("a line could not be written")
+        }
         FileHandle.standardOutput.write(data + Data("\n".utf8))
     }
 

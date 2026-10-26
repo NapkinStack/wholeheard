@@ -95,7 +95,12 @@ fn run(folder: &Path, hearer: Hearer, language: Option<&str>) -> Result<(), Stri
         }
         Hearer::SpeechAnalyzer => {
             let language = language.unwrap_or_default();
-            (Box::new(SpeechAnalyzer::at(&SpeechAnalyzer::program(), language)?), "segments")
+            {
+                let engine = SpeechAnalyzer::at(&SpeechAnalyzer::program(), language)?
+                    .spans_in(&folder.join("derived"))
+                    .map_err(|error| format!("the session's derived folder cannot be made ({error})"))?;
+                (Box::new(engine), "segments")
+            }
         }
     };
     let (name, model) = engine.name();
