@@ -259,7 +259,8 @@ Second of the two, should both not fit. The end date does not move.
   "Standard comme summary" — a deviation from the handbook's rule for both modules, ended with
   `capture`'s before the first build published outside the project.
 - **Built**: the engine, #451; Settings, #454 — every criterion held by an automated scenario but a
-  real service's, whose trial is the decider's (a key and a meeting of theirs).
+  real service's, whose trial is the decider's (a key and a meeting of theirs), in
+  [#463](https://github.com/NapkinStack/wholeheard/issues/463).
 
 ## Dependency with a date
 
