@@ -170,3 +170,21 @@ fn a_stream_says_its_process_through_its_client_when_it_does_not_itself() {
     assert_eq!(read(native).unwrap().map(|output| output.name), Some("bluez_earbuds".into()));
     assert_eq!(call::remote_stream(&dump, OURS), Some(500));
 }
+
+#[test]
+fn clients_of_pulseaudio_are_not_one_process() {
+    // A microphone held by one Pulse client and music played by another: no call to follow.
+    let pulse = |id: u64| json!({ "id": id, "type": "PipeWire:Interface:Client", "info": { "props": { "pipewire.sec.pid": 4242 } } });
+    let mut graph = graph(&[136]);
+    for object in &mut graph {
+        let owner = if object["id"] == 131 { 72 } else { 73 };
+        let props = &mut object["info"]["props"];
+        if props.get("application.process.id").and_then(Value::as_u64) == Some(143) {
+            props.as_object_mut().unwrap().remove("application.process.id");
+            props["client.id"] = owner.into();
+        }
+    }
+    graph.push(pulse(72));
+    graph.push(pulse(73));
+    assert_eq!(read(graph).unwrap(), None);
+}

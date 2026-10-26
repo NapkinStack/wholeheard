@@ -88,8 +88,8 @@ impl Graph {
             .filter(|object| object["type"] == "PipeWire:Interface:Client")
             .filter_map(|object| {
                 let props = &object["info"]["props"];
-                let process = number(&props["application.process.id"]).or_else(|| number(&props["pipewire.sec.pid"]));
-                Some((object["id"].as_u64()?, process?))
+                // Never `pipewire.sec.pid`: for a client of PulseAudio's it is `pipewire-pulse`'s, one for all.
+                Some((object["id"].as_u64()?, number(&props["application.process.id"])?))
             })
             .collect();
         for object in &objects {

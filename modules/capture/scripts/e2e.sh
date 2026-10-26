@@ -273,7 +273,7 @@ sleep 3; pw-play --target wholeheard_e2e_mic "$work/1100.wav"   # heard by the c
 # The call goes back to the default output: so does the remote side, within two seconds.
 playing=$(python3 scripts/e2e_measure_v2.py playing "$call")
 pw-metadata -n default "$playing" target.object wholeheard_e2e_out > /dev/null
-sleep 3; pw-play --target wholeheard_e2e_call "$work/660.wav"   # on the output the call left: not the remote side's
+sleep 2; pw-play --target wholeheard_e2e_call "$work/660.wav"   # two seconds after: the remote side followed, not on it
 sleep 1; pw-play --target wholeheard_e2e_out "$work/440.wav"
 sleep 1
 kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?

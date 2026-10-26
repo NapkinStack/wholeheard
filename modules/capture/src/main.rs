@@ -254,7 +254,20 @@ fn targeted(stream: u64, output: Option<&str>) -> bool {
         None => asked.args(["-n", "default", "-d", &stream, "target.object"]),
     };
     asked.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    asked.status().is_ok_and(|status| status.success())
+    // A second at most, as `metadata` waits: the stop waits on this thread.
+    let Ok(mut asked) = asked.spawn() else { return false };
+    let given = Instant::now();
+    loop {
+        match asked.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) if given.elapsed() < Duration::from_secs(1) => std::thread::sleep(Duration::from_millis(5)),
+            _ => {
+                let _ = asked.kill();
+                let _ = asked.wait();
+                return false;
+            }
+        }
+    }
 }
 
 /// PipeWire's graph as `pw-dump` prints it — or nothing, if it has not answered within two
