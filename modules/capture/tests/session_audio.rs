@@ -284,3 +284,28 @@ fn a_source_resting_away_from_zero_reads_silence_on_the_meter() {
     let rest = track.level();
     assert!(rest < 0.05, "a source resting at 0.3 read as {rest}");
 }
+
+#[test]
+fn a_silence_of_exact_zeros_is_told_from_a_quiet_room() {
+    // Nothing but exact zeros for ten seconds: the device delivers nothing (#361).
+    let mut watch = Watch::new(10.0);
+    let told = (0..10).map(|_| watch.after_stirred(1.0, 0.0, false)).last().unwrap();
+    assert_eq!(told, Heard::Silent);
+    assert!(watch.nothing(), "not one sample other than zero");
+    // A quiet room stirs its samples, never to zero: silent, but something came.
+    let mut watch = Watch::new(10.0);
+    let told = (0..10).map(|_| watch.after_stirred(1.0, 0.0, true)).last().unwrap();
+    assert_eq!(told, Heard::Silent);
+    assert!(!watch.nothing());
+}
+
+#[test]
+fn a_track_says_whether_anything_but_zero_came() {
+    let folder = tempfile::tempdir().unwrap();
+    let mut track = wholeheard_capture::v2::Track::create(&folder.path().join("t.wav"), 48_000, 2).unwrap();
+    track.push(&[0.0; 960]).unwrap();
+    assert!(!track.stirred(), "exact zeros stir nothing");
+    track.push(&[0.0, -0.19, 0.0, -0.35]).unwrap();
+    assert!(track.stirred(), "a microphone at rest is not zero");
+    assert!(!track.stirred(), "taken, as loudest is");
+}
