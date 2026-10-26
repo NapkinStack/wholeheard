@@ -1252,6 +1252,7 @@ function showSettings(shown, minutes, words) {
     input.id = id;
     input.type = type;
     input.value = value || "";
+    input.defaultValue = input.value;
     input.disabled = locked;
     wrap.append(element("span", "name", text), input);
     service.append(wrap);
@@ -1264,6 +1265,8 @@ function showSettings(shown, minutes, words) {
   const agreeBox = element("input");
   agreeBox.type = "checkbox";
   agreeBox.id = "transcription-agreed";
+  // A box ticked is no text being typed: the page still comes back when the window does.
+  agreeBox.defaultValue = agreeBox.value;
   agreeBox.disabled = locked;
   const agreeSaid = element("span", "says");
   const hostOf = (text) => { try { return new URL(text).host; } catch { return ""; } };
@@ -1295,6 +1298,7 @@ function showSettings(shown, minutes, words) {
   const testService = element("button", "open", words.service_test);
   testService.type = "button";
   testService.id = "transcription-test";
+  testService.disabled = locked;
   testService.addEventListener("click", async () => {
     testService.disabled = true;
     serviceSaid.textContent = "";

@@ -954,7 +954,7 @@ def main() -> int:
         checked = browser.execute_script("return document.querySelector('input[name=after]:checked').value")
         check("out of the box, the transcript follows", checked == "transcript", checked)
         names = [o.text.split(" — ")[0] for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
-        check("the models on this computer are offered, by the names people say", names == ["Whisper large v3 turbo", "Whisper small"], names)
+        check("the models on this computer are offered, by the names people say", names == ["Whisper large v3 turbo", "Whisper small", "Un service que je choisis"], names)
         ready = browser.find_element(By.ID, "model-state").text
         check("the transcription model's state is said at the page's end", "Prêt" in ready and "sans réseau" in ready, ready)
         # Each change is saved, then the page is drawn again: the next acts on the new one.
@@ -1250,7 +1250,8 @@ def main() -> int:
         window.file.write_text(f'sessions = "{broken}"\nkeep_audio = 7\n')
         browser.execute_script("window.dispatchEvent(new Event('focus'))")
         open_again = wait_for(browser, lambda b: not b.find_element(By.ID, "reminder").get_attribute("disabled"), 5)
-        check("a file corrected by hand opens the page again", open_again and not browser.find_elements(By.CSS_SELECTOR, "#settings .warn:not([hidden])")[1:])
+        check("a file corrected by hand opens the page again", open_again and not browser.find_elements(By.CSS_SELECTOR, "#settings .warn:not([hidden])")[1:],
+              browser.execute_script("return [document.getElementById('reminder')?.disabled, [...document.querySelectorAll('#settings .warn:not([hidden])')].map(e => e.textContent), [...document.querySelectorAll('#settings:not([hidden]) .fields input')].filter(i => i.value !== i.defaultValue).map(i => i.id)]"))
 
     print("N. before a meeting first leaves for a host: what leaves, to whom; sent only on the word")
     agreeing = WORK / "agreeing"
