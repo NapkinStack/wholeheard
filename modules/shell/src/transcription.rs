@@ -41,6 +41,40 @@ pub enum Hearer {
     },
 }
 
+/// Why a service named to hear is not saved (D43).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Refused {
+    /// No `http://` or `https://` address of a host.
+    Address,
+    /// No model named.
+    Model,
+    /// A host elsewhere than this computer, the user's agreement to it not given.
+    NotAgreed(String),
+}
+
+/// A service named to hear, checked before anything is saved: its host, and the host the user
+/// agreed to — none for this computer's own, where nothing of a meeting leaves it (ADR-0013).
+pub fn service_named(provider: &str, model: &str, agreed: bool) -> Result<(String, Option<String>), Refused> {
+    let provider = provider.trim();
+    let host = crate::providers::host(provider).ok_or(Refused::Address)?;
+    if model.trim().is_empty() {
+        return Err(Refused::Model);
+    }
+    if crate::providers::local(provider) {
+        return Ok((host, None));
+    }
+    if !agreed {
+        return Err(Refused::NotAgreed(host));
+    }
+    Ok((host.clone(), Some(host)))
+}
+
+/// The keyring's account of a transcription service's key: apart from the minutes', which is
+/// the host alone — one host may hear and write with two keys.
+pub fn key_account(host: &str) -> String {
+    format!("transcription {host}")
+}
+
 impl Hearer {
     /// Who hears, as the settings chose it: Apple's SpeechAnalyzer only while this Mac still offers
     /// it with its model there (`apple_ready`, asked only then) — otherwise the Whisper model, so

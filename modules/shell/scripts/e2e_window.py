@@ -594,6 +594,19 @@ def service_named(now: dt.datetime) -> None:
         Select(browser.find_element(By.ID, "model")).select_by_value("service")
         shown = wait_for(browser, lambda b: b.find_element(By.ID, "transcription-service").is_displayed(), 5)
         check("chosen, its address, its model and its key are asked", shown and browser.find_elements(By.ID, "transcription-key"))
+        # An address that is none, or a name that only starts as this computer's: said, nothing saved.
+        browser.find_element(By.ID, "transcription-provider").send_keys("hears.example/v1")
+        browser.find_element(By.ID, "transcription-save").click()
+        bad = wait_for(browser, lambda b: "l’adresse commence par https://" in b.execute_script(said), 5)
+        browser.find_element(By.ID, "transcription-provider").clear()
+        browser.find_element(By.ID, "transcription-provider").send_keys("https://localhost.hears.example/v1")
+        browser.find_element(By.ID, "transcription-model").send_keys("whisper-1")
+        browser.find_element(By.ID, "transcription-save").click()
+        elsewhere = wait_for(browser, lambda b: "acceptez d’abord" in b.execute_script(said), 5)
+        check("an address that is none, or a host that only starts as this computer's, is said and not saved",
+              bad and elsewhere and "transcription_provider" not in window.file.read_text(), browser.execute_script(said))
+        browser.find_element(By.ID, "transcription-provider").clear()
+        browser.find_element(By.ID, "transcription-model").clear()
         # A host elsewhere, not agreed to: nothing saved, the agreement asked.
         browser.find_element(By.ID, "transcription-provider").send_keys("https://hears.example/v1")
         browser.find_element(By.ID, "transcription-model").send_keys("whisper-1")

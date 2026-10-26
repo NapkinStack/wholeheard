@@ -1381,11 +1381,6 @@ async fn minutes_saved(
     Ok(not_kept)
 }
 
-/// The keyring's account of a transcription service's key: apart from the minutes', under its host.
-fn transcription_account(host: &str) -> String {
-    format!("transcription {host}")
-}
-
 /// Who hears, when a service does (D43): its address and model saved, the user's agreement to its
 /// host with them, its key kept in the keyring under the transcription's own account. A host on
 /// this computer needs no agreement. Nothing is sent here.
@@ -1400,13 +1395,11 @@ async fn transcription_saved(
     let (host, key) = {
         let _saving = shell.saving.lock().unwrap();
         let mut settings = shell.reread()?;
-        let host = providers::host(provider.trim()).ok_or_else(|| format!("{provider} is no service's address"))?;
-        if model.trim().is_empty() {
-            return Err("a model is named".into());
-        }
-        if !agreed && !providers::local(provider.trim()) {
-            return Err(format!("the meetings' sound is sent to {host}: agree to it first"));
-        }
+        let (host, agreed_to) = transcription::service_named(&provider, &model, agreed).map_err(|refused| match refused {
+            transcription::Refused::Address => format!("{provider} is no service's address"),
+            transcription::Refused::Model => "a model is named".to_string(),
+            transcription::Refused::NotAgreed(host) => format!("the meetings' sound is sent to {host}: agree to it first"),
+        })?;
         let key = key.map(|key| key.trim().to_string()).filter(|key| !key.is_empty());
         if key.is_some()
             && let Some(why) = shell.keyring.lock().unwrap().clone()
@@ -1416,7 +1409,7 @@ async fn transcription_saved(
         settings.engine = Engine::Service;
         settings.transcription_provider = Some(provider.trim().to_string());
         settings.transcription_model = Some(model.trim().to_string());
-        settings.transcription_agreed = (!providers::local(provider.trim())).then(|| host.clone());
+        settings.transcription_agreed = agreed_to;
         let file = settings::file().ok_or("this system names no folder for settings")?;
         settings::write(&file, &settings).map_err(|error| error.to_string())?;
         *shell.settings.lock().unwrap() = settings;
@@ -1425,7 +1418,7 @@ async fn transcription_saved(
     };
     let not_kept = match key {
         Some(key) => {
-            let account = transcription_account(&host);
+            let account = transcription::key_account(&host);
             let kept = tauri::async_runtime::spawn_blocking(move || keys::keep(&account, &key)).await;
             kept.map_err(|error| error.to_string()).and_then(|kept| kept).err()
         }
@@ -1445,7 +1438,7 @@ async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), String> {
     let hearing = program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION");
     let output = tauri::async_runtime::spawn_blocking(move || {
         let host = providers::host(&provider).unwrap_or_default();
-        let key = keys::key(&transcription_account(&host)).ok().flatten();
+        let key = keys::key(&transcription::key_account(&host)).ok().flatten();
         tracing::info!(host = %host, model = %model, key = key.is_some(), "shell.transcription_testing");
         let mut command = std::process::Command::new(&hearing);
         command.args(["--test", "--provider", &provider, "--model", &model]);
@@ -2311,7 +2304,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
     // Its key from the keyring, under the transcription's own account: never the minutes'.
     let key = match &hearer {
         Hearer::Service { provider, .. } => {
-            providers::host(provider).and_then(|host| keys::key(&transcription_account(&host)).ok().flatten())
+            providers::host(provider).and_then(|host| keys::key(&transcription::key_account(&host)).ok().flatten())
         }
         _ => None,
     };

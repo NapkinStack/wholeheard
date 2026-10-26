@@ -1283,9 +1283,19 @@ function showSettings(shown, minutes, words) {
   saveService.id = "transcription-save";
   saveService.disabled = locked;
   // This computer's own host needs no agreement: nothing of the meeting leaves it.
-  const isHere = (host) => /^(localhost|127\.|\[::1\])/.test(host);
+  // The whole host, its port aside: `localhost.example` or `127.example` is elsewhere. The shell
+  // judges again (`providers::local`); this only spares the agreement where none is needed.
+  const isHere = (host) => /^(localhost|127(\.\d{1,3}){3}|\[::1\])(:\d+)?$/i.test(host);
   saveService.addEventListener("click", async () => {
     const { invoke } = window.__TAURI__.core;
+    if (!/^https?:$/.test((() => { try { return new URL(address.value.trim()).protocol; } catch { return ""; } })()) || !hostOf(address.value.trim())) {
+      serviceSaid.textContent = words.service_address_bad;
+      return address.focus();
+    }
+    if (!serviceModel.value.trim()) {
+      serviceSaid.textContent = words.service_model_named;
+      return serviceModel.focus();
+    }
     if (!agreeBox.checked && !isHere(hostOf(address.value))) {
       serviceSaid.textContent = fill(words.service_agree_first, hostOf(address.value) || "—");
       return agreeBox.focus();

@@ -236,4 +236,45 @@ fn a_service_is_asked_for_with_its_address_model_and_language_its_key_in_the_env
         said.contains("--provider http://localhost:8000/v1 --model whisper-1 --language fr key=a-key-of-the-test"),
         "{said}"
     );
+    // The key in the environment alone: the arguments never hold it.
+    let (arguments, _) = said.split_once(" key=").unwrap();
+    assert!(!arguments.contains("a-key-of-the-test"), "{said}");
+}
+
+#[test]
+fn a_service_is_saved_only_once_its_host_elsewhere_is_agreed_to() {
+    use wholeheard_shell::transcription::{Refused, key_account, service_named};
+    // Elsewhere: refused without the agreement, its host named; agreed, that host kept.
+    assert_eq!(
+        service_named("https://api.groq.com/openai/v1", "whisper-large-v3", false),
+        Err(Refused::NotAgreed("api.groq.com".into()))
+    );
+    assert_eq!(
+        service_named(" https://api.groq.com/openai/v1 ", "whisper-large-v3", true),
+        Ok(("api.groq.com".into(), Some("api.groq.com".into())))
+    );
+    // This computer needs no agreement, and none is kept.
+    assert_eq!(
+        service_named("http://localhost:8000/v1", "whisper-1", false),
+        Ok(("localhost:8000".into(), None))
+    );
+    assert_eq!(
+        service_named("http://127.0.0.1:8000/v1", "whisper-1", false),
+        Ok(("127.0.0.1:8000".into(), None))
+    );
+    // A name that only starts as this computer's is elsewhere.
+    for elsewhere in [
+        "https://localhost.evil.example/v1",
+        "https://127.evil.example/v1",
+        "https://127.0.0.1.nip.io/v1",
+    ] {
+        assert!(
+            matches!(service_named(elsewhere, "whisper-1", false), Err(Refused::NotAgreed(_))),
+            "{elsewhere}"
+        );
+    }
+    assert_eq!(service_named("api.groq.com/openai/v1", "whisper-1", true), Err(Refused::Address));
+    assert_eq!(service_named("https://api.groq.com/openai/v1", " ", true), Err(Refused::Model));
+    // One host may write the minutes and hear with two keys: never one account.
+    assert_ne!(key_account("api.groq.com"), "api.groq.com");
 }
