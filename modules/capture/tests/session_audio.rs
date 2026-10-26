@@ -297,6 +297,31 @@ fn a_silence_of_exact_zeros_is_told_from_a_quiet_room() {
     let told = (0..10).map(|_| watch.after_stirred(1.0, 0.0, true)).last().unwrap();
     assert_eq!(told, Heard::Silent);
     assert!(!watch.nothing());
+    // One second stirred among the ten is enough: something came.
+    let mut watch = Watch::new(10.0);
+    watch.after_stirred(1.0, 0.0, true);
+    let told = (0..9).map(|_| watch.after_stirred(1.0, 0.0, false)).last().unwrap();
+    assert_eq!(told, Heard::Silent);
+    assert!(!watch.nothing(), "a stirred second, then zeros");
+    // What came before a sound is forgotten with it: the silence after is judged on its own.
+    let mut watch = Watch::new(10.0);
+    watch.after_stirred(1.0, 0.0, true);
+    watch.after_stirred(1.0, 0.5, true);
+    let told = (0..10).map(|_| watch.after_stirred(1.0, 0.0, false)).last().unwrap();
+    assert_eq!(told, Heard::Silent);
+    assert!(watch.nothing(), "zeros after a sound, the quiet before it forgotten");
+}
+
+#[test]
+fn a_track_of_the_first_form_says_whether_anything_but_zero_came() {
+    let folder = tempfile::tempdir().unwrap();
+    let mut track = Track::create(&folder.path().join("t.wav"), 48_000, 2).unwrap();
+    track.push(&[0.0; 960]).unwrap();
+    assert!(!track.stirred(), "exact zeros stir nothing");
+    // A negative zero is a zero; the faintest sample is not.
+    track.push(&[-0.0, 0.0, 0.0, 1e-6]).unwrap();
+    assert!(track.stirred(), "a microphone at rest is not zero");
+    assert!(!track.stirred(), "taken, as loudest is");
 }
 
 #[test]

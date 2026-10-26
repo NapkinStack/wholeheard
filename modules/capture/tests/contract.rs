@@ -63,6 +63,12 @@ fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are
 }
 
 #[test]
+fn a_silence_says_whether_nothing_came() {
+    assert_eq!(Event::Silent { source: 0, nothing: true }.line()["nothing"], true);
+    assert_eq!(Event::Silent { source: 0, nothing: false }.line()["nothing"], false);
+}
+
+#[test]
 fn a_level_is_the_peak_on_a_meter_s_scale_rounded_to_a_hundredth() {
     assert_eq!(wholeheard_capture::level(0.0), 0.0);
     assert_eq!(wholeheard_capture::level(0.0005), 0.0);
