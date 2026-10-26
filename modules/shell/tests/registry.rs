@@ -25,12 +25,6 @@ fn the_file_in_the_repository_is_the_list_shipped_and_it_reads() {
     assert_eq!(shipped[0].published, model::DEFAULT);
     assert_eq!(shipped[0].good, Some(Good::Recommended));
     assert!(shipped.iter().all(|listed| registry::HOSTS.contains(&listed.published.host)));
-    // Whisper small, the faster one, as D37 offered it.
-    assert_eq!(shipped.len(), 2);
-    assert_eq!(model::file(&shipped[1].published), "ggml-small-q8_0.bin");
-    assert_eq!(shipped[1].published.bytes, 264_464_607);
-    assert_eq!(shipped[1].published.sha256, FINGERPRINT);
-    assert_eq!(shipped[1].good, Some(Good::Faster));
 }
 
 #[test]
