@@ -74,7 +74,8 @@ Holds in 03-the-window: 3 held, of which 0 stale (from origin; stale after 7 day
 *Accepted* counts what the decider accepted; a `dropped` deliverable counts in nothing. From its
 end date — the first day the cycle is over — the line says the circuit breaker fell and the
 decider chooses, and the pull request check refuses delivery work (K2). The project's own
-success — the charter's criteria — is read at the cycle's closure, not here. An agent reporting
+success — the charter's criteria — is recorded at a cycle's closure, and said with the project
+below. An agent reporting
 progress gives this line, so that one figure circulates.
 
 ### On the forge
@@ -94,6 +95,46 @@ finds its own objects by a marker in their body; an issue or a milestone a perso
 touched, and a person's milestone already holding a cycle's title is said, not overwritten. What cannot be shown — no token, a refusal, holds unreadable — is said in the
 run's summary, never a failed merge. The first run on a project creates an issue per deliverable,
 and the repository's watchers get a notification for each.
+
+## The project across its cycles
+
+There is no backlog to measure the project against: framing bounds one cycle at a time, and
+what it leaves out waits in that cycle's *Later*. `nstack plan` says the project as it stands,
+read from this folder and kept nowhere else — the charter's success criteria, every cycle in one
+line, and what the latest cycle left for the next framing:
+
+```
+Project: 0 of 3 success criteria met · criterion 1 observed since 2026-10-17 · 3 cycles: 1 accepted, 1 closed, 1 stopped
+  01-first-meeting  stopped (reframed) on 2026-10-13 · 1 of 7 accepted · 6 deferred
+  02-the-audio      closed (completed) on 2026-10-17 · 9 of 9 accepted
+  03-the-window     in progress, ends 2026-11-07 · 18 of 20 accepted · 2 in progress
+  Later in 03-the-window, for the next framing: 9 candidates
+```
+
+**The project's progress is its charter's success criteria.** A closure records the ones the
+decider says it moved, in the cycle's front matter — the charter itself changes only through a
+decision:
+
+```yaml
+success:
+  - criterion: 1          # its number in the charter's list, from 1
+    state: observing      # met | observing
+    since: 2026-10-17     # observing: the day observation started
+```
+
+A criterion's state is its latest record, in the order of the cycles; one never recorded is not
+yet met. Numbers follow the charter's list; a criterion still holding the form's words is
+listed, never counted. When every criterion is met, the line says the charter's goal is reached,
+and the decider says whether the project is finished. A record outside a closure, twice in one,
+on a number the charter does not fill, in an unknown state, or observing with no day is refused
+(C6).
+
+Each cycle is counted as its own line above counts it. Deliverables are never added up across
+cycles: one deferred by a cycle is often framed again in the next, and a total would count it
+twice. *Later* is the running cycle's, or between two cycles the last one ended — where the next
+framing starts; its candidates are counted when the section is a list, one item each, and prose is
+said as prose. A status or an outcome the plan's rules refuse is said as unknown, and a date they refuse is left
+out: none is printed raw. The view is `nstack plan`'s alone — `nstack fitness` and CI keep to the cycle in progress.
 
 ## Who holds a deliverable
 
