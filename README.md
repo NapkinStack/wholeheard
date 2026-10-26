@@ -40,7 +40,7 @@ sudo apt install ./dist/install/wholeheard_*_amd64.deb
 ```
 
 Needs `podman` ([`modules/install`](modules/install/)). Ubuntu's package is being tried on a
-colleague's machine. On macOS, GitHub's runner makes the app on every change to `main`, signed ad
+colleague's machine. On macOS, GitHub's runner makes the app on every change to a program on `main`, signed ad
 hoc, not by Apple: it is being tried on a colleague's Mac, and is not published either
 ([cycle 04](docs/project/cycles/04-wholeheard-on-macos.md)).
 
