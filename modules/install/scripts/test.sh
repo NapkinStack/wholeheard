@@ -51,7 +51,9 @@ check("Wholeheard takes Summit's place: the rpm obsoletes it, the .deb breaks an
 # here by the same mac/info.py, and read.
 mac = sys.argv[4]
 macbuild = open(os.path.join(mac, "build.sh"), encoding="utf-8").read()
-for program in ("shell/wholeheard", "capture/wholeheard-capture", "transcription/wholeheard-transcription", "summary/wholeheard-summary"):
+for program in ("shell/wholeheard", "capture/wholeheard-capture", "transcription/wholeheard-transcription", "summary/wholeheard-summary",
+                # Apple's SpeechAnalyzer, through transcription's Swift program (D42, ADR-0012).
+                "transcription/wholeheard-speech"):
     check(f"{program.split('/')[1]} in Contents/MacOS, beside the others", program in macbuild)
 each, bundle = "codesign --force --sign - \"$program\"", "codesign --force --sign - \"$app\""
 check("signed ad hoc, each program then the bundle, last of all: its seal covers what is in it",
