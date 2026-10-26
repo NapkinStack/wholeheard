@@ -1,0 +1,113 @@
+---
+goal: "On a Mac, the colleague opens Wholeheard from one app the forge made, and records a real call with it — both sides, nothing added to the Mac"
+status: proposed          # proposed | accepted | closed | stopped — the decider accepts
+appetite_weeks: 1         # the time the decider WANTS to spend, not an estimate
+start: 2026-11-07         # YYYY-MM-DD
+end: 2026-11-14           # start + appetite: the first day the cycle is over — the circuit breaker
+deliverables:
+  - id: D38
+    title: "On a Mac, Wholeheard opens from one app the forge made, its four programs inside it"
+    module: install
+    state: proposed
+    acceptance:
+      - "Given a run of the macOS workflow on main, or one started by hand, when it ends, then it leaves one artifact, Wholeheard-<version>-macos-arm64.zip, holding Wholeheard.app: wholeheard and the three programs side by side in Contents/MacOS, and an Info.plist naming the application, its version, and the sentences macOS shows when it asks for the microphone and for the sound the Mac plays"
+      - "Given that zip on the colleague's Mac — an Apple chip, macOS 14.6 or later — when they open the app as an unsigned one is opened (right-click, Open), then Wholeheard's icon is in the menu bar and its window opens from it, with nothing installed before it and no terminal"
+      - "Given a first recording started from the menu bar, when macOS asks for the microphone and for the sound the Mac plays, then it names Wholeheard and shows the Info.plist's sentences — never the Terminal"
+  - id: D39
+    title: "Spike — does a real call recorded on a Mac hold both sides, with nothing added to the Mac?"
+    module: capture
+    state: proposed
+    acceptance:
+      - "Given D38's app on the colleague's Mac, when they record a real call of at least five minutes with it, then the cycle records, for each track — local, the microphone; remote, what the Mac plays: whether it holds the call's speech, its sample rate and channels, its gaps of zeros, and what macOS asked before it recorded"
+      - "Given that record, when it is read against the threshold — both tracks hold the call's speech —, then ADR-0002's criterion is met for macOS; below it, what was missing — a permission, a device, the system's interface — is recorded for the next framing. A refuted result is a delivered one"
+---
+
+# Cycle 04 — Wholeheard on macOS
+
+> The framework's words: `.nstack/handbook/glossary.md`.
+
+> Framed on 2026-10-26 on the decider's word ("oui, cadre le build macOS"): after cycle 03, one
+> week. Proposed: its `start` and `end` move to the day it is accepted, once cycle 03 is closed.
+
+## Goal
+
+The charter's second criterion starts the day Wholeheard installs on the colleagues' machines;
+nothing installs on a Mac today. Since #416 and #417 the four programs compile there on GitHub's
+runners (`cargo check`, macOS 26 arm64), free since the repository is public (PDR-0002). This
+cycle turns them into an app the colleague opens, and tries the one thing a Mac might refuse:
+recording what it plays.
+
+```mermaid
+flowchart LR
+    W["macOS workflow<br/>GitHub's runner"]:::forge --> A["Wholeheard.app<br/>four programs, Info.plist"]:::d38
+    A --> M["The colleague's Mac<br/>right-click, Open"]:::person
+    M --> R["A real call recorded<br/>local · remote"]:::d39
+    R --> K["Recorded against<br/>the threshold"]:::out
+    classDef forge fill:#374151,color:#fff
+    classDef d38 fill:#065f46,color:#fff
+    classDef person fill:#1e3a8a,color:#fff
+    classDef d39 fill:#92400e,color:#fff
+    classDef out fill:#4b5563,color:#fff
+```
+
+**Legend** — dark grey: the forge · green: D38 · blue: the colleague · amber: D39 · grey: what
+the cycle records.
+
+## Deliverables
+
+### D38
+
+- The shell already finds the other programs beside its own executable (`program()`,
+  `modules/shell/src/main.rs`): side by side in `Contents/MacOS`, they are found with nothing
+  changed.
+- Built on GitHub's macOS runner, never here: a Mac's app cannot be made in a Linux container
+  (ADR-0002: "Windows and macOS are built by the forge"). How the app is put together — Tauri's
+  bundler, or install assembling the folder from each module's release as ADR-0006 does for the
+  rpm — is an ADR of install's, its prior art read first.
+- Not signed by Apple: macOS stops it the first time, and right-click, Open lets it through.
+  Signing is PDR-0001's open question, out of this cycle.
+- The artifact is kept 7 days on the run, the shortest a colleague needs: see *Open questions*.
+
+### D39
+
+- cpal 0.18.2, which capture records with, says it records "system audio output on macOS >
+  14.6" (its CHANGELOG): capture's code may need nothing. Not tried yet.
+- Run by the colleague, on their call: nothing of it is published (rule of the project); the
+  cycle records the counts, never the audio or its words.
+
+## Dependency with a date
+
+- **The colleague on macOS**, for D38's second and third criteria and for D39: one session of
+  an hour by 2026-11-12, the app ready by 2026-11-10. The cycle does not hold it: missed, the
+  deliverables stay where they are at the end date.
+
+## Out of scope
+
+- Apple's signing and notarisation, a `.dmg`, the App Store.
+- Intel Macs, macOS before 14.6.
+- Windows.
+- Anything of the window or of the settings made for macOS beyond opening.
+
+## Later
+
+- The transcript and the minutes of D39's call made on the Mac, the engine on its graphics card
+  (Metal), and how long it takes against the call: narrowed out by the decider's appetite (one
+  week, 2026-10-26). The charter's second criterion — two weeks of meetings on the Mac — needs it.
+- macOS's own transcription engine (SpeechAnalyzer), against Whisper.
+- A refusal of macOS's trash said by its cause: today it is said as *other* (#417).
+
+## Open questions
+
+**Blocking:** none.
+
+**Not blocking:**
+- Is a run's artifact a build "published for people outside the project" (PDR-0002, decision
+  2), which makes capture `critical` first? On a public repository any signed-in GitHub user can download it ([GitHub Docs, *Downloading workflow artifacts*](https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-workflow-runs/downloading-workflow-artifacts), not read again here).
+  The framer's proposal: no — no release, no link given outside the project, kept 7 days; the
+  first Copr, PPA or Mac download page is. *(framer, to confirm)*
+
+## Closure
+
+<Written at the end.>
+
+**Documents brought current:** <at the closure>

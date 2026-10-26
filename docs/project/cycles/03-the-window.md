@@ -837,7 +837,7 @@ no warning nor error. Not seen by that trial: the list in both themes, and a rea
   the list changes faster than the releases.
 - Recording by itself when an application takes the microphone, and stopping when it lets it go
   (board 6); the offer is D30.
-- Windows and macOS, with the two colleagues.
+- Windows and macOS, with the two colleagues. macOS framed as [cycle 04](04-wholeheard-on-macos.md), proposed on 2026-10-26.
 - `export`, with `all`.
 - Compressing the tracks without loss (cycle 02, D9: it halves their weight).
 - An online service for the transcription (narrowed out of D20).
