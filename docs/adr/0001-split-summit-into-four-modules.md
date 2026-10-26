@@ -1,6 +1,7 @@
 # ADR-0001 — Split Summit into four modules, one per step
 
 - **Status**: Accepted
+- **Read on 2026-10-26, a review of the documents; cycle 02's closure, its date, did not read it**: Met. `platform` runs `transcription` alone on imported sessions — SUMM-RE's real meetings, written as sessions (`modules/platform`, *Real meetings*) — with no change in another module; no pull request merged by cycle 02's closure carried `cross-module` (0 of 182; 2 of 337 by 2026-10-26).
 - **Date**: 2026-10-12
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: project

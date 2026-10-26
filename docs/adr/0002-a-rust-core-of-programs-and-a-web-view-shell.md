@@ -1,6 +1,7 @@
 # ADR-0002 — A Rust core of programs that run alone, and a web-view shell that starts them
 
 - **Status**: Accepted
+- **Read on 2026-10-26, a day before its date, a review of the documents; cycle 01's closure (stopped 2026-10-13) did not read it**: Not met by its date, the cycle it names having stopped. D3 was deferred at cycle 01's closure and its criteria were held on Fedora by D9 in cycle 02; the capture's sound holds no branch for one system — it prefers PipeWire's host where there is one, and asks `pw-metadata` for a device's name, going on without either —, while its log folder follows each system's place (`modules/capture/src/log.rs`, D29, #278), written before any Mac build. macOS: the capture builds there with no line added since (#416); a real call is cycle 04's D39 (#426), where this record is read again. Windows: no build, not framed.
 - **Date**: 2026-10-12
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: project
