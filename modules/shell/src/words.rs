@@ -165,6 +165,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
             "Le son de la réunion n’est plus enregistré pour l’instant",
             "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.",
         ),
+        (Said::Nothing, _) => return sends_nothing(None, language),
         (Said::Silent(Source::Me), English) => (
             "No sound from your microphone",
             "Nothing was heard for ten seconds. The recording goes on.",
@@ -1368,6 +1369,8 @@ pub fn transcript_kept_beside(language: Language, name: &str, not_put_back: bool
 #[derive(Debug, Default)]
 pub struct Sides {
     gone: [bool; 2],
+    /// What each side is recorded from, to name a microphone that sends nothing.
+    devices: crate::recording::Devices,
 }
 
 impl Sides {
@@ -1375,7 +1378,11 @@ impl Sides {
     /// says the other is still recorded only when it is; one back after none is recorded again.
     pub fn told(&mut self, said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         let side = |source: &Source| usize::from(*source == Source::Others);
+        self.devices.heard(said);
         match said {
+            // None left, it was said: the zeros the recording keeps in its place are no news.
+            Said::Nothing if self.gone[0] => return None,
+            Said::Nothing => return sends_nothing(self.devices.names()[0].as_deref(), language),
             Said::Unavailable(source, _) => self.gone[side(source)] = true,
             Said::Lost(source) => {
                 self.gone[side(source)] = true;
@@ -1391,6 +1398,25 @@ impl Sides {
         }
         of(said, reminder, language)
     }
+}
+
+/// The microphone sends nothing at all (#361): named when the recording said which one it is.
+fn sends_nothing(name: Option<&str>, language: Language) -> Option<Notice> {
+    let body = match (name, language) {
+        (Some(name), Language::English) => format!(
+            "Nothing at all has come from {name} for ten seconds, not even a room’s faint noise: check it is not muted on the device itself, and that it is ready. The recording goes on."
+        ),
+        (None, Language::English) => "Nothing at all has come from your microphone for ten seconds, not even a room’s faint noise: check it is not muted on the device itself, and that it is ready. The recording goes on.".to_string(),
+        (Some(name), Language::French) => format!(
+            "Rien du tout n’arrive du micro {name} depuis dix secondes, pas même le léger bruit d’une pièce\u{a0}: vérifiez qu’il n’est pas coupé sur l’appareil lui-même, et qu’il est prêt. L’enregistrement continue."
+        ),
+        (None, Language::French) => "Rien du tout n’arrive de votre micro depuis dix secondes, pas même le léger bruit d’une pièce\u{a0}: vérifiez qu’il n’est pas coupé sur l’appareil lui-même, et qu’il est prêt. L’enregistrement continue.".to_string(),
+    };
+    let title = match language {
+        Language::English => "Your microphone sends nothing",
+        Language::French => "Votre micro ne transmet rien",
+    };
+    notice(title, body)
 }
 
 /// A side with no device left while the other is still recorded.

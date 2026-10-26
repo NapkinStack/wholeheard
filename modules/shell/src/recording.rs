@@ -30,6 +30,10 @@ pub enum Said {
     Started(PathBuf, Option<String>, Option<String>),
     /// A source has given no sound for a while.
     Silent(Source),
+    /// The microphone has sent nothing at all for a while, exact zeros — muted on the device
+    /// itself, or not ready — which no quiet room gives (#361). An output sends exact zeros
+    /// whenever nothing plays: the meeting's side stays `Silent`.
+    Nothing,
     /// A source that was silent gives sound again.
     Heard(Source),
     /// How loud a source is now, from 0 to 1, for a meter.
@@ -64,7 +68,10 @@ pub fn read(line: &str) -> Option<Said> {
             event["sources"]["me"].as_str().and_then(device),
             event["sources"]["others"].as_str().and_then(device),
         )),
-        "silent" => Some(Said::Silent(source()?)),
+        "silent" => match source()? {
+            Source::Me if event["nothing"] == true => Some(Said::Nothing),
+            source => Some(Said::Silent(source)),
+        },
         "heard" => Some(Said::Heard(source()?)),
         // Another device, or none: a name, or null — anything else is no event (recording/v1).
         "device" => match &event["device"] {
