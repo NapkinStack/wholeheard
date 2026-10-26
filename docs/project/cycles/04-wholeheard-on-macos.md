@@ -8,7 +8,7 @@ deliverables:
   - id: D38
     title: "On a Mac, Wholeheard opens from one app the forge made, its four programs inside it"
     module: install
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a run of the macOS workflow on main, or one started by hand, when it ends, then it leaves one artifact, Wholeheard-<version>-macos-arm64.zip, holding Wholeheard.app: wholeheard and the three programs side by side in Contents/MacOS, and an Info.plist naming the application, its version, and the sentences macOS shows when it asks for the microphone and for the sound the Mac plays; the bundle signed ad hoc, `codesign --verify --deep --strict` passing on it"
       - "Given that zip on the colleague's Mac — an Apple chip, macOS later than 14.6 — when they open the app as macOS lets an unsigned one open (System Settings → Privacy & Security → Open Anyway), then Wholeheard's icon is in the menu bar and its window opens from it, with nothing installed before it and no terminal"
@@ -86,6 +86,23 @@ the cycle records.
   plays included, is assumed, not tried: D38's third criterion says it.
 - The artifact is kept 7 days on the run, the shortest a colleague needs: see *Open questions*.
 
+**Built, each pull request verified by an independent session (2026-10-26).** The oracle first:
+the macOS workflow's job *the app* runs `nstack release` on GitHub's runner and reads D38's first
+criterion on the zip itself (#423) — red, on transcription's Vulkan; transcription released on a
+Mac on the processor (#424) — red, on install's `/etc/os-release`; install assembles
+`Wholeheard.app`, its Info.plist in English and French, signed ad hoc, zipped (#425, ADR-0006
+amended) — green. `main`'s run 40264092320 keeps `wholeheard-macos-arm64` (11 MB) until
+2026-11-02.
+
+**Offered for acceptance** — its acceptance issue, with D39's:
+[#426](https://github.com/NapkinStack/wholeheard/issues/426), the colleague on macOS.
+
+| Criterion | Where it stands |
+|---|---|
+| One zip from the macOS workflow: the four programs in `Contents/MacOS`, an Info.plist naming the application, its version and the two sentences, signed ad hoc, `codesign --verify --deep --strict` passing | Holds — judged on every run of the job *the app*, on `main` since a8b5892 |
+| Opened on the colleague's Mac through Open Anyway: the icon in the menu bar, the window, no terminal | The trial (#426) |
+| macOS asks for the microphone and the sound the Mac plays naming Wholeheard, with the Info.plist's sentences | The trial (#426) |
+
 ### D27
 
 **Moved from [cycle 03](03-the-window.md#d27) on the decider's word, 2026-10-26** (their
@@ -101,6 +118,8 @@ dependency with a date, as D39's: by 2026-10-31.
 - Run by the colleague, on their call: nothing of it is published (rule of the project); the
   cycle records the counts, never the audio or its words.
 
+
+Its trial: [#426](https://github.com/NapkinStack/wholeheard/issues/426), after D38's, on the same Mac.
 ## Dependency with a date
 
 - **The colleague on Ubuntu 24.04**, for D27: the trial of #255 by 2026-10-31 (the framer's
