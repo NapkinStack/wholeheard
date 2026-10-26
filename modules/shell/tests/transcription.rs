@@ -9,13 +9,17 @@ use wholeheard_shell::transcription::{Hearer, Made, Transcription};
 /// The end of a transcript made by a script — a test that waits ten seconds has failed. One
 /// at a time: a script still open for writing while another starts cannot be run.
 fn made(folder: &Path, script: &str) -> (Transcription, std::sync::mpsc::Receiver<Made>) {
+    made_by(folder, script, &Hearer::Model(Path::new("/models/ggml.bin").to_path_buf()))
+}
+
+/// The same, heard by `hearer` (#459: every script of this file is written and started here).
+fn made_by(folder: &Path, script: &str, hearer: &Hearer) -> (Transcription, std::sync::mpsc::Receiver<Made>) {
     static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
     let _held = ONE_AT_A_TIME.lock().unwrap();
     let path = folder.join("wholeheard-transcription");
     fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    let model = Hearer::Model(Path::new("/models/ggml.bin").to_path_buf());
-    Transcription::start(&path, &folder.join("session"), &model).unwrap()
+    Transcription::start(&path, &folder.join("session"), hearer).unwrap()
 }
 
 fn end(made: &std::sync::mpsc::Receiver<Made>) -> Made {
@@ -126,15 +130,12 @@ fn apple_s_speechanalyzer_is_asked_for_by_name_in_the_language_of_the_interface(
     let folder = tempfile::tempdir().unwrap();
     fs::create_dir(folder.path().join("session")).unwrap();
     let asked = folder.path().join("asked");
-    let path = folder.path().join("wholeheard-transcription");
-    fs::write(
-        &path,
-        format!("#!/bin/sh\necho \"$@\" > '{}'\ntouch \"$1/transcript.jsonl\"\n", asked.display()),
-    )
-    .unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     let hearer = Hearer::SpeechAnalyzer { language: "fr".into() };
-    let (_running, made) = Transcription::start(&path, &folder.path().join("session"), &hearer).unwrap();
+    let (_running, made) = made_by(
+        folder.path(),
+        &format!("echo \"$@\" > '{}'\ntouch \"$1/transcript.jsonl\"", asked.display()),
+        &hearer,
+    );
     assert!(matches!(end(&made), Made::Written(_)));
     let said = fs::read_to_string(&asked).unwrap();
     assert!(said.trim().ends_with("--engine speechanalyzer --language fr"), "{said}");
