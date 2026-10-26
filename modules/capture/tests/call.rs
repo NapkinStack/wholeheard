@@ -150,3 +150,23 @@ fn a_graph_with_no_default_follows_the_one_output_the_call_plays_on() {
     without.retain(|object| object["type"] != "PipeWire:Interface:Metadata");
     assert_eq!(read(without).unwrap().map(|output| output.name), Some("bluez_earbuds".into()));
 }
+
+#[test]
+fn a_stream_says_its_process_through_its_client_when_it_does_not_itself() {
+    // A native PipeWire client — pw-loopback, cpal — names its process on the client alone.
+    let client = |id: u64, pid: u64| json!({ "id": id, "type": "PipeWire:Interface:Client", "info": { "props": { "application.process.id": pid, "pipewire.sec.pid": pid } } });
+    let mut native = graph(&[136]);
+    for object in &mut native {
+        let props = &mut object["info"]["props"];
+        if let Some(pid) = props.get("application.process.id").and_then(Value::as_u64) {
+            let owner = if pid == OURS { 71 } else { 70 };
+            props.as_object_mut().unwrap().remove("application.process.id");
+            props["client.id"] = owner.into();
+        }
+    }
+    native.push(client(70, 143));
+    native.push(client(71, OURS));
+    let dump = Value::Array(native.clone()).to_string();
+    assert_eq!(read(native).unwrap().map(|output| output.name), Some("bluez_earbuds".into()));
+    assert_eq!(call::remote_stream(&dump, OURS), Some(500));
+}

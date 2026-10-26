@@ -271,7 +271,7 @@ WHOLEHEARD_TRACE=e2e-k "$bin" record "$work/v2-call" --as v2 > "$work/k.events" 
 recorder=$!
 sleep 3; pw-play --target wholeheard_e2e_mic "$work/1100.wav"   # heard by the call, played on its output
 # The call goes back to the default output: so does the remote side, within two seconds.
-playing=$(pw-dump | python3 -c 'import json,sys; print(next(n["id"] for n in json.load(sys.stdin) if n["type"].endswith("Node") and n["info"]["props"].get("media.class") == "Stream/Output/Audio" and str(n["info"]["props"].get("application.process.id")) == sys.argv[1]))' "$call")
+playing=$(python3 scripts/e2e_measure_v2.py playing "$call")
 pw-metadata -n default "$playing" target.object wholeheard_e2e_out > /dev/null
 sleep 3; pw-play --target wholeheard_e2e_call "$work/660.wav"   # on the output the call left: not the remote side's
 sleep 1; pw-play --target wholeheard_e2e_out "$work/440.wav"

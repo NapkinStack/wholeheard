@@ -159,6 +159,17 @@ def stream(pid, name):
     raise AssertionError(f"the recorder has no stream for {name}")
 
 
+def playing(pid):
+    """A process's playing stream: its client names the process, the node does not always."""
+    dump = json.loads(subprocess.run(["pw-dump"], capture_output=True, text=True, check=True).stdout)
+    props = lambda thing: thing["info"]["props"]
+    clients = [thing["id"] for thing in dump if thing["type"].endswith("Client") and str(props(thing).get("pipewire.sec.pid")) == str(pid)]
+    for thing in dump:
+        if thing["type"].endswith("Node") and props(thing).get("client.id") in clients and props(thing).get("media.class") == "Stream/Output/Audio":
+            return thing["id"]
+    raise AssertionError(f"process {pid} has no playing stream")
+
+
 def notes(one):
     """The note each whole second of a track holds, in Hz — 0 for a second of silence."""
     rate, first, found = one["rate"], one["first"], []
@@ -252,6 +263,9 @@ def main(what, folder, *args):
         return followed(folder, *args)
     if what == "moves-said":
         return moves_said(folder, *args)
+    if what == "playing":
+        # Not a measure: the stand-in call's playing stream, as the sound server numbers it.
+        return print(playing(int(folder)))
     if what == "call-followed":
         return call_followed(folder, *args)
     read = session(folder)

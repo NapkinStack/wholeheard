@@ -81,6 +81,17 @@ impl Graph {
             links: Vec::new(),
             default_sink: None,
         };
+        // A native client names its process on the client alone (pw-loopback, cpal's streams).
+        let number = |value: &Value| value.as_u64().or_else(|| value.as_str()?.parse().ok());
+        let clients: HashMap<u64, u64> = objects
+            .iter()
+            .filter(|object| object["type"] == "PipeWire:Interface:Client")
+            .filter_map(|object| {
+                let props = &object["info"]["props"];
+                let process = number(&props["application.process.id"]).or_else(|| number(&props["pipewire.sec.pid"]));
+                Some((object["id"].as_u64()?, process?))
+            })
+            .collect();
         for object in &objects {
             let id = object["id"].as_u64();
             match (object["type"].as_str(), id) {
@@ -94,9 +105,9 @@ impl Graph {
                             name: text("node.name").unwrap_or_default(),
                             description: text("node.description"),
                             // A number in `pw-dump`; a text in some versions of the properties.
-                            process: props["application.process.id"]
-                                .as_u64()
-                                .or_else(|| props["application.process.id"].as_str()?.parse().ok()),
+                            // A number in `pw-dump`, a text in some versions; else its client's.
+                            process: number(&props["application.process.id"])
+                                .or_else(|| clients.get(&number(&props["client.id"])?).copied()),
                             records_an_output: matches!(&props["stream.capture.sink"], Value::Bool(true))
                                 || props["stream.capture.sink"].as_str() == Some("true"),
                         },
