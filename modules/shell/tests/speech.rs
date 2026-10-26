@@ -2,9 +2,14 @@
 //! tried with a program played in its place: on Linux, and anywhere it is not, nothing is offered.
 #![cfg(unix)]
 
-use std::{fs, os::unix::fs::PermissionsExt, path::Path};
+use std::{fs, os::unix::fs::PermissionsExt, path::Path, sync::Mutex};
 
 use wholeheard_shell::speech::{self, Status};
+
+/// One test at a time: a script written here while another test's program is being started
+/// is held open for writing in that child until it executes, and starting it then fails
+/// with "Text file busy" (ETXTBSY) — seen once in three runs.
+static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
 fn played(folder: &Path, answer: &str) -> std::path::PathBuf {
     let program = folder.join("wholeheard-speech");
@@ -19,6 +24,7 @@ fn played(folder: &Path, answer: &str) -> std::path::PathBuf {
 
 #[test]
 fn what_the_program_says_of_a_locale_is_read() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let folder = tempfile::tempdir().unwrap();
     let program = played(folder.path(), r#"echo '{"available":true,"installed":false,"supported":true}'"#);
     assert_eq!(
@@ -33,6 +39,7 @@ fn what_the_program_says_of_a_locale_is_read() {
 
 #[test]
 fn nothing_is_offered_where_it_is_not_heard() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let folder = tempfile::tempdir().unwrap();
     for answer in [
         r#"echo '{"available":false,"installed":false,"supported":false}'"#,
@@ -50,6 +57,7 @@ fn nothing_is_offered_where_it_is_not_heard() {
 
 #[test]
 fn apple_s_model_is_installed_only_when_asked_and_its_refusal_is_said() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let folder = tempfile::tempdir().unwrap();
     let program = played(folder.path(), r#"echo '{"installed":true}'"#);
     assert_eq!(speech::install(&program, "en"), Ok(()));
