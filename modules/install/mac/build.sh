@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run on a Mac by scripts/release.sh: Wholeheard.app from the artefacts each module's release
-# left — the four programs side by side in Contents/MacOS, where the shell looks for them —, its
+# left — the four programs side by side in Contents/MacOS, where the shell looks for them, and
+# transcription's wholeheard-speech beside its own (D42) —, its
 # Info.plist and icon, signed ad hoc (an Apple chip runs nothing unsigned), zipped as macOS keeps a
 # bundle whole. Usage: build.sh <artefacts> <version> <out>
 set -euo pipefail
@@ -10,7 +11,8 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 app=$work/Wholeheard.app
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-for program in shell/wholeheard capture/wholeheard-capture transcription/wholeheard-transcription summary/wholeheard-summary; do
+for program in shell/wholeheard capture/wholeheard-capture transcription/wholeheard-transcription transcription/wholeheard-speech \
+  summary/wholeheard-summary; do
   install -m755 "$artefacts/$program" "$app/Contents/MacOS/${program#*/}"
 done
 python3 "$here/info.py" "$app" "$version"
