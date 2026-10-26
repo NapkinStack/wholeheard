@@ -48,6 +48,44 @@ jobs:
         working-directory: modules/${{ matrix.module }}
         run: cargo check --locked --all-targets
 
+  # D42's second criterion: Apple's SpeechAnalyzer through wholeheard-speech, heard on a French
+  # sentence `say` speaks. A runner that offers no SpeechTranscriber or no French voice says it was
+  # not run — as a warning, never as a pass of the criterion (ADR-0012).
+  speech:
+    name: macOS — SpeechAnalyzer
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: wholeheard-speech, built
+        working-directory: modules/transcription/speech
+        run: swift build -c release
+
+      - name: A French sentence, heard back
+        working-directory: modules/transcription/speech
+        run: |
+          program=.build/release/wholeheard-speech
+          if ! "$program" status fr-FR > status.json 2> status.err; then
+            echo "::warning::D42: not run — $(cat status.err)"; exit 0
+          fi
+          cat status.json
+          if ! grep -q '"available":true' status.json || ! grep -q '"supported":true' status.json; then
+            echo "::warning::D42: not run — this runner's SpeechTranscriber does not hear fr-FR"; exit 0
+          fi
+          voice=$(say -v '?' | awk '/fr_FR/ {print $1; exit}')
+          if [ -z "$voice" ]; then
+            echo "::warning::D42: not run — this runner has no French voice to speak the sentence"; exit 0
+          fi
+          grep -q '"installed":true' status.json || "$program" install fr-FR
+          say -v "$voice" -o sentence.aiff "Bonjour à tous, la réunion commence maintenant."
+          afconvert -f WAVE -d LEI16@16000 -c 1 sentence.aiff sentence.wav
+          "$program" transcribe sentence.wav fr-FR | tee heard.jsonl
+          grep -qi 'réunion' heard.jsonl
+          grep -q '"start"' heard.jsonl
+
   app:
     name: macOS — the app
     runs-on: macos-latest
