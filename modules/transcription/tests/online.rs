@@ -54,7 +54,11 @@ const SEGMENTS: &str = r#"{"text":"Bonjour à tous. On commence ?","segments":[{
 fn a_span_is_sent_as_the_audio_route_asks_and_its_segments_are_the_span_s() {
     let (address, asked) = served(200, SEGMENTS);
     let mut service = Service::new(&address, "whisper-large-v3", Some("a-key-of-the-test")).unwrap();
-    assert_eq!(service.name(), ("127.0.0.1".to_string(), "whisper-large-v3".to_string()));
+    assert!(
+        service.name().0.starts_with("127.0.0.1:") && service.name().1 == "whisper-large-v3",
+        "{:?}",
+        service.name()
+    );
     let heard = service
         .hear(&vec![0.25f32; RATE * 4], Some("fr"), Some("Ordre du jour : le budget."))
         .unwrap();
@@ -134,7 +138,44 @@ fn a_service_that_does_not_answer_is_said_so() {
     let address = format!("http://{}/v1", listener.local_addr().unwrap());
     drop(listener);
     let mut service = Service::new(&address, "a-model", None).unwrap();
-    assert!(service.hear(&vec![0.25f32; RATE], None, None).is_err());
+    let error = service.hear(&vec![0.25f32; RATE], None, None).unwrap_err().to_string();
+    assert!(error.contains("could not be reached") && !error.contains('\n'), "{error}");
+}
+
+#[test]
+fn a_service_that_sends_the_span_elsewhere_is_not_followed() {
+    for status in [301, 302, 307, 308] {
+        let (address, _asked) = served(status, r#"{"error":"moved"}"#);
+        let mut service = Service::new(&address, "a-model", None).unwrap();
+        assert!(
+            service
+                .hear(&vec![0.25f32; RATE], None, None)
+                .unwrap_err()
+                .to_string()
+                .contains(&status.to_string()),
+            "{status}"
+        );
+    }
+}
+
+#[test]
+fn a_segment_of_no_words_is_left_out_and_one_ended_before_it_began_refused() {
+    let (address, _asked) = served(
+        200,
+        r#"{"segments":[{"start":0.0,"end":0.5,"text":" "},{"start":0.5,"end":1.0,"text":"Oui."}]}"#,
+    );
+    let heard = Service::new(&address, "a-model", None)
+        .unwrap()
+        .hear(&vec![0.25f32; RATE], None, None)
+        .unwrap();
+    assert_eq!(heard.iter().map(|segment| segment.text.as_str()).collect::<Vec<_>>(), ["Oui."]);
+    let (address, _asked) = served(200, r#"{"segments":[{"start":2.0,"end":1.0,"text":"Non."}]}"#);
+    assert!(
+        Service::new(&address, "a-model", None)
+            .unwrap()
+            .hear(&vec![0.25f32; RATE], None, None)
+            .is_err()
+    );
 }
 
 #[test]
@@ -172,8 +213,9 @@ fn the_program_writes_the_transcript_from_the_service_its_host_in_the_header() {
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let transcript = std::fs::read_to_string(folder.path().join("transcript.jsonl")).unwrap();
     let header: serde_json::Value = serde_json::from_str(transcript.lines().next().unwrap()).unwrap();
-    assert_eq!(
-        (header["engine"].as_str(), header["model"].as_str()),
-        (Some("127.0.0.1"), Some("whisper-large-v3"))
+    // The service's host with its port, and its model, as who heard.
+    assert!(
+        header["engine"].as_str().is_some_and(|engine| engine.starts_with("127.0.0.1:")) && header["model"] == "whisper-large-v3",
+        "{header}"
     );
 }

@@ -31,14 +31,15 @@ impl Service {
         }
         let uri = format!("{}/audio/transcriptions", address.trim_end_matches('/'));
         let typed: Uri = uri.parse().map_err(|_| "the service's address is not an address".to_string())?;
-        let (Some("http" | "https"), Some(host)) = (typed.scheme_str(), typed.host()) else {
+        let (Some("http" | "https"), Some(authority)) = (typed.scheme_str(), typed.authority()) else {
             return Err("the service's address must start with http:// or https:// and name a host".into());
         };
         if model.trim().is_empty() {
             return Err("a model is named for the service".into());
         }
         Ok(Service {
-            host: host.to_string(),
+            // With its port: two services of one host are two hearers, never one transcript continued.
+            host: authority.as_str().to_string(),
             uri,
             model: model.to_string(),
             key: key.filter(|key| !key.is_empty()).map(str::to_string),
@@ -122,6 +123,8 @@ impl Service {
         };
         segments
             .iter()
+            // A segment of no words is no segment, as Whisper's own are left out.
+            .filter(|segment| segment["text"].as_str().is_none_or(|text| !text.trim().is_empty()))
             .map(
                 |segment| match (segment["start"].as_f64(), segment["end"].as_f64(), segment["text"].as_str()) {
                     (Some(start), Some(end), Some(text)) if start <= end => Ok(Segment {
