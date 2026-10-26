@@ -1,7 +1,7 @@
 # ADR-0003 — Transcribe behind one interface, with a native Whisper on the graphics card for Fedora
 
 - **Status**: Accepted
-- **Read on 2026-10-26, a day before its date, a review of the documents; cycle 01's closure (stopped 2026-10-13) did not read it**: Half met. This engine is the step's on Fedora — D4 deferred at cycle 01's closure, its transcript accepted with D10 in cycle 02. No second engine was added: `Whisper` is the one implementation of `Engine` (`modules/transcription/src/step.rs`). The interface is untried by a second; the fallback waits for one.
+- **Read on 2026-10-26, a day before its date, a review of the documents; cycle 01's closure (stopped 2026-10-13) did not read it**: Half met. This engine is the step's on Fedora — D4 deferred at cycle 01's closure, its transcript accepted with D10 in cycle 02. No second engine was added: `Whisper` is the product's one implementation of `Engine`, beside the tests' doubles (`modules/transcription/src/step.rs`). The interface is untried by a second; the fallback waits for one.
 - **Date**: 2026-10-13
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: module `transcription`
