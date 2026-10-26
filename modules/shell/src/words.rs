@@ -1380,6 +1380,8 @@ impl Sides {
         let side = |source: &Source| usize::from(*source == Source::Others);
         self.devices.heard(said);
         match said {
+            // None left, it was said: the zeros the recording keeps in its place are no news.
+            Said::Nothing if self.gone[0] => return None,
             Said::Nothing => return sends_nothing(self.devices.names()[0].as_deref(), language),
             Said::Unavailable(source, _) => self.gone[side(source)] = true,
             Said::Lost(source) => {
@@ -1402,13 +1404,13 @@ impl Sides {
 fn sends_nothing(name: Option<&str>, language: Language) -> Option<Notice> {
     let body = match (name, language) {
         (Some(name), Language::English) => format!(
-            "Nothing at all has come from {name} for ten seconds, not even a room’s faint noise: it may be muted on the device itself, or not ready yet. The recording goes on."
+            "Nothing at all has come from {name} for ten seconds, not even a room’s faint noise: check it is not muted on the device itself, and that it is ready. The recording goes on."
         ),
-        (None, Language::English) => "Nothing at all has come from your microphone for ten seconds, not even a room’s faint noise: it may be muted on the device itself, or not ready yet. The recording goes on.".to_string(),
+        (None, Language::English) => "Nothing at all has come from your microphone for ten seconds, not even a room’s faint noise: check it is not muted on the device itself, and that it is ready. The recording goes on.".to_string(),
         (Some(name), Language::French) => format!(
-            "Rien du tout n’arrive de {name} depuis dix secondes, pas même le léger bruit d’une pièce\u{a0}: il est peut-être coupé sur l’appareil lui-même, ou pas encore prêt. L’enregistrement continue."
+            "Rien du tout n’arrive du micro {name} depuis dix secondes, pas même le léger bruit d’une pièce\u{a0}: vérifiez qu’il n’est pas coupé sur l’appareil lui-même, et qu’il est prêt. L’enregistrement continue."
         ),
-        (None, Language::French) => "Rien du tout n’arrive de votre micro depuis dix secondes, pas même le léger bruit d’une pièce\u{a0}: il est peut-être coupé sur l’appareil lui-même, ou pas encore prêt. L’enregistrement continue.".to_string(),
+        (None, Language::French) => "Rien du tout n’arrive de votre micro depuis dix secondes, pas même le léger bruit d’une pièce\u{a0}: vérifiez qu’il n’est pas coupé sur l’appareil lui-même, et qu’il est prêt. L’enregistrement continue.".to_string(),
     };
     let title = match language {
         Language::English => "Your microphone sends nothing",

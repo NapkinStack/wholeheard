@@ -119,7 +119,10 @@ fn a_microphone_that_sends_nothing_is_told_from_one_that_hears_no_sound_and_name
     let nothing = sides.told(&Said::Nothing, false, Language::French).unwrap();
     assert_eq!(nothing.title, "Votre micro ne transmet rien");
     assert!(
-        nothing.body.contains("Earbuds") && nothing.body.ends_with("L’enregistrement continue."),
+        nothing.body.contains("du micro Earbuds")
+            && nothing.body.contains("pièce\u{a0}: vérifiez")
+            && !nothing.body.contains('\'')
+            && nothing.body.ends_with("L’enregistrement continue."),
         "{}",
         nothing.body
     );
@@ -133,6 +136,9 @@ fn a_microphone_that_sends_nothing_is_told_from_one_that_hears_no_sound_and_name
         nothing.title,
         nothing.body
     );
+    // No microphone left, said so: the zeros kept in its place are no news.
+    sides.told(&Said::Lost(Source::Me), false, Language::French);
+    assert_eq!(sides.told(&Said::Nothing, false, Language::French), None);
     // Named by nothing: the microphone, in so many words.
     let (title, body) = told(&Said::Nothing, false, Language::English);
     assert!(
