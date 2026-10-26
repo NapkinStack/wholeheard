@@ -624,7 +624,13 @@ function transcriptCard(read, words, session) {
   });
   // Beside who heard it, as board 2 has it: the head keeps its search whole.
   const heard = element("div", "made");
-  heard.append(element("p", "maker", fill(words.heard_by, read.model ? spoken(read.model) : read.engine || "—")), redo);
+  // A service names its host as who heard (D43): said as the minutes' maker is, never « on this
+  // computer »; this computer's engines — whisper.cpp, SpeechAnalyzer, a stand-in — keep heard_by.
+  const service = read.engine && !["whisper.cpp", "SpeechAnalyzer"].includes(read.engine) && /[.:]/.test(read.engine);
+  const heardSaid = service
+    ? fill(words.written_by, read.model || "—") + fill(words.written_via, read.engine)
+    : fill(words.heard_by, read.model ? spoken(read.model) : read.engine || "—");
+  heard.append(element("p", "maker", heardSaid), redo);
   card.append(heard);
   if (!read.complete) card.append(element("p", "note", words.being_made));
   if (read.unread > 0) card.append(element("p", "note", fill(words.unread, read.unread)));

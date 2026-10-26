@@ -585,6 +585,12 @@ def service_named(now: dt.datetime) -> None:
     print("Z. Settings: a service named to hear, its host agreed to before anything is sent (D43)")
     meetings = WORK / "service"
     meetings.mkdir()
+    # A meeting a service heard: its header names the service's host as the engine.
+    session(meetings / "heard", dt.datetime.now().astimezone() - dt.timedelta(hours=1), 2, {"local.wav": 1000})
+    (meetings / "heard" / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"api.groq.com","model":"whisper-large-v3","language":"fr","context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","voice":null,"start":0.5,"end":1.5,"text":"Bonjour."}\n{"type":"complete","duration":2.0}\n'
+    )
     window = Window(meetings, "fr_FR.UTF-8")
     said = "return document.getElementById('transcription-said')?.innerText || ''"
     with window as browser:
@@ -624,6 +630,14 @@ def service_named(now: dt.datetime) -> None:
         browser.find_element(By.ID, "transcription-test").click()
         tested = wait_for(browser, lambda b: b.execute_script(said) and "Enregistré" not in b.execute_script(said), 10)
         check("Tester says in one sentence what the service answered", tested, browser.execute_script(said))
+        # Who heard a meeting, said where it is read: the service's host, never « sur cet ordinateur ».
+        browser.execute_script("location.hash = '#/meeting/heard'")
+        makers = lambda b: [p.text for p in b.find_elements(By.CSS_SELECTOR, "#meeting .maker")]
+        named = wait_for(browser, lambda b: "Écrit par whisper-large-v3, via api.groq.com" in makers(b), 5)
+        check("a meeting a service heard names the service, never this computer", named and not any("sur cet ordinateur" in m for m in makers(browser)), makers(browser))
+        browser.execute_script("location.hash = '#/settings'")
+        note = wait_for(browser, lambda b: "reçoit le son de vos réunions" in b.find_element(By.ID, "settings").text, 5)
+        check("Settings say a transcription service receives the meetings' sound", note and "L’audio ne quitte jamais" not in browser.find_element(By.ID, "settings").text)
 
 
 def ollama_pulled(now: dt.datetime) -> None:
