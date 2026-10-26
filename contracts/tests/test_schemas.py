@@ -134,8 +134,9 @@ def test_the_comparator_refuses_a_schemas_breaks_wherever_they_are(path, tmp_pat
 
 
 # The fields a page says may be absent: `stopped`, while a session is recording; a segment's
-# `track` and `voice`, in a transcript written before they were.
-OPTIONAL = {"stopped", "track", "voice"}
+# `track` and `voice`, in a transcript written before they were; a `silent`'s `nothing`, said by
+# a capture that knows it (#361).
+OPTIONAL = {"stopped", "track", "voice", "nothing"}
 SHOWN_AS_LINES = {
     "transcript/v1/line.schema.json",
     "recording/v1/event.schema.json",
