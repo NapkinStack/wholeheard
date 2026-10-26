@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path};
 
-use wholeheard_shell::settings::{After, KeepAudio, Log, Settings, Window, file, read, whisper_models, write};
+use wholeheard_shell::settings::{After, Engine, KeepAudio, Log, Settings, Window, file, read, whisper_models, write};
 
 fn written(text: &str) -> Result<Settings, String> {
     let folder = tempfile::tempdir().unwrap();
@@ -413,4 +413,23 @@ fn wholeheard_opens_the_window_it_was_left_in_the_small_one_first() {
     let text = fs::read_to_string(&path).unwrap();
     assert!(text.contains("# mine") && text.contains("window = \"full\""), "{text}");
     assert_eq!(read(&path).unwrap().window, Window::Full);
+}
+
+#[test]
+fn who_hears_is_whisper_unless_the_file_names_apple_s_speechanalyzer() {
+    assert_eq!(Settings::default().engine, Engine::Whisper);
+    assert_eq!(written("engine = \"speechanalyzer\"\n").unwrap().engine, Engine::SpeechAnalyzer);
+    assert_eq!(written("engine = \"whisper\"\n").unwrap().engine, Engine::Whisper);
+    assert!(written("engine = \"siri\"\n").is_err());
+    // Written only once it changes, and read back as it was written.
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    write(&path, &Settings::default()).unwrap();
+    assert!(!fs::read_to_string(&path).unwrap().contains("engine"));
+    let chosen = Settings {
+        engine: Engine::SpeechAnalyzer,
+        ..Settings::default()
+    };
+    write(&path, &chosen).unwrap();
+    assert_eq!(read(&path).unwrap().engine, Engine::SpeechAnalyzer);
 }

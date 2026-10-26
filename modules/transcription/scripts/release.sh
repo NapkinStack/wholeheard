@@ -9,7 +9,7 @@ target=${WHOLEHEARD_TARGET:-}
 # The processors it is built for: .cargo/config.toml, read by every build of the module.
 # On the graphics card through Vulkan where the machine has it — a tenth of the meeting's
 # length on the decider's laptop —, on the processor where it has not (ADR-0003). A Mac has no
-# Vulkan: there, the processor until its own engine is chosen (cycle 04, *Later*).
+# Vulkan: there, Whisper on the processor, and Apple's own engine beside it (D42).
 features=(--features vulkan)
 [ "$(uname -s)" = Darwin ] && features=()
 if [ -z "$target" ]; then
@@ -21,6 +21,11 @@ if [ -z "$target" ]; then
     (cd "$here" && cargo clean --release -p whisper-rs-sys && cargo build --locked --release ${features[@]+"${features[@]}"})
   fi
   cp "${CARGO_TARGET_DIR:-$here/target}/release/wholeheard-transcription" "$dist/"
+  # On a Mac, Apple's SpeechAnalyzer through a Swift program of its own, beside it (D42, ADR-0012).
+  if [ "$(uname -s)" = Darwin ]; then
+    swift build -c release --package-path "$here/speech"
+    cp "$here/speech/.build/release/wholeheard-speech" "$dist/"
+  fi
   exit 0
 fi
 recipe=$here/containers/$target.Containerfile
