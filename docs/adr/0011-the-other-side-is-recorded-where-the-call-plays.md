@@ -41,7 +41,9 @@ Which output does the remote side record, so that it holds what the call plays w
 
 ## Constraints
 
-- Linux with PipeWire, as capture is today (`host()`); macOS is D39's and its own tap.
+- Where PipeWire's tools answer (`pw-dump`, `pw-metadata`), as `metadata()` already depends on
+  them — never by the system's name (ADR-0002); elsewhere nothing changes. macOS is D39's, and its
+  own tap.
 - One stream per side, kept as delivered with the session's clock (ADR-0004): a move is a
   `device` event, never a new track.
 - Nothing of the meeting in a log (ADR-0007); nothing sent anywhere (security rule 1).
@@ -59,7 +61,7 @@ stream from one output to another by setting its `target.object` in the default 
 | Reference | What it does | Applicable here? |
 |---|---|---|
 | WirePlumber's stream linking ([*Linking policy*](https://pipewire.pages.freedesktop.org/wireplumber/policies/linking.html), read 2026-10-26) | "`target.object`: the name of the desired node for this stream to be linked with" — set on the stream, or updated in the `target.object` metadata key, WirePlumber moves the stream there; without it, the default | Yes: how capture's own stream is moved, as `pavucontrol` moves one |
-| OBS Studio's PipeWire application capture ([obs-studio, `linux-pipewire`](https://github.com/obsproject/obs-studio/tree/master/plugins/linux-pipewire), not read again here) | Records an application's sound by the nodes it plays | The idea: the call's sound by the application, not by the default |
+| OBS Studio's PipeWire audio capture — a plugin of a third party, [obs-pipewire-audio-capture](https://github.com/dimtpap/obs-pipewire-audio-capture) (README read 2026-10-26; OBS's own `linux-pipewire` holds no audio capture) | Sources for an output, an input, or an application, through WirePlumber | The idea: the call's sound found by its application, not by the default |
 | macOS Core Audio process taps ([Apple, *Capturing system audio with Core Audio taps*](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps), not read again here) | A tap on a process's output, wherever it plays | The same answer on another system: out of D41 |
 
 ---
@@ -96,6 +98,9 @@ is PipeWire either way.
   `pw-metadata`. Several, none, or the default → no target: the default, as today.
 - A target that cannot be set, or a graph that cannot be read, leaves the default and is logged
   once, as a warning.
+- The move is named by capture itself: cpal tells a change of the default only, never a move by
+  target. capture says `device` with the target's name when it sets one, and names the target,
+  not the default, while one is set.
 
 ---
 
@@ -118,8 +123,10 @@ small window shows it (D33).
 default; an application that only plays — a browser tab heard without a microphone taken — is no
 call, and is not followed.
 
-**Impacts on other modules or contracts:** none: `recording/v1`'s `device` and `session-audio/v2`'s
-changes already say a move.
+**Impacts on other modules or contracts:** no schema changes: `recording/v1`'s `device` and
+`session-audio/v2`'s changes already carry a move. `recording/v1`'s page gives `device` to another
+default or a device removed only: its prose is brought to say a move to the call's output, an
+additive correction of the contract's own pull request.
 
 **Rule to automate:** capture's e2e, a stand-in call on an output of its own that is not the default.
 
@@ -127,6 +134,9 @@ changes already say a move.
 
 ## Rejected alternatives
 
-- **Mixing every output's monitor** (option 3): two clocks in one track, and the sound of
-  anything else that plays.
+- **A second stream on the call's output, mixed** (option 3): two clocks in one track.
+- **Mixing every output's monitor**: the same, and the sound of anything else that plays.
+- **Targeting the call's own playing stream rather than its output's monitor**: the call alone,
+  without what else plays on that output — but the remote side has always been the system's mix
+  (cycle 02), and a call's playing stream comes and goes while its output stays.
 - **Asking the user to set the default themselves**: what #436 shows nobody does mid-call.

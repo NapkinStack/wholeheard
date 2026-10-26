@@ -173,6 +173,7 @@ it is the one promise the product keeps — the other side heard. The end date d
 - Linux only: on a Mac the other side is D39's, and its own tap.
 - Its trial is the decider's: #436's call again, Discord on the AirPods, the default left on the
   speaker.
+
 ## Dependency with a date
 
 - **The colleague on Ubuntu 24.04**, for D27: the trial of #255 by 2026-10-31 (the framer's
