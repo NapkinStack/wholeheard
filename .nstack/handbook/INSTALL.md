@@ -277,7 +277,7 @@ token, the GitHub part stays "not verified", never compliant.
 nstack --help        # lists the commands
 nstack fitness       # manifests + boundaries + skills + plan + hygiene — before every commit
 nstack discover <idea-file>   # starts a discovery, for your agent
-nstack plan          # the discovery, the charter and the cycles (docs/project/), then who holds what
+nstack plan          # the discovery, the charter and the cycles (docs/project/), the project across its cycles, who holds what
 nstack claim D<n> --session <s> --person @<you>   # takes a deliverable before its first change; nstack unclaim gives it back
 nstack board [--dry-run]   # the cycles shown on GitHub as milestones and issues — CI runs it on every merge
 nstack skills        # generates the Claude Code skills from the playbooks

@@ -154,6 +154,9 @@ from then on the plan check refuses an accepted charter over a form left as it c
 criteria moved, what was deferred, and **which documents the cycle brought current** — the
 front page and the module map first, each with its pull request; set `status: closed`,
 `outcome: completed`, `ended_on`.
+A success criterion the decider says moved is recorded under `success:` in the front matter, at
+any closure — by its number in the charter, `met`, or `observing` with the day observation
+started; the latest record is its state, and `nstack plan` counts the criteria met.
 When a spike refutes what the charter rests on, present stopping the project too.
 
 **The end date reached first** — the circuit breaker: nothing is extended. Present the
@@ -165,8 +168,9 @@ three choices, with the state of every deliverable:
 | Frame a new cycle, with a new appetite | `stopped` | `reframed` |
 | Stop the project | `stopped` | `stopped` |
 
-The closure is where the next framing starts. When the charter's success criteria are met,
-the project is finished: say so to the decider.
+The closure is where the next framing starts. When `nstack plan` says the charter's goal is
+reached — every success criterion met —, present it: the decider says whether the project is
+finished.
 
 ## Decisions
 

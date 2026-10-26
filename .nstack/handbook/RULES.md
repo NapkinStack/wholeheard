@@ -67,7 +67,7 @@ a family, a number a rule; a retired rule's number is never reused.
 | `C3` | A cycle with no goal, no appetite, or an end that is not its start plus its appetite | `.nstack/handbook/project.md` |
 | `C4` | A deliverable with no id, title or state — or ready without acceptance criteria | `05-workflow.md` §3 |
 | `C5` | Two accepted cycles, or an accepted cycle under a charter that is not | `.nstack/handbook/project.md` |
-| `C6` | A closed or stopped cycle with no outcome or no end date | `.nstack/handbook/project.md` |
+| `C6` | A closed or stopped cycle with no outcome or no end date; a success criterion recorded outside a closure, twice in one, outside the charter's filled criteria, in an unknown state, or observed with no day | `.nstack/handbook/project.md` |
 | `C7` | A discovery decided with no decider, date or challenger — or a charter with no go before it | `.nstack/handbook/project.md` |
 | `C8` | A document left as its form once its moment has come: the front page's sentence at a go, the whole front page at an accepted charter, the module map once a module holds code | `06-decisions.md` §10 |
 | `C9` | *(warning)* An accepted charter changed by a pull request that carries no decision record | `06-decisions.md` §4 |
