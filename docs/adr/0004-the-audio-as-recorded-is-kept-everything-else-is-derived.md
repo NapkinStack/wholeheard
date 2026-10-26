@@ -1,6 +1,7 @@
 # ADR-0004 — The audio as recorded is kept; everything else is derived from it
 
 - **Status**: Accepted
+- **Read on 2026-10-26, a review of the documents; cycle 02's closure, the cycle that implemented it, did not read it**: Met, on the median. On the bench, loudspeakers gave no more words said twice than a headset on 23 draws of 24, and no more local words wrong than as delivered on the median, not on every draw (cycle 02, D10). A session is transcribed again without being recorded again: by another model, from the window (#219, cycle 03, D18).
 - **Date**: 2026-10-13
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: project

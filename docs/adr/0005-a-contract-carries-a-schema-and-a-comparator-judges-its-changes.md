@@ -1,6 +1,7 @@
 # ADR-0005 — A contract carries a schema, and a comparator judges its changes
 
 - **Status**: Accepted
+- **Read on 2026-10-26, a review of the documents; cycle 02's closure (2026-10-17) did not read it**: Met. The three false pages corrected in place, each let through by the comparator (#103, #108, #164); a field of `recording/v1` or `transcript/v1` removed, renamed or retyped is refused — the comparator (#101), checked on the real schemas on 2026-10-17 (cycle 02, D15).
 - **Date**: 2026-10-14
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: project
