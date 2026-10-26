@@ -13,7 +13,7 @@ deliverables:
       - "Given a recording stopped while a Wholeheard window is visible — shown and not minimized, as the toolkit reports it —, when it stops, then no notification says the stop; with no Wholeheard window visible, the stop is said as today"
       - "Given Settings set to make the minutes after the stop (`after = \"minutes\"`), when the transcript is written and the minutes follow, then no notification says the transcript, and one says the minutes; a failure of either step is always said"
       - "Given a notification that a meeting's transcript or minutes are ready, on Linux, when the user clicks it, then the full window opens on that meeting's page (`#/meeting/<name>`) — never the file manager — and its words say so: « Cliquez pour l'ouvrir. » / \"Click to open it.\"; elsewhere a notification promises no click — its words are chosen by the system"
-      - "Given a meeting made with `after = \"minutes\"` and no window visible at the stop, when it is made, and nothing failed and no side fell silent, then it gave at most three notifications: the reminder at the start, the stop, the minutes ready"
+      - "Given a meeting made with `after = \"minutes\"` and no window visible at the stop, when it is made, and nothing failed, no side fell silent and no device changed, then it gave at most three notifications: the reminder at the start, the stop, the minutes ready"
   - id: D45
     title: "A meeting's minutes are copied in one click, ready to paste where the user writes"
     module: shell
@@ -72,8 +72,8 @@ deliverables:
     state: proposed
     acceptance:
       - "Given `contracts/minutes/v1`, when its page is changed — in D48's pull request of the contracts module, merged first —, then it says an optional `cost` — a number, at least zero, the price the provider reported for the call — with its `currency`, an ISO 4217 code, both or neither; absent when the provider reported none"
-      - "Given a provider whose answer carries `usage.cost` — OpenRouter's, read at its documentation when it is built —, when the summary writes the minutes, then their front matter carries that cost as reported; given a provider that reports none — Ollama on this computer, another service —, then no cost is written; given a `usage.cost` that is not a number at least zero, or a currency OpenRouter's documentation does not name, then none is written and one warning is logged; given an answer with `usage.cost_details.upstream_inference_cost` — the user's own key at the model's provider (BYOK) —, then no cost is written: OpenRouter's fee is not what the call cost. No price is ever estimated, and no table of prices is kept"
-      - "Given minutes that carry a cost, when their page shows, then the maker's line ends with it in the soft colour, formatted for the window's language (`Intl.NumberFormat`), in its `currency` (`style: \"currency\"`): « Écrit par Claude Sonnet, via openrouter.ai · mar. 13 oct. à 12:21 · 0,012 $US »; given none, the line is as today"
+      - "Given a provider whose answer carries `usage.cost` — OpenRouter's, read at its documentation when it is built —, when the summary writes the minutes, then their front matter carries that cost as reported; given a provider that reports none — Ollama on this computer, another service —, then no cost is written; given a `usage.cost` that is not a number at least zero, or a currency OpenRouter's documentation does not name, then none is written and one warning is logged; given an answer with a `usage.cost_details.upstream_inference_cost` neither null nor zero — the user's own key at the model's provider (BYOK) —, then no cost is written: OpenRouter's fee is not what the call cost. No price is ever estimated, and no table of prices is kept"
+      - "Given minutes that carry a cost, when their page shows, then the maker's line ends with it in the soft colour, formatted for the window's language (`Intl.NumberFormat`), in its `currency` (`style: \"currency\"`, two significant digits, `maximumSignificantDigits: 2`): « Écrit par Claude Sonnet, via openrouter.ai · mar. 13 oct. à 12:21 · 0,012 $US »; given none, the line is as today"
       - "Given the agreement before a first sending and the small window while recording, when they show, then neither shows a price or a running count"
       - "Given the summary's tests, when they run, then a stand-in provider's answer with `usage.cost`, one without and one with a cost that does not read are each held by a test; one real call to openrouter.ai is a scenario of the sheet"
   - id: D52
@@ -174,7 +174,7 @@ D44, D45, D47 and D50 all touch `words.rs` and the « Copié » status: one sess
   by when, in that order, separated by ` — `". Rendered in `minutes.rs` of the shell; the contract
   unchanged (UX review 4.2).
 - Board 2 of D11 drew what · who · when; the market review's recommendation 3 says Qui · Quoi ·
-  Pour quand, the decider's choice of 2026-10-26: see *Open questions*.
+  Pour quand; the decider chose actions as rows (cycle 04's *Later*): see *Open questions*.
 - The copy of D45 keeps the items as written.
 
 ### D47
@@ -253,7 +253,8 @@ search and export would share. The cheap fix stays the fallback if the decider p
   is deprecated ([OpenRouter, *Usage accounting*](https://openrouter.ai/docs/use-cases/usage-accounting),
   read by the market review on 2026-10-26: the "total charged to your account"). The review read no
   currency named: that it is US dollars is an **assumption**, read again at the source when it is
-  built (*Open questions*). With the user's own key at the model's provider (BYOK), `usage.cost` is
+  built (*Open questions*); without it, D51 shows nothing, which the decider weighs at the
+  acceptance. With the user's own key at the model's provider (BYOK), `usage.cost` is
   OpenRouter's fee alone, the call's cost in `cost_details.upstream_inference_cost` (market review):
   no cost is written then.
 - The cost of an online transcription (D43, #451) is not this deliverable's: *Later*.
@@ -334,8 +335,8 @@ And for this cycle:
   French word for the text, the one every French product uses, already the step's name in
   Settings (UX review §10, market review §7). Boards 1 and 2 of D11, accepted, say *Transcript*.
   The framer's default: *Transcription*, a departure from the boards the decider settles.
-- **The order of an action's cells** (D46): the market review's Qui · Quoi · Pour quand, chosen
-  by the decider on 2026-10-26, or board 2's and the contract's, what · who · when? The framer's
+- **The order of an action's cells** (D46): the market review's Qui · Quoi · Pour quand
+  (recommendation 3), or board 2's and the contract's, what · who · when? The framer's
   default: Qui · Quoi · Pour quand on screen, without visible headers; the contract's order
   unchanged.
 - **The currency of `usage.cost`** (D51): the market review read none named. The framer's default:
