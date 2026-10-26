@@ -47,7 +47,7 @@ cause, without what is recorded ever holding a meeting — and how does a failur
 
 - Nothing of a meeting in a log: no audio, no transcript, no minutes, no context, no key (the
   charter's promise; PDR-0001: nothing leaves the machine — and a log is sent by a tester).
-- No telemetry: logs stay on the machine; the user sends one if they choose.
+- ~~No telemetry~~ No telemetry the user did not turn on ([PDR-0003](../pdr/0003-telemetry-only-if-the-user-turns-it-on.md), 2026-10-26): logs stay on the machine; the user sends one if they choose.
 - Four Rust programs and a shell, started by it or by a person in a terminal.
 - Programs started by hand stay quiet on the screen unless asked.
 

@@ -129,7 +129,9 @@ The framer's, accepted with the discovery:
 
 - A recording that starts by itself before the user chose it.
 - A notes editor: Wholeheard produces the minutes and hands them over.
-- Telemetry, even opt-in, while the repository is private.
+- ~~Telemetry, even opt-in, while the repository is private.~~ Changed 2026-10-26 by
+  [PDR-0003](../pdr/0003-telemetry-only-if-the-user-turns-it-on.md): possible only once the user
+  turns it on, never anything of a meeting.
 
 ## Open questions
 

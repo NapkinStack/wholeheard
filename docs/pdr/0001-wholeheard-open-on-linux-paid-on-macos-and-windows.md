@@ -37,7 +37,7 @@ system offers software.
 - A subscription: everything runs on the user's machine, there is no service to pay for.
 - The Mac App Store and the Microsoft Store, for now (see the options).
 - A paid tier of features: every platform runs the same product.
-- Telemetry, still (the charter's).
+- Telemetry, still (the charter's) — unless the user turns it on, since [PDR-0003](./0003-telemetry-only-if-the-user-turns-it-on.md), 2026-10-26.
 
 ---
 

@@ -1,15 +1,16 @@
 # PDR-0003 — Telemetry, only if the user turns it on
 
-- **Status**: Proposed. The framer wrote it from the decider's answer of 2026-10-26: asked what
-  becomes of the charter's "telemetry, even opt-in, while the repository is private" now that the
-  repository is public, they chose "Possible si l'utilisateur l'accepte". Accepting it is the
-  decider's.
+- **Status**: Accepted — the decider's word, 2026-10-26 ("j'accepte PDR-0003"). Written by the
+  framer from their answer of the same day: asked what becomes of the charter's "telemetry, even
+  opt-in, while the repository is private" now that the repository is public, they chose
+  "Possible si l'utilisateur l'accepte".
 - **Date**: 2026-10-26
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Modules affected**: none for now. Nothing is built by this record.
 - **Amends**: the charter's *Out of scope* (the framer's line on telemetry);
   [PDR-0001](./0001-wholeheard-open-on-linux-paid-on-macos-and-windows.md)'s *Out of scope*
-  ("Telemetry, still"); rule 1 of `docs/project/rules/security.md`.
+  ("Telemetry, still"); rule 1 of `docs/project/rules/security.md`; ADR-0007's constraint "No
+  telemetry".
 
 > The PDR describes **what the product must do and why**, never its implementation.
 
