@@ -1370,6 +1370,7 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
 /// Why the trash refused, as the user is told it: the system's own wording names a file and
 /// changes with it.
 fn refusal(error: &trash::Error) -> Refusal {
+    #[cfg(target_os = "linux")]
     use std::io::ErrorKind;
     match error {
         // The freedesktop trash's own error: the other systems' trash says no such thing.
