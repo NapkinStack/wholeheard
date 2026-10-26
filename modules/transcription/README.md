@@ -22,7 +22,7 @@ flowchart LR
 
 **Legend** — blue: files of the session's folder · green: this module · grey: what hears,
 behind one interface (ADR-0003) · orange: who reads its events, one JSON object per line.
-Nothing leaves the machine: the program contacts no host. On a Mac, `wholeheard-speech install` has macOS fetch Apple's model of a language — run on the user's word only.
+Nothing leaves the machine unless a service is named: with `--provider`, each span is sent to that address (D43, below), the shell having asked the user to agree to the host first. On a Mac, `wholeheard-speech install` has macOS fetch Apple's model of a language — run on the user's word only.
 
 ```bash
 # The model is a Whisper model in whisper.cpp's format, already on the machine: nothing is fetched.
@@ -39,6 +39,16 @@ or English, with Apple's model of it, which macOS fetches from Apple on the user
 wholeheard-speech status fr-FR                       # available, supported, installed
 wholeheard-speech install fr-FR                      # Apple's model, fetched by macOS
 wholeheard-transcription <session-folder> --engine speechanalyzer --language fr
+```
+
+**A service the user names** (D43, [ADR-0013](../../docs/adr/0013-a-transcription-service-the-user-names-heard-as-the-minutes-are-written.md)):
+each span goes to OpenAI's `/audio/transcriptions` at the address given, its times asked
+(`verbose_json`), the context the user attached as `prompt`; a service that gives no times is
+refused, never timed by guess. The key, when it wants one, is read from `WHOLEHEARD_PROVIDER_KEY`.
+
+```bash
+wholeheard-transcription <session-folder> --provider https://api.groq.com/openai/v1 --model whisper-large-v3 --language fr
+wholeheard-transcription --test --provider http://localhost:8000/v1 --model whisper-1   # a sound of its own
 ```
 
 | Tried on a public meeting of five minutes, four speakers, in French | Words that differ from a person's transcript | Time |

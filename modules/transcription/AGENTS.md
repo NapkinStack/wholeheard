@@ -32,7 +32,7 @@ Turns the audio of a session into a timestamped transcript.
   verification: it changed what a first-form session gives, and was twice as strict away
   from zero.
 - It says who spoke only as the two files do — `me`, `others`, and each segment's `track`, `local` or `remote`. Telling several voices of one file apart is not done here: a segment's `voice` is written `null`, its place kept (ADR-0004, rule 6).
-- It fetches no model and contacts no host: the model file is the caller's to give.
+- It fetches no model: the model file is the caller's to give. It contacts no host but the service named with `--provider` (D43, ADR-0013), sending each span there; the key comes from `WHOLEHEARD_PROVIDER_KEY`, written nowhere, never logged.
 - It writes nothing beside the transcript but `derived/`: what the engine heard, made from the tracks, never the tracks themselves (ADR-0004, rule 4).
 
 ## Internal conventions nobody could guess

@@ -135,7 +135,12 @@ impl Engine for SpeechAnalyzer {
             SPANS.fetch_add(1, Ordering::Relaxed)
         ));
         let within = self.patience + Duration::from_secs_f64(2.0 * sound.len() as f64 / RATE as f64);
-        let output = write_span(&file, sound).and_then(|()| self.run(&file, within));
+        let written = fs::OpenOptions::new().write(true).create_new(true).open(&file).and_then(|made| {
+            let mut out = io::BufWriter::new(made);
+            write_span(&mut out, sound)?;
+            out.flush()
+        });
+        let output = written.and_then(|()| self.run(&file, within));
         let _ = fs::remove_file(&file);
         let (succeeded, out, err) = output?;
         if !succeeded {
@@ -166,9 +171,8 @@ fn segment(line: &str) -> io::Result<Segment> {
 }
 
 /// A span as a session's first form holds a track: one channel, 16 kHz, 16-bit.
-fn write_span(path: &Path, sound: &[f32]) -> io::Result<()> {
+pub(crate) fn write_span(out: &mut impl Write, sound: &[f32]) -> io::Result<()> {
     let bytes = (sound.len() * 2) as u32;
-    let mut out = io::BufWriter::new(fs::OpenOptions::new().write(true).create_new(true).open(path)?);
     out.write_all(b"RIFF")?;
     out.write_all(&(36 + bytes).to_le_bytes())?;
     out.write_all(b"WAVEfmt ")?;
@@ -184,5 +188,5 @@ fn write_span(path: &Path, sound: &[f32]) -> io::Result<()> {
     for sample in sound {
         out.write_all(&((sample.clamp(-1.0, 1.0) * 32767.0) as i16).to_le_bytes())?;
     }
-    out.flush()
+    Ok(())
 }
