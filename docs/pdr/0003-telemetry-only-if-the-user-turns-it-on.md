@@ -23,7 +23,7 @@ once the repository is open, and nothing measures it. Once a build reaches peopl
 project, nobody can be asked: a failure on a machine nobody knows stays unseen.
 
 The charter keeps telemetry out "while the repository is private". The repository has been
-public since 2026-10-26 (PDR-0002), so that condition no longer holds. Read literally, the line
+public since 2026-10-26, opened as PDR-0002 decided, so that condition no longer holds. Read literally, the line
 now allows what rule 1 of `docs/project/rules/security.md` forbids. Nobody decided that.
 
 ## Goal
@@ -37,7 +37,8 @@ does nothing sends nothing.
   its own, with its own criteria.
 - Anything on by default, or turned on by an update.
 - Anything of a meeting: its audio, its words, its minutes, its title, its participants. Rule 2
-  of `docs/project/rules/security.md` and ADR-0007 already keep these out of every log.
+  of `docs/project/rules/security.md` and ADR-0007 already keep its audio, its words and its
+  minutes out of every log; its title and its participants are kept out here.
 - A service that is not shown to the user before anything is sent.
 
 ---
@@ -72,8 +73,10 @@ Wholeheard keeps against a bot (charter, *Risks*). Sending anything by default w
 1. **Telemetry is possible, never on by default.** It is sent only after the user turned it on,
    in a place where they see what would be sent and to which host. They can turn it off at any
    time. An update never turns it on.
-2. **What it may carry**: what ADR-0007 lets a log carry — events, durations, sizes, counts,
-   model names, error kinds — and the system and version. **Never anything of a meeting**
+2. **What it may carry**: part of what ADR-0007 lets a log carry — events, durations, sizes,
+   counts, model names, error codes — and the system and Wholeheard's version. Not the hosts
+   nor an error's technical detail, which a log may hold: they can name the user's provider or
+   folder. **Never anything of a meeting**
    (*Out of scope*).
 3. **Rule 1 of `docs/project/rules/security.md` stays, reworded**: "no telemetry" becomes "no
    telemetry the user did not turn on". A host the user did not configure is still refused,
@@ -121,4 +124,9 @@ If the criterion is not met: the exclusion comes back, with no condition.
 - **PDR-0001**: its *Out of scope* "Telemetry, still" now reads through decision 1.
 - **Rule 1** of `docs/project/rules/security.md`: reworded as decision 3, in the pull request
   that accepts this record.
+- **ADR-0007**: its constraint "No telemetry: logs stay on the machine" now reads "no telemetry
+  the user did not turn on"; the logs themselves still stay on the machine. Said in the record
+  in the pull request that accepts this one.
+- **Data**: nothing is collected until a deliverable builds it; that deliverable says where it
+  is sent, who reads it and how long it is kept.
 - **Existing users**: none. Nothing changes in what Wholeheard does.
