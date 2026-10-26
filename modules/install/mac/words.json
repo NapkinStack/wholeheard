@@ -5,6 +5,6 @@
   },
   "fr": {
     "NSMicrophoneUsageDescription": "Wholeheard enregistre votre côté de l’appel avec votre micro. Rien ne quitte votre Mac.",
-    "NSAudioCaptureUsageDescription": "Wholeheard enregistre ce que joue votre Mac — l’autre côté de l’appel — à côté de votre micro. Rien ne quitte votre Mac."
+    "NSAudioCaptureUsageDescription": "Wholeheard enregistre ce que joue votre Mac — l’autre côté de l’appel — en plus de votre micro. Rien ne quitte votre Mac."
   }
 }

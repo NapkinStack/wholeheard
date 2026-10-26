@@ -14,6 +14,7 @@ contents = os.path.join(app, "Contents")
 os.makedirs(os.path.join(contents, "Resources", "fr.lproj"), exist_ok=True)
 info = {
     "CFBundleName": "Wholeheard",
+    "CFBundleInfoDictionaryVersion": "6.0",
     "CFBundleDisplayName": "Wholeheard",
     "CFBundleIdentifier": "dev.wholeheard.Wholeheard",
     "CFBundleExecutable": "wholeheard",

@@ -7,6 +7,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 artefacts=$1 version=$2 out=$3
 work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
 app=$work/Wholeheard.app
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 for program in shell/wholeheard capture/wholeheard-capture transcription/wholeheard-transcription summary/wholeheard-summary; do

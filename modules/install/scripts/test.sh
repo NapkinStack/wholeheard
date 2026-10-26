@@ -53,8 +53,10 @@ mac = sys.argv[4]
 macbuild = open(os.path.join(mac, "build.sh"), encoding="utf-8").read()
 for program in ("shell/wholeheard", "capture/wholeheard-capture", "transcription/wholeheard-transcription", "summary/wholeheard-summary"):
     check(f"{program.split('/')[1]} in Contents/MacOS, beside the others", program in macbuild)
-check("signed ad hoc, each program then the bundle", "codesign --force --sign - \"$program\"" in macbuild
-      and "codesign --force --sign - \"$app\"" in macbuild)
+each, bundle = "codesign --force --sign - \"$program\"", "codesign --force --sign - \"$app\""
+check("signed ad hoc, each program then the bundle, last of all: its seal covers what is in it",
+      each in macbuild and bundle in macbuild and macbuild.index(each) < macbuild.index(bundle)
+      and all(macbuild.index(step) < macbuild.index(bundle) for step in ("info.py", "iconutil")))
 with tempfile.TemporaryDirectory() as work:
     app = os.path.join(work, "Wholeheard.app")
     subprocess.run([sys.executable, os.path.join(mac, "info.py"), app, "1.2.3"], check=True)
