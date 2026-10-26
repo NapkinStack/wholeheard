@@ -61,8 +61,8 @@ their times — spoken by most services and by local servers alike.
 
 | Reference | What it does | Applicable here? |
 |---|---|---|
-| OpenAI's audio API ([*Create transcription*](https://platform.openai.com/docs/api-reference/audio/createTranscription), not read again here) | `file`, `model`, `language`, `prompt`, `response_format` (`json`, `verbose_json` with `segments`, …); `whisper-1` gives segments, the newer `gpt-4o-transcribe` text only | Yes: the protocol; and a service that answers text alone must be refused or said, never timed by guess |
-| Groq, Mistral and local servers (faster-whisper's OpenAI-compatible servers, LocalAI) | The same route and fields | Yes: one engine reaches them all, as the minutes' one does |
+| OpenAI's audio API (its specification, [`openai/openai-openapi`](https://github.com/openai/openai-openapi), `AudioResponseFormat` and `timestamp_granularities`, read by the verifier of #450, 2026-10-26) | `file`, `model`, `language`, `prompt`, `response_format`; segments with their times only with `verbose_json`; for `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` "the only supported format is `json`" — text without times; `gpt-4o-transcribe-diarize` answers `diarized_json`, with times | Yes: the protocol; a service that answers no times is refused or said, never timed by guess |
+| Groq, Mistral and local servers (faster-whisper's OpenAI-compatible servers, LocalAI), not read again here | The same route and fields, as their documentation says | Yes: one engine reaches them all, as the minutes' one does |
 | Wholeheard's own minutes (`modules/summary`, cycle 03) | The address, the model, the key from `WHOLEHEARD_PROVIDER_KEY`, the host agreed first, *Tester* | Yes: the user's way, kept as it is |
 
 ---
@@ -73,9 +73,14 @@ their times — spoken by most services and by local servers alike.
 - On this computer alone; the charter's service never offered.
 
 ### Option 2 — An engine of transcription's that speaks the audio route
-- `wholeheard-transcription <session> --provider <address> --model <name> [--language <code>]`,
-  the key from `WHOLEHEARD_PROVIDER_KEY` as `summary` reads it; each span sent as one 16 kHz file,
-  `response_format=verbose_json`; its `segments` the span's segments.
+- `wholeheard-transcription <session> --provider <address> --model <name> [--language <code>]` —
+  with `--provider`, `--model` names the service's model, not a file —, the key from
+  `WHOLEHEARD_PROVIDER_KEY` as `summary` reads it; each span sent as one 16 kHz file,
+  `response_format=verbose_json`, the context the user attached as `prompt`; its `segments` the
+  span's segments. `--test --provider … --model …` sends a sound of the program's own, nothing of
+  a meeting, as `summary --test` does.
+- The HTTP client is `ureq` 3, which the shell and `summary` already use: no dependency new to the
+  project, new to the module — declared in its manifest.
 - Advantages: the step unchanged; the shell's way of the minutes reused whole.
 - Cost of getting out: drop the engine.
 
@@ -90,28 +95,36 @@ their times — spoken by most services and by local servers alike.
    (`https://api.groq.com/openai/v1`, `http://localhost:8000/v1`…), with `verbose_json`.
 2. **A service that answers no segments with their times is refused for the span**, said in one
    sentence: "this service gives no times: choose another model" — a transcript is never timed by
-   guess.
+   guess. A service that refuses `verbose_json` itself (an HTTP 400, as OpenAI's newer models
+   may) is said the same way. Other formats with times (`diarized_json`): later, once asked.
 3. **The key** is read from `WHOLEHEARD_PROVIDER_KEY`, as `summary` reads it; the shell hands it
    from the keyring under its own account, the transcription's apart from the minutes'.
 4. **Nothing is sent before the user agreed to the host**, as for the minutes
    (`transcription_agreed` beside `minutes_agreed`); a host on this computer never asks.
-5. **Criticality**: `transcription` holds a key, which the handbook's rule makes `critical`
-   (`.nstack/handbook/05-workflow.md` §7). The decider chose, 2026-10-26: **`standard`, as
-   `summary`**, which already holds one — a deviation taken knowingly: three users who agreed, no
-   build published for people outside the project. It ends with `capture`'s, before the first
-   build published outside the project (PDR-0002, decision 2), for both modules.
+5. **Criticality**: the handbook makes `critical` a module that holds a key
+   (`.nstack/handbook/05-workflow.md` §7). The shell keeps the keys, in the system's keyring
+   (`modules/shell/src/keys.rs`); `summary`, and `transcription` with this record, are handed one
+   through the environment and keep none (`modules/summary/AGENTS.md`). All three are `standard`.
+   The decider chose, 2026-10-26: **"Standard comme summary"** — a deviation taken knowingly, for
+   the three of them: three users who agreed, no build published for people outside the project.
+   It ends with `capture`'s, before the first build published outside the project (PDR-0002,
+   decision 2).
+6. **Two pull requests**, as D42's: transcription's engine first, then the shell's Settings,
+   keyring account and agreement — each one module.
 
 ### Deviation from the convention
 
-- **From the handbook's criticality rule**, for `transcription` and, written now, for `summary`.
-  **Expected user value**: the pace kept while three people use it. **How we will observe it**:
-  the day PDR-0002's event comes, both modules' manifests say `critical`.
+- **From the handbook's criticality rule**, for `shell`, which keeps the keys, and for `summary` and
+  `transcription`, handed one — written now. **Expected user value**: the pace kept while three
+  people who agreed use it. **How we will observe it**: no deliverable held back by the heavier
+  level until the first build published outside the project; on that day, the three manifests say
+  `critical`.
 
 ---
 
 ## Success criterion
 
-> We will consider this was the right call if, **by the end of cycle 05**, a session is transcribed
+> We will consider this was the right call if, **before 2026-12-31**, a session is transcribed
 > by a service the user named — a local OpenAI-compatible server on the bench at least — its
 > segments on their tracks and times, and the minutes' way (agreed host, key, *Tester*) is the
 > same for both steps.
