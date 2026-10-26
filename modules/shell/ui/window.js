@@ -1191,11 +1191,45 @@ function showSettings(shown, minutes, words) {
     option.selected = model.path === shown.model;
     pick.append(option);
   }
-  pick.addEventListener("change", () => save({ model: pick.value }));
+  // Apple's SpeechAnalyzer among who hears, where this Mac offers it (D42): asked away from the
+  // page; its model fetched by macOS on the click alone, then it is who hears.
+  const speech = element("div", "speech");
+  speech.id = "speech";
+  const said = element("p", "says");
+  said.setAttribute("role", "status");
+  const fetchApple = element("button", "open", words.speech_fetch);
+  fetchApple.type = "button";
+  fetchApple.id = "speech-fetch";
+  fetchApple.hidden = true;
+  fetchApple.addEventListener("click", async () => {
+    fetchApple.disabled = true;
+    said.textContent = words.speech_fetching;
+    const fetched = await window.__TAURI__.core.invoke("speech_installed").then(() => true, () => false);
+    if (fetched) return save({ engine: "speechanalyzer" });
+    fetchApple.disabled = false;
+    said.textContent = words.speech_failed;
+  });
+  speech.append(fetchApple, said);
+  let appleHere = false;
+  window.__TAURI__.core.invoke("speech_shown").then((status) => {
+    if (!status?.offered) return;
+    appleHere = status.installed;
+    const option = element("option", "", status.installed ? words.speech_option : `${words.speech_option} — ${words.speech_missing}`);
+    option.value = "speechanalyzer";
+    option.selected = shown.engine === "speechanalyzer";
+    pick.append(option);
+  }).catch(() => {});
+  pick.addEventListener("change", () => {
+    if (pick.value !== "speechanalyzer") return save({ model: pick.value });
+    if (appleHere) return save({ engine: "speechanalyzer" });
+    // Not chosen until its model is on the Mac: the gesture comes first, never the download.
+    fetchApple.hidden = false;
+    fetchApple.focus();
+  });
   row.append(label, pick);
   const here = element("p", "status here", words.on_this_computer);
   here.append(element("code", "tag", words.builtin));
-  step.append(row, here);
+  step.append(row, speech, here);
   // The short list of models to download, each said by what it is good for (D37).
   const offered = element("ul", "offered");
   offered.id = "offered";

@@ -14,7 +14,7 @@ use std::{
 use wholeheard_shell::{
     recording::{Recording, Said},
     summarising::{Event, Summarising},
-    transcription::Transcription,
+    transcription::{Hearer, Transcription},
 };
 
 /// Where the log is written, for the test to read.
@@ -69,7 +69,7 @@ fn each_making_is_logged_under_the_id_its_program_was_given() {
 echo "wholeheard-transcription: $1/derived/ cannot be written" >&2
 exit 1"#,
     );
-    let (_making, made) = Transcription::start(&hears, &session, Path::new("/models/ggml-a.bin")).unwrap();
+    let (_making, made) = Transcription::start(&hears, &session, &Hearer::Model("/models/ggml-a.bin".into())).unwrap();
     made.recv_timeout(Duration::from_secs(10)).unwrap();
 
     // Minutes written, with a key.
@@ -105,7 +105,14 @@ exit 1"#,
     while !matches!(said.recv_timeout(Duration::from_secs(10)).unwrap(), Said::Failed(_)) {}
 
     // A program that is not there: the making is said to have failed, not left begun.
-    assert!(Transcription::start(&folder.path().join("nowhere"), &session, Path::new("/models/ggml-a.bin")).is_err());
+    assert!(
+        Transcription::start(
+            &folder.path().join("nowhere"),
+            &session,
+            &Hearer::Model("/models/ggml-a.bin".into())
+        )
+        .is_err()
+    );
     assert!(Summarising::start(&folder.path().join("nowhere"), &session, "http://127.0.0.1:9/v1", "m", None).is_err());
     assert!(Recording::start(&folder.path().join("nowhere"), &sessions).is_err());
 

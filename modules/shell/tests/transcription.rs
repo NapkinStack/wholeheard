@@ -4,7 +4,7 @@
 
 use std::{fs, os::unix::fs::PermissionsExt, path::Path, sync::Mutex, time::Duration};
 
-use wholeheard_shell::transcription::{Made, Transcription};
+use wholeheard_shell::transcription::{Hearer, Made, Transcription};
 
 /// The end of a transcript made by a script — a test that waits ten seconds has failed. One
 /// at a time: a script still open for writing while another starts cannot be run.
@@ -14,7 +14,8 @@ fn made(folder: &Path, script: &str) -> (Transcription, std::sync::mpsc::Receive
     let path = folder.join("wholeheard-transcription");
     fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    Transcription::start(&path, &folder.join("session"), Path::new("/models/ggml.bin")).unwrap()
+    let model = Hearer::Model(Path::new("/models/ggml.bin").to_path_buf());
+    Transcription::start(&path, &folder.join("session"), &model).unwrap()
 }
 
 fn end(made: &std::sync::mpsc::Receiver<Made>) -> Made {
@@ -118,4 +119,23 @@ fn the_last_recording_is_the_latest_session_of_the_folder() {
         Some(sessions.path().join("2026-10-16_09-30"))
     );
     assert_eq!(wholeheard_shell::transcription::latest(Path::new("/nowhere")), None);
+}
+
+#[test]
+fn apple_s_speechanalyzer_is_asked_for_by_name_in_the_language_of_the_interface() {
+    let folder = tempfile::tempdir().unwrap();
+    fs::create_dir(folder.path().join("session")).unwrap();
+    let asked = folder.path().join("asked");
+    let path = folder.path().join("wholeheard-transcription");
+    fs::write(
+        &path,
+        format!("#!/bin/sh\necho \"$@\" > '{}'\ntouch \"$1/transcript.jsonl\"\n", asked.display()),
+    )
+    .unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    let hearer = Hearer::SpeechAnalyzer { language: "fr".into() };
+    let (_running, made) = Transcription::start(&path, &folder.path().join("session"), &hearer).unwrap();
+    assert!(matches!(end(&made), Made::Written(_)));
+    let said = fs::read_to_string(&asked).unwrap();
+    assert!(said.trim().ends_with("--engine speechanalyzer --language fr"), "{said}");
 }

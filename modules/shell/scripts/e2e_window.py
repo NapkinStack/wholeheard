@@ -535,6 +535,51 @@ def list_refreshed(now: dt.datetime) -> None:
     server.shutdown()
 
 
+def speech_offered(now: dt.datetime) -> None:
+    """X. On a Mac, Apple's SpeechAnalyzer is offered among who hears, its model fetched on the click (D42)."""
+    print("X. Settings: Apple's SpeechAnalyzer offered where this Mac offers it, its model fetched on the click (D42)")
+    # A program in place of wholeheard-speech: this Mac offers it, Apple's model not here yet.
+    program, asked = WORK / "wholeheard-speech", WORK / "speech-asked"
+    program.write_text(f"""#!/bin/sh
+echo "$@" >> '{asked}'
+case "$1" in
+  status) echo '{{"available":true,"installed":false,"supported":true}}' ;;
+  install) sleep 1; echo '{{"installed":true}}' ;;
+esac
+""")
+    program.chmod(0o755)
+    meetings = WORK / "speech"
+    meetings.mkdir()
+    pick = "return [...document.querySelectorAll('#model option')].map(o => o.value + '=' + o.text).join('|')"
+    window = Window(meetings, "fr_FR.UTF-8")
+    window.env.update(WHOLEHEARD_SPEECH=str(program))
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        offered = wait_for(browser, lambda b: "speechanalyzer=" in b.execute_script(pick), 10)
+        check("SpeechAnalyzer is offered among who hears, its model said not on this Mac yet",
+              offered and "SpeechAnalyzer d’Apple, sur ce Mac — le modèle d’Apple n’est pas encore sur ce Mac" in browser.execute_script(pick),
+              browser.execute_script(pick))
+        check("its model is not fetched when Settings open", asked.read_text().split() == ["status", "fr-FR"], asked.read_text())
+        Select(browser.find_element(By.ID, "model")).select_by_value("speechanalyzer")
+        shown = wait_for(browser, lambda b: b.find_element(By.ID, "speech-fetch").is_displayed(), 5)
+        check("chosen, it is not who hears yet: the download is offered, macOS fetching it from Apple",
+              shown and "engine" not in window.file.read_text() and "install" not in asked.read_text()
+              and "depuis Apple" in browser.find_element(By.ID, "speech-fetch").text, window.file.read_text())
+        browser.find_element(By.ID, "speech-fetch").click()
+        chosen = wait_for(browser, lambda b: 'engine = "speechanalyzer"' in window.file.read_text(), 10)
+        check("on the click, macOS fetches it; then SpeechAnalyzer is who hears",
+              chosen and "install fr-FR" in asked.read_text(), (asked.read_text(), window.file.read_text()))
+    # Where no wholeheard-speech answers — Linux, an older Mac — nothing is offered.
+    window = Window(WORK / "speech", "fr_FR.UTF-8")
+    window.env.update(WHOLEHEARD_SPEECH=str(WORK / "nowhere"))
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "model"))
+        time.sleep(1)
+        check("where SpeechAnalyzer does not answer, it is not offered", "speechanalyzer" not in browser.execute_script(pick),
+              browser.execute_script(pick))
+
+
 def ollama_pulled(now: dt.datetime) -> None:
     """V. The minutes' recommended model fetched by Ollama, on the user's click (D37)."""
     print("V. Settings: qwen3:8b fetched by Ollama on the user's click; without Ollama, said where to get it (D37)")
@@ -2028,6 +2073,7 @@ def main() -> int:
     model_offered(now)
     models_listed(now)
     list_refreshed(now)
+    speech_offered(now)
     ollama_pulled(now)
     return 1 if FAILED else 0
 

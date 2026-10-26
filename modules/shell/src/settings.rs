@@ -55,6 +55,24 @@ impl Window {
     }
 }
 
+/// Who hears a meeting on this computer: a Whisper model, or Apple's SpeechAnalyzer on a Mac
+/// with macOS 26 (D42, ADR-0012).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Engine {
+    Whisper,
+    SpeechAnalyzer,
+}
+
+impl Engine {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Engine::Whisper => "whisper",
+            Engine::SpeechAnalyzer => "speechanalyzer",
+        }
+    }
+}
+
 /// How long a session's audio is kept; its transcript and minutes stay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -73,6 +91,8 @@ pub struct Settings {
     pub after: After,
     /// The Whisper model the transcript is heard with: a file in whisper.cpp's format.
     pub model: PathBuf,
+    /// Who hears: the model above, or Apple's SpeechAnalyzer (D42).
+    pub engine: Engine,
     /// Who writes the minutes: a provider's address, as `wholeheard-summary` takes it — Ollama on this
     /// computer is `http://localhost:11434/v1` —, and the model's name as it knows it. None: not
     /// chosen yet.
@@ -107,6 +127,7 @@ impl Default for Settings {
             sessions: documents.join("Wholeheard"),
             after: After::Transcript,
             model: data.join("wholeheard").join("models").join(MODEL),
+            engine: Engine::Whisper,
             minutes_provider: None,
             minutes_model: None,
             minutes_agreed: None,
@@ -153,6 +174,7 @@ struct Written {
     transcript: Option<bool>,
     after: Option<After>,
     model: Option<toml::Spanned<PathBuf>>,
+    engine: Option<Engine>,
     minutes_provider: Option<String>,
     minutes_model: Option<String>,
     minutes_agreed: Option<String>,
@@ -199,6 +221,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.autostart = written.autostart;
     settings.window = written.window.unwrap_or(settings.window);
     settings.log = written.log.unwrap_or(settings.log);
+    settings.engine = written.engine.unwrap_or(settings.engine);
     settings.after = match (written.after, written.transcript) {
         (Some(after), _) => after,
         (None, Some(false)) => After::Nothing,
@@ -298,6 +321,9 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     }
     if settings.model != before.model {
         set(&mut document, "model", text(&settings.model));
+    }
+    if settings.engine != before.engine {
+        set(&mut document, "engine", Value::from(settings.engine.as_str()));
     }
     if settings.keep_audio != before.keep_audio {
         set(
