@@ -70,10 +70,10 @@ the cycle records.
   password ([Michael Tsai, 2024-07-05](https://mjtsai.com/blog/?p=43993), read by the cycle's
   verifier). Signed ad hoc at least: an Apple chip runs nothing unsigned, and a bundle changed
   after its programs were linked is said *damaged*, which only a terminal gets past.
+  Signing is PDR-0001's open question, out of this cycle.
 - A new ad hoc signature on every build: macOS may ask for the microphone again with each
   artifact. That a program the app starts is asked for under the app's name, its taps of what
   plays included, is assumed, not tried: D38's third criterion says it.
-  Signing is PDR-0001's open question, out of this cycle.
 - The artifact is kept 7 days on the run, the shortest a colleague needs: see *Open questions*.
 
 ### D39
