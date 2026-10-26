@@ -68,7 +68,7 @@ HEARING.write_text(
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
 [ -e "$(dirname "$0")/slow-hearing" ] && sleep 3
 model=$(basename "$3" .bin)
-printf '{"type":"header","contract":"transcript/v1","engine":"e","model":"%s","language":null,"context":null}\\n{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Refait avec %s."}\\n{"type":"complete","duration":1.0}\\n' "$model" "$model" > "$1/transcript.jsonl"
+printf '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"%s","language":null,"context":null}\\n{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Refait avec %s."}\\n{"type":"complete","duration":1.0}\\n' "$model" "$model" > "$1/transcript.jsonl"
 """
 )
 HEARING.chmod(0o755)
@@ -585,6 +585,12 @@ def service_named(now: dt.datetime) -> None:
     print("Z. Settings: a service named to hear, its host agreed to before anything is sent (D43)")
     meetings = WORK / "service"
     meetings.mkdir()
+    # A meeting a service heard: its header names the service's host as the engine.
+    session(meetings / "heard", dt.datetime.now().astimezone() - dt.timedelta(hours=1), 2, {"local.wav": 1000})
+    (meetings / "heard" / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"api.groq.com","model":"whisper-large-v3","language":"fr","context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","voice":null,"start":0.5,"end":1.5,"text":"Bonjour."}\n{"type":"complete","duration":2.0}\n'
+    )
     window = Window(meetings, "fr_FR.UTF-8")
     said = "return document.getElementById('transcription-said')?.innerText || ''"
     with window as browser:
@@ -624,6 +630,14 @@ def service_named(now: dt.datetime) -> None:
         browser.find_element(By.ID, "transcription-test").click()
         tested = wait_for(browser, lambda b: b.execute_script(said) and "Enregistré" not in b.execute_script(said), 10)
         check("Tester says in one sentence what the service answered", tested, browser.execute_script(said))
+        # Who heard a meeting, said where it is read: the service's host, never « sur cet ordinateur ».
+        browser.execute_script("location.hash = '#/meeting/heard'")
+        makers = lambda b: [p.text for p in b.find_elements(By.CSS_SELECTOR, "#meeting .maker")]
+        named = wait_for(browser, lambda b: "Écrit par whisper-large-v3, via api.groq.com" in makers(b), 5)
+        check("a meeting a service heard names the service, never this computer", named and not any("sur cet ordinateur" in m for m in makers(browser)), makers(browser))
+        browser.execute_script("location.hash = '#/settings'")
+        note = wait_for(browser, lambda b: "reçoit le son de vos réunions" in b.find_element(By.ID, "settings").text, 5)
+        check("Settings say a transcription service receives the meetings' sound", note and "L’audio ne quitte jamais" not in browser.find_element(By.ID, "settings").text)
 
 
 def ollama_pulled(now: dt.datetime) -> None:
@@ -861,6 +875,8 @@ def main() -> int:
         browser.find_elements(By.CSS_SELECTOR, ".session")[0].click()
         shown = wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".lines li"))
         check("a click on a meeting opens it", shown and not browser.find_element(By.ID, "list").is_displayed())
+        heard_here = [p.text for p in browser.find_elements(By.CSS_SELECTOR, "#meeting .made .maker")]
+        check("a meeting heard here says so, by the model's name", heard_here == ["Écrit par Whisper large v3 turbo, sur cet ordinateur"], heard_here)
         shot(browser, "2-session")
         minutes = browser.find_element(By.CSS_SELECTOR, ".minutes")
         titles = [h.text for h in minutes.find_elements(By.CSS_SELECTOR, ".body h2")]
@@ -1272,7 +1288,7 @@ def main() -> int:
     asked.mkdir(parents=True)
     (asked / "session.json").write_text('{"contract":"session-audio/v2","started":"2026-10-18T11:00:00+02:00","stopped":"2026-10-18T11:20:00+02:00","tracks":{}}')
     (asked / "transcript.jsonl").write_text(
-        '{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":null,"context":null}\n'
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
         '{"type":"segment","speaker":"others","track":"remote","start":0.0,"end":2.0,"text":"Le budget est validé."}\n'
         '{"type":"segment","speaker":"me","track":"local","start":2.0,"end":4.0,"text":"Je préviens Alexandre."}\n'
         '{"type":"complete","duration":1200.0}\n'
@@ -1925,7 +1941,7 @@ def main() -> int:
     (played / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n{"track":"remote","sample":0,"at":1.5}\n')
     heard = [(0.4, "local", "Bonjour à tous."), (2.5, "remote", "Bonjour, je vous entends."), (4.2, "local", "Commençons.")]
     (played / "transcript.jsonl").write_text(
-        '{"type":"header","contract":"transcript/v1","engine":"e","model":"m","language":"fr","context":null}\n'
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":"fr","context":null}\n'
         + "".join(json.dumps({"type": "segment", "speaker": "me" if track == "local" else "others", "track": track, "voice": None,
                               "start": start, "end": start + 1.5, "text": text}, ensure_ascii=False) + "\n" for start, track, text in heard)
         + '{"type":"complete","duration":6.0}\n'
