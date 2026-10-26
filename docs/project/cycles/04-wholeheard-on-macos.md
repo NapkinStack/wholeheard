@@ -60,7 +60,7 @@ deliverables:
   - id: D43
     title: "Who hears is chosen as who writes the minutes: on this computer, or a service the user names"
     module: transcription
-    state: ready
+    state: in-progress
     acceptance:
       - "Given Settings, when the user chooses who hears, then they choose as for the minutes: on this computer — a Whisper model, or SpeechAnalyzer on a Mac (D42) — or a service at an address they give, OpenAI-compatible, its model and their key, kept as the minutes' is"
       - "Given a service chosen, when a meeting is first transcribed, then nothing is sent before the user agreed to that host, as for the minutes; another host asks again"
@@ -258,6 +258,8 @@ Second of the two, should both not fit. The end date does not move.
   it from the keyring; the host agreed first. Criticality, the decider's word of 2026-10-26:
   "Standard comme summary" — a deviation from the handbook's rule for both modules, ended with
   `capture`'s before the first build published outside the project.
+- **Built**: the engine, #451; Settings, #454 — every criterion held by an automated scenario but a
+  real service's, whose trial is the decider's (a key and a meeting of theirs).
 
 ## Dependency with a date
 

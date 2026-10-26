@@ -433,3 +433,18 @@ fn who_hears_is_whisper_unless_the_file_names_apple_s_speechanalyzer() {
     write(&path, &chosen).unwrap();
     assert_eq!(read(&path).unwrap().engine, Engine::SpeechAnalyzer);
 }
+
+#[test]
+fn a_transcription_service_is_named_as_the_minutes_one_is() {
+    let named = written("engine = \"service\"\ntranscription_provider = \"https://api.groq.com/openai/v1\"\ntranscription_model = \"whisper-large-v3\"\ntranscription_agreed = \"api.groq.com\"\n").unwrap();
+    assert_eq!(named.engine, Engine::Service);
+    assert_eq!(named.transcription_provider.as_deref(), Some("https://api.groq.com/openai/v1"));
+    assert_eq!(named.transcription_model.as_deref(), Some("whisper-large-v3"));
+    assert_eq!(named.transcription_agreed.as_deref(), Some("api.groq.com"));
+    // Written as read, and only once it changes.
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    write(&path, &named).unwrap();
+    assert_eq!(read(&path).unwrap(), named);
+    assert!(Settings::default().transcription_provider.is_none());
+}

@@ -14,12 +14,17 @@ fn made(folder: &Path, script: &str) -> (Transcription, std::sync::mpsc::Receive
 
 /// The same, heard by `hearer` (#459: every script of this file is written and started here).
 fn made_by(folder: &Path, script: &str, hearer: &Hearer) -> (Transcription, std::sync::mpsc::Receiver<Made>) {
+    made_with(folder, script, hearer, None)
+}
+
+/// The same, a service's key handed to the program (D43).
+fn made_with(folder: &Path, script: &str, hearer: &Hearer, key: Option<&str>) -> (Transcription, std::sync::mpsc::Receiver<Made>) {
     static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
     let _held = ONE_AT_A_TIME.lock().unwrap();
     let path = folder.join("wholeheard-transcription");
     fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    Transcription::start(&path, &folder.join("session"), hearer).unwrap()
+    Transcription::start_with(&path, &folder.join("session"), hearer, key).unwrap()
 }
 
 fn end(made: &std::sync::mpsc::Receiver<Made>) -> Made {
@@ -166,4 +171,110 @@ fn speechanalyzer_hears_only_while_this_mac_offers_it_with_its_model() {
     assert!(!asked, "the Mac is asked nothing while Whisper is chosen");
     assert_eq!(Hearer::SpeechAnalyzer { language: "en".into() }.name(), "SpeechAnalyzer");
     assert_eq!(whisper.name(), "ggml.bin");
+}
+
+fn with_service(provider: &str, agreed: Option<&str>) -> wholeheard_shell::settings::Settings {
+    wholeheard_shell::settings::Settings {
+        engine: wholeheard_shell::settings::Engine::Service,
+        transcription_provider: Some(provider.into()),
+        transcription_model: Some("whisper-large-v3".into()),
+        transcription_agreed: agreed.map(str::to_string),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_service_hears_only_once_the_user_agreed_to_its_host_or_it_is_this_computer() {
+    let service = |provider: &str| Hearer::Service {
+        provider: provider.into(),
+        model: "whisper-large-v3".into(),
+        language: "fr".into(),
+    };
+    let agreed = with_service("https://api.groq.com/openai/v1", Some("api.groq.com"));
+    assert_eq!(Hearer::of(&agreed, "fr", || false), service("https://api.groq.com/openai/v1"));
+    let not_agreed = with_service("https://api.groq.com/openai/v1", None);
+    assert_eq!(
+        Hearer::of(&not_agreed, "fr", || false),
+        Hearer::Model(not_agreed.model.clone()),
+        "nothing sent before the user agreed"
+    );
+    let another = with_service("https://elsewhere.example/v1", Some("api.groq.com"));
+    assert!(
+        matches!(Hearer::of(&another, "fr", || false), Hearer::Model(_)),
+        "another host asks again"
+    );
+    let here = with_service("http://localhost:8000/v1", None);
+    assert_eq!(
+        Hearer::of(&here, "fr", || false),
+        service("http://localhost:8000/v1"),
+        "a host on this computer never asks"
+    );
+}
+
+#[test]
+fn a_service_is_asked_for_with_its_address_model_and_language_its_key_in_the_environment() {
+    let folder = tempfile::tempdir().unwrap();
+    fs::create_dir(folder.path().join("session")).unwrap();
+    let asked = folder.path().join("asked");
+    let hearer = Hearer::Service {
+        provider: "http://localhost:8000/v1".into(),
+        model: "whisper-1".into(),
+        language: "fr".into(),
+    };
+    let (_running, made) = made_with(
+        folder.path(),
+        &format!(
+            "echo \"$@ key=$WHOLEHEARD_PROVIDER_KEY\" > '{}'\ntouch \"$1/transcript.jsonl\"",
+            asked.display()
+        ),
+        &hearer,
+        Some("a-key-of-the-test"),
+    );
+    assert!(matches!(end(&made), Made::Written(_)));
+    let said = fs::read_to_string(&asked).unwrap();
+    assert!(
+        said.contains("--provider http://localhost:8000/v1 --model whisper-1 --language fr key=a-key-of-the-test"),
+        "{said}"
+    );
+    // The key in the environment alone: the arguments never hold it.
+    let (arguments, _) = said.split_once(" key=").unwrap();
+    assert!(!arguments.contains("a-key-of-the-test"), "{said}");
+}
+
+#[test]
+fn a_service_is_saved_only_once_its_host_elsewhere_is_agreed_to() {
+    use wholeheard_shell::transcription::{Refused, key_account, service_named};
+    // Elsewhere: refused without the agreement, its host named; agreed, that host kept.
+    assert_eq!(
+        service_named("https://api.groq.com/openai/v1", "whisper-large-v3", false),
+        Err(Refused::NotAgreed("api.groq.com".into()))
+    );
+    assert_eq!(
+        service_named(" https://api.groq.com/openai/v1 ", "whisper-large-v3", true),
+        Ok(("api.groq.com".into(), Some("api.groq.com".into())))
+    );
+    // This computer needs no agreement, and none is kept.
+    assert_eq!(
+        service_named("http://localhost:8000/v1", "whisper-1", false),
+        Ok(("localhost:8000".into(), None))
+    );
+    assert_eq!(
+        service_named("http://127.0.0.1:8000/v1", "whisper-1", false),
+        Ok(("127.0.0.1:8000".into(), None))
+    );
+    // A name that only starts as this computer's is elsewhere.
+    for elsewhere in [
+        "https://localhost.evil.example/v1",
+        "https://127.evil.example/v1",
+        "https://127.0.0.1.nip.io/v1",
+    ] {
+        assert!(
+            matches!(service_named(elsewhere, "whisper-1", false), Err(Refused::NotAgreed(_))),
+            "{elsewhere}"
+        );
+    }
+    assert_eq!(service_named("api.groq.com/openai/v1", "whisper-1", true), Err(Refused::Address));
+    assert_eq!(service_named("https://api.groq.com/openai/v1", " ", true), Err(Refused::Model));
+    // One host may write the minutes and hear with two keys: never one account.
+    assert_ne!(key_account("api.groq.com"), "api.groq.com");
 }

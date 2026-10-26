@@ -1233,7 +1233,92 @@ function showSettings(shown, minutes, words) {
     option.selected = shown.engine === "speechanalyzer";
     pick.append(option);
   }).catch(() => {});
+  // A service that hears, as the minutes' (D43): its fields under the choice, nothing sent before
+  // the user agreed to its host; a host on this computer needs no agreement.
+  const groupService = element("optgroup");
+  groupService.label = words.service_group;
+  const serviceOption = element("option", "", words.service_option);
+  serviceOption.value = "service";
+  serviceOption.selected = shown.engine === "service";
+  groupService.append(serviceOption);
+  pick.append(groupService);
+  const service = element("div", "fields");
+  service.id = "transcription-service";
+  service.hidden = shown.engine !== "service";
+  const serviceField = (id, text, type, value) => {
+    const wrap = element("label", "field");
+    wrap.htmlFor = id;
+    const input = element("input");
+    input.id = id;
+    input.type = type;
+    input.value = value || "";
+    input.defaultValue = input.value;
+    input.disabled = locked;
+    wrap.append(element("span", "name", text), input);
+    service.append(wrap);
+    return input;
+  };
+  const address = serviceField("transcription-provider", words.service_address, "url", shown.transcription_provider);
+  const serviceModel = serviceField("transcription-model", words.service_model, "text", shown.transcription_model);
+  const serviceKey = serviceField("transcription-key", words.service_key, "password", "");
+  const agree = element("label", "row");
+  const agreeBox = element("input");
+  agreeBox.type = "checkbox";
+  agreeBox.id = "transcription-agreed";
+  // A box ticked is no text being typed: the page still comes back when the window does.
+  agreeBox.defaultValue = agreeBox.value;
+  agreeBox.disabled = locked;
+  const agreeSaid = element("span", "says");
+  const hostOf = (text) => { try { return new URL(text).host; } catch { return ""; } };
+  const sayAgree = () => (agreeSaid.textContent = fill(words.service_agree, hostOf(address.value) || "—"));
+  agreeBox.checked = !!shown.transcription_agreed && shown.transcription_agreed === hostOf(address.value);
+  address.addEventListener("input", () => { sayAgree(); agreeBox.checked = false; });
+  sayAgree();
+  agree.append(agreeBox, agreeSaid);
+  const serviceSaid = element("p", "says");
+  serviceSaid.id = "transcription-said";
+  serviceSaid.setAttribute("role", "status");
+  const saveService = element("button", "primary", words.service_save);
+  saveService.type = "button";
+  saveService.id = "transcription-save";
+  saveService.disabled = locked;
+  // This computer's own host needs no agreement: nothing of the meeting leaves it.
+  // The whole host, its port aside: `localhost.example` or `127.example` is elsewhere. The shell
+  // judges again (`providers::local`); this only spares the agreement where none is needed.
+  const isHere = (host) => /^(localhost|127(\.\d{1,3}){3}|\[::1\])(:\d+)?$/i.test(host);
+  saveService.addEventListener("click", async () => {
+    const { invoke } = window.__TAURI__.core;
+    if (!/^https?:$/.test((() => { try { return new URL(address.value.trim()).protocol; } catch { return ""; } })()) || !hostOf(address.value.trim())) {
+      serviceSaid.textContent = words.service_address_bad;
+      return address.focus();
+    }
+    if (!serviceModel.value.trim()) {
+      serviceSaid.textContent = words.service_model_named;
+      return serviceModel.focus();
+    }
+    if (!agreeBox.checked && !isHere(hostOf(address.value))) {
+      serviceSaid.textContent = fill(words.service_agree_first, hostOf(address.value) || "—");
+      return agreeBox.focus();
+    }
+    const saved = await invoke("transcription_saved", {
+      provider: address.value, model: serviceModel.value, key: serviceKey.value || null, agreed: agreeBox.checked,
+    }).then((notKept) => (notKept === null ? fill(words.service_saved, hostOf(address.value)) : fill(words.key_not_kept, notKept)), (why) => fill(words.not_saved, why));
+    serviceSaid.textContent = saved;
+  });
+  const testService = element("button", "open", words.service_test);
+  testService.type = "button";
+  testService.id = "transcription-test";
+  testService.disabled = locked;
+  testService.addEventListener("click", async () => {
+    testService.disabled = true;
+    serviceSaid.textContent = "";
+    serviceSaid.textContent = await window.__TAURI__.core.invoke("transcription_tested").then(() => words.service_tested, (why) => fill(words.test_failed, why));
+    testService.disabled = false;
+  });
+  service.append(agree, saveService, testService, serviceSaid);
   pick.addEventListener("change", () => {
+    service.hidden = pick.value !== "service";
+    if (pick.value === "service") return address.focus();
     if (pick.value !== "speechanalyzer") return save({ model: pick.value });
     if (appleHere) return save({ engine: "speechanalyzer" });
     // Not chosen until its model is on the Mac: the gesture comes first, never the download.
@@ -1243,7 +1328,7 @@ function showSettings(shown, minutes, words) {
   row.append(label, pick);
   const here = element("p", "status here", words.on_this_computer);
   here.append(element("code", "tag", words.builtin));
-  step.append(row, speech, here);
+  step.append(row, speech, service, here);
   // The short list of models to download, each said by what it is good for (D37).
   const offered = element("ul", "offered");
   offered.id = "offered";

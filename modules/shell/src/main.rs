@@ -195,6 +195,8 @@ fn main() {
             model_offered_fetch,
             registry_refresh,
             speech_shown,
+            transcription_saved,
+            transcription_tested,
             speech_installed,
             ollama_pull_offered,
             header,
@@ -1054,8 +1056,12 @@ struct SettingsShown {
     autostart: bool,
     keep_audio: KeepAudio,
     model: PathBuf,
-    /// Who hears: the model above, or Apple's SpeechAnalyzer (D42).
+    /// Who hears: the model above, Apple's SpeechAnalyzer (D42), or a service the user named (D43),
+    /// its address, model and the host agreed to; its key never: the keyring holds it.
     engine: Engine,
+    transcription_provider: Option<String>,
+    transcription_model: Option<String>,
+    transcription_agreed: Option<String>,
     models: Vec<Model>,
     /// The short list of models to download, each said by what it is good for (D37), and the
     /// host it is read again from on the user's gesture (D40).
@@ -1104,6 +1110,9 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         keep_audio: settings.keep_audio,
         model: settings.model,
         engine: settings.engine,
+        transcription_provider: settings.transcription_provider.clone(),
+        transcription_model: settings.transcription_model.clone(),
+        transcription_agreed: settings.transcription_agreed.clone(),
         models,
         registry_host: registry::host(&registry_address()).to_owned(),
         offered: offered()
@@ -1370,6 +1379,91 @@ async fn minutes_saved(
     };
     look_again(&app);
     Ok(not_kept)
+}
+
+/// Who hears, when a service does (D43): its address and model saved, the user's agreement to its
+/// host with them, its key kept in the keyring under the transcription's own account. A host on
+/// this computer needs no agreement. Nothing is sent here.
+#[tauri::command]
+async fn transcription_saved(
+    shell: State<'_, Shell>,
+    provider: String,
+    model: String,
+    key: Option<String>,
+    agreed: bool,
+) -> Result<Option<String>, String> {
+    let (host, key) = {
+        let _saving = shell.saving.lock().unwrap();
+        let mut settings = shell.reread()?;
+        let (host, agreed_to) = transcription::service_named(&provider, &model, agreed).map_err(|refused| match refused {
+            transcription::Refused::Address => format!("{provider} is no service's address"),
+            transcription::Refused::Model => "a model is named".to_string(),
+            transcription::Refused::NotAgreed(host) => format!("the meetings' sound is sent to {host}: agree to it first"),
+        })?;
+        let key = key.map(|key| key.trim().to_string()).filter(|key| !key.is_empty());
+        if key.is_some()
+            && let Some(why) = shell.keyring.lock().unwrap().clone()
+        {
+            return Err(format!("the system's keyring could not be opened ({why})"));
+        }
+        settings.engine = Engine::Service;
+        settings.transcription_provider = Some(provider.trim().to_string());
+        settings.transcription_model = Some(model.trim().to_string());
+        settings.transcription_agreed = agreed_to;
+        let file = settings::file().ok_or("this system names no folder for settings")?;
+        settings::write(&file, &settings).map_err(|error| error.to_string())?;
+        *shell.settings.lock().unwrap() = settings;
+        tracing::info!(host = %host, "shell.transcription_service_saved");
+        (host, key)
+    };
+    let not_kept = match key {
+        Some(key) => {
+            let account = transcription::key_account(&host);
+            let kept = tauri::async_runtime::spawn_blocking(move || keys::keep(&account, &key)).await;
+            kept.map_err(|error| error.to_string()).and_then(|kept| kept).err()
+        }
+        None => None,
+    };
+    Ok(not_kept)
+}
+
+/// *Tester* for who hears: `wholeheard-transcription --test` sends a sound of its own to the service
+/// saved, its key in the environment; refused, the program's own sentence.
+#[tauri::command]
+async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), String> {
+    let settings = shell.reread()?;
+    let (Some(provider), Some(model)) = (settings.transcription_provider, settings.transcription_model) else {
+        return Err("no service is chosen yet".into());
+    };
+    let hearing = program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION");
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        let host = providers::host(&provider).unwrap_or_default();
+        let key = keys::key(&transcription::key_account(&host)).ok().flatten();
+        tracing::info!(host = %host, model = %model, key = key.is_some(), "shell.transcription_testing");
+        let mut command = std::process::Command::new(&hearing);
+        command.args(["--test", "--provider", &provider, "--model", &model]);
+        command.env_remove("WHOLEHEARD_PROVIDER_KEY");
+        if let Some(key) = key {
+            command.env("WHOLEHEARD_PROVIDER_KEY", key);
+        }
+        command.output()
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| error.to_string())?;
+    if output.status.success() {
+        tracing::info!("shell.transcription_tested");
+        return Ok(());
+    }
+    let said = String::from_utf8_lossy(&output.stderr);
+    let said = said.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
+    let said = said.strip_prefix("wholeheard-transcription: ").unwrap_or(said).to_string();
+    tracing::warn!(detail = %said, "shell.transcription_test_failed");
+    Err(if said.is_empty() {
+        format!("wholeheard-transcription stopped without saying why ({})", output.status)
+    } else {
+        said
+    })
 }
 
 /// *Tester*: asks `wholeheard-summary` whether the model saved answers — one sentence of its own,
@@ -2196,13 +2290,24 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
     // Apple's SpeechAnalyzer needs no model file: its own is on the Mac (D42). Chosen and no
     // longer offered here — an older macOS, the program gone —, Whisper hears, and it is logged.
     let language = shell.language.code();
-    let hearer = Hearer::chosen(settings.engine, model, language, || {
+    let hearer = Hearer::of(&settings, language, || {
         let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
         speech::status(&program, language).is_some_and(|status| status.offered && status.installed)
     });
     if settings.engine == Engine::SpeechAnalyzer && matches!(hearer, Hearer::Model(_)) {
         tracing::warn!("shell.speech_unavailable");
     }
+    // A service not agreed to yet sends nothing: Whisper hears, and it is logged (D43).
+    if settings.engine == Engine::Service && matches!(hearer, Hearer::Model(_)) {
+        tracing::warn!("shell.service_not_agreed");
+    }
+    // Its key from the keyring, under the transcription's own account: never the minutes'.
+    let key = match &hearer {
+        Hearer::Service { provider, .. } => {
+            providers::host(provider).and_then(|host| keys::key(&transcription::key_account(&host)).ok().flatten())
+        }
+        _ => None,
+    };
     if matches!(hearer, Hearer::Model(_)) && !model.is_file() {
         // The default model is offered, its size and host shown; one the user named is theirs.
         if *model == Settings::default().model {
@@ -2223,7 +2328,12 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         }
         return;
     }
-    let started = Transcription::start(&program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"), &folder, &hearer);
+    let started = Transcription::start_with(
+        &program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"),
+        &folder,
+        &hearer,
+        key.as_deref(),
+    );
     let (transcription, made) = match started {
         Ok(started) => started,
         Err(error) => {

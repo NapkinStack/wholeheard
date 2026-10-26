@@ -30,7 +30,49 @@ pub enum Made {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Hearer {
     Model(PathBuf),
-    SpeechAnalyzer { language: String },
+    SpeechAnalyzer {
+        language: String,
+    },
+    /// A service the user named (D43): its address, its model, the language asked.
+    Service {
+        provider: String,
+        model: String,
+        language: String,
+    },
+}
+
+/// Why a service named to hear is not saved (D43).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Refused {
+    /// No `http://` or `https://` address of a host.
+    Address,
+    /// No model named.
+    Model,
+    /// A host elsewhere than this computer, the user's agreement to it not given.
+    NotAgreed(String),
+}
+
+/// A service named to hear, checked before anything is saved: its host, and the host the user
+/// agreed to — none for this computer's own, where nothing of a meeting leaves it (ADR-0013).
+pub fn service_named(provider: &str, model: &str, agreed: bool) -> Result<(String, Option<String>), Refused> {
+    let provider = provider.trim();
+    let host = crate::providers::host(provider).ok_or(Refused::Address)?;
+    if model.trim().is_empty() {
+        return Err(Refused::Model);
+    }
+    if crate::providers::local(provider) {
+        return Ok((host, None));
+    }
+    if !agreed {
+        return Err(Refused::NotAgreed(host));
+    }
+    Ok((host.clone(), Some(host)))
+}
+
+/// The keyring's account of a transcription service's key: apart from the minutes', which is
+/// the host alone — one host may hear and write with two keys.
+pub fn key_account(host: &str) -> String {
+    format!("transcription {host}")
 }
 
 impl Hearer {
@@ -44,11 +86,35 @@ impl Hearer {
         }
     }
 
+    /// Who hears, as the settings say it: a service only once the user agreed to its host — or it
+    /// is this computer —, as the minutes are sent (ADR-0013); else as `chosen` says.
+    pub fn of(settings: &crate::settings::Settings, language: &str, apple_ready: impl FnOnce() -> bool) -> Hearer {
+        if settings.engine == crate::settings::Engine::Service
+            && let (Some(provider), Some(model)) = (&settings.transcription_provider, &settings.transcription_model)
+        {
+            let host = crate::providers::host(provider);
+            let agreed = crate::providers::local(provider) || (host.is_some() && host == settings.transcription_agreed);
+            if agreed {
+                return Hearer::Service {
+                    provider: provider.clone(),
+                    model: model.clone(),
+                    language: language.into(),
+                };
+            }
+        }
+        let engine = match settings.engine {
+            crate::settings::Engine::Service => crate::settings::Engine::Whisper,
+            engine => engine,
+        };
+        Hearer::chosen(engine, &settings.model, language, apple_ready)
+    }
+
     /// Its name, as the page says who hears.
     pub fn name(&self) -> String {
         match self {
             Hearer::Model(model) => named(model),
             Hearer::SpeechAnalyzer { .. } => "SpeechAnalyzer".into(),
+            Hearer::Service { model, .. } => model.clone(),
         }
     }
 }
@@ -63,6 +129,11 @@ impl Transcription {
     /// Starts the program that hears on a session's folder, with who hears. How it ended
     /// comes once on the receiver: `Written` only when it ended well with the transcript there.
     pub fn start(program: &Path, folder: &Path, hearer: &Hearer) -> io::Result<(Self, Receiver<Made>)> {
+        Self::start_with(program, folder, hearer, None)
+    }
+
+    /// The same, a service's key handed in the program's environment, never its arguments.
+    pub fn start_with(program: &Path, folder: &Path, hearer: &Hearer, key: Option<&str>) -> io::Result<(Self, Receiver<Made>)> {
         let (trace, making) = crate::log::making();
         let _making = making.enter();
         let mut command = Command::new(program);
@@ -76,7 +147,15 @@ impl Transcription {
                 command.args(["--engine", "speechanalyzer", "--language", language]);
                 "SpeechAnalyzer".to_string()
             }
+            Hearer::Service { provider, model, language } => {
+                command.args(["--provider", provider, "--model", model, "--language", language]);
+                model.clone()
+            }
         };
+        command.env_remove("WHOLEHEARD_PROVIDER_KEY");
+        if let Some(key) = key {
+            command.env("WHOLEHEARD_PROVIDER_KEY", key);
+        }
         info!(session = %named(folder), model = %model, "shell.transcript");
         // A group of its own: ended, whatever it started ends with it.
         #[cfg(unix)]
