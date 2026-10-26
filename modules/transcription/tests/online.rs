@@ -219,3 +219,57 @@ fn the_program_writes_the_transcript_from_the_service_its_host_in_the_header() {
         "{header}"
     );
 }
+
+#[test]
+fn a_refusal_the_service_explains_is_said_in_its_words_on_one_line() {
+    let (address, _asked) = served(
+        400,
+        r#"{"error":{"message":"The prompt is too long:\n at most 224 tokens.\u0007","type":"invalid_request_error"}}"#,
+    );
+    let error = Service::new(&address, "whisper-large-v3", None)
+        .unwrap()
+        .hear(&vec![0.25f32; RATE], Some("fr"), Some("a long context"))
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("HTTP 400")
+            && error.contains("The prompt is too long: at most 224 tokens.")
+            && !error.contains('\n')
+            && !error.contains('\u{7}'),
+        "{error}"
+    );
+    assert!(!error.contains("choose a model"), "{error}");
+    // A sentence as long as a service may send: cut, still one line.
+    let long: &'static str = Box::leak(format!(r#"{{"error":{{"message":"{}"}}}}"#, "x".repeat(5000)).into_boxed_str());
+    let (address, _asked) = served(400, long);
+    let error = Service::new(&address, "m", None)
+        .unwrap()
+        .hear(&vec![0.25f32; RATE], None, None)
+        .unwrap_err()
+        .to_string();
+    assert!(error.chars().count() < 300 && error.ends_with('…'), "{}", error.len());
+    // A sentence that reorders or hides what is read: its marks taken out.
+    let (address, _asked) = served(400, r#"{"error":{"message":"gpj.\u202eexe\u200b"}}"#);
+    let error = Service::new(&address, "m", None)
+        .unwrap()
+        .hear(&vec![0.25f32; RATE], None, None)
+        .unwrap_err()
+        .to_string();
+    assert!(error.ends_with("(HTTP 400): gpj.exe"), "{error:?}");
+    // `error` a sentence itself, as some services give it.
+    let (address, _asked) = served(400, r#"{"error":"model not found"}"#);
+    let error = Service::new(&address, "m", None)
+        .unwrap()
+        .hear(&vec![0.25f32; RATE], None, None)
+        .unwrap_err()
+        .to_string();
+    assert!(error.ends_with("(HTTP 400): model not found"), "{error}");
+    // Nothing readable: the likeliest cause, a model without times.
+    let (address, _asked) = served(400, "not json");
+    let error = Service::new(&address, "m", None)
+        .unwrap()
+        .hear(&vec![0.25f32; RATE], None, None)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("choose a model that gives each segment's times"), "{error}");
+}

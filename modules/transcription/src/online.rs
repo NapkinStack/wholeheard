@@ -107,10 +107,14 @@ impl Service {
             200 => {}
             status @ (401 | 403) => return Err(format!("{host} refused the key (HTTP {status})")),
             404 => return Err(format!("{host} does not know this model or this address (HTTP 404)")),
+            // What the service said of it, when it says it as OpenAI does — a prompt too long, a
+            // format it does not give —; otherwise the likeliest cause, a model without times.
             400 => {
-                return Err(format!(
-                    "{host} refused the request (HTTP 400): choose a model that gives each segment's times"
-                ));
+                let answer: serde_json::Value = response.body_mut().read_json().unwrap_or_default();
+                return Err(match said(&answer) {
+                    Some(said) => format!("{host} refused the request (HTTP 400): {said}"),
+                    None => format!("{host} refused the request (HTTP 400): choose a model that gives each segment's times"),
+                });
             }
             status => return Err(format!("{host} failed (HTTP {status})")),
         }
@@ -137,6 +141,26 @@ impl Service {
             )
             .collect()
     }
+}
+
+/// The service's own sentence of a refusal (`error.message`), made fit for one line of a log and of
+/// the window: its controls and spaces collapsed, the marks that reorder or hide text (bidi
+/// overrides and isolates, zero widths) taken out, at most 200 characters — it is the service's
+/// text, never trusted to be short or plain.
+fn said(answer: &serde_json::Value) -> Option<String> {
+    let message = answer["error"]["message"].as_str().or_else(|| answer["error"].as_str())?;
+    let hidden = |c: &char| matches!(c, '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{feff}');
+    let message: String = message.chars().filter(|c| !hidden(c)).collect();
+    let words: Vec<&str> = message
+        .split(|c: char| c.is_whitespace() || c.is_control())
+        .filter(|w| !w.is_empty())
+        .collect();
+    let line = words.join(" ");
+    let line = match line.char_indices().nth(200) {
+        Some((cut, _)) => format!("{}…", &line[..cut]),
+        None => line,
+    };
+    (!line.is_empty()).then_some(line)
 }
 
 impl Engine for Service {
