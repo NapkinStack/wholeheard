@@ -248,4 +248,28 @@ fn a_refusal_the_service_explains_is_said_in_its_words_on_one_line() {
         .unwrap_err()
         .to_string();
     assert!(error.chars().count() < 300 && error.ends_with('…'), "{}", error.len());
+    // A sentence that reorders or hides what is read: its marks taken out.
+    let (address, _asked) = served(400, r#"{"error":{"message":"gpj.\u202eexe\u200b"}}"#);
+    let error = Service::new(&address, "m", None)
+        .unwrap()
+        .hear(&vec![0.25f32; RATE], None, None)
+        .unwrap_err()
+        .to_string();
+    assert!(error.ends_with("(HTTP 400): gpj.exe"), "{error:?}");
+    // `error` a sentence itself, as some services give it.
+    let (address, _asked) = served(400, r#"{"error":"model not found"}"#);
+    let error = Service::new(&address, "m", None)
+        .unwrap()
+        .hear(&vec![0.25f32; RATE], None, None)
+        .unwrap_err()
+        .to_string();
+    assert!(error.ends_with("(HTTP 400): model not found"), "{error}");
+    // Nothing readable: the likeliest cause, a model without times.
+    let (address, _asked) = served(400, "not json");
+    let error = Service::new(&address, "m", None)
+        .unwrap()
+        .hear(&vec![0.25f32; RATE], None, None)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("choose a model that gives each segment's times"), "{error}");
 }
