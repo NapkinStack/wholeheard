@@ -45,7 +45,7 @@ pub fn read(text: &str) -> Result<Vec<Listed>, String> {
     match list.get("version").and_then(serde_json::Value::as_u64) {
         Some(1) => {}
         Some(other) => return Err(format!("the list is of version {other}, unknown to this build")),
-        None => return Err("the list says no version".into()),
+        None => return Err("the list says no version this build reads".into()),
     }
     let models = list
         .get("whisper")
@@ -74,7 +74,13 @@ fn listed(entry: &serde_json::Value) -> Result<Listed, String> {
     if !HOSTS.contains(&host) {
         return Err(format!("{host} is not a host models are fetched from"));
     }
-    if path.ends_with('/') || path.is_empty() {
+    // The address's last part is the file it is kept as, in the models' folder: a name, never
+    // a folder, a query or a fragment.
+    let file = path.rsplit('/').next().unwrap_or_default();
+    let named = file
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'));
+    if !named || file.is_empty() || file.starts_with('.') || path.contains(['?', '#']) {
         return Err("its address names no file".into());
     }
     let bytes = entry.get("bytes").and_then(serde_json::Value::as_u64).filter(|bytes| *bytes > 0);
