@@ -23,10 +23,13 @@ use tauri::{
     tray::TrayIconBuilder,
 };
 use tauri_plugin_notification::NotificationExt;
+// A call starting is seen only on Linux, by PipeWire (D30).
+#[cfg(target_os = "linux")]
+use wholeheard_shell::microphone;
 use wholeheard_shell::{
     autostart, desktop, keys, log,
     meeting::{self, Read, Transcript},
-    microphone, migrate,
+    migrate,
     minutes::{self, Minutes},
     model::{self, Published},
     player,
@@ -1367,8 +1370,11 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
 /// Why the trash refused, as the user is told it: the system's own wording names a file and
 /// changes with it.
 fn refusal(error: &trash::Error) -> Refusal {
+    #[cfg(target_os = "linux")]
     use std::io::ErrorKind;
     match error {
+        // The freedesktop trash's own error: the other systems' trash says no such thing.
+        #[cfg(target_os = "linux")]
         trash::Error::FileSystem { source, .. } => match source.kind() {
             ErrorKind::PermissionDenied | ErrorKind::ReadOnlyFilesystem => Refusal::NotAllowed,
             ErrorKind::StorageFull | ErrorKind::QuotaExceeded => Refusal::NoSpace,
