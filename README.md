@@ -44,7 +44,7 @@ colleague's machine.
 
 | What runs | Its page |
 |---|---|
-| Wholeheard, started with your session: a small window to record, and a call in another application offered to be recorded; the window lists your meetings and what they weigh, shows one's minutes beside its transcript, plays it with its words following, frees space and undoes it, and holds the settings — each step's model, fetched on your word | [`modules/shell`](modules/shell/) |
+| Wholeheard, started with your session: a small window to record, and a call in another application offered to be recorded; the window lists your meetings and what they weigh, shows one's minutes beside its transcript, plays it with its words following, frees space to the system's trash, from where it comes back, and holds the settings — each step's model, fetched on your word | [`modules/shell`](modules/shell/) |
 | A recording, from a terminal: `wholeheard-capture record <folder>` | [`modules/capture`](modules/capture/) |
 | The transcript of a session, on the machine: `wholeheard-transcription <session> --model <file>` | [`modules/transcription`](modules/transcription/) |
 | The minutes of a transcript, from the provider you chose: `wholeheard-summary <session> --provider <address> --model <name>` | [`modules/summary`](modules/summary/) |
