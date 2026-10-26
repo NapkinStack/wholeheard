@@ -46,7 +46,8 @@ level arrives on the day the first build reaches people outside the project.
   leaving the session links of five commits (*Impacts*).~~ Answered by the decider on
   2026-10-26: the searches are done, the name is kept, and it can still change if it has to
   ("pour l’instant on conserve le nom, les recherche on déjà été faite, on pourra changer de
-  nom si jamais"). The session links: see *Impacts*.
+  nom si jamais"). The domains: not answered, put to the decider before the visibility
+  changes. The session links: see *Impacts*.
 
 ---
 
