@@ -103,7 +103,10 @@ repository, read by the application, each entry with its address, size and check
    Wholeheard quits. Never at the start, never in the background.
 4. **Refused, the shipped list stays**: a list that does not answer, is larger than 64 KB, does
    not read, says a version the build does not know, or names a model's host other than
-   `huggingface.co`. One sentence says it could not be brought up to date.
+   `huggingface.co` — nor one whose first model is not the build's default (`model::DEFAULT`),
+   the model a transcript waits for and the tray fetches, which changes with a release (amended
+   with D40's second pull request, 2026-10-26). One sentence says it could not be brought up to
+   date.
 5. **Who may write it**: whoever may merge into `main` — NapkinStack's members, and the agent
    merging alone under rule 2 —; no outside contribution is merged (`CONTRIBUTING.md`, PDR-0002,
    decision 3). No rule of its own guards the folder: the repository's write access does. The

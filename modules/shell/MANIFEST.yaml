@@ -234,6 +234,10 @@ evidence:
     - pattern: '"message":"shell\.model_fetch_failed"'
       level: error
       scenario: G
+    # The list of models read again answers a page not found, refused (the window's W, D40).
+    - pattern: '"message":"shell\.registry_refused"'
+      level: warning
+      scenario: W
     # Ollama's pull of the minutes' model cut, then refused (the window's V, D37).
     - pattern: '"message":"shell\.model_pull_failed"'
       level: error
