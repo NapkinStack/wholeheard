@@ -47,6 +47,26 @@ deliverables:
       - "Given no call, a call whose sound plays on the default, or on several outputs at once, when it is recorded, then the remote track records the system's default output, as D31 does"
       - "Given a graph that cannot be read or a stream that cannot be moved, when it is recorded, then the recording goes on from the default, and one warning is logged"
       - "Given capture's e2e, when a stand-in call plays a note on an output of its own that is not the default, then the remote track holds that note — on devices made for the run, nobody recorded"
+  - id: D42
+    title: "On a Mac with macOS 26, Apple's SpeechAnalyzer hears a meeting, chosen in Settings"
+    module: transcription
+    state: ready
+    acceptance:
+      - "Given a session and Apple's model of the system's language — French or English — on a Mac with macOS 26, when it is transcribed with `--engine speechanalyzer`, then `transcript/v1` is written by the step as ever — each segment on its track with its times —, its header naming the engine SpeechAnalyzer, and no line of `src/step.rs` changed to add it"
+      - "Given the macOS workflow, when it runs, then it builds `wholeheard-speech` beside the other programs and transcribes back the words of a French sentence `say` speaks; where the runner offers no SpeechTranscriber or no French voice, the step says it was not run, and this criterion is met on the colleague's Mac instead"
+      - "Given D38's app, when it is made, then `wholeheard-speech` is in `Contents/MacOS`, signed with the rest"
+      - "Given Settings on a Mac with macOS 26 and French supported, when the user opens the choice of who hears, then SpeechAnalyzer is offered beside the Whisper models; its model not on the Mac, Settings say macOS fetches it from Apple and offer it on a click, nothing fetched before; elsewhere — Linux, an older macOS, a language unsupported — it is not offered"
+      - "Given the colleague's real call of D39 on their Mac, when it is transcribed by SpeechAnalyzer, then the cycle records how long it took against the call and the colleague's reading of it — nothing of the call published —, read against the threshold: less time than the call lasted"
+  - id: D43
+    title: "Who hears is chosen as who writes the minutes: on this computer, or a service the user names"
+    module: transcription
+    state: proposed
+    acceptance:
+      - "Given Settings, when the user chooses who hears, then they choose as for the minutes: on this computer — a Whisper model, or SpeechAnalyzer on a Mac (D42) — or a service at an address they give, OpenAI-compatible, its model and their key, kept as the minutes' is"
+      - "Given a service chosen, when a meeting is first transcribed, then nothing is sent before the user agreed to that host, as for the minutes; another host asks again"
+      - "Given a service that answers, when a session is transcribed, then `transcript/v1` is written by the step as ever, each segment on its track with its times, the header naming the service's host and model"
+      - "Given Settings, when the user tests the service, then it is said in one sentence whether it hears, with a sound of the test's own, nothing of a meeting"
+      - "Given a service that refuses the key, does not answer or answers no transcript, when a session is transcribed, then it is said in one sentence, nothing is kept of a half, and the transcript can be made again"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -174,12 +194,49 @@ it is the one promise the product keeps — the other side heard. The end date d
 - Its trial is the decider's: #436's call again, Discord on the AirPods, the default left on the
   speaker.
 
+### D42
+
+**Added on the decider's word, 2026-10-26**: "pour profiter des test macOS j'aimerai qu'on traite
+directement la solution avec speechanalyzer ça permettra à mon collaborateur de tout tester, analyse
+le marché et la solution et fais le dans le cycle" — from *Later* above; the colleague is on macOS
+26 (the decider, same day). Chosen first of the two added that day, should both not fit: their
+answer, "SpeechAnalyzer d'abord". The end date does not move.
+
+- How: [ADR-0012](../../adr/0012-on-macos-speechanalyzer-hears-through-a-program-of-its-own.md) —
+  a Swift program of its own, `wholeheard-speech`, behind ADR-0003's interface; Whisper stays the
+  default.
+- The market, read 2026-10-26: dictation tools adopted it first (Spokenly, Yap), and one
+  meeting-notes app, Lyonesse (formerly Inscribe), prefers it where the language is supported; on
+  French the sources disagree with each other — tied
+  with Whisper large-v3-turbo on one FLEURS run, behind Whisper Large on another (ADR-0012, *Prior art*).
+- Three pull requests, one module each: transcription (the program and the engine), install (the
+  app), the shell (Settings).
+- Its trial: on the colleague's Mac, after D39's call, in #426.
+
+### D43
+
+**Added on the decider's word, 2026-10-26**: "je t'avais parler de gérer les models de transcription
+de la même manière que pour les minutes" — asked what it means, their choice: "Le même choix que les
+minutes" — on this computer, or a service OpenAI-compatible with its address, model and key, and a
+test. The charter drew it from the start (a transcription service, "only if the user chose it").
+Second of the two, should both not fit. The end date does not move.
+
+- The minutes' way is the one known: the host agreed before the first sending, the key in the
+  system's keyring, *Tester* (cycle 03).
+- **`proposed`, not `ready`**: an ADR comes first — the service's protocol (a service that
+  answers text without segments' times), which module holds the key and speaks to the host
+  (today `modules/transcription` "contacts no host"; for the minutes the shell hands `summary` the
+  key), and that module's criticality: a module that holds a key is `critical` by the handbook's
+  rule (`.nstack/handbook/05-workflow.md` §7), which `summary` is not today — the decider's to
+  settle.
+
 ## Dependency with a date
 
 - **The colleague on Ubuntu 24.04**, for D27: the trial of #255 by 2026-10-31 (the framer's
   date). Missed, D27 stays where it is at the end date.
-- **The colleague on macOS**, for D38's second and third criteria and for D39: one session of
-  an hour by 2026-10-31, the app ready by 2026-10-29. The cycle does not hold it: missed, the
+- **The colleague on macOS**, for D38's second and third criteria, D39, and D42's last: one session of
+  an hour by 2026-10-31, the app ready by 2026-10-29 — for D42, its three pull requests
+  merged before then, or its last criterion waits on another session. The cycle does not hold it: missed, the
   deliverables stay where they are at the end date.
 
 ## Out of scope
@@ -187,14 +244,29 @@ it is the one promise the product keeps — the other side heard. The end date d
 - Apple's signing and notarisation, a `.dmg`, the App Store.
 - Intel Macs, macOS 14.6 and before.
 - Windows.
-- Anything of the window or of the settings made for macOS beyond opening.
+- Anything of the window or of the settings made for macOS beyond opening — but D42's choice of who hears, on the decider's word of 2026-10-26.
 
 ## Later
 
-- The transcript and the minutes of D39's call made on the Mac, the engine on its graphics card
-  (Metal), and how long it takes against the call: narrowed out by the decider's appetite (one
+- **The next framing starts from a review of 2026-10-26**, asked by the decider ("fais une revue
+  complète pour que l'app soit la meilleure, ux/ui primordiale, moderne, haut de gamme … ludique et
+  facile à utiliser … non intrusive, fluide"): [the market](../reviews/2026-10-26-market.md) and
+  [the surface](../reviews/2026-10-26-ux.md), each by an independent session. The decider's choice
+  the same day: a cycle 05 after this one, "le meilleur au quotidien" — the notifications that open
+  the meeting and are fewer, the minutes copied, the French wording, actions as rows, a meeting's
+  title, the first run, the cost an AI call reports — and the reminder kept, never off by default.
+- **A transcript followed live**, the decider's idea of 2026-10-26 ("la possibilité de faire la
+  transcription live, le traitement qu'on ne peut pas faire live est celui des minutes"): the
+  framer's proposal, for cycle 05 — a provisional preview while recording, on the machine alone
+  (SpeechAnalyzer's own live results on a Mac, a small Whisper model on short spans elsewhere), in
+  the small window and the full one; the transcript of record made after the stop as today, short
+  spans losing words (cycle 01, D4: 34.5 % differed at thirty seconds, 26.7 % whole); a spike
+  first, measuring its load during a call and its words on the bench.
+
+- The transcript and the minutes of D39's call made on the Mac by Whisper on its graphics card
+  (Metal), and how long it takes against the call — by SpeechAnalyzer, it is D42's: narrowed out by the decider's appetite (one
   week, 2026-10-26). The charter's second criterion — two weeks of meetings on the Mac — needs it.
-- macOS's own transcription engine (SpeechAnalyzer), against Whisper.
+- ~~macOS's own transcription engine (SpeechAnalyzer), against Whisper.~~ D42, 2026-10-26.
 - A refusal of macOS's trash said by its cause: today it is said as *other* (#417).
 
 ## Open questions
