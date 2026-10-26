@@ -20,15 +20,22 @@ use serde_json::json;
 use tracing::{error, info};
 use wholeheard_transcription::{
     log,
+    online::Service,
     speech::SpeechAnalyzer,
     step::{Engine, hear, read},
     whisper::{Whisper, knows},
 };
 
-/// Who hears: a Whisper model, or Apple's SpeechAnalyzer.
+/// Who hears: a Whisper model, Apple's SpeechAnalyzer, or a service the user named (D43).
 enum Hearer<'a> {
     Model(&'a Path),
     SpeechAnalyzer,
+    Service { provider: &'a str, model: &'a str },
+}
+
+/// The key the service wants, when it wants one: handed by the shell, written nowhere (ADR-0013).
+fn key() -> Option<String> {
+    std::env::var("WHOLEHEARD_PROVIDER_KEY").ok().filter(|key| !key.is_empty())
 }
 
 /// Seconds of sound an engine hears at a time. Long, on purpose: on the sample the engine was
@@ -50,9 +57,17 @@ fn main() -> ExitCode {
         [folder, "--engine", "speechanalyzer", "--language", language] | [folder, "--language", language, "--engine", "speechanalyzer"] => {
             run(Path::new(folder), Hearer::SpeechAnalyzer, Some(language))
         }
+        ["--test", "--provider", provider, "--model", model] => {
+            Service::new(provider, model, key().as_deref()).and_then(|service| service.test())
+        }
+        [folder, "--provider", provider, "--model", model] => run(Path::new(folder), Hearer::Service { provider, model }, None),
+        [folder, "--provider", provider, "--model", model, "--language", language] => {
+            run(Path::new(folder), Hearer::Service { provider, model }, Some(language))
+        }
         _ => Err(
             "usage: wholeheard-transcription <session-folder> --model <model-file> [--language <code>] \
-             | --engine speechanalyzer --language <fr|en>"
+             | --engine speechanalyzer --language <fr|en> \
+             | --provider <address> --model <name> [--language <code>] | --test --provider <address> --model <name>"
                 .to_string(),
         ),
     };
@@ -73,6 +88,7 @@ fn run(folder: &Path, hearer: Hearer, language: Option<&str>) -> Result<(), Stri
     let asked = match hearer {
         Hearer::Model(model) => named(model),
         Hearer::SpeechAnalyzer => "SpeechAnalyzer".into(),
+        Hearer::Service { model, .. } => model.to_string(),
     };
     info!(session = %named(folder), model = %asked, language, "transcription.started");
     if !folder.join("session.json").is_file() {
@@ -102,6 +118,8 @@ fn run(folder: &Path, hearer: Hearer, language: Option<&str>) -> Result<(), Stri
                 (Box::new(engine), "segments")
             }
         }
+        // Sent nowhere before the shell asked the user to agree to the host, as for the minutes.
+        Hearer::Service { provider, model } => (Box::new(Service::new(provider, model, key().as_deref())?), "segments"),
     };
     let (name, model) = engine.name();
     info!(engine = %name, model = %model, times, audio = form, milliseconds = loading.elapsed().as_millis() as u64, "transcription.loaded");

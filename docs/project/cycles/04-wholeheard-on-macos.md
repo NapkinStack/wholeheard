@@ -60,13 +60,13 @@ deliverables:
   - id: D43
     title: "Who hears is chosen as who writes the minutes: on this computer, or a service the user names"
     module: transcription
-    state: proposed
+    state: ready
     acceptance:
       - "Given Settings, when the user chooses who hears, then they choose as for the minutes: on this computer — a Whisper model, or SpeechAnalyzer on a Mac (D42) — or a service at an address they give, OpenAI-compatible, its model and their key, kept as the minutes' is"
       - "Given a service chosen, when a meeting is first transcribed, then nothing is sent before the user agreed to that host, as for the minutes; another host asks again"
       - "Given a service that answers, when a session is transcribed, then `transcript/v1` is written by the step as ever, each segment on its track with its times, the header naming the service's host and model"
       - "Given Settings, when the user tests the service, then it is said in one sentence whether it hears, with a sound of the test's own, nothing of a meeting"
-      - "Given a service that refuses the key, does not answer or answers no transcript, when a session is transcribed, then it is said in one sentence, nothing is kept of a half, and the transcript can be made again"
+      - "Given a service that refuses the key, does not answer, answers no transcript, or gives text without its segments' times, when a session is transcribed, then it is said in one sentence, nothing is kept of a half, and the transcript can be made again"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -252,12 +252,12 @@ Second of the two, should both not fit. The end date does not move.
 
 - The minutes' way is the one known: the host agreed before the first sending, the key in the
   system's keyring, *Tester* (cycle 03).
-- **`proposed`, not `ready`**: an ADR comes first — the service's protocol (a service that
-  answers text without segments' times), which module holds the key and speaks to the host
-  (today `modules/transcription` "contacts no host"; for the minutes the shell hands `summary` the
-  key), and that module's criticality: a module that holds a key is `critical` by the handbook's
-  rule (`.nstack/handbook/05-workflow.md` §7), which `summary` is not today — the decider's to
-  settle.
+- **`ready` since [ADR-0013](../../adr/0013-a-transcription-service-the-user-names-heard-as-the-minutes-are-written.md)**
+  (2026-10-26): OpenAI's `/audio/transcriptions` with `verbose_json`, a text-only answer refused;
+  transcription reads the key from `WHOLEHEARD_PROVIDER_KEY` as `summary` does, the shell handing
+  it from the keyring; the host agreed first. Criticality, the decider's word of 2026-10-26:
+  "Standard comme summary" — a deviation from the handbook's rule for both modules, ended with
+  `capture`'s before the first build published outside the project.
 
 ## Dependency with a date
 
