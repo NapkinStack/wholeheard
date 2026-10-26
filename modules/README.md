@@ -12,7 +12,7 @@ flowchart LR
     classDef std fill:#1e3a8a,color:#fff
 ```
 
-**Legend** — one module per step of Wholeheard; `shell`, which starts them and holds none,
+**Legend** — one module per step of Wholeheard; `shell`, which starts those with a program and holds none,
 `platform`, the bench that measures them, and `install`, which packs their programs (dotted) ·
 blue: a module · red: holds other people's voices, `critical` before the first build published for people
 outside the project ([PDR-0002](../docs/pdr/0002-the-repository-opened-the-pace-kept.md)) ·
