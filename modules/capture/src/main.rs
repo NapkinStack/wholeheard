@@ -76,7 +76,7 @@ fn say(event: Event) {
             folder,
             sources: [me, others],
         } => info!(session = %session(folder), me, others, "capture.started"),
-        Event::Silent { source } => info!(source = SOURCES[source], "capture.silent"),
+        Event::Silent { source, nothing } => info!(source = SOURCES[source], nothing, "capture.silent"),
         Event::Heard { source } => info!(source = SOURCES[source], "capture.heard"),
         Event::Stopped { folder, seconds } => info!(session = %session(folder), seconds, "capture.stopped"),
         Event::Device { source, device } => info!(source = SOURCES[source], device, "capture.device"),
@@ -199,6 +199,11 @@ fn follow(tell: Sender<Moved>, zero: Instant, stop: Arc<AtomicBool>) {
         let _run = run.enter();
         let ours = u64::from(std::process::id());
         let mut followed: Option<(u64, String)> = None;
+        // What feeds each stream, as last read in the graph: the same on two readings in a row, it is
+        // what the stream records, said even when the stream itself told no move, or was named by
+        // a default not yet updated (#352) — and said again over a later stale name; a repeat of
+        // the name last said is dropped (`said_moved`).
+        let mut fed: Option<[Option<String>; 2]> = None;
         let mut warned = false;
         let mut refused = |detail: String| {
             if !std::mem::replace(&mut warned, true) {
@@ -211,6 +216,15 @@ fn follow(tell: Sender<Moved>, zero: Instant, stop: Arc<AtomicBool>) {
                 refused("the graph could not be read".into());
                 continue;
             };
+            let now = call::linked(&dump, ours);
+            if let Some(before) = &fed {
+                for index in 0..2 {
+                    if now[index].is_some() && now[index] == before[index] {
+                        let _ = tell.send((index, zero.elapsed().as_secs_f64(), now[index].clone()));
+                    }
+                }
+            }
+            fed = Some(now);
             let wanted = match call::output(&dump, ours) {
                 Ok(wanted) => wanted,
                 Err(detail) => {
@@ -456,8 +470,11 @@ fn record(sessions: &Path) -> Result<(), String> {
                         .pad_to(((due - LATE / 3.0) * f64::from(RATE)) as u64)
                         .map_err(|e| e.to_string())?;
                 }
-                match source.watch.after(since, source.track.loudest()) {
-                    Heard::Silent => say(Event::Silent { source: index }),
+                match source.watch.after_stirred(since, source.track.loudest(), source.track.stirred()) {
+                    Heard::Silent => say(Event::Silent {
+                        source: index,
+                        nothing: source.watch.nothing(),
+                    }),
                     Heard::Again => say(Event::Heard { source: index }),
                     Heard::Nothing => {}
                 }
@@ -668,8 +685,11 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
                     source.track.silence_to(zeros.1).map_err(|e| e.to_string())?;
                     source.owed = true;
                 }
-                match source.watch.after(since, source.track.loudest()) {
-                    Heard::Silent => say(Event::Silent { source: index }),
+                match source.watch.after_stirred(since, source.track.loudest(), source.track.stirred()) {
+                    Heard::Silent => say(Event::Silent {
+                        source: index,
+                        nothing: source.watch.nothing(),
+                    }),
                     Heard::Again => say(Event::Heard { source: index }),
                     Heard::Nothing => {}
                 }

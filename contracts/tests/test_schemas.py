@@ -134,8 +134,9 @@ def test_the_comparator_refuses_a_schemas_breaks_wherever_they_are(path, tmp_pat
 
 
 # The fields a page says may be absent: `stopped`, while a session is recording; a segment's
-# `track` and `voice`, in a transcript written before they were.
-OPTIONAL = {"stopped", "track", "voice"}
+# `track` and `voice`, in a transcript written before they were; a `silent`'s `nothing`, said by
+# a capture that knows it (#361).
+OPTIONAL = {"stopped", "track", "voice", "nothing"}
 SHOWN_AS_LINES = {
     "transcript/v1/line.schema.json",
     "recording/v1/event.schema.json",
@@ -244,6 +245,8 @@ EXAMPLES = {
                 "sources": {"me": "unavailable", "others": "Speaker"},
             },
             {"event": "silent", "source": "others"},
+            {"event": "silent", "source": "me", "nothing": True},
+            {"event": "silent", "source": "others", "nothing": False},
             {"event": "heard", "source": "others"},
             {"event": "level", "source": "me", "level": 0.42},
             {"event": "device", "source": "me", "device": "Headset Microphone"},
@@ -258,6 +261,7 @@ EXAMPLES = {
             {"event": "started", "folder": "f", "sources": {"others": "Speaker"}},
             "a line that is no object",
             {"event": "silent"},
+            {"event": "silent", "source": "me", "nothing": "yes"},
             {"event": "started", "folder": "f", "sources": {"me": "Digital Microphone"}},
             {"event": "started", "sources": {"me": "a", "others": "b"}},
             {"event": "stopped", "folder": "f", "seconds": "1912.4"},

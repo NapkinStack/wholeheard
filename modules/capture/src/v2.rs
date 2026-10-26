@@ -31,6 +31,8 @@ pub struct Track {
     rest: Vec<Option<(f32, f32)>>,
     keep: f32,
     loudest: f32,
+    /// A sample other than an exact zero came since the last call (#361).
+    stirred: bool,
     /// The same, for the meter: read ten times a second, apart from the silence's watch.
     meter: f32,
 }
@@ -53,6 +55,7 @@ impl Track {
             // One pole at 20 Hz: what a source rests at is not sound, a voice is.
             keep: (1.0 - std::f64::consts::TAU * 20.0 / f64::from(rate)).max(0.0) as f32,
             loudest: 0.0,
+            stirred: false,
             meter: 0.0,
         })
     }
@@ -73,6 +76,7 @@ impl Track {
                 bytes.extend_from_slice(&[0; BYTES]);
                 continue;
             }
+            self.stirred |= sample != 0.0;
             self.measure(at % channels, sample.clamp(-1.0, 1.0));
             let value = (sample * FULL_SCALE).round().clamp(-FULL_SCALE, FULL_SCALE - 1.0) as i32;
             bytes.extend_from_slice(&value.to_le_bytes()[..BYTES]);
@@ -142,6 +146,12 @@ impl Track {
     /// from where the source rests.
     pub fn loudest(&mut self) -> f32 {
         std::mem::take(&mut self.loudest)
+    }
+
+    /// Whether anything but an exact zero came since the last call: no microphone at rest gives
+    /// exact zeros, a device that delivers nothing does (#361).
+    pub fn stirred(&mut self) -> bool {
+        std::mem::take(&mut self.stirred)
     }
 
     /// How loud it was since the last call, for a meter: the loudest sound on a scale of

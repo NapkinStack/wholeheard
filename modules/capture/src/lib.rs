@@ -41,6 +41,8 @@ pub enum Event<'a> {
         sources: [&'a str; 2],
     },
     Silent {
+        /// Nothing but exact zeros came: the device delivers nothing, `recording/v1`'s `nothing`.
+        nothing: bool,
         source: usize,
     },
     Heard {
@@ -75,7 +77,7 @@ impl Event<'_> {
             } => {
                 json!({ "event": "started", "folder": folder, "sources": { "me": me, "others": others } })
             }
-            Event::Silent { source } => json!({ "event": "silent", "source": SOURCES[source] }),
+            Event::Silent { source, nothing } => json!({ "event": "silent", "source": SOURCES[source], "nothing": nothing }),
             Event::Device { source, device } => json!({ "event": "device", "source": SOURCES[source], "device": device }),
             Event::Heard { source } => json!({ "event": "heard", "source": SOURCES[source] }),
             // Rounded to a hundredth: a meter shows no more, and a line stays short.
@@ -118,6 +120,8 @@ pub struct Track {
     keep: f32,
     fade: u64,
     loudest: f32,
+    /// A sample other than an exact zero came since the last call (#361).
+    stirred: bool,
     /// The same, for the meter: read ten times a second, apart from the silence's watch.
     meter: f32,
 }
@@ -144,6 +148,7 @@ impl Track {
             keep: (1.0 - std::f64::consts::TAU * 20.0 / rate) as f32,
             fade: (FADE_SECONDS * f64::from(RATE)) as u64,
             loudest: 0.0,
+            stirred: false,
             meter: 0.0,
         })
     }
@@ -152,6 +157,7 @@ impl Track {
     pub fn push(&mut self, interleaved: &[f32]) -> io::Result<()> {
         let mut bytes = Vec::with_capacity(interleaved.len() / self.channels * 2 / self.step.max(1.0) as usize + 8);
         for frame in interleaved.chunks_exact(self.channels) {
+            self.stirred |= frame.iter().any(|sample| *sample != 0.0);
             let mixed = frame.iter().sum::<f32>() / self.channels as f32;
             let centred = self.centre(mixed);
             let filtered = self.filter(centred);
@@ -194,6 +200,11 @@ impl Track {
     /// The loudest sample written since the last call, as a share of full scale.
     pub fn loudest(&mut self) -> f32 {
         std::mem::take(&mut self.loudest)
+    }
+
+    /// Whether anything but an exact zero came since the last call (#361).
+    pub fn stirred(&mut self) -> bool {
+        std::mem::take(&mut self.stirred)
     }
 
     /// How loud it was since the last call, for a meter: the loudest sound on a scale of
@@ -275,6 +286,8 @@ pub struct Watch {
     quiet_for: f64,
     limit: f64,
     told: bool,
+    /// Something other than exact zeros came during the quiet stretch (#361).
+    stirred: bool,
 }
 
 /// What a [`Watch`] has to say after a stretch of sound.
@@ -291,13 +304,20 @@ impl Watch {
             quiet_for: 0.0,
             limit: limit_seconds,
             told: false,
+            stirred: false,
         }
     }
 
     /// `loudest` is the loudest sample of the last `seconds`.
     pub fn after(&mut self, seconds: f64, loudest: f32) -> Heard {
+        self.after_stirred(seconds, loudest, true)
+    }
+
+    /// The same, `stirred` saying whether anything but exact zeros came in those seconds.
+    pub fn after_stirred(&mut self, seconds: f64, loudest: f32, stirred: bool) -> Heard {
         if loudest > SILENCE {
             self.quiet_for = 0.0;
+            self.stirred = false;
             return if std::mem::take(&mut self.told) {
                 Heard::Again
             } else {
@@ -305,11 +325,17 @@ impl Watch {
             };
         }
         self.quiet_for += seconds;
+        self.stirred |= stirred;
         if self.quiet_for >= self.limit && !self.told {
             self.told = true;
             return Heard::Silent;
         }
         Heard::Nothing
+    }
+
+    /// Whether the silence held nothing but exact zeros: the device delivers nothing (#361).
+    pub fn nothing(&self) -> bool {
+        !self.stirred
     }
 }
 

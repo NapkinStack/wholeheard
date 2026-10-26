@@ -30,7 +30,8 @@ fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are
             folder,
             sources: ["unavailable", "Speaker"],
         },
-        Event::Silent { source: 0 },
+        Event::Silent { source: 0, nothing: false },
+        Event::Silent { source: 0, nothing: true },
         Event::Heard { source: 1 },
         Event::Level { source: 0, level: 0.0 },
         Event::Level { source: 1, level: 0.4251 },
@@ -59,6 +60,12 @@ fn every_event_the_program_says_is_one_the_contracts_schema_allows_and_there_are
             .map(String::from)
             .into()
     );
+}
+
+#[test]
+fn a_silence_says_whether_nothing_came() {
+    assert_eq!(Event::Silent { source: 0, nothing: true }.line()["nothing"], true);
+    assert_eq!(Event::Silent { source: 0, nothing: false }.line()["nothing"], false);
 }
 
 #[test]
