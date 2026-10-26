@@ -36,6 +36,6 @@ system has (D27).
 
 On a Mac, `nstack release` makes `dist/install/Wholeheard-<version>-macos-arm64.zip`: the app,
 its four programs in `Contents/MacOS`, signed ad hoc, not by Apple. GitHub's macOS runner makes
-it on every change to `main` (`.github/workflows/macos.yml`, the job *the app*) and keeps it 7
+it on every change to a program on `main` (`.github/workflows/macos.yml`, the job *the app*) and keeps it 7
 days on the run. Opened the first time through System Settings → Privacy & Security → Open
 Anyway (D38).

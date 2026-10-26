@@ -82,8 +82,10 @@ known, once the repository is opened. Nothing measures it yet.
 - **Everything in English** in this repository (`rules/always.md`, rule 1).
 - **Distribution costs money the project does not have**: signing for macOS needs a paid
   developer programme, and an unsigned build meets a warning on Windows (`discovery.md`,
-  stage 5). **Not paid for now**: the decider decides after the probe on the three machines
-  (2026-10-12), which records whether each colleague opened an unsigned build without help.
+  stage 5). ~~**Not paid for now**: the decider decides after the probe on the three machines
+  (2026-10-12), which records whether each colleague opened an unsigned build without help.~~
+  Answered 2026-10-19 by [PDR-0001](../pdr/0001-wholeheard-open-on-linux-paid-on-macos-and-windows.md):
+  paid by the licences sold on macOS and Windows.
 
 ## Risks
 

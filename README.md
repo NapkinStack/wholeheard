@@ -29,7 +29,7 @@ that you are recording**: Wholeheard shows them nothing.
 ## Install it
 
 On Fedora and Ubuntu, from a package built from this repository — none is published yet, and
-nothing on Windows or macOS (macOS is [cycle 04](docs/project/cycles/04-wholeheard-on-macos.md)):
+nothing on Windows:
 
 ```bash
 nstack release                                        # Fedora: every program, then the rpm
@@ -40,7 +40,9 @@ sudo apt install ./dist/install/wholeheard_*_amd64.deb
 ```
 
 Needs `podman` ([`modules/install`](modules/install/)). Ubuntu's package is being tried on a
-colleague's machine.
+colleague's machine. On macOS, GitHub's runner makes the app on every change to a program on `main`, signed ad
+hoc, not by Apple: it is being tried on a colleague's Mac, and is not published either
+([cycle 04](docs/project/cycles/04-wholeheard-on-macos.md)).
 
 | What runs | Its page |
 |---|---|
