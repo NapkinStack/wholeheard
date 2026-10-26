@@ -45,8 +45,8 @@ the promise that nothing leaves the machine unless the user chose it?
 
 ## Constraints
 
-- Security rule 1: no network call to a host the user did not configure or was not shown first.
-- Rule 1 of the project: every sentence the user reads is in `src/words.rs`.
+- Security rule 1 (`docs/project/rules/security.md`): "no network call to a host the user did not configure, unless the user turned on the sending that names it — … no update check, no model download from a host that is not shown first". Reading the list again is no update check: it runs only on a gesture whose host is shown, never by itself.
+- The shell's convention (`modules/shell/AGENTS.md`): every sentence the user reads is in `src/words.rs`.
 - A model file is large and parsed by the engine: what is fetched must be the published file.
 - One builder, no budget, no server of the project's own: the repository and its forge are what exists.
 
@@ -57,9 +57,11 @@ the promise that nothing leaves the machine unless the user chose it?
 **Dominant convention of the field:** a catalogue of models kept as a file in the project's own
 repository, read by the application, each entry with its address, size and checksum.
 
+**References examined:**
+
 | Reference | What it does | Applicable here? |
 |---|---|---|
-| GPT4All ([`gpt4all-chat/metadata/models3.json`](https://github.com/nomic-ai/gpt4all/blob/main/gpt4all-chat/metadata/models3.json), read 2026-10-26) | 32 models in one JSON file in its repository, each with its URL, size and md5; the application reads it from the project's site (`modellist.cpp`) | Yes: one file in the repository, sizes and checksums. Its checksum is md5; ours is SHA-256, as D37's |
+| GPT4All ([`gpt4all-chat/metadata/models3.json`](https://github.com/nomic-ai/gpt4all/blob/main/gpt4all-chat/metadata/models3.json), read 2026-10-26) | 32 models in one JSON file in its repository, each with its URL, size and checksum — md5 for 28, SHA-256 for 4, SHA-256 preferred when present; the application reads it from the project's site (`modellist.cpp`) | Yes: one file in the repository, sizes and checksums; ours SHA-256 only, as D37's |
 | Homebrew ([homebrew-core](https://github.com/Homebrew/homebrew-core), not read again here) | Each formula a file in a repository only maintainers merge into, its downloads by SHA-256 | Yes: who may write is who may merge |
 | Debian's apt ([*SecureApt*](https://wiki.debian.org/SecureApt), not read again here) | The index signed by the archive's key, each package by its hash | Its signature: not yet (*Rejected alternatives*) |
 
@@ -102,11 +104,13 @@ repository, read by the application, each entry with its address, size and check
 4. **Refused, the shipped list stays**: a list that does not answer, is larger than 64 KB, does
    not read, says a version the build does not know, or names a model's host other than
    `huggingface.co`. One sentence says it could not be brought up to date.
-5. **Who may write it**: whoever may merge into `main`, NapkinStack's members; no outside
-   contribution is merged (`CONTRIBUTING.md`, PDR-0002). The shell's tests read the file in
-   every pull request that changes it.
-6. **A model is fetched as D37's are**: its size and host shown first, kept only whole and with
-   its fingerprint.
+5. **Who may write it**: whoever may merge into `main` — NapkinStack's members, and the agent
+   merging alone under rule 2 —; no outside contribution is merged (`CONTRIBUTING.md`, PDR-0002,
+   decision 3). No rule of its own guards the folder: the repository's write access does. The
+   shell's tests read the file in every pull request that changes it.
+6. **A model is fetched as D37's are**: only on the user's click, kept only whole and with its
+   fingerprint — and its host shown beside its size, which D37's list does not do today (only
+   D36's offer in the menu names it), as security rule 1 asks.
 
 The models of the minutes, fetched by Ollama, stay in the code (`providers::RECOMMENDED`): the
 list holds what the shell downloads itself.

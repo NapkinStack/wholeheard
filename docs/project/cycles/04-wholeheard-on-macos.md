@@ -32,9 +32,9 @@ deliverables:
     module: shell
     state: ready
     acceptance:
-      - "Given the list `modules/shell/registry/models.json` on main, when Wholeheard is built, then Settings offer the models it lists — each with its size, its host and what it is good for — and no list of models is written in the code"
+      - "Given the list `modules/shell/registry/models.json` on main, when Wholeheard is built, then Settings offer the models it lists — each with its size, its host and what it is good for — and no list of Whisper models is written in the code"
       - "Given Settings open, when the user has not asked for the list up to date, then no connection is opened to the list's host, and the models offered are those Wholeheard was built with"
-      - "Given the gesture that asks for the list up to date, its host shown, when the list answers and reads, then Settings offer its models in place of the shipped ones until Wholeheard quits, and one of them is fetched as any other: its size and host shown first, kept only whole and with its fingerprint"
+      - "Given the gesture that asks for the list up to date, its host shown, when the list answers and reads, then Settings offer its models in place of the shipped ones until Wholeheard quits, and one of them is fetched only on the user's click, its size and host shown, kept only whole and with its fingerprint"
       - "Given a list that does not answer, is larger than 64 KB, does not read, says a version Wholeheard does not know, or names a model's host other than huggingface.co, when the list up to date is asked for, then the shipped models stay offered and one sentence says the list could not be brought up to date"
       - "Given a pull request that changes the list, when its checks run, then a list that does not read, names a host not allowed, a size of zero or a fingerprint that is not 64 hexadecimal characters is refused"
 ---
@@ -135,13 +135,14 @@ Its trial: [#426](https://github.com/NapkinStack/wholeheard/issues/426), after D
 
 **Added on the decider's word, 2026-10-26** ("c'est ok pour moi, on peut le faire maintenant,
 tranche tu es autonome"), on cycle 03's *Later*: the list of D37 read from a registry kept open on
-GitHub. It is not this cycle's goal; it fits what is left of the week without the colleagues,
+GitHub, signed — the signature deferred, below. It is not this cycle's goal; it fits what is left of the week without the colleagues,
 whose trials are what D38, D39 and D27 wait on. The end date does not move.
 
 - How: [ADR-0010](../../adr/0010-the-models-offered-are-a-list-kept-in-the-repository.md) —
   one file of the shell's, `modules/shell/registry/models.json`, built in as the shipped list
   and read again from `main` only on the user's gesture; refused, the shipped list stays.
-- Who may write it: whoever may merge into `main`, NapkinStack's members (`CONTRIBUTING.md`).
+- Who may write it: whoever may merge into `main` — NapkinStack's members, and the agent merging alone under rule 2 — with no rule of its own on the folder (`CONTRIBUTING.md`).
+- D37's list does not show a model's host today, only its size (`Offered`, `modules/shell/src/main.rs`); D40's first criterion adds it, as security rule 1 asks of a download.
 - Not signed: the signature comes before the first build published for people outside the
   project (ADR-0010, *Rejected alternatives*).
 - The minutes' model, fetched by Ollama, stays in the code.
