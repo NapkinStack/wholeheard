@@ -45,7 +45,8 @@ pub fn output(dump: &str, ours: u64) -> Result<Option<Output>, String> {
     }
     Ok(Some(Output {
         name: node.name.clone(),
-        description: node.description.clone().unwrap_or_else(|| node.name.clone()),
+        // Named as cpal and `linked` name it: never two names for one device (#458).
+        description: node.description.clone().unwrap_or_else(|| "unknown".to_string()),
     }))
 }
 

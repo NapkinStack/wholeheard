@@ -88,6 +88,21 @@ fn a_call_that_plays_on_another_output_than_the_default_is_followed_there() {
 }
 
 #[test]
+fn a_followed_output_without_a_description_is_named_as_the_graph_names_it() {
+    // As cpal and `call::linked` name it (#458): one name for one device, never its node's.
+    let mut nameless = graph(&[136]);
+    for object in &mut nameless {
+        if let Some(props) = object.pointer_mut("/info/props").and_then(Value::as_object_mut)
+            && props.get("node.name").and_then(Value::as_str) == Some("bluez_earbuds")
+        {
+            props.remove("node.description");
+        }
+    }
+    let found = read(nameless).unwrap().expect("the earbuds");
+    assert_eq!((found.name.as_str(), found.description.as_str()), ("bluez_earbuds", "unknown"));
+}
+
+#[test]
 fn a_call_on_the_default_several_outputs_or_none_leaves_the_default() {
     assert_eq!(read(graph(&[49])).unwrap(), None, "on the default");
     assert_eq!(read(graph(&[49, 136])).unwrap(), None, "on two outputs");
