@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 
 pub mod echo;
 pub mod log;
+pub mod online;
 pub mod speech;
 pub mod step;
 pub mod tracks;

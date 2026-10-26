@@ -82,6 +82,12 @@ dependencies:
     exit_strategy: >
       One function, `resampled` in src/tracks.rs, measured by tests/tracks.rs on notes; any
       resampler that passes them replaces it.
+  - name: ureq
+    purpose: Sends a span to the transcription service the user named, OpenAI's /audio/transcriptions (D43)
+    adr: docs/adr/0013-a-transcription-service-the-user-names-heard-as-the-minutes-are-written.md
+    exit_strategy: >
+      One function, `ask` in src/online.rs, held by tests/online.rs against a server played on the
+      machine; the shell and summary use the same client; any HTTP client replaces it there.
   - name: sonora
     purpose: Takes the echo of loudspeakers out of what an engine hears of the microphone — WebRTC's canceller, in Rust
     adr: docs/adr/0004-the-audio-as-recorded-is-kept-everything-else-is-derived.md
