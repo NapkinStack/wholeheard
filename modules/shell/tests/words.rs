@@ -113,6 +113,35 @@ fn a_source_that_is_silent_or_refused_is_named_and_the_recording_is_said_to_go_o
 }
 
 #[test]
+fn a_microphone_that_sends_nothing_is_told_from_one_that_hears_no_sound_and_named() {
+    let mut sides = words::Sides::default();
+    sides.told(&Said::Started("/s".into(), Some("Earbuds".into()), None), false, Language::French);
+    let nothing = sides.told(&Said::Nothing, false, Language::French).unwrap();
+    assert_eq!(nothing.title, "Votre micro ne transmet rien");
+    assert!(
+        nothing.body.contains("Earbuds") && nothing.body.ends_with("L’enregistrement continue."),
+        "{}",
+        nothing.body
+    );
+    assert_ne!(nothing.title, told(&Said::Silent(Source::Me), false, Language::French).0);
+    // Moved since: the device recorded now is the one named.
+    sides.told(&Said::Moved(Source::Me, Some("Built-in Mic".into())), false, Language::English);
+    let nothing = sides.told(&Said::Nothing, false, Language::English).unwrap();
+    assert!(
+        nothing.title == "Your microphone sends nothing" && nothing.body.contains("Built-in Mic"),
+        "{} — {}",
+        nothing.title,
+        nothing.body
+    );
+    // Named by nothing: the microphone, in so many words.
+    let (title, body) = told(&Said::Nothing, false, Language::English);
+    assert!(
+        title == "Your microphone sends nothing" && body.contains("your microphone"),
+        "{body}"
+    );
+}
+
+#[test]
 fn french_is_written_as_french_is_printed() {
     // A space that does not break before a colon and a question mark: a notification never
     // starts a line on one.
@@ -133,6 +162,7 @@ fn french_is_written_as_french_is_printed() {
         Said::Unavailable(Source::Others, String::new()),
         Said::Silent(Source::Me),
         Said::Silent(Source::Others),
+        Said::Nothing,
         Said::Stopped("/s".into(), 60.0),
         Said::Moved(Source::Me, Some("Mic".into())),
         Said::Moved(Source::Me, None),

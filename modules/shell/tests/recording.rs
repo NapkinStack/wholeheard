@@ -133,6 +133,17 @@ touch "$sessions/still-recording""#,
 #[test]
 fn a_line_is_read_as_the_contract_describes_it_or_passed_over() {
     assert_eq!(read(r#"{"event":"silent","source":"me"}"#), Some(Said::Silent(Source::Me)));
+    // Exact zeros are no quiet room (#361): a silence that says nothing came is told apart.
+    assert_eq!(read(r#"{"event":"silent","source":"me","nothing":true}"#), Some(Said::Nothing));
+    assert_eq!(
+        read(r#"{"event":"silent","source":"me","nothing":false}"#),
+        Some(Said::Silent(Source::Me))
+    );
+    // An output plays exact zeros whenever nothing plays: the meeting's side stays a silence.
+    assert_eq!(
+        read(r#"{"event":"silent","source":"others","nothing":true}"#),
+        Some(Said::Silent(Source::Others))
+    );
     // The microphone, as the system names it; a default named for itself, or none, says nothing.
     let long = "Mic ".repeat(30);
     let cut = format!("{}…", &long[..80]);
