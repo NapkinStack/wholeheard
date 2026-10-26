@@ -1,0 +1,43 @@
+name: macOS
+
+# Whether each program still builds on macOS, on GitHub's hosted runners: the first step of
+# PDR-0002's criterion, a macOS build made by them by 2026-12-31. It informs, it is not a
+# required check: macOS is not yet a system the project ships to (charter).
+#
+# Run on a pull request that changes a program, and on demand (Actions → macOS → Run
+# workflow). `cargo check` alone: what compiles, not yet what runs.
+
+on:
+  pull_request:
+    paths:
+      - "modules/capture/**"
+      - "modules/summary/**"
+      - "modules/transcription/**"
+      - "modules/shell/**"
+      - ".github/workflows/macos.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: macOS — ${{ matrix.module }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [capture, summary, transcription, shell]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: cargo check
+        working-directory: modules/${{ matrix.module }}
+        run: cargo check --locked --all-targets
