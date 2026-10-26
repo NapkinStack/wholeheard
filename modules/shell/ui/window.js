@@ -720,10 +720,19 @@ function listen(name, url) {
   };
   shown.pause = () => audio.pause();
   // Never at its very end, where WebKitGTK's player stops answering: a tenth of a second before.
+  // A seek asked while another is still going on is kept and made once that one ends: WebKitGTK's
+  // player drops it otherwise, and the slider stays where it was (#369).
+  shown.wanted = null;
   shown.seek = (at) => {
-    audio.currentTime = Math.max(0, Math.min(at, (audio.duration || at + 1) - 0.1));
+    shown.wanted = Math.max(0, Math.min(at, (audio.duration || at + 1) - 0.1));
+    if (!audio.seeking) audio.currentTime = shown.wanted;
     tell();
   };
+  audio.addEventListener("seeked", () => {
+    if (shown.wanted !== null && Math.abs(audio.currentTime - shown.wanted) > 0.05) audio.currentTime = shown.wanted;
+    else shown.wanted = null;
+    tell();
+  });
   shown.stop = () => {
     clearInterval(shown.ticking);
     audio.pause();
@@ -806,7 +815,8 @@ function playerBar(session, listened, total, words, drawing) {
   });
   // A slider's keys: five seconds back or on, the start, the end.
   drawing.addEventListener("keydown", (event) => {
-    const at = shown.time();
+    // From where the last key asked, not from where the player still is.
+    const at = shown.wanted ?? shown.time();
     const to = { ArrowLeft: at - 5, ArrowDown: at - 5, ArrowRight: at + 5, ArrowUp: at + 5, PageDown: at - 30, PageUp: at + 30, Home: 0, End: span() }[
       event.key
     ];
