@@ -44,7 +44,9 @@ without changing the step?
 
 - ADR-0003: one interface (`Engine::hear`, a span of 16 kHz sound → segments with their times);
   a second engine is added without a change to the step.
-- ADR-0002: a Rust core of programs; the shell starts them, finding each beside its own.
+- ADR-0002: a Rust core of programs, "Rust for the four modules; each builds one program"; the
+  shell starts them, finding each beside its own. A second program, in Swift, departs from it:
+  see *Deviation*.
 - Security rule 1: Apple's model of a language is downloaded by the system from Apple — only on
   the user's word, the host shown first.
 - Nothing of the meeting leaves the Mac: SpeechTranscriber runs on it.
@@ -65,9 +67,10 @@ any other language runs: the API has no C interface.
 | An on-device benchmark of 25 European languages ([founden-bot/on-device-asr-benchmark](https://github.com/founden-bot/on-device-asr-benchmark), macOS 26.6.2, measured 2026-10-19; a repository created 2026-10-26, citing yapapp.cc — young, not independent) | French on FLEURS, 100 recordings: SpeechTranscriber 6.6 % of words wrong, Whisper large-v3-turbo (q5_0, Metal) 6.6 %, unformatted; SpeechTranscriber at 64 times real time | Worth as much as Whisper on read French; a meeting is not read French — our bench and the colleague's call say the rest |
 | WhisperNotes ([*Apple Speech vs Whisper*](https://whispernotes.app/blog/apple-speech-vs-whisper), not read again here) | French on FLEURS: Apple 7.61, Whisper Large 5.97 | The sources disagree on French: not a reason to make it the default |
 
-What the market shows (2026-10-26): dictation tools adopted it first — Spokenly, Inscribe, Yap;
-MacStories timed Yap at 45 s where MacWhisper's large model took 3 min 55 s on one file (one
-hands-on test, as [Gigazine](https://www.gigazine.net/gsc_news/en/20250619-apple-speech-analyzer) reports it, not read again here). No meeting-notes product was found that uses it; Granola transcribes in its cloud.
+What the market shows (2026-10-26): dictation tools adopted it first — Spokenly, Yap — and one
+meeting-notes app, Lyonesse. On one file MacStories timed Yap at 45 s, Whisper Large-v3 at 1 min
+41 s and MacWhisper's Large-v2 at 3 min 55 s — one hands-on test, by Yap's own author, as
+[Gigazine](https://www.gigazine.net/gsc_news/en/20250619-apple-speech-analyzer) reports it.
 
 ---
 
@@ -105,6 +108,21 @@ hands-on test, as [Gigazine](https://www.gigazine.net/gsc_news/en/20250619-apple
   language supported. Elsewhere, and out of the box, Whisper.
 - **Apple's model on the user's word**: Settings say it is fetched by macOS from Apple, and its
   size when the system says it; nothing is fetched before the click.
+- **The language is the system's**, French or English (`--language`, as the shell's interface
+  follows it): SpeechTranscriber hears one locale, never a guess. Its model is that language's.
+- **The context the user attached** is given as SpeechAnalyzer's contextual strings where the
+  API takes them; otherwise it is not used, and the log says so once.
+- **Found beside** `wholeheard-transcription`, as the shell finds its programs, or where
+  `WHOLEHEARD_SPEECH` names it, for the tests.
+- **What it prints is the meeting's text, on its output to the engine alone**: its errors go to
+  its error stream without a word of the meeting, and the engine logs steps, never text
+  (ADR-0007).
+
+### Deviation from the convention
+
+- **From ADR-0002**: a program in Swift in a Rust core. **Expected user value**: a Mac hears with
+  its own engine, without a model of 874 MB to download first, the colleague's call transcribed in
+  less time than it lasted. **How we will observe it**: D42's last criterion.
 
 ---
 
@@ -132,7 +150,9 @@ offers the engine in Settings. `transcript/v1` unchanged: its header already nam
 a model.
 
 **Rule to automate:** the macOS workflow builds `wholeheard-speech` and transcribes a sentence
-`say` speaks, where the runner's SpeechTranscriber is available.
+`say` speaks, where the runner's SpeechTranscriber is available — otherwise it says it was not
+run. ADR-0003's own rule, the same sheet for every engine on D4's sample, is owed on a Mac: none of
+the project's runs one; it is debt, said here.
 
 ---
 
