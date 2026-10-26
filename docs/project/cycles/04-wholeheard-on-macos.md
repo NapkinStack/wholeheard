@@ -181,7 +181,9 @@ whose trials are what D38, D39 and D27 wait on. The end date does not move.
 `modules/shell/registry/models.json`, built in, each model with its host — Settings showed no host
 before (#434); read again on *Mettre à jour la liste (raw.githubusercontent.com)* only, refused
 whole when it is not a list this build would ship, a redirect included (#435). Every criterion is
-held by an automated scenario of the two sheets; its acceptance is the decider's.
+held by a scenario of the two sheets, automated but for one: a model of the list read again is
+fetched as any other, read in the code (#435's S5). Not exercised: a list that answers too slowly
+(its timeouts), the 64 KB bound on what is read. Its acceptance is the decider's.
 
 ### D41
 
@@ -204,7 +206,10 @@ it is the one promise the product keeps — the other side heard. The end date d
 (`pw-dump`), the remote stream moved by `target.object` and back, a client's process read from its
 client (PulseAudio's clients kept apart), `pw-metadata` bounded; the e2e's scenario K: the call's
 note in the remote track, the default's once the call left it, never the note played on the output
-it left. `recording/v1`'s page says it (#439). Its last criterion is the decider's trial.
+it left. `recording/v1`'s page says it (#439). The warning said once when the graph does not read
+or the stream does not move is read in the code, provoked by no test. A real call, criteria 1 and
+2 on Discord: the decider's trial, in [#449](https://github.com/NapkinStack/wholeheard/issues/449)
+(#436, the report, closed by #441).
 
 ### D42
 
@@ -233,6 +238,9 @@ no longer offers it (#446); the app carries it, signed with the rest (#447) — 
 le faire avec parcimonie lorsque c'est utile uniquement". GitHub's macOS runner offers no
 SpeechTranscriber: the build is judged there, the hearing is the colleague's, in #426.
 Left for later: *Refaire…* with SpeechAnalyzer; the context the user attached, not given to it.
+To watch on the Mac: each span gives back the program's other reserved locales, as Yap does, and
+macOS may then remove their models. Seen once: a run of the shell's tests that failed and did not
+again in five, its output not kept.
 
 ### D43
 
