@@ -18,7 +18,7 @@ use std::{
     path::Path,
     process::ExitCode,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, RecvTimeoutError, Sender},
     },
@@ -31,7 +31,7 @@ use cpal::{
 };
 use serde_json::json;
 use tracing::{error, info, warn};
-use wholeheard_capture::{Event, Heard, RATE, SOURCES, Track, Watch, log, new_folder, v2, write_session};
+use wholeheard_capture::{Event, Heard, RATE, SOURCES, Track, Watch, call, log, new_folder, v2, write_session};
 
 /// A source is told silent after this long without a sound.
 const SILENT_AFTER: f64 = 10.0;
@@ -151,8 +151,17 @@ fn named_as_used(host: &Host, device: &Device) -> String {
     standing().map_or_else(|| named(device), |stood_for| named(&stood_for))
 }
 
+/// The output the remote side is moved to, while a call plays on one other than the default
+/// (D41): what the remote side is said to record, whatever the default becomes meanwhile.
+static FOLLOWED: Mutex<Option<String>> = Mutex::new(None);
+
 /// The device the system records a source from now, by the name it gives it.
 fn now_named(index: usize) -> Option<String> {
+    if index == 1
+        && let Some(followed) = FOLLOWED.lock().unwrap().clone()
+    {
+        return Some(followed);
+    }
     let host = host();
     let device = if index == 0 {
         host.default_input_device()
@@ -164,9 +173,10 @@ fn now_named(index: usize) -> Option<String> {
 
 /// Names each move, one after the other on a thread of its own, so that they are said in the
 /// order the system made them — a name may take `pw-metadata` up to a second. It ends when no
-/// stream is left to tell one.
-fn naming(moves: Receiver<Move>) -> Receiver<Moved> {
+/// stream is left to tell one, and the follower of a call (`follow`) has ended.
+fn naming(moves: Receiver<Move>) -> (Receiver<Moved>, Sender<Moved>) {
     let (tell, told) = mpsc::channel();
+    let follower = tell.clone();
     let run = tracing::Span::current();
     std::thread::spawn(move || {
         let _run = run.enter();
@@ -176,7 +186,117 @@ fn naming(moves: Receiver<Move>) -> Receiver<Moved> {
             }
         }
     });
-    told
+    (told, follower)
+}
+
+/// Follows a call to the output it plays on (D41, ADR-0011), once a second until `stop`: the
+/// remote stream moved there by its `target.object`, and back to the default when the call
+/// leaves it. Each move is told as the system's are, from `zero`. A graph that does not read, or
+/// a stream that cannot be moved, leaves the default, said once.
+fn follow(tell: Sender<Moved>, zero: Instant, stop: Arc<AtomicBool>) {
+    let run = tracing::Span::current();
+    std::thread::spawn(move || {
+        let _run = run.enter();
+        let ours = u64::from(std::process::id());
+        let mut followed: Option<(u64, String)> = None;
+        let mut warned = false;
+        let mut refused = |detail: String| {
+            if !std::mem::replace(&mut warned, true) {
+                warn!(detail = %detail, "capture.not_followed");
+            }
+        };
+        while !stop.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_secs(1));
+            let Some(dump) = graph() else {
+                refused("the graph could not be read".into());
+                continue;
+            };
+            let wanted = match call::output(&dump, ours) {
+                Ok(wanted) => wanted,
+                Err(detail) => {
+                    refused(detail);
+                    continue;
+                }
+            };
+            if wanted.as_ref().map(|output| &output.name) == followed.as_ref().map(|(_, name)| name) {
+                continue;
+            }
+            let Some(stream) = call::remote_stream(&dump, ours).or(followed.as_ref().map(|(stream, _)| *stream)) else {
+                refused("the remote stream is not in the graph".into());
+                continue;
+            };
+            if !targeted(stream, wanted.as_ref().map(|output| output.name.as_str())) {
+                refused("the remote stream could not be moved".into());
+                continue;
+            }
+            *FOLLOWED.lock().unwrap() = wanted.as_ref().map(|output| output.description.clone());
+            followed = wanted.map(|output| (stream, output.name));
+            if tell.send((1, zero.elapsed().as_secs_f64(), now_named(1))).is_err() {
+                break;
+            }
+        }
+        // The stream goes with the recording: its target is never left for another node to take.
+        if let Some((stream, _)) = followed {
+            targeted(stream, None);
+        }
+        *FOLLOWED.lock().unwrap() = None;
+    });
+}
+
+/// Sets the stream's `target.object` to `output` in PipeWire's default metadata — or, `None`,
+/// clears it, and the stream follows the default again. True once `pw-metadata` said so.
+fn targeted(stream: u64, output: Option<&str>) -> bool {
+    use std::process::{Command, Stdio};
+    let stream = stream.to_string();
+    let mut asked = Command::new("pw-metadata");
+    match output {
+        Some(output) => asked.args(["-n", "default", &stream, "target.object", output]),
+        None => asked.args(["-n", "default", "-d", &stream, "target.object"]),
+    };
+    asked.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    // A second at most, as `metadata` waits: the stop waits on this thread.
+    let Ok(mut asked) = asked.spawn() else { return false };
+    let given = Instant::now();
+    loop {
+        match asked.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) if given.elapsed() < Duration::from_secs(1) => std::thread::sleep(Duration::from_millis(5)),
+            _ => {
+                let _ = asked.kill();
+                let _ = asked.wait();
+                return false;
+            }
+        }
+    }
+}
+
+/// PipeWire's graph as `pw-dump` prints it — or nothing, if it has not answered within two
+/// seconds. Read as it is printed: the graph is larger than a pipe holds.
+fn graph() -> Option<String> {
+    use std::process::{Command, Stdio};
+    let mut dumped = Command::new("pw-dump")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let mut out = dumped.stdout.take()?;
+    let (give, given) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut printed = String::new();
+        let _ = give.send(std::io::Read::read_to_string(&mut out, &mut printed).map(|_| printed));
+    });
+    match given.recv_timeout(Duration::from_secs(2)) {
+        Ok(Ok(printed)) => {
+            let _ = dumped.wait();
+            Some(printed)
+        }
+        _ => {
+            let _ = dumped.kill();
+            let _ = dumped.wait();
+            None
+        }
+    }
 }
 
 /// Says each source moved to a device other than the one it was last said on. `closing`: the
@@ -238,7 +358,7 @@ fn record(sessions: &Path) -> Result<(), String> {
     let host = host();
     let (sound, heard) = mpsc::channel::<Sound>();
     let (moved, moves) = mpsc::channel::<Move>();
-    let moves = naming(moves);
+    let (moves, follower) = naming(moves);
     let started = chrono::Local::now();
     let zero = Instant::now();
     let folder = new_folder(sessions, &started.format("%Y-%m-%d_%H-%M").to_string()).map_err(|e| e.to_string())?;
@@ -290,6 +410,12 @@ fn record(sessions: &Path) -> Result<(), String> {
     });
 
     let stop = stop_asked()?;
+    // A call heard on another output than the default is followed there, where PipeWire is.
+    if host.id().name() == "PipeWire" {
+        follow(follower, zero, stop.clone());
+    } else {
+        drop(follower);
+    }
 
     let clock = Instant::now();
     let mut checked = clock;
@@ -423,7 +549,7 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
     let host = host();
     let (sound, heard) = mpsc::channel::<Sound>();
     let (moved, moves) = mpsc::channel::<Move>();
-    let moves = naming(moves);
+    let (moves, follower) = naming(moves);
     let started = chrono::Local::now();
     let zero = Instant::now();
     let folder = new_folder(sessions, &started.format("%Y-%m-%d_%H-%M").to_string()).map_err(|e| e.to_string())?;
@@ -480,6 +606,12 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
     });
 
     let stop = stop_asked()?;
+    // A call heard on another output than the default is followed there, where PipeWire is.
+    if host.id().name() == "PipeWire" {
+        follow(follower, zero, stop.clone());
+    } else {
+        drop(follower);
+    }
     let mut checked = Instant::now();
     let mut metered = checked;
     let mut last = [Some(names[0].clone()), Some(names[1].clone())];

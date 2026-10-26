@@ -1220,7 +1220,23 @@ function showSettings(shown, minutes, words) {
   pulledSaid.append(element("span", "name", `${minutes.recommended} · ${words.offered_ollama_size}`), element("span", "says", words.offered_ollama_good));
   pulled.append(pulledSaid, element("span", "state"));
   offered.append(pulled);
-  step.append(element("h3", "", words.offered_title), offered);
+  // The list read again from where it is kept, only on this click, its host shown (D40): read,
+  // the page is drawn with it; refused, the list above stays, and it is said.
+  const refreshed = element("p", "says");
+  refreshed.id = "offered-refreshed";
+  refreshed.setAttribute("role", "status");
+  const refresh_ = element("button", "open", fill(words.offered_refresh, shown.registry_host));
+  refresh_.type = "button";
+  refresh_.id = "offered-refresh";
+  refresh_.addEventListener("click", async () => {
+    refresh_.disabled = true;
+    refreshed.textContent = "";
+    const read = await window.__TAURI__.core.invoke("registry_refresh").then(() => true, () => false);
+    if (read) return refresh();
+    refresh_.disabled = false;
+    refreshed.textContent = words.offered_refresh_failed;
+  });
+  step.append(element("h3", "", words.offered_title), offered, refresh_, refreshed);
   paintOffered(offered);
   models.append(step, minutesRow(minutes, words, locked), element("p", "says", words.models_note));
   parts.push(models);

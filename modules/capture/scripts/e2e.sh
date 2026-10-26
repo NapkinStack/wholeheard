@@ -22,7 +22,7 @@ fi
 if pactl list short sinks | awk -v d="$(pactl get-default-sink)" '$2 == d && $NF == "RUNNING" {found = 1} END {exit !found}'; then
   say "e2e: NOT RUN — the system is playing sound: its output would be taken from it"; exit 77
 fi
-for tool in ffmpeg ffprobe pw-play pw-dump pw-cli python3; do
+for tool in ffmpeg ffprobe pw-play pw-dump pw-cli pw-loopback pw-metadata python3; do
   command -v "$tool" >/dev/null || { say "e2e: NOT RUN — $tool is missing"; exit 77; }
 done
 
@@ -54,7 +54,7 @@ restore() {
   pactl unload-module "$out" 2>/dev/null || true
   pactl unload-module "$mic" 2>/dev/null || true
   # Scenario J's own, when it was stopped before it took them away.
-  for module in ${mic_b:-} ${out_b:-}; do pactl unload-module "$module" 2>/dev/null || true; done
+  for module in ${mic_b:-} ${out_b:-} ${out_c:-}; do pactl unload-module "$module" 2>/dev/null || true; done
   rm -rf "$work"
 }
 trap restore EXIT
@@ -259,6 +259,31 @@ check measure2 followed "$(ls -d "$work"/v2-moved/*/ | head -1)" "$work/j.events
   "wholeheard_e2e_mic_b:660,wholeheard_e2e_mic:440" "wholeheard_e2e_out_b:1320,wholeheard_e2e_out:880" "$work/j-during.json"
 check measure2 moves-said "$work/j1.events" "wholeheard_e2e_mic_b,wholeheard_e2e_mic" "wholeheard_e2e_out_b,wholeheard_e2e_out"
 check logged e2e-j capture.started capture.device capture.device capture.stopped
+
+say "K. a call heard on an output other than the default is recorded there (D41)"
+# The call's own output, beside the default; the stand-in call, one process as a call is: it
+# records the microphone and plays what it hears on that output. Nobody is recorded.
+out_c=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_call)
+tone 1100 4 "$work/1100.wav"; tone 660 4 "$work/660.wav"; tone 440 4 "$work/440.wav"
+pw-loopback --capture=wholeheard_e2e_mic.monitor --playback=wholeheard_e2e_call --name=wholeheard-e2e-call & call=$!
+sleep 1
+WHOLEHEARD_TRACE=e2e-k "$bin" record "$work/v2-call" --as v2 > "$work/k.events" 2> "$work/k.errors" &
+recorder=$!
+sleep 3; pw-play --target wholeheard_e2e_mic "$work/1100.wav"   # heard by the call, played on its output
+# The call goes back to the default output: so does the remote side, within two seconds.
+playing=$(python3 scripts/e2e_measure_v2.py playing "$call")
+pw-metadata -n default "$playing" target.object wholeheard_e2e_out > /dev/null
+sleep 2; pw-play --target wholeheard_e2e_call "$work/660.wav"   # two seconds after: the remote side followed, not on it
+sleep 1; pw-play --target wholeheard_e2e_out "$work/440.wav"
+sleep 1
+kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
+kill "$call" 2>/dev/null || true; wait "$call" 2>/dev/null || true
+pactl unload-module "$out_c"
+grep -v '"level"' "$work/k.events" | sed 's/^/    /' >> .evidence/e2e.txt
+sed 's/^/    /' "$work/k.errors" >> .evidence/e2e.txt
+check test "$stopped_as" = 0 -a ! -s "$work/k.errors"
+check measure2 call-followed "$(ls -d "$work"/v2-call/*/ | head -1)" "$work/k.events" wholeheard_e2e_call wholeheard_e2e_out 1100 660 440
+check logged e2e-k capture.started capture.device capture.device capture.stopped
 
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"
 exit "$failed"
