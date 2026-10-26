@@ -343,6 +343,10 @@ pub struct Window {
     pub offered_ollama_size: &'static str,
     pub offered_ollama_good: &'static str,
     pub offered_needs_ollama: &'static str,
+    /// The list read again on the user's gesture (D40): the button, its host filled in; and
+    /// what is said when it could not be.
+    pub offered_refresh: &'static str,
+    pub offered_refresh_failed: &'static str,
     /// The model's name as people say it, and its size once installed.
     pub installed: &'static str,
     /// Another number of days, typed; and what is said of one that is none.
@@ -590,6 +594,8 @@ pub fn window(language: Language) -> Window {
             offered_ollama_size: "about 5 GB",
             offered_ollama_good: "For the minutes, on this computer, through Ollama",
             offered_needs_ollama: "Needs Ollama — install it from ollama.com",
+            offered_refresh: "Update the list ({})",
+            offered_refresh_failed: "The list could not be updated: the models above are still offered.",
             installed: "installed, {}",
             keep_other: "Another number of days…",
             keep_not_days: "{} is no number of days: from 1 to 36,500",
@@ -825,6 +831,8 @@ pub fn window(language: Language) -> Window {
             offered_ollama_size: "environ 5 Go",
             offered_ollama_good: "Pour les comptes rendus, sur cet ordinateur, par Ollama",
             offered_needs_ollama: "Nécessite Ollama, à installer depuis ollama.com",
+            offered_refresh: "Mettre à jour la liste ({})",
+            offered_refresh_failed: "La liste n’a pas pu être mise à jour : les modèles ci-dessus restent proposés.",
             installed: "installé, {}",
             keep_other: "Autre nombre de jours…",
             keep_not_days: "{} n’est pas un nombre de jours : de 1 à 36 500",

@@ -192,6 +192,7 @@ fn main() {
             listed,
             model_fetch,
             model_offered_fetch,
+            registry_refresh,
             ollama_pull_offered,
             header,
             makings,
@@ -987,10 +988,40 @@ struct Offered {
     here: bool,
 }
 
-/// The models Settings offer: the list shipped (D40, ADR-0010).
-fn offered() -> &'static [registry::Listed] {
-    static LIST: std::sync::OnceLock<Vec<registry::Listed>> = std::sync::OnceLock::new();
-    LIST.get_or_init(registry::shipped)
+/// The models Settings offer: the list shipped, or the one read again on the user's gesture
+/// until Wholeheard quits (D40, ADR-0010).
+fn offered() -> Vec<registry::Listed> {
+    offered_list().read().unwrap().clone()
+}
+
+fn offered_list() -> &'static std::sync::RwLock<Vec<registry::Listed>> {
+    static LIST: std::sync::OnceLock<std::sync::RwLock<Vec<registry::Listed>>> = std::sync::OnceLock::new();
+    LIST.get_or_init(|| std::sync::RwLock::new(registry::shipped()))
+}
+
+/// Where the list is read again from — or, for whoever tries Wholeheard, `WHOLEHEARD_REGISTRY`.
+fn registry_address() -> String {
+    std::env::var("WHOLEHEARD_REGISTRY").unwrap_or_else(|_| registry::ADDRESS.to_owned())
+}
+
+/// Reads the list again, on the user's click in Settings — its host shown on the button. Taken,
+/// it is offered until Wholeheard quits; refused, the list offered stays, and the page says so.
+#[tauri::command]
+async fn registry_refresh() -> Result<(), ()> {
+    let address = registry_address();
+    let host = registry::host(&address).to_owned();
+    let read = tauri::async_runtime::spawn_blocking(move || registry::fetch(&address)).await;
+    match read.unwrap_or_else(|error| Err(error.to_string())) {
+        Ok(listed) => {
+            tracing::info!(host = %host, models = listed.len(), "shell.registry_read");
+            *offered_list().write().unwrap() = listed;
+            Ok(())
+        }
+        Err(detail) => {
+            tracing::warn!(host = %host, detail = %detail, "shell.registry_refused");
+            Err(())
+        }
+    }
 }
 
 /// A Whisper model the settings page offers.
@@ -1021,8 +1052,10 @@ struct SettingsShown {
     keep_audio: KeepAudio,
     model: PathBuf,
     models: Vec<Model>,
-    /// The short list of models to download, each said by what it is good for (D37).
+    /// The short list of models to download, each said by what it is good for (D37), and the
+    /// host it is read again from on the user's gesture (D40).
     offered: Vec<Offered>,
+    registry_host: String,
     developer: bool,
     log: Log,
     unreadable: Option<String>,
@@ -1066,6 +1099,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
+        registry_host: registry::host(&registry_address()).to_owned(),
         offered: offered()
             .iter()
             .enumerate()
@@ -2217,7 +2251,14 @@ fn published() -> Published {
 /// One of the models offered, as published — or as `WHOLEHEARD_MODEL_PUBLISHED` says, its
 /// entries separated by `;` in the order of the list offered.
 fn published_at(index: usize) -> Published {
-    let named = std::env::var("WHOLEHEARD_MODEL_PUBLISHED").ok().and_then(|named| {
+    // The list may have been read again since the index was taken: none there is the default.
+    let listed = offered().get(index).map_or(model::DEFAULT, |listed| listed.published);
+    published_named(index).unwrap_or(listed)
+}
+
+/// What `WHOLEHEARD_MODEL_PUBLISHED` says of one of the models offered, if it says it.
+fn published_named(index: usize) -> Option<Published> {
+    std::env::var("WHOLEHEARD_MODEL_PUBLISHED").ok().and_then(|named| {
         let named = named.split(';').nth(index)?.to_owned();
         let [address, bytes, sha256] = named.split(' ').collect::<Vec<_>>()[..] else {
             return None;
@@ -2230,8 +2271,7 @@ fn published_at(index: usize) -> Published {
             bytes: bytes.parse().ok()?,
             sha256: leaked(sha256),
         })
-    });
-    named.unwrap_or(offered()[index].published)
+    })
 }
 
 /// Puts the entry that fetches the model in the menu, and says why: nothing is fetched yet.
@@ -2326,8 +2366,11 @@ fn fetch(app: &AppHandle, index: usize) {
     if std::mem::replace(&mut *shell.fetching.lock().unwrap(), true) {
         return;
     }
-    let (wanted, language) = (published_at(index), shell.language);
-    let file = model::file(&offered()[index].published);
+    // The list read once: its address and the file it is kept as are one model's, whatever is
+    // read again meanwhile.
+    let listed = offered().get(index).map_or(model::DEFAULT, |listed| listed.published);
+    let (wanted, language) = (published_named(index).unwrap_or(listed), shell.language);
+    let file = model::file(&listed);
     let to = models_folder().join(file);
     // The tray's entry is the default model's: it says how far that one is, and waits while
     // another comes — one fetch at a time.
