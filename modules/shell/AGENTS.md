@@ -36,6 +36,7 @@ Puts Wholeheard's four steps in the user's hands: a tray, a global shortcut, not
 - The tray's icon is a dark tile with a light summit: a light glyph alone was invisible on the decider's desktop, whose bar is light. A tray icon is judged on a light bar, a grey one and a dark one.
 - A desktop entry whose `Exec` program is not found is no entry at all for the desktop: the portal answers "App info not found" and the shortcut is refused.
 - The toolkit writes `gen/` at each build: it is ignored. Files are added to a commit by name.
+- A name declared twice in one function of `ui/window.js` is a syntax error that leaves the whole window blank, with nothing in the shell's own logs: `check` runs `node --check` on it where Node is there.
 
 ## Areas not to change without approval
 

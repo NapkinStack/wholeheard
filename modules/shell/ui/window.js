@@ -1195,21 +1195,21 @@ function showSettings(shown, minutes, words) {
   // page; its model fetched by macOS on the click alone, then it is who hears.
   const speech = element("div", "speech");
   speech.id = "speech";
-  const said = element("p", "says");
-  said.setAttribute("role", "status");
+  const speechSaid = element("p", "says");
+  speechSaid.setAttribute("role", "status");
   const fetchApple = element("button", "open", words.speech_fetch);
   fetchApple.type = "button";
   fetchApple.id = "speech-fetch";
   fetchApple.hidden = true;
   fetchApple.addEventListener("click", async () => {
     fetchApple.disabled = true;
-    said.textContent = words.speech_fetching;
+    speechSaid.textContent = words.speech_fetching;
     const fetched = await window.__TAURI__.core.invoke("speech_installed").then(() => true, () => false);
     if (fetched) return save({ engine: "speechanalyzer" });
     fetchApple.disabled = false;
-    said.textContent = words.speech_failed;
+    speechSaid.textContent = words.speech_failed;
   });
-  speech.append(fetchApple, said);
+  speech.append(fetchApple, speechSaid);
   let appleHere = false;
   window.__TAURI__.core.invoke("speech_shown").then((status) => {
     if (!status?.offered) return;

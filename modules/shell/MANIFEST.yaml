@@ -205,7 +205,11 @@ dependencies:
 # description (fitness M7): declare them before its first file of code.
 commands:
   bootstrap: bash scripts/bootstrap.sh
-  check: bash -n scripts/release.sh && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
+  # The page's script read for its syntax where Node is there (the hosted runners have it): a
+  # name declared twice in one scope blanks the whole window, which only the e2e saw (D42).
+  check: >-
+    bash -n scripts/release.sh && { ! command -v node >/dev/null || node --check ui/window.js; }
+    && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
   test: cargo test --locked
   run: cargo run --locked --release --bin wholeheard
   release: bash scripts/release.sh
