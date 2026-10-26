@@ -8,15 +8,17 @@ dist=${NSTACK_DIST:?run through nstack release, which names this module\'s artef
 target=${WHOLEHEARD_TARGET:-}
 # The processors it is built for: .cargo/config.toml, read by every build of the module.
 # On the graphics card through Vulkan where the machine has it — a tenth of the meeting's
-# length on the decider's laptop —, on the processor where it has not (ADR-0003).
+# length on the decider's laptop —, on the processor where it has not (ADR-0003). A Mac has no
+# Vulkan: there, the processor until its own engine is chosen (cycle 04, *Later*).
 features=(--features vulkan)
+[ "$(uname -s)" = Darwin ] && features=()
 if [ -z "$target" ]; then
-  (cd "$here" && cargo build --locked --release "${features[@]}")
+  (cd "$here" && cargo build --locked --release ${features[@]+"${features[@]}"})
   # whisper-rs-sys does not build again when the flags change: a whisper.cpp built before them,
   # tuned to this processor, would be shipped as it is — built again, then.
   out=${CARGO_TARGET_DIR:-$here/target}/release
   if grep -qs '^GGML_NATIVE:BOOL=ON' "$out"/build/whisper-rs-sys-*/out/build/CMakeCache.txt; then
-    (cd "$here" && cargo clean --release -p whisper-rs-sys && cargo build --locked --release "${features[@]}")
+    (cd "$here" && cargo clean --release -p whisper-rs-sys && cargo build --locked --release ${features[@]+"${features[@]}"})
   fi
   cp "${CARGO_TARGET_DIR:-$here/target}/release/wholeheard-transcription" "$dist/"
   exit 0
