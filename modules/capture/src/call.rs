@@ -59,6 +59,25 @@ pub fn remote_stream(dump: &str, ours: u64) -> Option<u64> {
         .map(|(id, _)| *id)
 }
 
+/// What feeds each of capture's own streams, as the graph links it — the microphone's, then the
+/// remote's (an output's monitor) —, by the name a person reads (#352): the device a track is
+/// recorded from, whatever the default says meanwhile.
+pub fn linked(dump: &str, ours: u64) -> [Option<String>; 2] {
+    let Ok(graph) = Graph::read(dump) else {
+        return [None, None];
+    };
+    let fed = |remote: bool| {
+        let (stream, _) = graph
+            .nodes
+            .iter()
+            .find(|(_, node)| node.class == "Stream/Input/Audio" && node.process == Some(ours) && node.records_an_output == remote)?;
+        let (from, _) = graph.links.iter().find(|(_, to)| to == stream)?;
+        let node = graph.nodes.get(from)?;
+        Some(node.description.clone().unwrap_or_else(|| node.name.clone()))
+    };
+    [fed(false), fed(true)]
+}
+
 struct Node {
     class: String,
     name: String,
