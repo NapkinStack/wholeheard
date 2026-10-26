@@ -625,8 +625,9 @@ function transcriptCard(read, words, session) {
   // Beside who heard it, as board 2 has it: the head keeps its search whole.
   const heard = element("div", "made");
   // A service names its host as who heard (D43): said as the minutes' maker is, never « on this
-  // computer »; this computer's engines — whisper.cpp, SpeechAnalyzer, a stand-in — keep heard_by.
-  const service = read.engine && !["whisper.cpp", "SpeechAnalyzer"].includes(read.engine) && /[.:]/.test(read.engine);
+  // computer » — a host of one word (`http://transcriber/v1`) is a service too. This computer's
+  // engines name themselves: whisper.cpp, SpeechAnalyzer; none named, nothing is claimed.
+  const service = read.engine && !["whisper.cpp", "SpeechAnalyzer"].includes(read.engine);
   const heardSaid = service
     ? fill(words.written_by, read.model || "—") + fill(words.written_via, read.engine)
     : fill(words.heard_by, read.model ? spoken(read.model) : read.engine || "—");
