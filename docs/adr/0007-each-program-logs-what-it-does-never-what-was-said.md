@@ -4,6 +4,8 @@
   expert les etapes et les erreur … les erreurs technique ne devrait pas remonté dans l'ihm de
   l'utilisateur (ou peut être prévoir un mode "developpeur", a toi de voir)"; then, 2026-10-20,
   "oui pour les 2")
+- **Read at cycle 03's closure, 2026-10-26**: Met in each program's tests — a failure logged under its making's id — and for the page, which says it plainly (D29). A day of real meetings' logs read for their words: not done, it would read the user's meetings. The record stays *Proposed*: accepting it is
+  the decider's.
 - **Date**: 2026-10-20
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: project — the four programs and the shell

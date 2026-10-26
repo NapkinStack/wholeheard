@@ -1,6 +1,6 @@
 ---
 goal: "On Fedora, a user finds their meetings, reads one — its minutes beside its transcript — frees space and sets Summit, in one window, without a terminal"
-status: accepted          # proposed | accepted | closed | stopped — the decider accepts
+status: closed            # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 3         # the time the decider WANTS to spend, not an estimate
 start: 2026-10-17         # YYYY-MM-DD
 end: 2026-11-07           # start + appetite: the first day the cycle is over — the circuit breaker
@@ -73,7 +73,7 @@ deliverables:
   - id: D27
     title: "Summit installs on Ubuntu from one package, its programs built on the system they ship to"
     module: install
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given Ubuntu 24.04, when a user installs Summit from one package file (`sudo apt install ./summit_<version>_amd64.deb`), then Summit is in the applications menu and starts in the tray with nothing built and no variable set, and removing it leaves the user's meetings and settings"
       - "Given a release for a system — Fedora or Ubuntu —, when the programs are built, then they are built in a container of that system, so that no package depends on the machine that made it"
@@ -165,6 +165,11 @@ deliverables:
       - "Given Settings, when the user opens its models, then a short list shipped with Wholeheard is shown — Whisper large v3 turbo (874 MB, recommended), Whisper small (264 MB, faster, less exact, for a modest computer), and for the minutes qwen3:8b through Ollama (about 5 GB) —, each with its size, what it is good for, and where it stands: on this computer, being downloaded and how far, or Télécharger"
       - "Given a Whisper model of the list clicked, then it is fetched on the user's word from huggingface.co as D36's — a part file, its published SHA-256 checked —, into Wholeheard's models folder, then offered among the models to choose; the choice made stays the user's; cut or refused, it is said and offered again; one fetch at a time — the turbo's row and D36's offer are the same fetch"
       - "Given qwen3:8b clicked and Ollama answering on this computer, then Ollama fetches it, how far said, and once there it is offered first among the minutes' models; cut or refused, or Ollama stopping, it is said and offered again; given no Ollama answering, then the row says Ollama is needed and where to get it, with no button: Wholeheard never installs Ollama"
+outcome: shipped
+ended_on: 2026-10-26
+success:
+  - criterion: 1
+    state: met
 ---
 
 # Cycle 03 — the window
@@ -437,6 +442,10 @@ the processor where there is none. Only capture and transcription failed on Ubun
 on Fedora (`GLIBC_2.43`); summary and the shell are built on their target all the same.
 
 **Offered for acceptance** — its acceptance issue: [#255](https://github.com/NapkinStack/summit/issues/255), a colleague on Ubuntu 24.04.
+
+**Deferred to [cycle 04](04-wholeheard-on-macos.md)** on the decider's word, 2026-10-26, closing
+this cycle early: its trial waits on a colleague, as cycle 04's do; built and verified, its
+criteria unchanged.
 
 | Criterion | Where it stands |
 |---|---|
@@ -837,7 +846,7 @@ no warning nor error. Not seen by that trial: the list in both themes, and a rea
   the list changes faster than the releases.
 - Recording by itself when an application takes the microphone, and stopping when it lets it go
   (board 6); the offer is D30.
-- Windows and macOS, with the two colleagues. macOS framed as [cycle 04](04-wholeheard-on-macos.md), proposed on 2026-10-26.
+- Windows and macOS, with the two colleagues. macOS framed as [cycle 04](04-wholeheard-on-macos.md), accepted on 2026-10-26.
 - `export`, with `all`.
 - Compressing the tracks without loss (cycle 02, D9: it halves their weight).
 - An online service for the transcription (narrowed out of D20).
@@ -874,8 +883,55 @@ no warning nor error. Not seen by that trial: the list in both themes, and a rea
 
 ## Closure
 
-<Written at the end: what was delivered, which success criteria moved, what was deferred,
-where the next framing starts.>
+**Closed on 2026-10-26, shipped**: 20 deliverables of 21 accepted, twelve days before the end
+date. The decider closed it early, choosing among options "Clore 03, D27 dans 04" ("je clôture 03
+aujourd'hui … j'ajoute D27 au cycle 04 et tu acceptes 04 dans la même PR"), so that cycle 04 starts: D27 waits
+on a colleague's trial and moves there, built and verified.
 
-**Documents brought current:** <the front page, the module map, a module's page — each with
-its pull request; or "none", and why nothing a reader sees has changed>
+```mermaid
+flowchart LR
+    A["Delivered:<br/>the window — meetings, one read, played,<br/>space freed, settings, models fetched<br/>(D17–D23, D25, D26, D36, D37)"]:::done
+    B["Delivered:<br/>Wholeheard installs on Fedora (D24)<br/>opens small, starts with the session,<br/>offers a call, names its devices (D30–D35)<br/>logs and plain failures (D29), the name (D28)"]:::done
+    C["Deferred:<br/>D27, Ubuntu's trial<br/>— to cycle 04"]:::open
+    A --> D["Cycle 04:<br/>Wholeheard on macOS"]:::next
+    B --> D
+    C --> D
+    classDef done fill:#065f46,color:#fff
+    classDef open fill:#374151,color:#fff
+    classDef next fill:#1e3a8a,color:#fff
+```
+
+**Legend** — green: delivered · grey: deferred · blue: where the next framing starts.
+
+**The goal holds on Fedora.** A user finds their meetings, reads one — its minutes beside its
+transcript —, frees space and sets Wholeheard in one window, without a terminal; accepted by the
+decider after their real meeting (D23, 2026-10-24). Beyond the goal, on the decider's word as
+the cycle went: the package for Fedora (D24) and Ubuntu (D27, deferred), the meeting played
+with its words (D26), the name Wholeheard (D28), the logs (D29), a call offered to be recorded
+and the devices followed (D30–D33), the small window first (D34, D35), the models offered where
+they are missing (D36, D37).
+
+**Success criteria** — the charter's first is **met**, on the decider's word of 2026-10-26
+("Atteint, build compris"): every meeting recorded with Wholeheard two weeks running, counted
+from the build they used before the package of 2026-10-18 (D24). The second and third wait on
+the colleagues: Ubuntu's trial (D27) and macOS (cycle 04); Windows is not framed.
+
+**Decisions anchored to this cycle**, read at its closure — and said in each record:
+
+| Record | Its criterion | Read |
+|---|---|---|
+| ADR-0006, the package assembled from each release | The decider installs with `dnf` and goes through a meeting with nothing built; the e2e installs and removes it in a Fedora that never saw it | Met: the e2e (D24); the decider installed the package with `dnf` on 2026-10-19 (#241) and went through their real meeting with the window on 2026-10-24 (D23). Still *Proposed*: its acceptance is the decider's |
+| ADR-0007, logs of what each program does | A failure provoked in each program found under its making's id; the page says it plainly; a day of real meetings' logs holds none of their words | Met in each program's tests — capture, transcription, summary, the shell — and for the page (D29, accepted). A day of real logs read for words: not done, a check that would read the user's meetings. Still *Proposed* |
+| ADR-0008, the meeting played from a loopback server | The decider listens to a real meeting in the window, its words following; a request without the token, of another offer, or for a path refused | Met: D26 accepted after the decider's meeting (D23); the refusals are the shell's tests (#299). Still *Proposed* |
+| ADR-0009, the tracks played as one sound | The decider seeks by the drawing and by a line, nothing out of step; the e2e plays through the shorter track's end | Met: D26 accepted; the e2e's scenario R plays it past the shorter track's end (#304), as one sound since #307. Still *Proposed* |
+
+**Deferred**: D27, to cycle 04. *Out of scope* stays out: recording by itself, Windows,
+`export`, compressing the tracks, the voices of one track. Known and open: #409 (the window's
+e2e, a flake under load, watched), #361 (zeros recorded with earbuds whose microphone link
+dropped).
+
+**Where the next framing starts**: [cycle 04](04-wholeheard-on-macos.md), Wholeheard on macOS,
+accepted the same day; *Later* above for the one after.
+
+**Documents brought current:** the front page and the module map (#419, merged); each module's page in
+the pull request that changed it; ADR-0006 to ADR-0009 written with their deliverables.
