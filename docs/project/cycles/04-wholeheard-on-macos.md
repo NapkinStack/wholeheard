@@ -1,14 +1,14 @@
 ---
 goal: "On a Mac, the colleague opens Wholeheard from one app the forge made, and records a real call with it — both sides, nothing added to the Mac"
-status: proposed          # proposed | accepted | closed | stopped — the decider accepts
+status: accepted          # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 1         # the time the decider WANTS to spend, not an estimate
-start: 2026-11-07         # YYYY-MM-DD
-end: 2026-11-14           # start + appetite: the first day the cycle is over — the circuit breaker
+start: 2026-10-26         # YYYY-MM-DD
+end: 2026-11-02           # start + appetite: the first day the cycle is over — the circuit breaker
 deliverables:
   - id: D38
     title: "On a Mac, Wholeheard opens from one app the forge made, its four programs inside it"
     module: install
-    state: proposed
+    state: ready
     acceptance:
       - "Given a run of the macOS workflow on main, or one started by hand, when it ends, then it leaves one artifact, Wholeheard-<version>-macos-arm64.zip, holding Wholeheard.app: wholeheard and the three programs side by side in Contents/MacOS, and an Info.plist naming the application, its version, and the sentences macOS shows when it asks for the microphone and for the sound the Mac plays; the bundle signed ad hoc, `codesign --verify --deep --strict` passing on it"
       - "Given that zip on the colleague's Mac — an Apple chip, macOS later than 14.6 — when they open the app as macOS lets an unsigned one open (System Settings → Privacy & Security → Open Anyway), then Wholeheard's icon is in the menu bar and its window opens from it, with nothing installed before it and no terminal"
@@ -16,10 +16,17 @@ deliverables:
   - id: D39
     title: "Spike — does a real call recorded on a Mac hold both sides, with nothing added to the Mac?"
     module: capture
-    state: proposed
+    state: ready
     acceptance:
       - "Given D38's app on the colleague's Mac, when they record a real call of at least five minutes with it, then the cycle records, for each track — local, the microphone; remote, what the Mac plays: whether it holds the call's speech, its sample rate and channels, its gaps of zeros, and what macOS asked before it recorded"
       - "Given that record, when it is read against the threshold — both tracks hold the call's speech, as the colleague hears it at the start, the middle and the end of each, and capture's code holds no line added for macOS —, then ADR-0002's criterion is met for macOS; below it, what was missing — a permission, a device, the system's interface — is recorded for the next framing. A refuted result is a delivered one"
+  - id: D27
+    title: "Wholeheard installs on Ubuntu from one package, its programs built on the system they ship to"
+    module: install
+    state: in-progress
+    acceptance:
+      - "Given Ubuntu 24.04, when a user installs Wholeheard from one package file (`sudo apt install ./wholeheard_<version>_amd64.deb`), then Wholeheard is in the applications menu and starts in the tray with nothing built and no variable set, and removing it leaves the user's meetings and settings"
+      - "Given a release for a system — Fedora or Ubuntu —, when the programs are built, then they are built in a container of that system, so that no package depends on the machine that made it"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -27,7 +34,8 @@ deliverables:
 > The framework's words: `.nstack/handbook/glossary.md`.
 
 > Framed on 2026-10-26 on the decider's word ("oui, cadre le build macOS"): after cycle 03, one
-> week. Proposed: its `start` and `end` move to the day it is accepted, once cycle 03 is closed.
+> week. **Accepted by the decider on 2026-10-26**, closing cycle 03 early ("Clore 03, D27 dans
+> 04"): from that day, D27 moved here.
 
 ## Goal
 
@@ -76,6 +84,14 @@ the cycle records.
   plays included, is assumed, not tried: D38's third criterion says it.
 - The artifact is kept 7 days on the run, the shortest a colleague needs: see *Open questions*.
 
+### D27
+
+**Moved from [cycle 03](03-the-window.md#d27) on the decider's word, 2026-10-26** ("Clore 03,
+D27 dans 04"): built and verified there, its criteria unchanged but the name, Summit having
+become Wholeheard (D28). What is left is its trial: a colleague on Ubuntu 24.04 installs the
+package — its acceptance issue [#255](https://github.com/NapkinStack/wholeheard/issues/255). A
+dependency with a date, as D39's: by 2026-10-31.
+
 ### D39
 
 - cpal 0.18.2, which capture records with, says it records "system audio output on macOS >
@@ -86,7 +102,7 @@ the cycle records.
 ## Dependency with a date
 
 - **The colleague on macOS**, for D38's second and third criteria and for D39: one session of
-  an hour by 2026-11-12, the app ready by 2026-11-10. The cycle does not hold it: missed, the
+  an hour by 2026-10-31, the app ready by 2026-10-29. The cycle does not hold it: missed, the
   deliverables stay where they are at the end date.
 
 ## Out of scope
