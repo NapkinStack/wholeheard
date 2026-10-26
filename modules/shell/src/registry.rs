@@ -2,12 +2,15 @@
 //! list shipped. A list that does not read as one is refused whole: in a pull request by the
 //! shell's tests, and in Wholeheard by the same reading.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, io::Read, time::Duration};
 
 use crate::model::{self, Published};
 
 /// The list in the repository, as this build was made with it.
 pub const SHIPPED: &str = include_str!("../registry/models.json");
+
+/// Where the list is read again from, on the user's gesture: the file on `main`.
+pub const ADDRESS: &str = "https://raw.githubusercontent.com/NapkinStack/wholeheard/main/modules/shell/registry/models.json";
 
 /// The hosts a model of the list may be fetched from.
 pub const HOSTS: [&str; 1] = ["huggingface.co"];
@@ -33,6 +36,44 @@ pub struct Listed {
 /// The list shipped. Its tests read the same file: a build cannot ship one that does not read.
 pub fn shipped() -> Vec<Listed> {
     read(SHIPPED).expect("the list shipped reads: the shell's tests read it")
+}
+
+/// The host an address names, as the user is shown it.
+pub fn host(address: &str) -> &str {
+    address.split('/').nth(2).unwrap_or(address)
+}
+
+/// Reads the list again from `address` — `ADDRESS`, or a test's — and takes it only as a list
+/// this build would ship: one that reads, its first model this build's default (ADR-0003),
+/// the model a transcript waits for and the tray fetches.
+pub fn fetch(address: &str) -> Result<Vec<Listed>, String> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(Duration::from_secs(10)))
+        .timeout_recv_response(Some(Duration::from_secs(20)))
+        .timeout_recv_body(Some(Duration::from_secs(20)))
+        .http_status_as_error(false)
+        .build()
+        .into();
+    let mut answer = agent
+        .get(address)
+        .call()
+        .map_err(|error| format!("the list could not be read ({error})"))?;
+    let status = answer.status().as_u16();
+    if status != 200 {
+        return Err(format!("the list could not be read (HTTP {status})"));
+    }
+    let mut text = String::new();
+    answer
+        .body_mut()
+        .as_reader()
+        .take(LIMIT as u64 + 1)
+        .read_to_string(&mut text)
+        .map_err(|error| format!("the list could not be read ({error})"))?;
+    let listed = read(&text)?;
+    if listed[0].published != model::DEFAULT {
+        return Err("the list's first model is not this build's default".into());
+    }
+    Ok(listed)
 }
 
 /// Reads a list of models — version 1 — or says why it is not one. Fields it does not know are
