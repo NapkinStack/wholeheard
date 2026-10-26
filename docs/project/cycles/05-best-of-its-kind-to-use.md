@@ -10,10 +10,10 @@ deliverables:
     module: shell
     state: proposed
     acceptance:
-      - "Given a recording stopped while a Wholeheard window is visible, when it stops, then no notification says the stop; with no Wholeheard window visible, the stop is said as today"
+      - "Given a recording stopped while a Wholeheard window is visible — shown and not minimized, as the toolkit reports it —, when it stops, then no notification says the stop; with no Wholeheard window visible, the stop is said as today"
       - "Given Settings set to make the minutes after the stop (`after = \"minutes\"`), when the transcript is written and the minutes follow, then no notification says the transcript, and one says the minutes; a failure of either step is always said"
-      - "Given a notification that a meeting's transcript or minutes are ready, on Linux, when the user clicks it, then the full window opens on that meeting's page (`#/meeting/<name>`) — never the file manager — and its words say so: « Cliquez pour l'ouvrir. » / \"Click to open it.\""
-      - "Given a meeting made with `after = \"minutes\"` and no window visible at the stop, when it is made, then it gave at most three notifications: the reminder at the start, the stop, the minutes ready"
+      - "Given a notification that a meeting's transcript or minutes are ready, on Linux, when the user clicks it, then the full window opens on that meeting's page (`#/meeting/<name>`) — never the file manager — and its words say so: « Cliquez pour l'ouvrir. » / \"Click to open it.\"; elsewhere a notification promises no click — its words are chosen by the system"
+      - "Given a meeting made with `after = \"minutes\"` and no window visible at the stop, when it is made, and nothing failed and no side fell silent, then it gave at most three notifications: the reminder at the start, the stop, the minutes ready"
   - id: D45
     title: "A meeting's minutes are copied in one click, ready to paste where the user writes"
     module: shell
@@ -27,7 +27,7 @@ deliverables:
     module: shell
     state: proposed
     acceptance:
-      - "Given minutes whose section 2 holds items written as `minutes/v1` says — what — who — by when, separated by ` — ` —, when the meeting's page shows them, then each is one row of three labelled cells, who in its colour and by when in monospace, as board 2 of D11 drew them, in the order the decider settles (open question)"
+      - "Given minutes whose section 2 holds items written as `minutes/v1` says — what — who — by when, separated by ` — ` —, when the meeting's page shows them, then each is one row of three cells, who in its colour and by when in monospace, with no visible headers, as board 2 of D11 drew them — Qui, Quoi, Pour quand their names for assistive technology —, in the order the decider settles (open question)"
       - "Given an item that does not split into exactly three parts on ` — `, when it shows, then it is shown as written, never cut or guessed"
       - "Given « non précisé » / \"not specified\" in a cell, when it shows, then it is shown in the soft colour, as what the meeting did not settle"
   - id: D47
@@ -35,17 +35,18 @@ deliverables:
     module: shell
     state: proposed
     acceptance:
-      - "Given the wording table of the review of 2026-10-26 (`docs/project/reviews/2026-10-26-ux.md` §10), as the decider amends it at the cycle's acceptance, when Wholeheard speaks French, then each of its sentences is the one adopted, and its English counterpart said with the same care"
-      - "Given every French sentence the window and the notifications say, when the shell's tests run, then a test refuses one with a space other than U+202F before `? ! ;` or other than U+00A0 before `:`"
+      - "Given the wording table of the review of 2026-10-26 (`docs/project/reviews/2026-10-26-ux.md` §10), as the decider amends it at the cycle's acceptance, when Wholeheard speaks French, then each of its sentences is the one adopted, and the English sentences the review names beside them are rewritten with them"
+      - "Given every French sentence the window and the notifications say, when the shell's tests run, then a test refuses one without U+202F before `? ! ;` or without U+00A0 before `:` — times (`12:21`) and addresses (`https:`) aside"
       - "Given a command the page calls that fails — a settings file, a path, a key, the system —, when it fails, then the page says it in a sentence of `words.rs`, in the user's language; the raw text goes to the log and, in developer mode, under the sentence; a test refuses a command that hands the page a text of its own (`Err(\"…\")`)"
   - id: D48
     title: "A meeting has a name: the one its minutes give it"
     module: summary
     state: proposed
     acceptance:
-      - "Given `contracts/minutes/v1`, when its page is changed, then it says an optional `title` in the front matter — one line, a few words in the meeting's language, at most 80 characters, never a key or a path — in a pull request of the contracts module alone, merged before the summary writes it; the shell, which reads the front matter into a table of keys (`minutes.rs:49-53`), reads minutes with or without it unchanged"
-      - "Given a transcript, when the summary writes its minutes, then their front matter carries a `title` that names what the meeting was about; given a model that gives none, or one longer than 80 characters or on several lines, then the minutes are written whole without it, never refused for it"
-      - "Given the list of meetings and a meeting's page, when a meeting's minutes carry a title, then the row and the page's heading show the title, the date beneath it; without minutes, or minutes made before, the date as today (`window.js:72-78, 321, 865`)"
+      - "Given `contracts/minutes/v1`, when its page is changed, then it says an optional `title` in the front matter — one line, a few words in the meeting's language, at most 80 characters, never a key or a path — in a pull request of the contracts module alone, merged before the summary writes it; the shell, which reads the front matter into a table of keys (`minutes.rs`'s reader), reads minutes with or without it unchanged"
+      - "Given a transcript, when the summary writes its minutes, then their front matter carries the title the provider's answer gives, where it gives one — a real model's title is a scenario of the sheet; given a model that gives none, or one longer than 80 characters or on several lines, then the minutes are written whole without it, never refused for it"
+      - "Given the list of meetings and a meeting's page, when a meeting's minutes carry a title, then the row and the page's heading show the title — the date beneath it in the list (board 1), above it on the page (board 2); without minutes, or minutes made before, the date as today"
+      - "Given a title that holds markup — `<img src=x onerror=alert(1)>` —, when it shows, then it is shown as text, never as markup, held by a test (`security.md`)"
       - "Given the minutes made again, when they are written, then the meeting takes the new title"
   - id: D49
     title: "The first run holds the user's hand: the model offered before the first meeting, each side heard checked live"
@@ -54,14 +55,15 @@ deliverables:
     acceptance:
       - "Given the small window at rest, the chosen Whisper model not on the machine and no meeting yet, when it shows, then board 5's card stands in place of « Aucune réunion pour l'instant. »: the model's size and host, that it is checked before it is used, « Télécharger » / \"Download\" and « Plus tard » / \"Later\"; Télécharger fetches it as Settings do (`model_fetch`); Plus tard hides the card until Wholeheard starts again"
       - "Given a recording started, when it records, then the small window shows, for each side — « Votre micro » / \"Your microphone\", « Le son de la réunion » / \"The meeting's sound\" —, a check that turns ✓ as soon as its levels rise above silence (`level`, `recording/v1`), then fades"
-      - "Given a side that stays silent, when capture says it silent (`Said::Silent`, `words.rs:159-171`), then the small window says under its check what to do — speak, or play a sound in the call — as well as the notification it says today"
+      - "Given a side that stays silent, when capture says it silent, then the small window says under its check what to do, as well as the notification it says today: for a microphone that sends nothing (`Said::Nothing`, #457), the sentence of `sends_nothing` — check the device's own mute; otherwise (`Said::Silent`), speak, or play a sound in the call"
+      - "Given the small window at 380×400 while recording, with the checks, their sentences and D50's line, when it shows in either theme, then nothing overflows or is cut — a departure from board 6 and D34, screenshots of both themes in the sheet"
   - id: D50
     title: "The reminder to announce the recording is kept, shown where the user looks, the announcement one click away"
     module: shell
     state: proposed
     acceptance:
-      - "Given a settings file that does not say `reminder`, or none, when Wholeheard starts, then the reminder is on (`settings.rs:106`), held by a test; Settings still let the user turn it off (charter, 2026-10-13)"
-      - "Given a recording with the reminder on, when it records, then the small window says « Prévenez les participants que cette réunion est enregistrée. » / its English, under the timer, in the soft colour — as well as the notification at the start, so that it shows with notifications off or held back"
+      - "Given a settings file that does not say `reminder`, or none, when Wholeheard starts, then the reminder is on (`Settings::default().reminder`), held by a test; Settings still let the user turn it off (charter, 2026-10-13)"
+      - "Given a recording with the reminder on, when it records, then the small window says « Prévenez les participants que cette réunion est enregistrée. » / its English, under the timer, in the soft colour, for the recording's first fifteen seconds *(framer, to confirm: UX review 1.2)* — as well as the notification at the start, so that it shows with notifications off or held back"
       - "Given that line, when the user clicks « Copier l'annonce » / \"Copy the announcement\", then the clipboard holds a sentence ready for the call's chat, in the language of Wholeheard's window, and « Copié » is said in place; the sentence is the decider's, adopted at the cycle's acceptance (D50's section)"
       - "Given the reminder off, when a recording starts, then neither the line nor the button shows"
   - id: D51
@@ -69,9 +71,9 @@ deliverables:
     module: summary
     state: proposed
     acceptance:
-      - "Given `contracts/minutes/v1`, when its page is changed — in D48's pull request of the contracts module, merged first —, then it says an optional `cost`: a number, at least zero, the price the provider reported for the call, in the unit it names; absent when the provider reported none"
-      - "Given a provider whose answer carries `usage.cost` — OpenRouter's, read at its documentation when it is built —, when the summary writes the minutes, then their front matter carries that cost as reported; given a provider that reports none — Ollama on this computer, another service —, then no cost is written; given a `usage.cost` that is not a number at least zero, then none is written and one warning is logged. No price is ever estimated, and no table of prices is kept"
-      - "Given minutes that carry a cost, when their page shows, then the maker's line ends with it in the soft colour, formatted for the window's language (`Intl.NumberFormat`), in the unit the contract names: « Écrit par Claude Sonnet, via openrouter.ai · mar. 13 oct. à 12:21 · 0,012 $ »; given none, the line is as today (`window.js:571`)"
+      - "Given `contracts/minutes/v1`, when its page is changed — in D48's pull request of the contracts module, merged first —, then it says an optional `cost` — a number, at least zero, the price the provider reported for the call — with its `currency`, an ISO 4217 code, both or neither; absent when the provider reported none"
+      - "Given a provider whose answer carries `usage.cost` — OpenRouter's, read at its documentation when it is built —, when the summary writes the minutes, then their front matter carries that cost as reported; given a provider that reports none — Ollama on this computer, another service —, then no cost is written; given a `usage.cost` that is not a number at least zero, or a currency OpenRouter's documentation does not name, then none is written and one warning is logged; given an answer with `usage.cost_details.upstream_inference_cost` — the user's own key at the model's provider (BYOK) —, then no cost is written: OpenRouter's fee is not what the call cost. No price is ever estimated, and no table of prices is kept"
+      - "Given minutes that carry a cost, when their page shows, then the maker's line ends with it in the soft colour, formatted for the window's language (`Intl.NumberFormat`), in its `currency` (`style: \"currency\"`): « Écrit par Claude Sonnet, via openrouter.ai · mar. 13 oct. à 12:21 · 0,012 $US »; given none, the line is as today"
       - "Given the agreement before a first sending and the small window while recording, when they show, then neither shows a price or a running count"
       - "Given the summary's tests, when they run, then a stand-in provider's answer with `usage.cost`, one without and one with a cost that does not read are each held by a test; one real call to openrouter.ai is a scenario of the sheet"
   - id: D52
@@ -89,14 +91,13 @@ deliverables:
 > The framework's words: `.nstack/handbook/glossary.md`.
 
 > Framed on 2026-10-26 on the decider's word: their choice that day, « Cycle 05 + bug tout de
-> suite » — a cycle 05 after cycle 04, « le meilleur au quotidien ». It starts the day after
-> cycle 04's end, and is accepted only once cycle 04 is closed: one accepted cycle at a time.
+> suite » — a cycle 05 after cycle 04, « le meilleur au quotidien ». It starts on cycle 04's
+> `end`, the first day outside it, and is accepted only once cycle 04 is closed: one accepted cycle at a time.
 > Its source is the review of 2026-10-26 the decider asked for — [the market](../reviews/2026-10-26-market.md)
 > and [the surface](../reviews/2026-10-26-ux.md), each by an independent session — as cycle 04's
-> *Later* says. Every file:line below is the review's, read at commit 66b1ff7: `main.rs` has
-> moved by some fifty lines since, `window.js` by some twenty after line 1600, the content
-> unchanged (the verifier of #445); `minutes.rs`, `settings.rs` and `provider.rs` were read at
-> 66b1ff7 by the framer.
+> *Later* says. The criteria name symbols, never lines: lines move. The file:line of the sections
+> below were read at commit 66b1ff7, by the reviews or the framer, and have moved since (the
+> verifier of #445; this page's reviewer, 2026-10-26).
 
 ## Goal
 
@@ -140,7 +141,10 @@ everywhere · red: D52, a measure only.
 ## Deliverables
 
 Each is the shell's but D48 and D51, whose minutes are written by the summary, and D52, a measure
-of the bench. Ordered by the review's value over cost (UX review §11): the order to build them in.
+of the bench. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
+another, after it: the order to build them in. **Cut first** if the breaker nears: D52 (apart, and
+it takes the decider's machine), then D51 (three pull requests and a key), then D47's errors.
+D44, D45, D47 and D50 all touch `words.rs` and the « Copié » status: one session at a time on them.
 
 ### D44
 
@@ -161,22 +165,22 @@ of the bench. Ordered by the review's value over cost (UX review §11): the orde
 - Markdown text, the body only: the code already writes to `navigator.clipboard` for the
   diagnostic (UX review 4.1). Rich text beside it — what a mail pastes as headings — is not
   promised: whether the system's web view takes `text/html` on the three systems is not known
-  *(assumption)*; tried during the build, kept if it holds.
-- Export, Notion, a file: *Later*, as the charter has it.
+  *(assumption)*, and not tried in this cycle.
+- Export, Notion, a file: *Later*, as cycle 02 deferred them (its *Later*).
 
 ### D46
 
 - The contract already guarantees the separator: `contracts/minutes/v1`, Actions, "what, who and
   by when, in that order, separated by ` — `". Rendered in `minutes.rs` of the shell; the contract
   unchanged (UX review 4.2).
-- Board 2 of D11 drew what · who · when; the decider's words say Qui · Quoi · Pour quand: see
-  *Open questions*.
+- Board 2 of D11 drew what · who · when; the market review's recommendation 3 says Qui · Quoi ·
+  Pour quand, the decider's choice of 2026-10-26: see *Open questions*.
 - The copy of D45 keeps the items as written.
 
 ### D47
 
 - The table of the UX review §10 is a proposal, not decided words: the decider adopts or amends
-  it when they accept the cycle; the market review's §7 is read with it (Compte rendu, Décisions,
+  it when they accept the cycle (*Open questions*); the market review's §7 is read with it (Compte rendu, Décisions,
   Actions, Points clés, Intervenants).
 - The errors handed to the page as English text (`main.rs:414-415, 508, 916-946, 1100-1134`) go
   through an enum said by `words.rs`, as `summarising::Cause` already is (UX review 5.1).
@@ -221,7 +225,8 @@ search and export would share. The cheap fix stays the fallback if the decider p
   interface says whether it was granted (market review §5, [Apple forum 771864](https://developer.apple.com/forums/thread/771864)):
   the check is how the colleague sees it.
 - The small window keeps its fixed size (D35); the check takes the room left under *Arrêter*
-  (UX review 2.2).
+  (UX review 2.2: about 40 % free). With D50's line it departs from board 6 and D34, which drew the
+  time, the levels and *Arrêter* alone: named here, held by criterion 4's screenshots, no new board.
 
 ### D50
 
@@ -246,9 +251,12 @@ search and export would share. The cheap fix stays the fallback if the decider p
   `provider`, `model`, `context` (UX review §9).
 - OpenRouter returns `usage.cost` in every response, with no parameter — `usage: {include: true}`
   is deprecated ([OpenRouter, *Usage accounting*](https://openrouter.ai/docs/use-cases/usage-accounting),
-  read by the market review on 2026-10-26). Its page says "cost in credits" without naming a
-  currency: that it is US dollars is an **assumption**, read again at the source when it is built
-  (*Open questions*).
+  read by the market review on 2026-10-26: the "total charged to your account"). The review read no
+  currency named: that it is US dollars is an **assumption**, read again at the source when it is
+  built (*Open questions*). With the user's own key at the model's provider (BYOK), `usage.cost` is
+  OpenRouter's fee alone, the call's cost in `cost_details.upstream_inference_cost` (market review):
+  no cost is written then.
+- The cost of an online transcription (D43, #451) is not this deliverable's: *Later*.
 - Three pull requests, one module each, in this order: contracts (the page, with D48's `title`),
   summary (reads the cost, writes it), shell (shows it). The deliverable is the summary's, as D42's
   was transcription's.
@@ -265,6 +273,10 @@ search and export would share. The cheap fix stays the fallback if the decider p
   one; the transcript of record made after the stop as today. Short spans lose words — cycle 01,
   D4: 34.5 % of the words differed heard thirty seconds at a time, 26.7 % whole — so the preview
   never replaces the transcript.
+- It departs from the market review, which says not to build a floating live-transcript panel
+  (recommendation 15, §4): the decider's idea, measured before anything is built.
+- The program keeps the model loaded across spans, as a live preview would; its load is recorded
+  apart. The threshold's 15 points: twice D4's difference (7.8 points), *(framer, to confirm)*.
 - A measure, not the product: the program lives in the bench (`modules/platform/bench`), nothing
   in the shell, capture or transcription changes. Building the preview is the next framing's, its
   ADR first, if the threshold is met.
@@ -298,6 +310,7 @@ And for this cycle:
 
 ## Later
 
+- The cost of an online transcription (D43), as D51 shows the minutes'.
 - The live preview built, on D52's record and its ADR; SpeechAnalyzer's live results on a Mac.
 - Each decision and action linked to its passage, the audio played there (market review,
   recommendation 2): what Granola, which deletes the audio, cannot do.
@@ -321,12 +334,17 @@ And for this cycle:
   French word for the text, the one every French product uses, already the step's name in
   Settings (UX review §10, market review §7). Boards 1 and 2 of D11, accepted, say *Transcript*.
   The framer's default: *Transcription*, a departure from the boards the decider settles.
-- **The order of an action's cells** (D46): the decider's words, Qui · Quoi · Pour quand, or
-  board 2's and the contract's, what · who · when? The framer's default: the decider's words, on
-  screen; the contract's order unchanged.
-- **The unit of `usage.cost`** (D51): OpenRouter's page names credits, not a currency. The
-  framer's default: `$` only if OpenRouter's documentation says the credits are dollars when D51 is
-  built; otherwise « crédits OpenRouter ».
+- **The order of an action's cells** (D46): the market review's Qui · Quoi · Pour quand, chosen
+  by the decider on 2026-10-26, or board 2's and the contract's, what · who · when? The framer's
+  default: Qui · Quoi · Pour quand on screen, without visible headers; the contract's order
+  unchanged.
+- **The currency of `usage.cost`** (D51): the market review read none named. The framer's default:
+  `USD` only if OpenRouter's documentation says so when D51 is built; otherwise no cost is written
+  — a number without its currency is not shown.
+- **The wording table of the UX review §10** (D47): adopted as it is, or amended line by line?
+  The framer's default: adopted, with *Transcription* below.
+- **The reminder's line for fifteen seconds** (D50), as the UX review proposed (1.2), or the whole
+  recording? The framer's default: fifteen seconds, the notification beside it.
 - **The title or the cheap fix** (D48): the framer's proposal is the title; the cheap fix is S.
 - **The announcement's sentence** (D50): the framer's, above, for the decider to adopt or amend.
 - **The live check on every recording** (D49), rather than the first only.
