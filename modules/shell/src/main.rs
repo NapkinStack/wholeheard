@@ -35,6 +35,7 @@ use wholeheard_shell::{
     player,
     providers::{self, Online},
     recording::{self, Recording, Said, Source},
+    registry,
     sessions::{self, Listed},
     settings::{self, After, KeepAudio, Log, Settings},
     summarising::{self, Summarising},
@@ -975,13 +976,21 @@ fn opening(folder: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// One of the models to download: its file, its size, what it is good for, whether it is here.
+/// One of the models to download: its file, its size, its host, what it is good for — none when
+/// this build has no sentence for it —, whether it is here.
 #[derive(serde::Serialize)]
 struct Offered {
     file: &'static str,
     bytes: u64,
-    good: &'static str,
+    host: &'static str,
+    good: Option<&'static str>,
     here: bool,
+}
+
+/// The models Settings offer: the list shipped (D40, ADR-0010).
+fn offered() -> &'static [registry::Listed] {
+    static LIST: std::sync::OnceLock<Vec<registry::Listed>> = std::sync::OnceLock::new();
+    LIST.get_or_init(registry::shipped)
 }
 
 /// A Whisper model the settings page offers.
@@ -1057,14 +1066,15 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         keep_audio: settings.keep_audio,
         model: settings.model,
         models,
-        offered: model::OFFERED
+        offered: offered()
             .iter()
             .enumerate()
-            .map(|(index, offered)| Offered {
-                file: model::file(offered),
+            .map(|(index, listed)| Offered {
+                file: model::file(&listed.published),
                 bytes: published_at(index).bytes,
-                good: words::offered_good(shell.language, index),
-                here: models_folder().join(model::file(offered)).is_file(),
+                host: published_at(index).host,
+                good: listed.good.map(|good| words::offered_good(shell.language, good)),
+                here: models_folder().join(model::file(&listed.published)).is_file(),
             })
             .collect(),
         developer: settings.developer,
@@ -2205,7 +2215,7 @@ fn published() -> Published {
 }
 
 /// One of the models offered, as published — or as `WHOLEHEARD_MODEL_PUBLISHED` says, its
-/// entries separated by `;` in the order of `model::OFFERED`.
+/// entries separated by `;` in the order of the list offered.
 fn published_at(index: usize) -> Published {
     let named = std::env::var("WHOLEHEARD_MODEL_PUBLISHED").ok().and_then(|named| {
         let named = named.split(';').nth(index)?.to_owned();
@@ -2221,7 +2231,7 @@ fn published_at(index: usize) -> Published {
             sha256: leaked(sha256),
         })
     });
-    named.unwrap_or(model::OFFERED[index])
+    named.unwrap_or(offered()[index].published)
 }
 
 /// Puts the entry that fetches the model in the menu, and says why: nothing is fetched yet.
@@ -2300,7 +2310,7 @@ fn pull(app: &AppHandle) {
 /// One of the models Settings offer, fetched on the user's click, unless it is there (D37).
 #[tauri::command]
 fn model_offered_fetch(app: AppHandle, file: String) {
-    let Some(index) = model::OFFERED.iter().position(|offered| model::file(offered) == file) else {
+    let Some(index) = offered().iter().position(|listed| model::file(&listed.published) == file) else {
         return;
     };
     if !models_folder().join(&file).is_file() {
@@ -2317,7 +2327,7 @@ fn fetch(app: &AppHandle, index: usize) {
         return;
     }
     let (wanted, language) = (published_at(index), shell.language);
-    let file = model::file(&model::OFFERED[index]);
+    let file = model::file(&offered()[index].published);
     let to = models_folder().join(file);
     // The tray's entry is the default model's: it says how far that one is, and waits while
     // another comes — one fetch at a time.

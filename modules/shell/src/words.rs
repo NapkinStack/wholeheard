@@ -3,6 +3,7 @@
 
 use crate::{
     recording::{Said, Source},
+    registry::Good,
     summarising::Cause,
     transcription::Made,
 };
@@ -1625,13 +1626,13 @@ pub fn pulled(outcome: &Result<(), String>, model: &str, language: Language) -> 
     notice(title, body).expect("always said")
 }
 
-/// What each model of Settings' list is good for, in the order of `model::OFFERED` (D37).
-pub fn offered_good(language: Language, index: usize) -> &'static str {
-    match (language, index) {
-        (Language::English, 0) => "Recommended: the most exact, quick on a recent computer",
-        (Language::French, 0) => "Recommandé : le plus juste, rapide sur un ordinateur récent",
-        (Language::English, _) => "Faster, less exact: for a modest computer",
-        (Language::French, _) => "Plus rapide, moins juste : pour un ordinateur modeste",
+/// What a model of Settings' list is good for, as the list says it (D37, D40).
+pub fn offered_good(language: Language, good: Good) -> &'static str {
+    match (language, good) {
+        (Language::English, Good::Recommended) => "Recommended: the most exact, quick on a recent computer",
+        (Language::French, Good::Recommended) => "Recommandé : le plus juste, rapide sur un ordinateur récent",
+        (Language::English, Good::Faster) => "Faster, less exact: for a modest computer",
+        (Language::French, Good::Faster) => "Plus rapide, moins juste : pour un ordinateur modeste",
     }
 }
 

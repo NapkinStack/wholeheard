@@ -93,9 +93,9 @@ so, and puts one entry in its menu: *Download the model (874 MB, huggingface.co)
 fetched before it is chosen. The model comes into a part file beside its place. A cut is
 taken up where it stopped, and the model is used only whole and with the SHA-256 its authors
 publish. Then the waiting transcripts are made, none other. The window offers the same fetch where it says
-the model is missing: in *Réglages*, and on a meeting waiting for it (D36). *Réglages* also list the models to download, each with its size and what it is good for —
-Whisper large v3 turbo, Whisper small, and for the minutes `qwen3:8b` fetched by Ollama's own pull
-(`POST /api/pull`) —, one fetch at a time; a model fetched joins those to choose, the choice staying the
+the model is missing: in *Réglages*, and on a meeting waiting for it (D36). *Réglages* also list the models to download, each with its size, its host and what it is good for —
+the Whisper models of [`registry/models.json`](registry/models.json), the list shipped (D40,
+ADR-0010), and for the minutes `qwen3:8b` fetched by Ollama's own pull (`POST /api/pull`) —, one fetch at a time; a model fetched joins those to choose, the choice staying the
 user's. With no Ollama answering, the row says where to get it: Wholeheard never installs it (D37). A model the settings name, and which is not
 there, is said with where it was looked for: it is the user's own, never fetched.
 

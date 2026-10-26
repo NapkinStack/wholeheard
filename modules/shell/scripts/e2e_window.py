@@ -425,9 +425,10 @@ def models_listed(now: dt.datetime) -> None:
         browser.find_element(By.ID, "settings-link").click()
         listed = wait_for(browser, lambda b: b.execute_script(turbo_row) and b.execute_script(small_row))
         said = (browser.execute_script(turbo_row), browser.execute_script(small_row))
-        check("Settings list Whisper large v3 turbo and Whisper small, each with its size and what it is good for",
+        check("Settings list Whisper large v3 turbo and Whisper small, each with its size, its host and what it is good for",
               listed and "Whisper large v3 turbo" in said[0] and "200 ko" in said[0] and "Recommandé" in said[0]
-              and "Whisper small" in said[1] and "ordinateur modeste" in said[1], said)
+              and "Whisper small" in said[1] and "ordinateur modeste" in said[1]
+              and all(at.split("/")[2] in line for line in said), said)
         check("each not on this computer is offered", "Télécharger" in said[0] and "Télécharger" in said[1], said)
         check("nothing is fetched before a click", asked == [], asked)
         chosen = browser.execute_script("return document.getElementById('model').selectedOptions[0]?.text || ''")
