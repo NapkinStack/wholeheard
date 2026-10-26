@@ -30,7 +30,7 @@ deliverables:
   - id: D40
     title: "Settings offer the models of a list kept in the repository, read again on the user's word"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given the list `modules/shell/registry/models.json` on main, when Wholeheard is built, then Settings offer the models it lists — each with its size, its host and what it is good for — and no list of Whisper models is written in the code"
       - "Given Settings open, when the user has not asked for the list up to date, then no connection is opened to the list's host, and the models offered are those Wholeheard was built with"
@@ -182,8 +182,13 @@ whose trials are what D38, D39 and D27 wait on. The end date does not move.
 before (#434); read again on *Mettre à jour la liste (raw.githubusercontent.com)* only, refused
 whole when it is not a list this build would ship, a redirect included (#435). Every criterion is
 held by a scenario of the two sheets, automated but for one: a model of the list read again is
-fetched as any other, read in the code (#435's S5). Not exercised: a list that answers too slowly
-(its timeouts), the 64 KB bound on what is read. Its acceptance is the decider's.
+fetched as any other, read in the code (#435's S5) — the 64 KB bound included (#434,
+`a_list_larger_than_64_kb_is_refused_before_it_is_read`; #435, S4). Not exercised: a list that
+answers too slowly (its timeouts), and the list read again kept only until Wholeheard quits (read in
+the code: a static `RwLock`, `main.rs`).
+
+**Accepted, 2026-10-27**, on the decider's word that day: « Tu peux valider en autonomie » — each
+criterion held by a scenario of #434's and #435's sheets (#467's verifier).
 
 ### D41
 
