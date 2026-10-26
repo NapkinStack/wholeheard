@@ -580,6 +580,39 @@ esac
               browser.execute_script(pick))
 
 
+def service_named(now: dt.datetime) -> None:
+    """Z. Who hears chosen as the minutes' (D43): a service named, its host agreed to first, tested."""
+    print("Z. Settings: a service named to hear, its host agreed to before anything is sent (D43)")
+    meetings = WORK / "service"
+    meetings.mkdir()
+    window = Window(meetings, "fr_FR.UTF-8")
+    said = "return document.getElementById('transcription-said')?.innerText || ''"
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "model"))
+        check("the service's fields are hidden until it is chosen", not browser.find_element(By.ID, "transcription-service").is_displayed())
+        Select(browser.find_element(By.ID, "model")).select_by_value("service")
+        shown = wait_for(browser, lambda b: b.find_element(By.ID, "transcription-service").is_displayed(), 5)
+        check("chosen, its address, its model and its key are asked", shown and browser.find_elements(By.ID, "transcription-key"))
+        # A host elsewhere, not agreed to: nothing saved, the agreement asked.
+        browser.find_element(By.ID, "transcription-provider").send_keys("https://hears.example/v1")
+        browser.find_element(By.ID, "transcription-model").send_keys("whisper-1")
+        agreement = browser.find_element(By.ID, "transcription-agreed").find_element(By.XPATH, "..").text
+        browser.find_element(By.ID, "transcription-save").click()
+        refused = wait_for(browser, lambda b: "acceptez d’abord" in b.execute_script(said), 5)
+        check("a host elsewhere is not saved before the user agreed, the host named in the agreement",
+              refused and "hears.example" in agreement and "transcription_provider" not in window.file.read_text(), (agreement, browser.execute_script(said)))
+        # Agreed: saved, and who hears is that service.
+        browser.find_element(By.ID, "transcription-agreed").click()
+        browser.find_element(By.ID, "transcription-save").click()
+        saved = wait_for(browser, lambda b: 'engine = "service"' in window.file.read_text(), 5)
+        check("agreed, the service is saved as who hears, its host kept as agreed",
+              saved and 'transcription_agreed = "hears.example"' in window.file.read_text() and "whisper-1" in window.file.read_text(), window.file.read_text())
+        browser.find_element(By.ID, "transcription-test").click()
+        tested = wait_for(browser, lambda b: b.execute_script(said) and "Enregistré" not in b.execute_script(said), 10)
+        check("Tester says in one sentence what the service answered", tested, browser.execute_script(said))
+
+
 def ollama_pulled(now: dt.datetime) -> None:
     """V. The minutes' recommended model fetched by Ollama, on the user's click (D37)."""
     print("V. Settings: qwen3:8b fetched by Ollama on the user's click; without Ollama, said where to get it (D37)")
@@ -2074,6 +2107,7 @@ def main() -> int:
     models_listed(now)
     list_refreshed(now)
     speech_offered(now)
+    service_named(now)
     ollama_pulled(now)
     return 1 if FAILED else 0
 

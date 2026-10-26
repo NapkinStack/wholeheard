@@ -30,7 +30,15 @@ pub enum Made {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Hearer {
     Model(PathBuf),
-    SpeechAnalyzer { language: String },
+    SpeechAnalyzer {
+        language: String,
+    },
+    /// A service the user named (D43): its address, its model, the language asked.
+    Service {
+        provider: String,
+        model: String,
+        language: String,
+    },
 }
 
 impl Hearer {
@@ -44,11 +52,35 @@ impl Hearer {
         }
     }
 
+    /// Who hears, as the settings say it: a service only once the user agreed to its host — or it
+    /// is this computer —, as the minutes are sent (ADR-0013); else as `chosen` says.
+    pub fn of(settings: &crate::settings::Settings, language: &str, apple_ready: impl FnOnce() -> bool) -> Hearer {
+        if settings.engine == crate::settings::Engine::Service
+            && let (Some(provider), Some(model)) = (&settings.transcription_provider, &settings.transcription_model)
+        {
+            let host = crate::providers::host(provider);
+            let agreed = crate::providers::local(provider) || (host.is_some() && host == settings.transcription_agreed);
+            if agreed {
+                return Hearer::Service {
+                    provider: provider.clone(),
+                    model: model.clone(),
+                    language: language.into(),
+                };
+            }
+        }
+        let engine = match settings.engine {
+            crate::settings::Engine::Service => crate::settings::Engine::Whisper,
+            engine => engine,
+        };
+        Hearer::chosen(engine, &settings.model, language, apple_ready)
+    }
+
     /// Its name, as the page says who hears.
     pub fn name(&self) -> String {
         match self {
             Hearer::Model(model) => named(model),
             Hearer::SpeechAnalyzer { .. } => "SpeechAnalyzer".into(),
+            Hearer::Service { model, .. } => model.clone(),
         }
     }
 }
@@ -63,6 +95,11 @@ impl Transcription {
     /// Starts the program that hears on a session's folder, with who hears. How it ended
     /// comes once on the receiver: `Written` only when it ended well with the transcript there.
     pub fn start(program: &Path, folder: &Path, hearer: &Hearer) -> io::Result<(Self, Receiver<Made>)> {
+        Self::start_with(program, folder, hearer, None)
+    }
+
+    /// The same, a service's key handed in the program's environment, never its arguments.
+    pub fn start_with(program: &Path, folder: &Path, hearer: &Hearer, key: Option<&str>) -> io::Result<(Self, Receiver<Made>)> {
         let (trace, making) = crate::log::making();
         let _making = making.enter();
         let mut command = Command::new(program);
@@ -76,7 +113,15 @@ impl Transcription {
                 command.args(["--engine", "speechanalyzer", "--language", language]);
                 "SpeechAnalyzer".to_string()
             }
+            Hearer::Service { provider, model, language } => {
+                command.args(["--provider", provider, "--model", model, "--language", language]);
+                model.clone()
+            }
         };
+        command.env_remove("WHOLEHEARD_PROVIDER_KEY");
+        if let Some(key) = key {
+            command.env("WHOLEHEARD_PROVIDER_KEY", key);
+        }
         info!(session = %named(folder), model = %model, "shell.transcript");
         // A group of its own: ended, whatever it started ends with it.
         #[cfg(unix)]

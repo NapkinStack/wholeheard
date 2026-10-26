@@ -166,3 +166,70 @@ fn speechanalyzer_hears_only_while_this_mac_offers_it_with_its_model() {
     assert_eq!(Hearer::SpeechAnalyzer { language: "en".into() }.name(), "SpeechAnalyzer");
     assert_eq!(whisper.name(), "ggml.bin");
 }
+
+fn with_service(provider: &str, agreed: Option<&str>) -> wholeheard_shell::settings::Settings {
+    wholeheard_shell::settings::Settings {
+        engine: wholeheard_shell::settings::Engine::Service,
+        transcription_provider: Some(provider.into()),
+        transcription_model: Some("whisper-large-v3".into()),
+        transcription_agreed: agreed.map(str::to_string),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_service_hears_only_once_the_user_agreed_to_its_host_or_it_is_this_computer() {
+    let service = |provider: &str| Hearer::Service {
+        provider: provider.into(),
+        model: "whisper-large-v3".into(),
+        language: "fr".into(),
+    };
+    let agreed = with_service("https://api.groq.com/openai/v1", Some("api.groq.com"));
+    assert_eq!(Hearer::of(&agreed, "fr", || false), service("https://api.groq.com/openai/v1"));
+    let not_agreed = with_service("https://api.groq.com/openai/v1", None);
+    assert_eq!(
+        Hearer::of(&not_agreed, "fr", || false),
+        Hearer::Model(not_agreed.model.clone()),
+        "nothing sent before the user agreed"
+    );
+    let another = with_service("https://elsewhere.example/v1", Some("api.groq.com"));
+    assert!(
+        matches!(Hearer::of(&another, "fr", || false), Hearer::Model(_)),
+        "another host asks again"
+    );
+    let here = with_service("http://localhost:8000/v1", None);
+    assert_eq!(
+        Hearer::of(&here, "fr", || false),
+        service("http://localhost:8000/v1"),
+        "a host on this computer never asks"
+    );
+}
+
+#[test]
+fn a_service_is_asked_for_with_its_address_model_and_language_its_key_in_the_environment() {
+    let folder = tempfile::tempdir().unwrap();
+    fs::create_dir(folder.path().join("session")).unwrap();
+    let asked = folder.path().join("asked");
+    let path = folder.path().join("wholeheard-transcription");
+    fs::write(
+        &path,
+        format!(
+            "#!/bin/sh\necho \"$@ key=$WHOLEHEARD_PROVIDER_KEY\" > '{}'\ntouch \"$1/transcript.jsonl\"\n",
+            asked.display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    let hearer = Hearer::Service {
+        provider: "http://localhost:8000/v1".into(),
+        model: "whisper-1".into(),
+        language: "fr".into(),
+    };
+    let (_running, made) = Transcription::start_with(&path, &folder.path().join("session"), &hearer, Some("a-key-of-the-test")).unwrap();
+    assert!(matches!(end(&made), Made::Written(_)));
+    let said = fs::read_to_string(&asked).unwrap();
+    assert!(
+        said.contains("--provider http://localhost:8000/v1 --model whisper-1 --language fr key=a-key-of-the-test"),
+        "{said}"
+    );
+}

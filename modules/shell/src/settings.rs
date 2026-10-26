@@ -62,6 +62,8 @@ impl Window {
 pub enum Engine {
     Whisper,
     SpeechAnalyzer,
+    /// A service the user named, as for the minutes (D43, ADR-0013).
+    Service,
 }
 
 impl Engine {
@@ -69,6 +71,7 @@ impl Engine {
         match self {
             Engine::Whisper => "whisper",
             Engine::SpeechAnalyzer => "speechanalyzer",
+            Engine::Service => "service",
         }
     }
 }
@@ -91,8 +94,13 @@ pub struct Settings {
     pub after: After,
     /// The Whisper model the transcript is heard with: a file in whisper.cpp's format.
     pub model: PathBuf,
-    /// Who hears: the model above, or Apple's SpeechAnalyzer (D42).
+    /// Who hears: the model above, Apple's SpeechAnalyzer (D42), or a service the user named (D43).
     pub engine: Engine,
+    /// Who hears when a service does: its address, as `wholeheard-transcription --provider` takes it,
+    /// its model's name, and the host the user agreed to send a meeting's sound to (D43).
+    pub transcription_provider: Option<String>,
+    pub transcription_model: Option<String>,
+    pub transcription_agreed: Option<String>,
     /// Who writes the minutes: a provider's address, as `wholeheard-summary` takes it — Ollama on this
     /// computer is `http://localhost:11434/v1` —, and the model's name as it knows it. None: not
     /// chosen yet.
@@ -128,6 +136,9 @@ impl Default for Settings {
             after: After::Transcript,
             model: data.join("wholeheard").join("models").join(MODEL),
             engine: Engine::Whisper,
+            transcription_provider: None,
+            transcription_model: None,
+            transcription_agreed: None,
             minutes_provider: None,
             minutes_model: None,
             minutes_agreed: None,
@@ -175,6 +186,9 @@ struct Written {
     after: Option<After>,
     model: Option<toml::Spanned<PathBuf>>,
     engine: Option<Engine>,
+    transcription_provider: Option<String>,
+    transcription_model: Option<String>,
+    transcription_agreed: Option<String>,
     minutes_provider: Option<String>,
     minutes_model: Option<String>,
     minutes_agreed: Option<String>,
@@ -230,6 +244,9 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.minutes_provider = written.minutes_provider.filter(|named| !named.trim().is_empty());
     settings.minutes_model = written.minutes_model.filter(|named| !named.trim().is_empty());
     settings.minutes_agreed = written.minutes_agreed.filter(|named| !named.trim().is_empty());
+    settings.transcription_provider = written.transcription_provider.filter(|named| !named.trim().is_empty());
+    settings.transcription_model = written.transcription_model.filter(|named| !named.trim().is_empty());
+    settings.transcription_agreed = written.transcription_agreed.filter(|named| !named.trim().is_empty());
     if let Some(keep) = written.keep_audio {
         let at = line(keep.span().start);
         settings.keep_audio = match keep.get_ref() {
@@ -339,6 +356,13 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
         ("minutes_provider", &settings.minutes_provider, &before.minutes_provider),
         ("minutes_model", &settings.minutes_model, &before.minutes_model),
         ("minutes_agreed", &settings.minutes_agreed, &before.minutes_agreed),
+        (
+            "transcription_provider",
+            &settings.transcription_provider,
+            &before.transcription_provider,
+        ),
+        ("transcription_model", &settings.transcription_model, &before.transcription_model),
+        ("transcription_agreed", &settings.transcription_agreed, &before.transcription_agreed),
     ] {
         match named {
             Some(named) if named != was.as_deref().unwrap_or_default() => set(&mut document, key, Value::from(named.as_str())),
