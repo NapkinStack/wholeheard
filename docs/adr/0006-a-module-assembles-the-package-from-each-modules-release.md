@@ -2,6 +2,8 @@
 
 - **Status**: Proposed — the agent's, on the decider's word of 2026-10-18 ("fais ce qu'il
   reste en autonomie… continue"); the criticality is the decider's to settle
+- **Read at cycle 03's closure, 2026-10-26**: Met: the module's e2e installs and removes the package in a Fedora that never saw it (D24); the decider installed it with `dnf` on 2026-10-19 (#241) and went through a real meeting with the window on 2026-10-24 (D23). The record stays *Proposed*: accepting it is
+  the decider's.
 - **Date**: 2026-10-18
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: module install

@@ -2,6 +2,8 @@
 
 - **Status**: Proposed — the agent's, building D26 on the decider's word ("read the audio and
   follow the transcript, like a song with its lyrics"; 2026-10-20, "continue en autonomie")
+- **Read at cycle 03's closure, 2026-10-26**: Met: the decider listened to their real meeting in the window, its words following (D26, accepted after D23); the refusals are the shell's tests (#299). The record stays *Proposed*: accepting it is
+  the decider's.
 - **Date**: 2026-10-20
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: module `shell`

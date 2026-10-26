@@ -884,12 +884,13 @@ no warning nor error. Not seen by that trial: the list in both themes, and a rea
 ## Closure
 
 **Closed on 2026-10-26, shipped**: 20 deliverables of 21 accepted, twelve days before the end
-date. The decider closed it early ("Clore 03, D27 dans 04"), so that cycle 04 starts: D27 waits
+date. The decider closed it early, choosing among options "Clore 03, D27 dans 04" ("je clôture 03
+aujourd'hui … j'ajoute D27 au cycle 04 et tu acceptes 04 dans la même PR"), so that cycle 04 starts: D27 waits
 on a colleague's trial and moves there, built and verified.
 
 ```mermaid
 flowchart LR
-    A["Delivered:<br/>the window — meetings, one read, played,<br/>space freed, settings, models fetched<br/>(D17–D22, D25, D26, D36, D37)"]:::done
+    A["Delivered:<br/>the window — meetings, one read, played,<br/>space freed, settings, models fetched<br/>(D17–D23, D25, D26, D36, D37)"]:::done
     B["Delivered:<br/>Wholeheard installs on Fedora (D24)<br/>opens small, starts with the session,<br/>offers a call, names its devices (D30–D35)<br/>logs and plain failures (D29), the name (D28)"]:::done
     C["Deferred:<br/>D27, Ubuntu's trial<br/>— to cycle 04"]:::open
     A --> D["Cycle 04:<br/>Wholeheard on macOS"]:::next
@@ -915,14 +916,14 @@ they are missing (D36, D37).
 from the build they used before the package of 2026-10-18 (D24). The second and third wait on
 the colleagues: Ubuntu's trial (D27) and macOS (cycle 04); Windows is not framed.
 
-**Decisions anchored to this cycle**, read at its closure:
+**Decisions anchored to this cycle**, read at its closure — and said in each record:
 
 | Record | Its criterion | Read |
 |---|---|---|
-| ADR-0006, the package assembled from each release | The decider installs with `dnf` and goes through a meeting with nothing built; the e2e installs and removes it in a Fedora that never saw it | The e2e: met (D24). The decider's meeting from the package: not recorded — their criterion 1 counts the build they used. Still *Proposed*: its acceptance is the decider's |
-| ADR-0007, logs of what each program does | A failure provoked in each program found under its making's id; the page says it plainly; a day of real meetings' logs holds none of their words | Met for the shell's and capture's e2e and for the page (D29, accepted). A day of real logs read for words: not done, a check that would read the user's meetings. Still *Proposed* |
+| ADR-0006, the package assembled from each release | The decider installs with `dnf` and goes through a meeting with nothing built; the e2e installs and removes it in a Fedora that never saw it | Met: the e2e (D24); the decider installed the package with `dnf` on 2026-10-19 (#241) and went through their real meeting with the window on 2026-10-24 (D23). Still *Proposed*: its acceptance is the decider's |
+| ADR-0007, logs of what each program does | A failure provoked in each program found under its making's id; the page says it plainly; a day of real meetings' logs holds none of their words | Met in each program's tests — capture, transcription, summary, the shell — and for the page (D29, accepted). A day of real logs read for words: not done, a check that would read the user's meetings. Still *Proposed* |
 | ADR-0008, the meeting played from a loopback server | The decider listens to a real meeting in the window, its words following; a request without the token, of another offer, or for a path refused | Met: D26 accepted after the decider's meeting (D23); the refusals are the shell's tests (#299). Still *Proposed* |
-| ADR-0009, the tracks played as one sound | The decider seeks by the drawing and by a line, nothing out of step; the e2e plays through the shorter track's end | Met: D26 accepted; the e2e's scenario R plays it (#307, #383). Still *Proposed* |
+| ADR-0009, the tracks played as one sound | The decider seeks by the drawing and by a line, nothing out of step; the e2e plays through the shorter track's end | Met: D26 accepted; the e2e's scenario R plays it past the shorter track's end (#304), as one sound since #307. Still *Proposed* |
 
 **Deferred**: D27, to cycle 04. *Out of scope* stays out: recording by itself, Windows,
 `export`, compressing the tracks, the voices of one track. Known and open: #409 (the window's
@@ -932,5 +933,5 @@ dropped).
 **Where the next framing starts**: [cycle 04](04-wholeheard-on-macos.md), Wholeheard on macOS,
 accepted the same day; *Later* above for the one after.
 
-**Documents brought current:** the front page and the module map (#419); each module's page in
+**Documents brought current:** the front page and the module map (#419, merged); each module's page in
 the pull request that changed it; ADR-0006 to ADR-0009 written with their deliverables.

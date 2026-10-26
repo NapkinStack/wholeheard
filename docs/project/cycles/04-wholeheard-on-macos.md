@@ -34,8 +34,10 @@ deliverables:
 > The framework's words: `.nstack/handbook/glossary.md`.
 
 > Framed on 2026-10-26 on the decider's word ("oui, cadre le build macOS"): after cycle 03, one
-> week. **Accepted by the decider on 2026-10-26**, closing cycle 03 early ("Clore 03, D27 dans
-> 04"): from that day, D27 moved here.
+> week. **Accepted by the decider on 2026-10-26**, closing cycle 03 early — their choice among
+> options, "Clore 03, D27 dans 04", which read "j'ajoute D27 au cycle 04 et tu acceptes 04 dans la
+> même PR : D38 démarre tout de suite, fin 2026-11-02": from that day, D27 moved here. It rides
+> along: Ubuntu is not this cycle's goal, and its trial is all that is left of it.
 
 ## Goal
 
@@ -86,8 +88,8 @@ the cycle records.
 
 ### D27
 
-**Moved from [cycle 03](03-the-window.md#d27) on the decider's word, 2026-10-26** ("Clore 03,
-D27 dans 04"): built and verified there, its criteria unchanged but the name, Summit having
+**Moved from [cycle 03](03-the-window.md#d27) on the decider's word, 2026-10-26** (their
+choice, "Clore 03, D27 dans 04"): built and verified there, its criteria unchanged but the name, Summit having
 become Wholeheard (D28). What is left is its trial: a colleague on Ubuntu 24.04 installs the
 package — its acceptance issue [#255](https://github.com/NapkinStack/wholeheard/issues/255). A
 dependency with a date, as D39's: by 2026-10-31.
@@ -101,6 +103,8 @@ dependency with a date, as D39's: by 2026-10-31.
 
 ## Dependency with a date
 
+- **The colleague on Ubuntu 24.04**, for D27: the trial of #255 by 2026-10-31 (the framer's
+  date). Missed, D27 stays where it is at the end date.
 - **The colleague on macOS**, for D38's second and third criteria and for D39: one session of
   an hour by 2026-10-31, the app ready by 2026-10-29. The cycle does not hold it: missed, the
   deliverables stay where they are at the end date.

@@ -2,6 +2,8 @@
 
 - **Status**: Proposed — the agent's, on the decider's word: "pourquoi ne pas lire l'audio unifié
   même si on navigue sur le graphe des 2 courbes pour éviter de synchro ?" (2026-10-21)
+- **Read at cycle 03's closure, 2026-10-26**: Met: D26 accepted after the decider's real meeting; the e2e's scenario R plays past the shorter track's end (#304), as one sound since #307. The record stays *Proposed*: accepting it is
+  the decider's.
 - **Date**: 2026-10-21
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: the shell
