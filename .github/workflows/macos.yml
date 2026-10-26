@@ -17,7 +17,6 @@ on:
       - "modules/summary/**"
       - "modules/transcription/**"
       - "modules/shell/**"
-      - "modules/install/**"
       - ".github/workflows/macos.yml"
   push:
     branches: [main]
