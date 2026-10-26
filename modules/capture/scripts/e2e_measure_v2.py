@@ -220,6 +220,26 @@ def followed(folder, events, local, remote, during):
         assert changed[:1] == [first], f"{name}: while it recorded, session.json kept {changed}, not {first}"
 
 
+def call_followed(folder, events, call, default, heard, left, after):
+    """A call heard on an output other than the default (D41): the remote track moved to the
+    call's output and holds its note `heard`, then back on the default once the call left it,
+    holding `after` and never `left`, played on the call's output after it was left. The local
+    track does not move; the events and the session name each move, in order."""
+    read = session(folder)
+    said = [json.loads(line) for line in open(events) if line.strip()]
+    for source, wanted in (("me", []), ("others", [call, default])):
+        devices = [event["device"] for event in said if event["event"] == "device" and event["source"] == source]
+        assert [device.split(" ")[0] if device else device for device in devices] == wanted, f"{source}: its device events say {devices}, for {wanted}"
+        changed = [change["device"] for change in read["tracks"]["local" if source == "me" else "remote"].get("changed", [])]
+        assert changed == devices, f"{source}: the session keeps {changed}, where the events said {devices}"
+    heard_notes = notes(track(folder, "remote"))
+    print(f"    remote: moved to {[call, default]}; its notes, second by second: {heard_notes}")
+    near = lambda note: any(abs(hertz - int(note)) < 15 for hertz in heard_notes)
+    assert near(heard), f"remote: the call's note, {heard} Hz, is not in its track"
+    assert near(after), f"remote: the default's note after the call left, {after} Hz, is not in its track"
+    assert not near(left), f"remote: {left} Hz, played on the output the call had left, is in its track"
+
+
 def main(what, folder, *args):
     if what == "pause":
         # Not a measure: stops the recorder's own stream for a track, then starts it again.
@@ -232,6 +252,8 @@ def main(what, folder, *args):
         return followed(folder, *args)
     if what == "moves-said":
         return moves_said(folder, *args)
+    if what == "call-followed":
+        return call_followed(folder, *args)
     read = session(folder)
     tracks = {name: track(folder, name) for name in read["tracks"]}
     start = datetime.datetime.fromisoformat(read["started"]).timestamp()

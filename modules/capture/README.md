@@ -72,6 +72,14 @@ or `null` when the system names none, and `session.json` keeps each change with 
 (`recording/v1`, `session-audio/v2`). A microphone chosen inside a call's own application is not
 the system's default, and is not followed.
 
+The other side follows the call (D41, ADR-0011), where PipeWire's tools answer: once a second capture
+reads the graph (`pw-dump`); when an application other than capture holds a microphone and all its
+sound plays on one output that is not the default — earbuds a call picked itself —, the remote stream
+is moved there by its `target.object` (`pw-metadata`), said `device` with that output's name and
+kept in `session.json`; when the call leaves it, back to the default. No call, a call on the
+default or on several outputs: the default, as above. A graph that does not read, or a stream that
+cannot be moved, leaves the default, logged once (`capture.not_followed`).
+
 What it does is logged too — each event but the levels, each source opened with its device,
 rate and channels, a gap of zeros written for a mute source, a stream's error, a failure with its
 detail; never a sound, nor a session's path (ADR-0007): one JSON line per step in
