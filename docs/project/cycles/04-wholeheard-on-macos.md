@@ -40,7 +40,7 @@ deliverables:
   - id: D41
     title: "On Linux, a call heard on an output other than the system's default is recorded there"
     module: capture
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a call — an application other than capture holding a microphone — whose sound plays on an output other than the system's default, when it is recorded, then the remote track holds what the call plays, and capture says `device` with that output's name"
       - "Given the call's sound moved to another output while recording, or back to the default, when it moves, then the remote track follows it within two seconds and the move is kept in `session.json` with when"
@@ -50,7 +50,7 @@ deliverables:
   - id: D42
     title: "On a Mac with macOS 26, Apple's SpeechAnalyzer hears a meeting, chosen in Settings"
     module: transcription
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a session and Apple's model of the system's language — French or English — on a Mac with macOS 26, when it is transcribed with `--engine speechanalyzer`, then `transcript/v1` is written by the step as ever — each segment on its track with its times —, its header naming the engine SpeechAnalyzer, and no line of `src/step.rs` changed to add it"
       - "Given the macOS workflow, when it runs, then it builds `wholeheard-speech` beside the other programs and transcribes back the words of a French sentence `say` speaks; where the runner offers no SpeechTranscriber or no French voice, the step says it was not run, and this criterion is met on the colleague's Mac instead"
@@ -177,6 +177,12 @@ whose trials are what D38, D39 and D27 wait on. The end date does not move.
   project (ADR-0010, *Rejected alternatives*).
 - The minutes' model, fetched by Ollama, stays in the code.
 
+**Built, each pull request verified by an independent session (2026-10-26):** the list in
+`modules/shell/registry/models.json`, built in, each model with its host — Settings showed no host
+before (#434); read again on *Mettre à jour la liste (raw.githubusercontent.com)* only, refused
+whole when it is not a list this build would ship, a redirect included (#435). Every criterion is
+held by an automated scenario of the two sheets; its acceptance is the decider's.
+
 ### D41
 
 **Added on the decider's word, 2026-10-26** ("oui, cadre D41 et continue en autonomie"), after
@@ -193,6 +199,12 @@ it is the one promise the product keeps — the other side heard. The end date d
 - Linux only: on a Mac the other side is D39's, and its own tap.
 - Its trial is the decider's: #436's call again, Discord on the AirPods, the default left on the
   speaker.
+
+**Built, verified by an independent session (2026-10-26):** #441 — the graph read once a second
+(`pw-dump`), the remote stream moved by `target.object` and back, a client's process read from its
+client (PulseAudio's clients kept apart), `pw-metadata` bounded; the e2e's scenario K: the call's
+note in the remote track, the default's once the call left it, never the note played on the output
+it left. `recording/v1`'s page says it (#439). Its last criterion is the decider's trial.
 
 ### D42
 
@@ -212,6 +224,15 @@ answer, "SpeechAnalyzer d'abord". The end date does not move.
 - Three pull requests, one module each: transcription (the program and the engine), install (the
   app), the shell (Settings).
 - Its trial: on the colleague's Mac, after D39's call, in #426.
+
+**Built, each pull request verified by an independent session (2026-10-26):** transcription's
+`wholeheard-speech` and its engine behind the step, `src/step.rs` unchanged (#444); Settings offer
+it where the Mac does, its model fetched by macOS on the click, Whisper hearing again if the Mac
+no longer offers it (#446); the app carries it, signed with the rest (#447) — its own workflow,
+`macos-app.yml`, built on `main` and on a change to install only, on the decider's word: "il faut
+le faire avec parcimonie lorsque c'est utile uniquement". GitHub's macOS runner offers no
+SpeechTranscriber: the build is judged there, the hearing is the colleague's, in #426.
+Left for later: *Refaire…* with SpeechAnalyzer; the context the user attached, not given to it.
 
 ### D43
 
