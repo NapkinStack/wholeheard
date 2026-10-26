@@ -27,7 +27,7 @@ arrows: the contracts between the steps, each a file of the session — `session
 | `summary` | A program that writes the minutes with the provider the user chose |
 | `export` | Described, no code yet |
 | `shell` | Wholeheard, started with the user's session: the small window to record, a call offered to be recorded; the window — the meetings and what they weigh, one's minutes beside its transcript, played with its words following, space freed to the system's trash, from where it comes back, the settings and the models fetched on the user's word |
-| `install` | The package a user installs, every program beside the shell: an rpm for Fedora, a `.deb` for Ubuntu, each built in a container of its system |
+| `install` | The package a user installs, every program beside the shell: an rpm for Fedora, a `.deb` for Ubuntu, each built in a container of its system; on a Mac, `Wholeheard.app`, zipped, made by GitHub's macOS runner and signed ad hoc, not by Apple |
 | `platform` | Not a step: the bench that measures the steps against a meeting whose every word is known, and real meetings with a human transcript |
 
 Why four, and what each one is for: [`docs/adr/0001`](../docs/adr/0001-split-summit-into-four-modules.md). Why a fifth that holds no step: [`docs/adr/0002`](../docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md). Why one that packs them: [`docs/adr/0006`](../docs/adr/0006-a-module-assembles-the-package-from-each-modules-release.md).

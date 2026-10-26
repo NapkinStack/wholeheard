@@ -29,7 +29,6 @@
 
 - The Mac's app is signed ad hoc after everything is in it: a file added to the bundle after
   `codesign` breaks its seal, and macOS says a downloaded app so changed is *damaged*.
-
 - A program run, not linked, by another (capture runs `pw-metadata`), or a library opened at run
   time (the shell's tray: appindicator) → name its package in the spec's `Requires` and in
   `deb/build.sh`'s `depends`: rpmbuild and dpkg-shlibdeps see linked libraries only.

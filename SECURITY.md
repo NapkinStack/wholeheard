@@ -7,9 +7,6 @@
 Use the forge's private reporting: the **Security** tab, then **Report a vulnerability**. The
 report is visible only to the maintainers.
 
-That channel exists on a public repository only. On a private one, write to the owners named
-in `.github/CODEOWNERS`.
-
 Target time to first response: **7 days**.
 
 ## What happens next

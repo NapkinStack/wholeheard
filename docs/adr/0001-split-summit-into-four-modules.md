@@ -4,6 +4,9 @@
 - **Date**: 2026-10-12
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: project
+- **Amended by**: [PDR-0002](../pdr/0002-the-repository-opened-the-pace-kept.md), 2026-10-25 — `capture`
+  becomes `critical` before the first build published for people outside the project, no longer
+  before the repository is opened
 - **Reversibility**: costly — merging modules back means rewriting what crosses their contracts
 
 ---
