@@ -1205,7 +1205,9 @@ function showSettings(shown, minutes, words) {
     item.dataset.offered = model.file;
     item.dataset.here = String(model.here);
     const said_ = element("div", "said");
-    said_.append(element("span", "name", `${spoken(model.file)} · ${size(model.bytes, words)}`), element("span", "says", model.good));
+    // Its host shown before anything is fetched from it (security rule 1, D40).
+    said_.append(element("span", "name", `${spoken(model.file)} · ${size(model.bytes, words)}, ${model.host}`));
+    if (model.good) said_.append(element("span", "says", model.good));
     item.append(said_, element("span", "state"));
     offered.append(item);
   }

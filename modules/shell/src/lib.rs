@@ -15,6 +15,7 @@ pub mod model;
 pub mod player;
 pub mod providers;
 pub mod recording;
+pub mod registry;
 pub mod sessions;
 pub mod settings;
 pub mod summarising;

@@ -18,6 +18,7 @@ Puts Wholeheard's four steps in the user's hands: a tray, a global shortcut, not
 ## Internal conventions nobody could guess
 
 - Every sentence the user reads is in `src/words.rs`, in each language the interface speaks — English and French, following the system's (the decider, 2026-10-13). They are the product's content: the one place where this repository holds another language than English. A sentence written anywhere else is a defect.
+- The Whisper models Settings offer are `registry/models.json`, built in (`src/registry.rs`, D40, ADR-0010): a model is added or removed there, never in the code. Each says what it is good for by a key whose sentence is in `src/words.rs`; a new key needs its sentence first. The shell's tests read the file: one that does not read, or names a host other than `registry::HOSTS`, fails them.
 - Decided before any code (ADR-0002, cycle 01 *D1*): Tauri v2; under GNOME the global shortcut and the window's coming forward go through the desktop's portal, not the toolkit's plugin; the tray's menu holds the actions themselves, since it cannot bring a window forward there.
 
 ## Business invariants
