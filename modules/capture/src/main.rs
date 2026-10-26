@@ -76,7 +76,7 @@ fn say(event: Event) {
             folder,
             sources: [me, others],
         } => info!(session = %session(folder), me, others, "capture.started"),
-        Event::Silent { source } => info!(source = SOURCES[source], "capture.silent"),
+        Event::Silent { source, nothing } => info!(source = SOURCES[source], nothing, "capture.silent"),
         Event::Heard { source } => info!(source = SOURCES[source], "capture.heard"),
         Event::Stopped { folder, seconds } => info!(session = %session(folder), seconds, "capture.stopped"),
         Event::Device { source, device } => info!(source = SOURCES[source], device, "capture.device"),
@@ -470,8 +470,11 @@ fn record(sessions: &Path) -> Result<(), String> {
                         .pad_to(((due - LATE / 3.0) * f64::from(RATE)) as u64)
                         .map_err(|e| e.to_string())?;
                 }
-                match source.watch.after(since, source.track.loudest()) {
-                    Heard::Silent => say(Event::Silent { source: index }),
+                match source.watch.after_stirred(since, source.track.loudest(), source.track.stirred()) {
+                    Heard::Silent => say(Event::Silent {
+                        source: index,
+                        nothing: source.watch.nothing(),
+                    }),
                     Heard::Again => say(Event::Heard { source: index }),
                     Heard::Nothing => {}
                 }
@@ -682,8 +685,11 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
                     source.track.silence_to(zeros.1).map_err(|e| e.to_string())?;
                     source.owed = true;
                 }
-                match source.watch.after(since, source.track.loudest()) {
-                    Heard::Silent => say(Event::Silent { source: index }),
+                match source.watch.after_stirred(since, source.track.loudest(), source.track.stirred()) {
+                    Heard::Silent => say(Event::Silent {
+                        source: index,
+                        nothing: source.watch.nothing(),
+                    }),
                     Heard::Again => say(Event::Heard { source: index }),
                     Heard::Nothing => {}
                 }
