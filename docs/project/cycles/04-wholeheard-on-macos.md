@@ -10,8 +10,8 @@ deliverables:
     module: install
     state: proposed
     acceptance:
-      - "Given a run of the macOS workflow on main, or one started by hand, when it ends, then it leaves one artifact, Wholeheard-<version>-macos-arm64.zip, holding Wholeheard.app: wholeheard and the three programs side by side in Contents/MacOS, and an Info.plist naming the application, its version, and the sentences macOS shows when it asks for the microphone and for the sound the Mac plays"
-      - "Given that zip on the colleague's Mac — an Apple chip, macOS 14.6 or later — when they open the app as an unsigned one is opened (right-click, Open), then Wholeheard's icon is in the menu bar and its window opens from it, with nothing installed before it and no terminal"
+      - "Given a run of the macOS workflow on main, or one started by hand, when it ends, then it leaves one artifact, Wholeheard-<version>-macos-arm64.zip, holding Wholeheard.app: wholeheard and the three programs side by side in Contents/MacOS, and an Info.plist naming the application, its version, and the sentences macOS shows when it asks for the microphone and for the sound the Mac plays; the bundle signed ad hoc, `codesign --verify --deep --strict` passing on it"
+      - "Given that zip on the colleague's Mac — an Apple chip, macOS later than 14.6 — when they open the app as macOS lets an unsigned one open (System Settings → Privacy & Security → Open Anyway), then Wholeheard's icon is in the menu bar and its window opens from it, with nothing installed before it and no terminal"
       - "Given a first recording started from the menu bar, when macOS asks for the microphone and for the sound the Mac plays, then it names Wholeheard and shows the Info.plist's sentences — never the Terminal"
   - id: D39
     title: "Spike — does a real call recorded on a Mac hold both sides, with nothing added to the Mac?"
@@ -19,7 +19,7 @@ deliverables:
     state: proposed
     acceptance:
       - "Given D38's app on the colleague's Mac, when they record a real call of at least five minutes with it, then the cycle records, for each track — local, the microphone; remote, what the Mac plays: whether it holds the call's speech, its sample rate and channels, its gaps of zeros, and what macOS asked before it recorded"
-      - "Given that record, when it is read against the threshold — both tracks hold the call's speech —, then ADR-0002's criterion is met for macOS; below it, what was missing — a permission, a device, the system's interface — is recorded for the next framing. A refuted result is a delivered one"
+      - "Given that record, when it is read against the threshold — both tracks hold the call's speech, as the colleague hears it at the start, the middle and the end of each, and capture's code holds no line added for macOS —, then ADR-0002's criterion is met for macOS; below it, what was missing — a permission, a device, the system's interface — is recorded for the next framing. A refuted result is a delivered one"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -40,17 +40,17 @@ recording what it plays.
 ```mermaid
 flowchart LR
     W["macOS workflow<br/>GitHub's runner"]:::forge --> A["Wholeheard.app<br/>four programs, Info.plist"]:::d38
-    A --> M["The colleague's Mac<br/>right-click, Open"]:::person
+    A --> M["The colleague's Mac<br/>Open Anyway"]:::person
     M --> R["A real call recorded<br/>local · remote"]:::d39
     R --> K["Recorded against<br/>the threshold"]:::out
     classDef forge fill:#374151,color:#fff
     classDef d38 fill:#065f46,color:#fff
     classDef person fill:#1e3a8a,color:#fff
     classDef d39 fill:#92400e,color:#fff
-    classDef out fill:#4b5563,color:#fff
+    classDef out fill:#5b21b6,color:#fff
 ```
 
-**Legend** — dark grey: the forge · green: D38 · blue: the colleague · amber: D39 · grey: what
+**Legend** — dark grey: the forge · green: D38 · blue: the colleague · amber: D39 · violet: what
 the cycle records.
 
 ## Deliverables
@@ -63,15 +63,23 @@ the cycle records.
 - Built on GitHub's macOS runner, never here: a Mac's app cannot be made in a Linux container
   (ADR-0002: "Windows and macOS are built by the forge"). How the app is put together — Tauri's
   bundler, or install assembling the folder from each module's release as ADR-0006 does for the
-  rpm — is an ADR of install's, its prior art read first.
-- Not signed by Apple: macOS stops it the first time, and right-click, Open lets it through.
+  rpm — is an ADR of install's, its prior art read first; the field's convention by default, so
+  that the choice does not eat the week.
+- Not signed by Apple: macOS stops it the first time. Since macOS 15, right-click, Open no longer
+  lets it through; System Settings → Privacy & Security → Open Anyway does, with the Mac's
+  password ([Michael Tsai, 2024-07-05](https://mjtsai.com/blog/?p=43993), read by the cycle's
+  verifier). Signed ad hoc at least: an Apple chip runs nothing unsigned, and a bundle changed
+  after its programs were linked is said *damaged*, which only a terminal gets past.
+- A new ad hoc signature on every build: macOS may ask for the microphone again with each
+  artifact. That a program the app starts is asked for under the app's name, its taps of what
+  plays included, is assumed, not tried: D38's third criterion says it.
   Signing is PDR-0001's open question, out of this cycle.
 - The artifact is kept 7 days on the run, the shortest a colleague needs: see *Open questions*.
 
 ### D39
 
 - cpal 0.18.2, which capture records with, says it records "system audio output on macOS >
-  14.6" (its CHANGELOG): capture's code may need nothing. Not tried yet.
+  14.6" (its CHANGELOG, after 14.6, not at it): capture's code may need nothing. Not tried yet.
 - Run by the colleague, on their call: nothing of it is published (rule of the project); the
   cycle records the counts, never the audio or its words.
 
@@ -84,7 +92,7 @@ the cycle records.
 ## Out of scope
 
 - Apple's signing and notarisation, a `.dmg`, the App Store.
-- Intel Macs, macOS before 14.6.
+- Intel Macs, macOS 14.6 and before.
 - Windows.
 - Anything of the window or of the settings made for macOS beyond opening.
 
@@ -102,9 +110,10 @@ the cycle records.
 
 **Not blocking:**
 - Is a run's artifact a build "published for people outside the project" (PDR-0002, decision
-  2), which makes capture `critical` first? On a public repository any signed-in GitHub user can download it ([GitHub Docs, *Downloading workflow artifacts*](https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-workflow-runs/downloading-workflow-artifacts), not read again here).
+  2), which makes capture `critical` first? On a public repository any signed-in GitHub user can download it ([GitHub Docs, *Downloading workflow artifacts*](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts): "People who are signed into GitHub and have read access to a repository can download workflow artifacts").
   The framer's proposal: no — no release, no link given outside the project, kept 7 days; the
-  first Copr, PPA or Mac download page is. *(framer, to confirm)*
+  first Copr, PPA or Mac download page is. ~~*(framer, to confirm)*~~ Answered by the decider on
+  2026-10-26: no ("ok pour ta proposition").
 
 ## Closure
 
