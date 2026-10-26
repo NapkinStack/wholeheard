@@ -33,6 +33,26 @@ pub enum Hearer {
     SpeechAnalyzer { language: String },
 }
 
+impl Hearer {
+    /// Who hears, as the settings chose it: Apple's SpeechAnalyzer only while this Mac still offers
+    /// it with its model there (`apple_ready`, asked only then) — otherwise the Whisper model, so
+    /// that a choice the Mac no longer answers never fails every transcript.
+    pub fn chosen(engine: crate::settings::Engine, model: &Path, language: &str, apple_ready: impl FnOnce() -> bool) -> Hearer {
+        match engine {
+            crate::settings::Engine::SpeechAnalyzer if apple_ready() => Hearer::SpeechAnalyzer { language: language.into() },
+            _ => Hearer::Model(model.to_path_buf()),
+        }
+    }
+
+    /// Its name, as the page says who hears.
+    pub fn name(&self) -> String {
+        match self {
+            Hearer::Model(model) => named(model),
+            Hearer::SpeechAnalyzer { .. } => "SpeechAnalyzer".into(),
+        }
+    }
+}
+
 /// A transcript in the making. Dropped, it stops nothing; ended, the program is stopped, and
 /// what it had written is kept for the next run.
 pub struct Transcription {

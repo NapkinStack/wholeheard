@@ -1205,9 +1205,13 @@ function showSettings(shown, minutes, words) {
     fetchApple.disabled = true;
     speechSaid.textContent = words.speech_fetching;
     const fetched = await window.__TAURI__.core.invoke("speech_installed").then(() => true, () => false);
-    if (fetched) return save({ engine: "speechanalyzer" });
+    // Chosen only while it is still the user's choice: Settings may have been drawn again meanwhile.
+    if (fetched && document.getElementById("model")?.value === "speechanalyzer") return save({ engine: "speechanalyzer" });
+    if (fetched) return;
     fetchApple.disabled = false;
     speechSaid.textContent = words.speech_failed;
+    // Not fetched: who hears is still the Whisper model, and the choice says so.
+    if (shown.models.some((model) => model.path === shown.model)) pick.value = shown.model;
   });
   speech.append(fetchApple, speechSaid);
   let appleHere = false;

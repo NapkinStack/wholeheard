@@ -139,3 +139,30 @@ fn apple_s_speechanalyzer_is_asked_for_by_name_in_the_language_of_the_interface(
     let said = fs::read_to_string(&asked).unwrap();
     assert!(said.trim().ends_with("--engine speechanalyzer --language fr"), "{said}");
 }
+
+#[test]
+fn speechanalyzer_hears_only_while_this_mac_offers_it_with_its_model() {
+    use wholeheard_shell::settings::Engine;
+    let model = Path::new("/models/ggml.bin");
+    let whisper = Hearer::Model(model.to_path_buf());
+    assert_eq!(
+        Hearer::chosen(Engine::SpeechAnalyzer, model, "fr", || true),
+        Hearer::SpeechAnalyzer { language: "fr".into() }
+    );
+    assert_eq!(
+        Hearer::chosen(Engine::SpeechAnalyzer, model, "fr", || false),
+        whisper,
+        "no longer offered: Whisper hears"
+    );
+    let mut asked = false;
+    assert_eq!(
+        Hearer::chosen(Engine::Whisper, model, "fr", || {
+            asked = true;
+            true
+        }),
+        whisper
+    );
+    assert!(!asked, "the Mac is asked nothing while Whisper is chosen");
+    assert_eq!(Hearer::SpeechAnalyzer { language: "en".into() }.name(), "SpeechAnalyzer");
+    assert_eq!(whisper.name(), "ggml.bin");
+}

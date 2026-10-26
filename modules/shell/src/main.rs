@@ -1142,7 +1142,8 @@ struct Change {
 /// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
 /// is written over a file that could not be read, and a model is only one found on this computer.
 #[tauri::command]
-fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String> {
+fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Result<(), String> {
+    let apple = change.engine == Some(Engine::SpeechAnalyzer);
     // The change goes onto what the file says now: what the user changed by hand stays.
     let _saving = shell.saving.lock().unwrap();
     let mut settings = shell.reread()?;
@@ -1201,6 +1202,10 @@ fn settings_saved(shell: State<'_, Shell>, change: Change) -> Result<(), String>
     let file = settings::file().ok_or("this system names no folder for settings")?;
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
     *shell.settings.lock().unwrap() = settings;
+    // Meetings that waited for the default Whisper model are heard now by SpeechAnalyzer (D42).
+    if apple {
+        transcribe_next(&app);
+    }
     Ok(())
 }
 
@@ -2031,13 +2036,9 @@ fn wait(shell: &Shell, folder: PathBuf, model: Option<PathBuf>) {
 }
 
 /// A transcript begun: what makes it, said on its page; its last failure gone.
-fn hearing(shell: &Shell, folder: &Path, model: &Path) {
+fn hearing(shell: &Shell, folder: &Path, hearer: &Hearer) {
     *shell.hearing.lock().unwrap() = Some(folder.to_path_buf());
-    let name = model
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    *shell.hearing_by.lock().unwrap() = Some((name, Instant::now()));
+    *shell.hearing_by.lock().unwrap() = Some((hearer.name(), Instant::now()));
     shell.transcripts_failed.lock().unwrap().remove(folder);
 }
 
@@ -2140,7 +2141,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
     // Who puts the earlier transcript back, or trashes it: this run's end, or Wholeheard quitting —
     // whichever comes first takes it, the other finds nothing.
     *shell.redoing.lock().unwrap() = previous.clone().map(|previous| (current.clone(), previous));
-    hearing(&shell, &folder, &model);
+    hearing(&shell, &folder, &Hearer::Model(model.clone()));
     drop(running);
     transcribing(app, true);
     let app = app.clone();
@@ -2192,13 +2193,16 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
     let _ = shell.reread();
     let settings = shell.settings();
     let model = &settings.model;
-    // Apple's SpeechAnalyzer needs no model file: its own is on the Mac (D42).
-    let hearer = match settings.engine {
-        Engine::SpeechAnalyzer => Hearer::SpeechAnalyzer {
-            language: shell.language.code().into(),
-        },
-        Engine::Whisper => Hearer::Model(model.clone()),
-    };
+    // Apple's SpeechAnalyzer needs no model file: its own is on the Mac (D42). Chosen and no
+    // longer offered here — an older macOS, the program gone —, Whisper hears, and it is logged.
+    let language = shell.language.code();
+    let hearer = Hearer::chosen(settings.engine, model, language, || {
+        let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
+        speech::status(&program, language).is_some_and(|status| status.offered && status.installed)
+    });
+    if settings.engine == Engine::SpeechAnalyzer && matches!(hearer, Hearer::Model(_)) {
+        tracing::warn!("shell.speech_unavailable");
+    }
     if matches!(hearer, Hearer::Model(_)) && !model.is_file() {
         // The default model is offered, its size and host shown; one the user named is theirs.
         if *model == Settings::default().model {
@@ -2229,7 +2233,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         }
     };
     *running = Some(transcription);
-    hearing(&shell, &folder, model);
+    hearing(&shell, &folder, &hearer);
     transcribing(app, true);
     let heard_folder = folder;
     let app = app.clone();
@@ -2332,10 +2336,16 @@ async fn speech_shown(shell: State<'_, Shell>) -> Result<Option<speech::Status>,
 /// on the page in a sentence of its own.
 #[tauri::command]
 async fn speech_installed(shell: State<'_, Shell>) -> Result<(), ()> {
+    // One download at a time: a second click while macOS fetches it asks nothing more.
+    static INSTALLING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if INSTALLING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return Err(());
+    }
     let language = shell.language.code();
     let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
     tracing::info!(language, "shell.speech_install");
     let installed = tauri::async_runtime::spawn_blocking(move || speech::install(&program, language)).await;
+    INSTALLING.store(false, std::sync::atomic::Ordering::SeqCst);
     match installed.map_err(|error| error.to_string()).and_then(|done| done) {
         Ok(()) => {
             tracing::info!(language, "shell.speech_installed");
