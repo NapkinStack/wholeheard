@@ -248,6 +248,21 @@ Second of the two, should both not fit. The end date does not move.
 
 ## Later
 
+- **The next framing starts from a review of 2026-10-26**, asked by the decider ("fais une revue
+  complète pour que l'app soit la meilleure, ux/ui primordiale, moderne, haut de gamme … ludique et
+  facile à utiliser … non intrusive, fluide"): [the market](../reviews/2026-10-26-market.md) and
+  [the surface](../reviews/2026-10-26-ux.md), each by an independent session. The decider's choice
+  the same day: a cycle 05 after this one, "le meilleur au quotidien" — the notifications that open
+  the meeting and are fewer, the minutes copied, the French wording, actions as rows, a meeting's
+  title, the first run, the cost an AI call reports — and the reminder kept, never off by default.
+- **A transcript followed live**, the decider's idea of 2026-10-26 ("la possibilité de faire la
+  transcription live, le traitement qu'on ne peut pas faire live est celui des minutes"): the
+  framer's proposal, for cycle 05 — a provisional preview while recording, on the machine alone
+  (SpeechAnalyzer's own live results on a Mac, a small Whisper model on short spans elsewhere), in
+  the small window and the full one; the transcript of record made after the stop as today, short
+  spans losing words (cycle 01, D4: 34.5 % differed at thirty seconds, 26.7 % whole); a spike
+  first, measuring its load during a call and its words on the bench.
+
 - The transcript and the minutes of D39's call made on the Mac by Whisper on its graphics card
   (Metal), and how long it takes against the call — by SpeechAnalyzer, it is D42's: narrowed out by the decider's appetite (one
   week, 2026-10-26). The charter's second criterion — two weeks of meetings on the Mac — needs it.
