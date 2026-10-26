@@ -30,13 +30,23 @@ deliverables:
   - id: D40
     title: "Settings offer the models of a list kept in the repository, read again on the user's word"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given the list `modules/shell/registry/models.json` on main, when Wholeheard is built, then Settings offer the models it lists — each with its size, its host and what it is good for — and no list of Whisper models is written in the code"
       - "Given Settings open, when the user has not asked for the list up to date, then no connection is opened to the list's host, and the models offered are those Wholeheard was built with"
       - "Given the gesture that asks for the list up to date, its host shown, when the list answers and reads, then Settings offer its models in place of the shipped ones until Wholeheard quits, and one of them is fetched only on the user's click, its size and host shown, kept only whole and with its fingerprint"
       - "Given a list that does not answer, is larger than 64 KB, does not read, says a version Wholeheard does not know, or names a model's host other than huggingface.co, when the list up to date is asked for, then the shipped models stay offered and one sentence says the list could not be brought up to date"
       - "Given a pull request that changes the list, when its checks run, then a list that does not read, names a host not allowed, a size of zero or a fingerprint that is not 64 hexadecimal characters is refused"
+  - id: D41
+    title: "On Linux, a call heard on an output other than the system's default is recorded there"
+    module: capture
+    state: ready
+    acceptance:
+      - "Given a call — an application other than capture holding a microphone — whose sound plays on an output other than the system's default, when it is recorded, then the remote track holds what the call plays, and capture says `device` with that output's name"
+      - "Given the call's sound moved to another output while recording, or back to the default, when it moves, then the remote track follows it within two seconds and the move is kept in `session.json` with when"
+      - "Given no call, a call whose sound plays on the default, or on several outputs at once, when it is recorded, then the remote track records the system's default output, as D31 does"
+      - "Given a graph that cannot be read or a stream that cannot be moved, when it is recorded, then the recording goes on from the default, and one warning is logged"
+      - "Given capture's e2e, when a stand-in call plays a note on an output of its own that is not the default, then the remote track holds that note — on devices made for the run, nobody recorded"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -146,6 +156,24 @@ whose trials are what D38, D39 and D27 wait on. The end date does not move.
 - Not signed: the signature comes before the first build published for people outside the
   project (ADR-0010, *Rejected alternatives*).
 - The minutes' model, fetched by Ollama, stays in the code.
+
+### D41
+
+**Added on the decider's word, 2026-10-26** ("oui, cadre D41 et continue en autonomie"), after
+their own test: a call in Discord on AirPods Pro, the audio switched while recording, lost the
+other side. Measured on the session, nothing of it published (#436): the remote track recorded
+the built-in speaker's monitor, the system's default, and held exact zeros in 41 of its 48
+blocks of 15 s; Discord played on the AirPods' Bluetooth output, which the default never became,
+so D31 had nothing to follow. It is not this cycle's goal; it fits what is left of the week, and
+it is the one promise the product keeps — the other side heard. The end date does not move.
+
+- How: [ADR-0011](../../adr/0011-the-other-side-is-recorded-where-the-call-plays.md) — capture's
+  remote stream moved to the output the call plays on, as a mixer moves one (`target.object`);
+  the default otherwise.
+- Linux only: on a Mac the other side is D39's, and its own tap.
+- Its trial is the decider's: #436's call again, Discord on the AirPods, the default left on the
+  speaker.
+
 ## Dependency with a date
 
 - **The colleague on Ubuntu 24.04**, for D27: the trial of #255 by 2026-10-31 (the framer's
