@@ -5,6 +5,7 @@
 pub mod autostart;
 pub mod desktop;
 pub mod keys;
+pub mod levels;
 pub mod log;
 pub mod meeting;
 pub mod microphone;
