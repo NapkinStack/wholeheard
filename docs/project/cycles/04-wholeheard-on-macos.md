@@ -88,7 +88,7 @@ deliverables:
   - id: D59
     title: "A meeting's context — what it is about, who takes part — written in Wholeheard, heard by its transcript and its minutes"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a recording, when the window shows it — the small one, or the full one's live block —, then a field « De quoi parle la réunion ? Qui y participe ? », optional, holds up to 400 characters, said beside it, drawn first on a board of its own as D58's was; what is typed is kept as the meeting's `context.txt` (`contracts/session-audio/v2`, and v1 for a meeting of that form) — written whole, a file beside it then renamed, and only once the meeting's folder holds `session.json` —, so that the transcript and the minutes made after the stop read it, as they already do"
       - "Given a meeting's page, when it shows, then its context is shown and can be written or changed — not while its transcript or minutes are being made, nor while a transcript is left unfinished, said so —; changed after a transcript or minutes were made, the page offers « Refaire avec ce contexte », which sets the transcript and the minutes aside and makes them again with the engine and the provider the settings name, the ones set aside put back if the making fails, never mixed with a transcript of the old context"
