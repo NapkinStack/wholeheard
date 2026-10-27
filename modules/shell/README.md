@@ -84,6 +84,17 @@ settings is not true and the sessions' folder holds no meeting, and `welcomed = 
 soon as it shows; *Settings → Refaire le réglage* opens it again, nothing changed before its last
 screen. The window left (`window`) is not changed by it.
 
+**A meeting's context** (D59, [its board](../../docs/project/drawings/d59-the-context/)) — what it
+is about, who takes part — is written in the window: while recording, the small window's *Ajouter
+le contexte*, closed by default, and the meeting's page, the one being recorded too. It is kept as
+it is typed as the meeting's `context.txt` (`contracts/session-audio/v2`), written whole through a
+file beside it and only once the folder holds `session.json`; 400 characters at most, counted as
+characters; another script than Latin or Cyrillic is said, Whisper keeping only the last 224
+tokens. The transcript and the minutes read it as they start: the field is closed while either is
+made, or a transcript is left unfinished. Changed after they were made, *Refaire avec ce contexte*
+makes the transcript again with whoever the settings name to hear, then the minutes with whoever
+they name to write — each kept in place until the new one is whole, put back if it is not.
+
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification
 says when it is there, and a click on it opens the session's folder under a Linux desktop.

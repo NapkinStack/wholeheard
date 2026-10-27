@@ -419,7 +419,7 @@ function contextField(words, text, save, id) {
     const leftSaid = fill(words.context_left[left <= 1 ? 0 : 1], left);
     const other = otherScript.test(area.value);
     count.textContent = other ? `${leftSaid} · ${words.context_script}` : `${fill(words.context_most, CONTEXT_MOST)} · ${leftSaid}`;
-    count.classList.toggle("warn", other);
+    count.classList.toggle("other-script", other);
   };
   // A character typed past the most is not taken; a paste too long is cut to it.
   area.addEventListener("beforeinput", (event) => {
@@ -480,7 +480,7 @@ function contextCard(session, { context, transcript, minutes }, words) {
   label.htmlFor = area.id;
   // Made again from its audio: a meeting whose audio was freed is not offered it.
   card.dataset.redo = String(session.audio > 0);
-  card.append(element("h2", "label", words.context_title), label, area, count, said, changed, element("p", "says", words.context_why));
+  card.append(element("h2", "label", words.context_title), label, area, count, element("p", "says", words.context_why), said, changed);
   return card;
 }
 

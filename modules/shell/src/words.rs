@@ -920,7 +920,7 @@ pub fn window(language: Language) -> Window {
             context_why: "The transcription hears it as the first words said: names are spelt as here. The minutes use it to give each action to the right person.",
             context_most: "{} characters at most",
             context_left: ["{} left", "{} left"],
-            context_script: "In this script, Whisper may keep only its end, and a service may refuse it.",
+            context_script: "In this script, Whisper may keep only its end, a service may refuse it.",
             context_making: "The context cannot change while the transcript or the minutes are being made.",
             context_unfinished: "The transcript is unfinished: finish it (Try again) before changing the context.",
             context_changed: [
@@ -1238,7 +1238,7 @@ pub fn window(language: Language) -> Window {
             context_why: "La transcription l’entend comme les premiers mots\u{a0}: les noms y sont écrits comme ici. Le compte rendu s’en sert pour attribuer les actions.",
             context_most: "{} caractères au plus",
             context_left: ["{} restant", "{} restants"],
-            context_script: "Dans cette écriture, Whisper n’en gardera peut-être que la fin, et un service peut le refuser.",
+            context_script: "Dans cette écriture, Whisper peut n’en garder que la fin, un service le refuser.",
             context_making: "Le contexte ne change pas pendant que le transcript ou le compte rendu se fait.",
             context_unfinished: "Le transcript n’est pas terminé\u{a0}: terminez-le (Réessayer) avant de changer le contexte.",
             context_changed: [

@@ -38,8 +38,9 @@ from urllib3.exceptions import HTTPError
 
 BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
 # wholeheard-summary played here: it says what it was given — its arguments, the key in its
-# environment. A test refuses a key at openrouter.ai and answers elsewhere; minutes are written,
-# the way it was called kept beside them. Nothing leaves the machine.
+# environment, the context it would send (D59), read where the real one reads it. A test refuses a
+# key at openrouter.ai and answers elsewhere; minutes are written, naming their context as the
+# real ones do, the way it was called kept beside them. Nothing leaves the machine.
 SUMMARY = WORK / "wholeheard-summary"
 SUMMARY.write_text(
     """#!/bin/sh
@@ -50,8 +51,10 @@ if [ "$1" != --test ]; then
   [ -e "$here/slow-minutes" ] && sleep 3
   [ -e "$here/fail-minutes" ] && { echo '{"event": "failed", "code": "answer.not_minutes"}'; echo "wholeheard-summary: the provider's answer is not minutes" >&2; exit 1; }
   [ -e "$here/fail-plainly" ] && { echo "wholeheard-summary: a failure no code names" >&2; exit 1; }
+  context=$(python3 -c "$CONTEXT" "$1")
+  printf '%s' "$context" > "$here/summary-context"
   echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
-  printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" > "$1/minutes.md"
+  printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\ncontext: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" "$context" > "$1/minutes.md"
   echo '{"event": "written", "file": "x"}'
   exit 0
 fi
@@ -68,10 +71,17 @@ HEARING.write_text(
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
 [ -e "$(dirname "$0")/slow-hearing" ] && sleep 3
 model=$(basename "$3" .bin)
-printf '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"%s","language":null,"context":null}\\n{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Refait avec %s."}\\n{"type":"complete","duration":1.0}\\n' "$model" "$model" > "$1/transcript.jsonl"
+context=$(python3 -c "$CONTEXT" "$1")
+printf '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"%s","language":null,"context":%s}\\n{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Refait avec %s."}\\n{"type":"complete","duration":1.0}\\n' "$model" "$context" "$model" > "$1/transcript.jsonl"
 """
 )
 HEARING.chmod(0o755)
+# The context of a session's folder as both steps read it — trimmed, none when nothing is left —,
+# quoted as JSON, for the two programs played above.
+os.environ["CONTEXT"] = (
+    "import json, pathlib, sys; f = pathlib.Path(sys.argv[1], 'context.txt'); "
+    "t = f.read_text().strip() if f.exists() else ''; print(json.dumps(t or None, ensure_ascii=False))"
+)
 # wholeheard-capture played here: it says it started, then each source's level ten times a second,
 # until it is told to stop. No device, nobody recorded.
 RECORDER = WORK / "wholeheard-capture"
@@ -958,6 +968,228 @@ def first_run(now: dt.datetime) -> None:
         press(browser, "welcome-next")
         wait_for(browser, lambda b: "Connected mode" in b.execute_script(summary), 5)
         seen(browser, "d58-3-summary-connected-dark")
+
+
+def context_written(now: dt.datetime) -> None:
+    """O. A meeting's context (D59): written during a recording, by the keyboard, heard by the
+    transcript and the minutes; changed after, made again with it; the field closed meanwhile."""
+    print("O. a meeting's context: written while recording, read by the transcript and the minutes, made again with it (D59)")
+    keys = lambda browser, *sent: ActionChains(browser).send_keys(*sent).perform()
+    focused = lambda b: b.execute_script("return document.activeElement.id")
+    fits = lambda b: b.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
+    count = lambda b, id_: b.execute_script("return document.getElementById(arguments[0]).textContent", f"{id_}-count")
+    model = WORK / "context-model.bin"
+    model.write_bytes(b"\0" * 16)
+    settings = (f'after = "minutes"\nreminder = false\nmodel = "{model}"\n'
+                'minutes_provider = "http://127.0.0.1:9/v1"\nminutes_model = "mistral"\n')
+    css = (Path(__file__).parent.parent / "ui" / "window.css").read_text()
+    light = css[css.index(":root {") + len(":root {"):css.index("}", css.index(":root {"))].replace("\n", " ").strip()
+
+    def seen(browser, name: str) -> None:
+        """A screenshot in the theme its name says: the light one put on the page over a dark desktop."""
+        forced = "light" in name and browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
+        if forced:
+            browser.execute_script("document.documentElement.style.cssText = arguments[0] + '; color-scheme: light'", light)
+            time.sleep(0.3)
+        shot(browser, name)
+        if forced:
+            browser.execute_script("document.documentElement.style.cssText = ''")
+
+    def recording(name: str, language: str, dark: bool = False) -> tuple["Window", Path]:
+        meetings = WORK / f"context-{name}"
+        meetings.mkdir()
+        window = Window(meetings, language, settings, small=True)
+        if dark:
+            window.env.update(GTK_THEME="Adwaita:dark")
+        return window, meetings / "2026-10-18_12-00"
+
+    def to_field(browser) -> bool:
+        """Tab from wherever the focus is to the context's disclosure — never past it onto Arrêter's Enter."""
+        for _ in range(6):
+            if focused(browser) == "small-context-toggle":
+                return True
+            keys(browser, Keys.TAB)
+        return focused(browser) == "small-context-toggle"
+
+    said = "Budget du T4 avec Inès Durand, Jiří Novák et l’équipe achats."
+    window, meeting = recording("fr", "fr_FR.UTF-8")
+    with window as browser:
+        # Started by the keyboard: the recording's gesture has the focus at rest.
+        keys(browser, Keys.ENTER)
+        started = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 5)
+        toggle = browser.find_element(By.ID, "small-context-toggle")
+        check("recording, the small window offers the context, closed", started and toggle.text.startswith("Ajouter le contexte")
+              and toggle.get_attribute("aria-expanded") == "false" and not browser.find_element(By.ID, "small-context").is_displayed(), toggle.text)
+        time.sleep(0.4)
+        seen(browser, "d59-1-small-closed-light")
+        check("closed, it holds in its window", fits(browser)[0] <= fits(browser)[1], fits(browser))
+        reached = to_field(browser)
+        keys(browser, Keys.ENTER)
+        opened = wait_for(browser, lambda b: focused(b) == "small-context", 2)
+        area = browser.find_element(By.ID, "small-context")
+        check("reached by Tab and opened by Enter, the field takes the focus, named by its label",
+              reached and opened and area.get_attribute("aria-label") == "De quoi parle la réunion ? Qui y participe ?"
+              and area.get_attribute("placeholder") == area.get_attribute("aria-label"), (reached, focused(browser), area.get_attribute("aria-label")))
+        check("open, the note on the transcript makes room for it", not browser.find_element(By.CSS_SELECTOR, "#small .says").is_displayed())
+        check("its count is said where a screen reader hears it, before a word is typed",
+              browser.find_element(By.ID, "small-context-count").get_attribute("role") == "status"
+              and area.get_attribute("aria-describedby") == "small-context-count"
+              and count(browser, "small-context") == "400 caractères au plus · 400 restants", count(browser, "small-context"))
+        keys(browser, said)
+        left = 400 - len(said)
+        counted = wait_for(browser, lambda b: count(b, "small-context") == f"400 caractères au plus · {left} restants", 2)
+        check("the count follows each character typed", counted, count(browser, "small-context"))
+        kept = wait_for(browser, lambda b: (meeting / "context.txt").exists() and (meeting / "context.txt").read_text() == said, 3)
+        check("what is typed is the meeting's context.txt, whole, as typed", kept, (meeting / "context.txt").read_text() if (meeting / "context.txt").exists() else None)
+        check("nothing is left beside it", sorted(p.name for p in meeting.iterdir()) == ["context.txt", "session.json"], sorted(p.name for p in meeting.iterdir()))
+        time.sleep(0.3)
+        check("open and written, it holds in its window — 380 × 400", fits(browser)[0] <= fits(browser)[1]
+              and browser.execute_script("return [innerWidth, innerHeight]") == [380, 400], (fits(browser), browser.execute_script("return [innerWidth, innerHeight]")))
+        seen(browser, "d59-2-small-open-light")
+        # Another script: said in the count, the window still whole.
+        keys(browser, " Γιώργος Παπαδόπουλος.")
+        other = wait_for(browser, lambda b: "Dans cette écriture" in count(b, "small-context"), 2)
+        time.sleep(0.3)
+        check("a Greek name is said: Whisper may keep only its end, a service may refuse it", other
+              and count(browser, "small-context").startswith(f"{left - len(' Γιώργος Παπαδόπουλος.')} restants"), count(browser, "small-context"))
+        check("said, it still holds in its window", fits(browser)[0] <= fits(browser)[1], fits(browser))
+        seen(browser, "d59-3-small-script-light")
+        for _ in range(len(" Γιώργος Παπαδόπουλος.")):
+            keys(browser, Keys.BACKSPACE)
+        back = wait_for(browser, lambda b: (meeting / "context.txt").read_text() == said and "Dans cette écriture" not in count(b, "small-context"), 3)
+        check("taken out, the context is as it was, the script no longer said", back, (meeting / "context.txt").read_text())
+        keys(browser, Keys.ESCAPE)
+        closed = wait_for(browser, lambda b: focused(b) == "small-context-toggle", 2)
+        toggle = browser.find_element(By.ID, "small-context-toggle")
+        check("Escape closes it, the focus back on its disclosure, which says it holds one",
+              closed and toggle.text.startswith("Modifier le contexte") and toggle.get_attribute("aria-expanded") == "false", toggle.text)
+        stop_from_small(browser)
+        heard = wait_for(browser, lambda b: (meeting / "minutes.md").exists(), 15)
+        header = json.loads((meeting / "transcript.jsonl").read_text().splitlines()[0]) if (meeting / "transcript.jsonl").exists() else {}
+        check("the transcript made at the stop heard it", header.get("context") == said, header)
+        asked = (WORK / "summary-context").read_text() if (WORK / "summary-context").exists() else None
+        check("the minutes' request carried it", heard and asked is not None and json.loads(asked) == said, asked)
+
+    # The meeting's page: the context shown, changed, made again with it.
+    window = Window(meeting.parent, "fr_FR.UTF-8", settings)
+    with window as browser:
+        browser.execute_script(f"location.hash = '#/meeting/{meeting.name}'")
+        shown = wait_for(browser, lambda b: b.find_elements(By.ID, "context-text"), 10)
+        area = browser.find_element(By.ID, "context-text")
+        label = browser.execute_script("return document.querySelector('label[for=context-text]')?.textContent")
+        check("a meeting's page shows its context, labelled", shown and area.get_attribute("value") == said
+              and label == "De quoi parle la réunion ? Qui y participe ?", (area.get_attribute("value"), label))
+        check("made with it, nothing is offered to make again", not browser.find_element(By.ID, "context-changed").is_displayed())
+        more = " Siobhán O’Neill (juridique)."
+        area.click()
+        keys(browser, Keys.END, more)
+        changed = wait_for(browser, lambda b: b.find_element(By.ID, "context-changed").is_displayed(), 3)
+        check("changed after its transcript and minutes, Refaire avec ce contexte is offered, said why",
+              changed and (meeting / "context.txt").read_text() == said + more
+              and browser.find_element(By.CSS_SELECTOR, "#context-changed .says").text == "Le transcript et le compte rendu ont été faits avec un autre contexte."
+              and browser.find_element(By.ID, "context-redo").text == "Refaire avec ce contexte", (meeting / "context.txt").read_text())
+        seen(browser, "d59-4-page-changed-light")
+        # Made again, slowly: the field closed meanwhile, and said.
+        (WORK / "slow-hearing").touch()
+        try:
+            browser.find_element(By.ID, "context-redo").send_keys(Keys.ENTER)
+            making = wait_for(browser, lambda b: b.find_element(By.ID, "context-text").get_attribute("readonly") is not None, 5)
+            sentence = browser.find_element(By.ID, "context-said").text
+            check("while it is made again, the field is closed, and says so",
+                  making and sentence == "Le contexte ne change pas pendant que le transcript ou le compte rendu se fait."
+                  and not browser.find_element(By.ID, "context-changed").is_displayed(), sentence)
+            seen(browser, "d59-5-page-closed-light")
+            browser.find_element(By.ID, "context-text").send_keys(" X")
+            check("closed, nothing typed is taken", (meeting / "context.txt").read_text() == said + more)
+        finally:
+            (WORK / "slow-hearing").unlink()
+        remade = wait_for(browser, lambda b: json.loads((meeting / "minutes.md").read_text().split("context: ", 1)[1].split("\n", 1)[0]) == said + more, 20)
+        header = json.loads((meeting / "transcript.jsonl").read_text().splitlines()[0])
+        check("made again: the transcript, then the minutes, with the context as it is now",
+              remade and header.get("context") == said + more and json.loads((WORK / "summary-context").read_text()) == said + more, header)
+        check("the transcript set aside is not left beside the new one", not list(meeting.glob("transcript-before-*")), sorted(p.name for p in meeting.iterdir()))
+        reopened = wait_for(browser, lambda b: b.find_element(By.ID, "context-text").get_attribute("readonly") is None
+                            and not b.find_element(By.ID, "context-changed").is_displayed(), 10)
+        check("made, the field opens again, nothing left to make again", reopened)
+        # Made again and failing: the transcript and the minutes there put back, never one of another context.
+        before = (meeting / "transcript.jsonl").read_text(), (meeting / "minutes.md").read_text()
+        browser.find_element(By.ID, "context-text").send_keys(Keys.END, " Et Lena.")
+        wait_for(browser, lambda b: b.find_element(By.ID, "context-changed").is_displayed(), 3)
+        (WORK / "fail-hearing").touch()
+        try:
+            press(browser, "context-redo")
+            failed = wait_for(browser, lambda b: b.find_elements(By.ID, "transcript-again"), 10)
+        finally:
+            (WORK / "fail-hearing").unlink()
+        check("failing, the transcript and the minutes made with the earlier context are put back",
+              failed and ((meeting / "transcript.jsonl").read_text(), (meeting / "minutes.md").read_text()) == before
+              and not list(meeting.glob("transcript-before-*")), sorted(p.name for p in meeting.iterdir()))
+        check("and Refaire avec ce contexte is offered again", wait_for(browser, lambda b: b.find_element(By.ID, "context-changed").is_displayed(), 5))
+        # Pasted past the most: cut to it, as the shell counts — in characters.
+        browser.execute_script(
+            "const a = document.getElementById('context-text'); a.value = 'é'.repeat(450); a.dispatchEvent(new Event('input'))"
+        )
+        cut = wait_for(browser, lambda b: len((meeting / "context.txt").read_text()) == 400, 3)
+        check("a paste past 400 characters is cut to 400, in the field and the file",
+              cut and len(browser.find_element(By.ID, "context-text").get_attribute("value")) == 400
+              and count(browser, "context-text") == "400 caractères au plus · 0 restant", count(browser, "context-text"))
+        browser.find_element(By.ID, "context-text").send_keys(Keys.END, "x")
+        time.sleep(0.5)
+        check("at 400, a character typed is not taken", len((meeting / "context.txt").read_text()) == 400
+              and len(browser.find_element(By.ID, "context-text").get_attribute("value")) == 400)
+
+    # A transcript left unfinished: the field closed, said so.
+    unfinished = WORK / "context-unfinished"
+    session(unfinished / "half", now - dt.timedelta(hours=2), 3, {"local.wav": 1000})
+    (unfinished / "half" / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n'
+    )
+    with Window(unfinished, "fr_FR.UTF-8", settings) as browser:
+        browser.execute_script("location.hash = '#/meeting/half'")
+        closed = wait_for(browser, lambda b: b.find_elements(By.ID, "context-text") and b.find_element(By.ID, "context-text").get_attribute("readonly") is not None, 10)
+        sentence = browser.find_element(By.ID, "context-said").text if closed else ""
+        check("a transcript left unfinished closes the field, said with its way out",
+              sentence == "Le transcript n’est pas terminé : terminez-le (Réessayer) avant de changer le contexte.", sentence)
+
+    # In English, in the dark theme: the small window and a meeting's page.
+    window, meeting = recording("en", "en_GB.UTF-8", dark=True)
+    with window as browser:
+        keys(browser, Keys.ENTER)
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 5)
+        toggle = browser.find_element(By.ID, "small-context-toggle")
+        check("in English, the context is offered", toggle.text.startswith("Add the context"), toggle.text)
+        time.sleep(0.4)
+        seen(browser, "d59-1-small-closed-dark")
+        to_field(browser)
+        keys(browser, Keys.ENTER)
+        wait_for(browser, lambda b: focused(b) == "small-context", 2)
+        english = "Q4 budget with Inès Durand and Jiří Novák."
+        keys(browser, english)
+        counted = wait_for(browser, lambda b: count(b, "small-context") == f"400 characters at most · {400 - len(english)} left", 2)
+        kept = wait_for(browser, lambda b: (meeting / "context.txt").exists() and (meeting / "context.txt").read_text() == english, 3)
+        time.sleep(0.3)
+        check("in English, counted, kept, and holding in its window", counted and kept and fits(browser)[0] <= fits(browser)[1],
+              (count(browser, "small-context"), fits(browser)))
+        seen(browser, "d59-2-small-open-dark")
+        keys(browser, " 王小明")
+        wait_for(browser, lambda b: "In this script" in count(b, "small-context"), 2)
+        time.sleep(0.3)
+        check("a Chinese name is said, in English, the window whole", "In this script" in count(browser, "small-context")
+              and fits(browser)[0] <= fits(browser)[1], (count(browser, "small-context"), fits(browser)))
+        seen(browser, "d59-3-small-script-dark")
+        stop_from_small(browser)
+        wait_for(browser, lambda b: (meeting / "minutes.md").exists(), 15)
+    window = Window(meeting.parent, "en_GB.UTF-8", settings)
+    window.env.update(GTK_THEME="Adwaita:dark")
+    with window as browser:
+        browser.execute_script(f"location.hash = '#/meeting/{meeting.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "context-text"), 10)
+        browser.find_element(By.ID, "context-text").send_keys(Keys.END, " And Lena.")
+        changed = wait_for(browser, lambda b: b.find_element(By.ID, "context-changed").is_displayed(), 3)
+        check("in English, a meeting's page offers Redo with this context", changed
+              and browser.find_element(By.ID, "context-redo").text == "Redo with this context", browser.find_element(By.ID, "context-redo").text)
+        seen(browser, "d59-4-page-changed-dark")
 
 
 def main() -> int:
@@ -2348,6 +2580,7 @@ def main() -> int:
     service_named(now)
     ollama_pulled(now)
     first_run(now)
+    context_written(now)
     return 1 if FAILED else 0
 
 
