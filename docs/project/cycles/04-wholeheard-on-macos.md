@@ -90,8 +90,9 @@ deliverables:
     module: shell
     state: ready
     acceptance:
-      - "Given a recording, when the small window shows it, then a field « De quoi parle la réunion ? Qui y participe ? », optional, holds up to 600 characters, said beside it; what is written is kept as the meeting's `context.txt` (`contracts/session-audio/v1`) as it is typed, before the stop, so that the transcript and the minutes made after it read it, as they already do"
-      - "Given a meeting's page, when it shows, then its context is shown and can be written or changed, kept the same way; changed after a transcript or minutes were made, the page offers « Refaire avec ce contexte », which makes them again through *Refaire…*'s ways, the ones there kept until the new ones are whole"
+      - "Given a recording, when the window shows it — the small one, or the full one's live block —, then a field « De quoi parle la réunion ? Qui y participe ? », optional, holds up to 400 characters, said beside it, drawn first on a board of its own as D58's was; what is typed is kept as the meeting's `context.txt` (`contracts/session-audio/v2`, and v1 for a meeting of that form) — written whole, a file beside it then renamed, and only once the meeting's folder holds `session.json` —, so that the transcript and the minutes made after the stop read it, as they already do"
+      - "Given a meeting's page, when it shows, then its context is shown and can be written or changed — not while its transcript or minutes are being made, said so —; changed after a transcript or minutes were made, the page offers « Refaire avec ce contexte », which sets the transcript and the minutes aside and makes them again with the engine and the provider the settings name, the ones set aside put back if the making fails, never mixed with a transcript of the old context"
+      - "Given a context of 400 characters of names in any language, when a transcript is made by Whisper or by a service, then it is taken whole — about 213 tokens at worst by Whisper's own tokenizer, under the 224 Whisper keeps and a service like Groq takes (#466) —; the field never takes more"
       - "Given a context, when the meeting's agreement before a first sending shows (board 5), then it still says the context leaves with the text, as today; in private mode nothing of it leaves this computer"
       - "Given the field, when it is used with the keyboard alone, in either theme, in French and in English, then it has its label, the count of characters left is announced, nothing overflows at the small window's size (380 × 400) — screenshots of both themes in the sheet —, and the window's e2e writes a context during a stand-in recording and finds it in `context.txt` and in the minutes' request"
   - id: D60
@@ -99,10 +100,11 @@ deliverables:
     module: shell
     state: ready
     acceptance:
-      - "Given `contracts/session-audio/v1`, when its page is changed — in a pull request of the contracts module alone, merged first —, then it says an optional file `confidential`, empty, written by the shell on the user's word: its presence asks that nothing of the meeting leaves the machine"
-      - "Given the small window while recording, and a meeting's page, when the user turns on « Réunion confidentielle » — « rien ne quitte cet ordinateur » —, then the file is written, and turned off it is removed; the page and the list of meetings show it with a lock and its words"
-      - "Given a meeting marked confidential, when its transcript or minutes are made — after the stop, by *Réessayer* or by *Refaire…* —, then they are made on this computer, Whisper or SpeechAnalyzer and Ollama, whatever the settings name; no agreement is asked and nothing is sent; *Refaire…* offers only this computer's choices; Ollama not answering, the minutes wait, said as today"
-      - "Given the shell's tests and the window's e2e, when they run, then a confidential meeting with a service named in the settings is held to make no request to it — a stand-in service that counts its requests counts none —, and turning it off lets the settings choose again"
+      - "Given `contracts/session-audio/v2` and v1, when their pages are changed — in a pull request of the contracts module alone, merged first —, then each says an optional file `confidential`, empty, written by the shell on the user's word, which only the shell reads: it asks the shell to make the meeting on this computer alone; the steps that follow need not read it"
+      - "Given the window while recording, and a meeting's page, when the user turns on « Réunion confidentielle » — « rien ne quitte cet ordinateur » —, then the file is written, and turned off it is removed; the page and the list of meetings show it with a lock and its words"
+      - "Given a meeting marked confidential, when its transcript or minutes are made — after the stop, by *Réessayer*, by *Refaire…*, from the tray —, then the transcript is made by Apple's SpeechAnalyzer where it is chosen already, else by Whisper with the model the settings name, and the minutes by Ollama with the model the settings name for it when they name Ollama's, else the recommended one, else the first Ollama holds; no agreement is asked and nothing is sent; the Whisper model missing, it is said and offered as Settings offer it; Ollama not answering or holding no model, the minutes wait, said, its model offered as today"
+      - "Given a meeting turned confidential while a service is making it, or while its agreement is asked, or after a service made its minutes, when it is turned on, then the making that sends is ended and made again on this computer, the agreement no longer asked, and the page says what had already left, to which host"
+      - "Given the shell's tests and the window's e2e, when they run, then a confidential meeting with a service named in the settings makes no request to it — a stand-in service that counts its requests counts none —, and turning it off lets the settings choose again"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -387,30 +389,39 @@ tout »), after their question the same day — « ajouter un contexte pour les 
 exemple de quoi parle le meet, le nombre de participants, les noms) ». The end date does not move;
 D58 first, then D59, then D60, each before the colleagues' builds if it can.
 
-- The engine is there: `contracts/session-audio/v1` lets the user write `context.txt`, "a few
+- The engine is there: `contracts/session-audio/v2` (v1 alike) lets the user write `context.txt`, "a few
   lines of plain text, UTF-8, handed to the steps that follow"; transcription gives it to Whisper as
   its first words (`set_initial_prompt`) and to a service as `prompt`; the summary reads it; the
   agreement already says it leaves. Nothing in the window writes it today: the file was written by
   hand.
 - Why it pays: names and jargon spelled as the meeting says them — Whisper takes the context as
   the words heard before —, actions given to the right person in the minutes.
-- 600 characters: about 150 to 200 tokens in French, under the 224 a service like Groq takes for a
-  prompt (#466); whisper.cpp keeps the end of a longer one. Said beside the field, never cut silently.
+- **Revised on #489's review**: 400 characters, not 600 — #489's verifier measured with Whisper's
+  own multilingual tokenizer 199 tokens for 600 characters of French and 320 for names in Polish,
+  Vietnamese or Icelandic; whisper.cpp keeps the last 224 and drops the beginning, and Groq refuses
+  more than 224 (#466). The context changed during a making would break *Réessayer*: the transcript's
+  header names its context and another is not continued (`modules/transcription/src/lib.rs`) — hence
+  the field closed while a making runs, and « Refaire avec ce contexte » setting aside and making
+  again with the settings' engine, *Refaire…*'s own ways being Whisper's alone.
+- The small window is full while recording: the field, and D60's switch, are drawn first.
 - Written during the recording: the transcript starts at the stop, by itself.
 
 ### D60
 
-**Added on the decider's word, 2026-10-27** (« integre tout »), on the framer's proposal the same
-day: no page of settings per meeting — the leaders keep one setting and meeting types (Granola,
-Otter, Fireflies) —, but the one choice that matters for a meeting, in one gesture: this one leaves
-nothing on the machine. The connected mode for fast minutes, a confidential meeting kept here.
+**Added on the decider's word, 2026-10-27** (« integre tout »), on their question the same day,
+« est ce que chaque réunion peut avoir son réglage ? », and the framer's answer: no page of settings
+per meeting — the leaders keep one setting and meeting types *(the framer's reading of Granola,
+Otter and Fireflies, no source read again here)* —, but the one choice that matters for a meeting,
+in one gesture: this one leaves nothing on the machine. The connected mode for fast minutes, a confidential meeting kept here.
 
 - A file in the meeting's folder, so that the mark lives with the meeting — moved, copied, made
   again — and nothing else needs to know it: the shell chooses who transcribes and who writes before
-  it starts them. Declared first in `session-audio/v1`, an additive change of the contracts module
-  (expand, `.nstack/handbook/03-contracts.md`).
+  it starts them, at one place each (`transcribe()` and `write_minutes_from`, read by #489's
+  verifier). Declared first in `session-audio/v2` and v1, an additive line of the contracts module
+  (expand, `.nstack/handbook/03-contracts.md`): the shell alone reads it — a step run by hand with a
+  service is the user's own choice.
 - The connected mode has not met a real service yet (#463): the stand-in service's count of requests
-  is what holds « nothing is sent ».
+  is what holds "nothing is sent".
 
 ## Dependency with a date
 
