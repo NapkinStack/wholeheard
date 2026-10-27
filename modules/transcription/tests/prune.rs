@@ -27,9 +27,11 @@ fn a_day_file_older_than_fourteen_days_goes_and_nothing_else() {
     written(folder.path(), "export.abcdefghij.jsonl", 10, 90 * DAY);
     written(folder.path(), "My meeting.2026-09-01.jsonl", 10, 90 * DAY);
     written(folder.path(), "notes.2026-09-01.jsonl.bak", 10, 90 * DAY);
-    // A link named as a day file is not a file: neither it nor what it leads to goes.
+    // A link named as a day file is not a file: neither it nor what it leads to goes. Windows
+    // makes a link only with a privilege a test does not have: there, no link.
     let elsewhere = tempfile::tempdir().unwrap();
     written(elsewhere.path(), "kept.txt", 10, 90 * DAY);
+    #[cfg(unix)]
     std::os::unix::fs::symlink(elsewhere.path().join("kept.txt"), folder.path().join("shell.2026-08-01.jsonl")).unwrap();
     prune(folder.path(), SystemTime::now());
     let mut left: Vec<_> = fs::read_dir(folder.path())
@@ -37,18 +39,18 @@ fn a_day_file_older_than_fourteen_days_goes_and_nothing_else() {
         .map(|entry| entry.unwrap().file_name())
         .collect();
     left.sort();
-    assert_eq!(
-        left,
-        [
-            "My meeting.2026-09-01.jsonl",
-            "a.jsonl",
-            "export.abcdefghij.jsonl",
-            "notes.2026-09-01.jsonl.bak",
-            "notes.txt",
-            "shell.2026-08-01.jsonl",
-            "summary.2026-10-10.jsonl"
-        ]
-    );
+    let mut kept = vec![
+        "My meeting.2026-09-01.jsonl",
+        "a.jsonl",
+        "export.abcdefghij.jsonl",
+        "notes.2026-09-01.jsonl.bak",
+        "notes.txt",
+        "summary.2026-10-10.jsonl",
+    ];
+    if cfg!(unix) {
+        kept.insert(5, "shell.2026-08-01.jsonl");
+    }
+    assert_eq!(left, kept);
     assert!(elsewhere.path().join("kept.txt").exists());
 }
 
