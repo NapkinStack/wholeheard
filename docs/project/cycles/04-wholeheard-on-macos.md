@@ -91,8 +91,8 @@ deliverables:
     state: ready
     acceptance:
       - "Given a recording, when the window shows it — the small one, or the full one's live block —, then a field « De quoi parle la réunion ? Qui y participe ? », optional, holds up to 400 characters, said beside it, drawn first on a board of its own as D58's was; what is typed is kept as the meeting's `context.txt` (`contracts/session-audio/v2`, and v1 for a meeting of that form) — written whole, a file beside it then renamed, and only once the meeting's folder holds `session.json` —, so that the transcript and the minutes made after the stop read it, as they already do"
-      - "Given a meeting's page, when it shows, then its context is shown and can be written or changed — not while its transcript or minutes are being made, said so —; changed after a transcript or minutes were made, the page offers « Refaire avec ce contexte », which sets the transcript and the minutes aside and makes them again with the engine and the provider the settings name, the ones set aside put back if the making fails, never mixed with a transcript of the old context"
-      - "Given a context of 400 characters of names in any language, when a transcript is made by Whisper or by a service, then it is taken whole — about 213 tokens at worst by Whisper's own tokenizer, under the 224 Whisper keeps and a service like Groq takes (#466) —; the field never takes more"
+      - "Given a meeting's page, when it shows, then its context is shown and can be written or changed — not while its transcript or minutes are being made, nor while a transcript is left unfinished, said so —; changed after a transcript or minutes were made, the page offers « Refaire avec ce contexte », which sets the transcript and the minutes aside and makes them again with the engine and the provider the settings name, the ones set aside put back if the making fails, never mixed with a transcript of the old context"
+      - "Given a context of 400 characters in a Latin or Cyrillic script, names with their accents included, when a transcript is made by Whisper or by a service, then it is taken whole — 210 tokens at most, measured with Whisper's own tokenizer, under the 224 Whisper keeps and a service like Groq takes (#466); given another script — Greek, Arabic, Chinese… —, then the field says that Whisper may keep only its end and a service may refuse it; the field never takes more than 400"
       - "Given a context, when the meeting's agreement before a first sending shows (board 5), then it still says the context leaves with the text, as today; in private mode nothing of it leaves this computer"
       - "Given the field, when it is used with the keyboard alone, in either theme, in French and in English, then it has its label, the count of characters left is announced, nothing overflows at the small window's size (380 × 400) — screenshots of both themes in the sheet —, and the window's e2e writes a context during a stand-in recording and finds it in `context.txt` and in the minutes' request"
   - id: D60
@@ -398,7 +398,8 @@ D58 first, then D59, then D60, each before the colleagues' builds if it can.
   the words heard before —, actions given to the right person in the minutes.
 - **Revised on #489's review**: 400 characters, not 600 — #489's verifier measured with Whisper's
   own multilingual tokenizer 199 tokens for 600 characters of French and 320 for names in Polish,
-  Vietnamese or Icelandic; whisper.cpp keeps the last 224 and drops the beginning, and Groq refuses
+  Vietnamese or Icelandic, then for 400: French 134, accented Latin names 210, Cyrillic 188, Arabic
+  224, Greek 284, Chinese 515; whisper.cpp keeps the last 224 and drops the beginning, and Groq refuses
   more than 224 (#466). The context changed during a making would break *Réessayer*: the transcript's
   header names its context and another is not continued (`modules/transcription/src/lib.rs`) — hence
   the field closed while a making runs, and « Refaire avec ce contexte » setting aside and making
