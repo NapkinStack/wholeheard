@@ -1,5 +1,5 @@
 ---
-goal: "Day to day, Wholeheard is the best of its kind to use: a meeting ends in one notification that opens it, named, its actions read at a glance, its minutes copied in one click, said in a French that sounds native — and the first run holds the user's hand, the announcement one click away — and ready to be published: Windows' Store package, capture `critical`, the list of models signed"
+goal: "Day to day, Wholeheard is the best of its kind to use: a meeting ends in one notification that opens it, named, its actions read at a glance, its minutes copied in one click, said in a French that sounds native — and the first run holds the user's hand, the announcement one click away — and what a first Store submission waits on: Windows' package made and tried, capture `critical`, the list of models signed, the listing and the privacy policy written"
 status: proposed          # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 2         # (framer, to confirm) — the time the decider WANTS to spend, not an estimate
 start: 2026-11-02         # YYYY-MM-DD
@@ -71,25 +71,34 @@ deliverables:
     module: install
     state: proposed
     acceptance:
-      - "Given the Windows workflow on main, when it runs, then it leaves beside the zip Wholeheard-<version>-x64.msix, made with the Windows SDK's MakeAppx from an AppxManifest.xml that names Wholeheard, its version, the identity the decider reserves in Partner Center, `runFullTrust` and the microphone, and the shell as the program it starts; the four programs inside it"
-      - "Given that package signed for the run with a certificate made for it, when GitHub's Windows runner installs it (`Add-AppxPackage`), then Wholeheard starts from it and its window opens, and when it is removed (`Remove-AppxPackage`), then a meeting recorded under the user's Documents is still there"
-      - "Given the settings Wholeheard keeps, when they live inside the package's own data — which Windows removes with it —, then this is said in the package's notes for certification and in the README, never hidden; the meetings are never there"
+      - "Given the Windows workflow on main, when it runs, then it leaves beside the zip Wholeheard-<version>-x64.msix, made with the Windows SDK's MakeAppx from an AppxManifest.xml that names Wholeheard, its version in four parts the last 0, its logos, the identity the decider reserved in Partner Center — or a placeholder the run says is one —, `runFullTrust` and the microphone, and the shell started with `--window`; the four programs inside it"
+      - "Given that package signed for the run with a certificate made for it, when GitHub's Windows runner installs it (`Add-AppxPackage`), then Wholeheard's process starts from it with its window; when a later version is installed over it, then a meeting folder placed under Documents\\Wholeheard and the settings are still there; and when it is removed (`Remove-AppxPackage`), then the meeting folder is still there"
+      - "Given the package, when its notes for certification are read (`modules/install/windows/certification.md`), then they say why Wholeheard needs `runFullTrust` and the microphone — recording a call's two sides —, and that its settings and downloaded models live in the package's own data, which Windows removes with it, its meetings never"
+      - "Given the colleague of cycle 04's D53 on their Windows 11, when they install the package signed for the run and record a real call of five minutes from it, then the cycle records whether both tracks hold the call's speech — capture working from inside a package, PDR-0004's removal condition"
   - id: D55
     title: "capture is critical before the first build published outside the project"
     module: capture
     state: proposed
     acceptance:
       - "Given capture's MANIFEST.yaml, when it is read, then its criticality is `critical`, as PDR-0002 decided for the first build published outside the project — the Store's (PDR-0004)"
-      - "Given capture, when its runbook is read (`docs/runbook.md`, which `critical` asks for), then it says how a recording that failed is found in the logs, what a user is told, and how a release is rolled back — each step tried once and its date written"
-      - "Given a pull request that changes capture after it, when its checks run, then every scenario of its sheet is run again at the head, as `critical` asks — held by `nstack pr-check`"
+      - "Given capture's manifest, when the fitness functions run, then it declares its runbook (`docs.runbook`), and the runbook says how a recording that failed is found in the logs, what a user is told, and how a release is rolled back — on Linux, the previous package installed again (`dnf downgrade`, tried once by the framer on a Fedora made for it, its date written); in the Store, which takes no lower version, the previous code submitted again under a higher one"
+      - "Given the rows `critical` makes due (`.nstack/handbook/05-workflow.md` §7) — every scenario run again, UAT, rollback verified, after a release verified, E2E on critical journeys —, when the runbook is read, then it says who does each for capture and when"
   - id: D56
     title: "The list of models read again is refused unless the decider's key signed it"
     module: shell
     state: proposed
     acceptance:
       - "Given `registry/models.json` and its signature `models.json.minisig` on main, made with minisign by the decider's key — the public key built into the shell, the private one never in a repository —, when the list is read again on the user's gesture, then it is offered only when its signature verifies; a list unsigned, signed by another key, or changed after it was signed is refused, and the shipped list stays, said in one sentence (ADR-0010, *Rejected alternatives*)"
-      - "Given a pull request that changes the list, when its checks run, then a list whose signature does not verify against the built-in key is refused"
+      - "Given a pull request that changes the list, when its checks run, then a list whose signature does not verify against the built-in key is refused; until the decider's key is given, no list is read again, and Settings and the check say it waits on that key — the colleagues' builds lose today's reading again, said in the cycle's closure"
+      - "Given ADR-0010, when D56 is merged, then the record says its option 4 adopted, `minisign-verify` declared in the shell's manifest with its exit strategy, and what a signature does not stop: an older list, signed, offered again"
       - "Given the shell's tests, when they run, then a list signed by a key made for the test is offered, and the three refusals above are held, without the decider's key"
+  - id: D57
+    title: "The Store's listing and Wholeheard's privacy policy are written, in French and in English"
+    module: null
+    state: proposed
+    acceptance:
+      - "Given the repository, when `docs/privacy.md` is read on GitHub, then it says in French and in English what Wholeheard records, where it keeps it, what leaves the machine only when the user chose a service and to which host, that nothing is sent otherwise, and how to remove it all — its URL the one Partner Center is given"
+      - "Given `modules/install/windows/listing.md`, when it is read, then it holds the Store's description, its short features and the screenshots it needs, in French and in English, said as PDR-0001's promise, nothing the product does not do"
 ---
 
 # Cycle 05 — The best day to day
@@ -131,7 +140,7 @@ flowchart LR
     N --> M["The meeting, named<br/>actions as rows"]:::d48
     M --> P["Copied<br/>to mail, chat, Notion"]:::d45
     W["Wording, French first"]:::d47 -.-> S & N & M
-    Z["Published<br/>Store package · capture critical<br/>list signed"]:::pub
+    Z["Ready to submit<br/>Store package · capture critical<br/>list signed · listing, privacy"]:::pub
     classDef d50 fill:#92400e,color:#fff
     classDef d49 fill:#065f46,color:#fff
     classDef rec fill:#374151,color:#fff
@@ -144,13 +153,13 @@ flowchart LR
 
 **Legend** — one meeting, left to right · amber: D50 · green: D49 · grey: what is there today ·
 blue: D44 · violet: D48, with D46 on the same page · teal: D45 · slate: D47, said
-everywhere · red: D54–D56, what publishing waits on.
+everywhere · red: D54–D57, what a first submission waits on.
 
 ## Deliverables
 
 Each is the shell's but D48, whose minutes are written by the summary, D54, install's package, and
 D55, capture's. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
-another, after it: the order to build them in. **Cut first** if the breaker nears: D47's errors, then D49's live check. D54–D56 are not cut:
+another, after it: the order to build them in. **Cut first** if the breaker nears: D47's errors, then D49's live check. D54–D57 are not cut:
 they are what publishing waits on.
 D44, D45, D47 and D50 all touch `words.rs` and the « Copié » status: one session at a time on them.
 
@@ -270,6 +279,11 @@ to make room, the appetite unchanged — the framer's cut, the decider's to reve
 - The identity in the manifest is the one Partner Center gives once the name is reserved: until
   then, a placeholder the run says is one, and the package is not submitted.
 
+- On a hosted runner no device sounds: the package's run places a meeting folder, it records
+  nothing; the recording from inside a package is the colleague's criterion.
+- GPL-3.0 beside the Store's own licence terms, which Partner Center lets the publisher replace:
+  the decider's to read before the first submission (*Dependency with a date*).
+
 ### D55
 
 - PDR-0002, decision 2: `capture` becomes `critical` before the first build published for people
@@ -290,11 +304,22 @@ to make room, the appetite unchanged — the framer's cut, the decider's to reve
 - A key made for the tests holds the refusals; the decider's public key is written into the shell
   the day they give it (*Dependency with a date*).
 
+### D57
+
+- Microsoft's policies ask an app that handles personal data for a privacy policy, its URL given
+  in Partner Center *(framer, from memory of the Store Policies, 10.5.1: read again when it is
+  written)*: Wholeheard records meetings. A page of the repository, read on GitHub, is its home —
+  no site of the project's.
+- The listing's words say what the README and PDR-0001 say; its screenshots are the window's, as
+  the e2e takes them. No module: words only.
+
 ## Dependency with a date
 
 - **The decider's Partner Center account** (a company's, PDR-0004) and **the name Wholeheard
   reserved** in it, for D54's identity: by 2026-11-09. Missed, the package is made with its
   placeholder and is not submitted.
+- **The decider's reading of the Store's licence terms beside GPL-3.0**, and **the age rating**
+  (Partner Center's IARC questionnaire): both theirs, before the first submission, by 2026-11-13.
 - **The decider's minisign key**, for D56: `minisign -G`, its public key handed over, by
   2026-11-09. Missed, the shell holds the refusals with the tests' key and offers no list read
   again until it is given.
@@ -326,7 +351,9 @@ And for this cycle:
   once it ends (PDR-0004, decision 1) — after D54, tried through Partner Center's package flight.
 - macOS notarised — Apple's developer programme, the decider's —, a trial and a licence key, a
   merchant of record (PDR-0001); the Mac App Store after a spike on the sandbox (PDR-0004).
-- Settings kept when Windows' package is removed, as the deb keeps them.
+- Settings and models kept when Windows' package is removed, as the deb keeps them.
+- Starting with Windows: the package's `desktop:StartupTask` — the shell's start with the
+  session is XDG's only (`modules/shell/src/autostart.rs`).
 
 - The cost of an online transcription (D43), with the minutes' (D51).
 - The live preview built, on D52's record and its ADR; SpeechAnalyzer's live results on a Mac.
@@ -344,6 +371,14 @@ And for this cycle:
 **Blocking:** none — each below has a default the deliverable is built with.
 
 **Not blocking:**
+
+- **The first submission before the Store's licence is read** (*Later*): a full-trust app's trial
+  is not enforced by Windows, the app reads it. Submitted to a private audience — the colleagues —
+  until it is, or the licence brought into this cycle? The framer's default: a private audience;
+  no copy sold before the trial is read.
+- **The appetite**: D51 and D52, two of the lighter, went out; D54–D57, heavier, came in and are
+  not cut — two weeks may not hold them. The decider's to weigh at the acceptance: three weeks, or
+  D49's live check and D47's errors cut first.
 
 - ***Transcript* or *Transcription*** in French (D47)? Both reviews say *Transcription*: the
   French word for the text, the one every French product uses, already the step's name in
