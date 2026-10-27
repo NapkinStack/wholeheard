@@ -32,4 +32,6 @@ else
 fi
 cp "$built/wholeheard$exe" "$here/linux/dev.wholeheard.Wholeheard.desktop" "$dist/"
 cp "$here/icons/icon.png" "$dist/dev.wholeheard.Wholeheard.png"
-python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' "$here/tauri.conf.json" > "$dist/VERSION"
+# Windows names its Python python, never python3.
+python=python3; [ -n "$exe" ] && python=python
+"$python" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' "$here/tauri.conf.json" > "$dist/VERSION"
