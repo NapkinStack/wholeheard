@@ -183,6 +183,11 @@ fn a_service_named_gives_way_to_the_recommended_model_else_the_first_ollama_hold
         confidential::writer(None, OLLAMA, held(&[providers::RECOMMENDED])),
         Ok((ollama.clone(), providers::RECOMMENDED.to_string()))
     );
+    // This computer's Ollama named with no model: no model is none — Ollama's own is taken.
+    assert_eq!(
+        confidential::writer(named(&ollama, "  "), OLLAMA, held(&["mistral:7b"])),
+        Ok((ollama.clone(), "mistral:7b".to_string()))
+    );
 }
 
 #[test]
@@ -248,6 +253,9 @@ fn what_had_left_is_read_from_who_heard_and_who_wrote() {
     assert_eq!(left_of(folder.path()), []);
     // A service on this computer: nothing left either.
     transcript_by(folder.path(), "localhost:8000");
+    assert_eq!(left_of(folder.path()), []);
+    // A header naming no engine names no host: nothing said to have left.
+    transcript_by(folder.path(), " ");
     assert_eq!(left_of(folder.path()), []);
     // A service heard it: its sound left, to the host the header names.
     transcript_by(folder.path(), "api.groq.com");
