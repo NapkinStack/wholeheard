@@ -68,7 +68,8 @@ pub fn making() -> (String, tracing::Span) {
 pub fn without(said: &str, sessions: Option<&Path>) -> String {
     let separator = std::path::MAIN_SEPARATOR;
     let sessions = sessions.map(Path::to_string_lossy).unwrap_or_default();
-    let sessions = sessions.trim_end_matches(separator);
+    // Its last separator gone, whichever the path was written with: `/` is one on Windows too.
+    let sessions = sessions.trim_end_matches([separator, '/']);
     if sessions.is_empty() {
         return said.to_string();
     }

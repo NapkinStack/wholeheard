@@ -150,8 +150,27 @@ fn pulling(lines: &'static str) -> String {
     let address = format!("http://{}", listener.local_addr().unwrap());
     thread::spawn(move || {
         let mut stream = listener.incoming().next().unwrap().unwrap();
-        let mut asked = [0u8; 4096];
-        let _ = stream.read(&mut asked);
+        // The whole request read before the answer: Windows resets a connection closed on what was
+        // not read, and the answer would be lost.
+        let mut asked = Vec::new();
+        let mut chunk = [0u8; 4096];
+        while let Ok(read @ 1..) = stream.read(&mut chunk) {
+            asked.extend_from_slice(&chunk[..read]);
+            let text = String::from_utf8_lossy(&asked);
+            if let Some(end) = text.find("\r\n\r\n") {
+                let length = text[..end]
+                    .lines()
+                    .find_map(|line| {
+                        line.to_ascii_lowercase()
+                            .strip_prefix("content-length:")
+                            .map(|n| n.trim().parse().unwrap_or(0))
+                    })
+                    .unwrap_or(0);
+                if asked.len() >= end + 4 + length {
+                    break;
+                }
+            }
+        }
         let reply = format!("HTTP/1.1 200 OK\r\ncontent-type: application/x-ndjson\r\nconnection: close\r\n\r\n{lines}");
         let _ = stream.write_all(reply.as_bytes());
     });

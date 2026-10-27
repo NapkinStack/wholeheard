@@ -27,8 +27,10 @@ fn no_file_and_an_empty_one_are_every_default() {
 fn a_file_names_what_it_changes_and_leaves_the_rest() {
     let only = written("reminder = false\n").unwrap();
     assert!(!only.reminder && only.sessions == Settings::default().sessions);
-    let both = written("sessions = \"/srv/meetings\"\nreminder = true\n").unwrap();
-    assert!(both.reminder && both.sessions == Path::new("/srv/meetings"));
+    // A whole path, as each system writes one.
+    let elsewhere = if cfg!(windows) { r"C:\srv\meetings" } else { "/srv/meetings" };
+    let both = written(&format!("sessions = '{elsewhere}'\nreminder = true\n")).unwrap();
+    assert!(both.reminder && both.sessions == Path::new(elsewhere));
     // A key of a later version is left alone: the file is not refused for it.
     assert_eq!(
         written("after_recording = \"minutes\"\n[provider]\nhost = \"x\"\n"),
