@@ -85,3 +85,9 @@ jobs:
           "$program" transcribe sentence.wav fr-FR | tee heard.jsonl
           grep -qi 'réunion' heard.jsonl
           grep -q '"start"' heard.jsonl
+
+      # A session as capture writes it, heard through the step at two levels (#426).
+      - name: A session heard through the step
+        run: |
+          cargo build --locked --release --manifest-path modules/transcription/Cargo.toml
+          bash modules/transcription/speech/scripts/session.sh
