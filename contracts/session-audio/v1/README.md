@@ -41,6 +41,7 @@ session is lives in it; nothing in it points outside it.
 | `me.wav` | `capture`, while recording | The user's microphone |
 | `others.wav` | `capture`, while recording | What the user hears from the meeting |
 | `context.txt` | The user, at any time; optional | A few lines of plain text, UTF-8, handed to the steps that follow |
+| `confidential` | The shell, on the user's word; optional | Nothing: an empty file. Present, it asks that the meeting be transcribed and summarised on this computer alone. Only the shell reads it, and chooses who transcribes and who writes accordingly; the steps that follow need not read it |
 
 **`session.json`**, UTF-8:
 
