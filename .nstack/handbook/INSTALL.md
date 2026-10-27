@@ -163,8 +163,8 @@ select them.
 
 Settings → Rules → Rulesets → a second ruleset, on the branches `nstack/hold/**/*` — where
 deliverables are held (`.nstack/handbook/project.md`, *Who holds a deliverable*). Not
-`nstack/hold/**`: in a ruleset, `**` stops at a slash, and a hold is two levels down. Nobody on
-its bypass list:
+`nstack/hold/**`: in a ruleset, `**` stops at a slash, and a hold is two levels down. A hold's
+branch is its record, kept after its cycle. Nobody on its bypass list:
 
 - [ ] Hold branches `nstack/hold/**/*` cannot be force-pushed nor deleted
 
@@ -293,6 +293,7 @@ nstack e2e [module]     # end-to-end scenarios, when commands.e2e is declared
 nstack clean [module]   # removes a module's build outputs, when commands.clean is declared
 nstack pr-check --body-file <file> [--labels a,b]   # test sheet and cycle, as CI reads them from the pull request
 nstack attest --body-file <file> [--labels a,b]     # the CI's checks run here, recorded on the commit; labels as pr-check takes them
+                                                    # a sheet filled since: the module checks this commit passed are kept (--again runs them)
 nstack modules --changed-since <base>   # the modules with a file changed, as CI lists them
 nstack modules --changed-since <base> --with-contract-sides   # ... and both sides of a changed contract
 nstack compat [module] --base <base>    # a contract version consumed or stable: the merged proof

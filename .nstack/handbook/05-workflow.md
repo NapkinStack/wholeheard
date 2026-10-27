@@ -342,7 +342,9 @@ criticality are read before and after the change, and the stricter applies:
   run. What a trial did not meet is fixed and tried again in another issue, or said in the
   cycle; the deliverable's state is never read from an issue being open or closed.
 
-**`Confirmed` is optional**: a sheet no fix has disturbed never carries it. The engine's pull
+**`Confirmed` is optional**: a sheet no fix has disturbed never carries it. A later confirmation
+joins an earlier one in the same cell, after a `;`, each clause starting with its commit:
+`651e249 — <what moved>; deb508f — <what moved>`. The engine's pull
 request check reads the sheet in CI: missing, unfilled, without evidence, verified before the
 head and not confirmed on it, failed. The approver decides on the sheet, and notes what they found that
 the verifier had missed — that measurement decides, one day and module by module, whether

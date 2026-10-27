@@ -71,6 +71,7 @@ a family, a number a rule; a retired rule's number is never reused.
 | `C7` | A discovery decided with no decider, date or challenger — or a charter with no go before it | `.nstack/handbook/project.md` |
 | `C8` | A document left as its form once its moment has come: the front page's sentence at a go, the whole front page at an accepted charter, the module map once a module holds code | `06-decisions.md` §10 |
 | `C9` | *(warning)* An accepted charter changed by a pull request that carries no decision record | `06-decisions.md` §4 |
+| `C10` | *(warning)* An accepted decision record due at a closure — its criterion names the cycle, or a date its end reached — with no reading line | `06-decisions.md` §6 |
 
 ## H — hygiene
 

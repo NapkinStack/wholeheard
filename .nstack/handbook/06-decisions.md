@@ -229,8 +229,10 @@ flowchart TD
 almost every project skips.
 
 The `REVIEW AT THE DEADLINE` step is the one missing from nearly every project. A light
-ritual is enough: once a quarter, list the decisions whose criterion has come due, and
-decide — confirmed, superseded, or the feature is removed.
+ritual is enough: at each cycle's closure, `nstack plan` names the decisions whose criterion
+has come due (C10, a warning), and the decider says — met, missed, or superseded — in one line
+under the criterion. A missed one is answered by a decision of its own: superseded, or the
+feature removed.
 
 ---
 

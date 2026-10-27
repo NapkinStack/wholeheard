@@ -302,7 +302,12 @@ as `nstack / local checks`, a name no CI job has. Such a change is **attested**,
 *checked*: the record makes a claim traceable — who ran it, on which commit, with what output
 — not true. Whether a record stands in for the forge's CI is the decider's word, the project's
 answer `checks: attested` in `.copier-answers.yml`, changed in a pull request; `pr-check` then
-requires a complete, passed record of the head (A1, A2). Where the answer is `forge`, a record is
+requires a complete, passed record of the head (A1, A2). Attesting again once the test sheet is filled keeps the
+module checks the commit's record passed — they read the tree and the base, never the description —
+when the base commit, the engine and the person are the same, and the engine is published or named
+by a commit with no change of its own — tracked or not. The record says which run they come from
+(`kept_from`), with that run's evidence; what the tree's ignored files, the environment or the tools
+outside it hold is not compared: `nstack attest --again` runs them. Where the answer is `forge`, a record is
 information, and on a guarded repository the forge's required checks stay the barrier — a
 decider who wants the record to gate a protected branch requires its name at the forge.
 
@@ -312,6 +317,15 @@ A checkout whose identity is unknown there — a fresh clone falls back on the w
 often personal — is refused before any check runs; set the checkout's identity, or, for a first
 record of a new contributor, `nstack attest --accept-identity`. GitHub's noreply address is always
 accepted, and enough. A repository with no remote is never refused: nothing travels.
+
+**A record is published with the repository**: the notes are pushed, and every step's output
+travels in them. `nstack attest` writes the checkout's root as `<root>` and the home folder as `~`,
+whole folders only. Anything else a step prints travels as printed, and is the step's to keep out:
+a host name, a token a test echoes, a user name in a path outside the home — `/tmp/pytest-of-<user>/`
+in a failed test's output. The SHA-256 of each step is of its output as it ran, so it is not
+recomputed from the record. A record an earlier
+version pushed keeps its paths: notes are history, and rewriting them rewrites the evidence
+`pr-check` reads.
 
 ### Agents and approval
 
