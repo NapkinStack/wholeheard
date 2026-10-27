@@ -75,6 +75,15 @@ the other windows until the stop; then it comes back to rest. One window at a ti
 to the other replaces it, and the one left — `window` in the settings, `small` or `full` — is the
 one reopened. A settings file that cannot be read opens the full window, where it is said.
 
+**The first start** (D58, [its board](../../docs/project/drawings/d58-the-first-run/)) opens the
+full window on a short assistant, once — with `--window` or not, started with the session too: one
+question, are the meetings confidential; a second, who writes the minutes, only for « Rarement ou
+jamais »; then the setting said plainly, the model fetched on a click. *Passer*, « Je ne sais pas »
+and no answer keep everything on this computer. It opens by itself only while `welcomed` in the
+settings is not true and the sessions' folder holds no meeting, and `welcomed = true` is written as
+soon as it shows; *Settings → Refaire le réglage* opens it again, nothing changed before its last
+screen. The window left (`window`) is not changed by it.
+
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification
 says when it is there, and a click on it opens the session's folder under a Linux desktop.

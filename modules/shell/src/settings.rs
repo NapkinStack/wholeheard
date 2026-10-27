@@ -121,6 +121,8 @@ pub struct Settings {
     pub autostart: Option<bool>,
     /// The window opened from the menu or the tray: the one left (D35).
     pub window: Window,
+    /// The first run's assistant was shown (D58): it opens by itself at one start only.
+    pub welcomed: bool,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -148,6 +150,7 @@ impl Default for Settings {
             autostart: None,
             window: Window::Small,
             log: Log::Info,
+            welcomed: false,
         }
     }
 }
@@ -169,6 +172,12 @@ pub fn whisper_models(folder: &Path, settings: &Settings) -> Vec<PathBuf> {
     found.retain(|path| path.is_file() && fs::canonicalize(path).is_ok_and(|file| seen.insert(file)));
     found.sort_by_key(|path| path.file_name().map(|name| name.to_string_lossy().to_lowercase()));
     found
+}
+
+/// Whether the first run's assistant opens by itself at this start (D58): never shown yet, and no
+/// meeting in the sessions' folder — whoever has recorded already never meets it.
+pub fn welcome_due(settings: &Settings) -> bool {
+    !settings.welcomed && crate::sessions::list(&settings.sessions, None).is_empty()
 }
 
 /// Where the settings are on this system: `wholeheard/settings.toml` in the user's configuration.
@@ -198,6 +207,7 @@ struct Written {
     autostart: Option<bool>,
     window: Option<Window>,
     log: Option<Log>,
+    welcomed: Option<bool>,
 }
 
 /// Reads the settings. No file is no choice made: the defaults. A file that cannot be read as
@@ -234,6 +244,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.offer = written.offer.unwrap_or(settings.offer);
     settings.autostart = written.autostart;
     settings.window = written.window.unwrap_or(settings.window);
+    settings.welcomed = written.welcomed.unwrap_or(settings.welcomed);
     settings.log = written.log.unwrap_or(settings.log);
     settings.engine = written.engine.unwrap_or(settings.engine);
     settings.after = match (written.after, written.transcript) {
@@ -318,6 +329,9 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     }
     if settings.window != before.window {
         set(&mut document, "window", Value::from(settings.window.as_str()));
+    }
+    if settings.welcomed != before.welcomed {
+        set(&mut document, "welcomed", Value::from(settings.welcomed));
     }
     if settings.log != before.log {
         set(&mut document, "log", Value::from(settings.log.as_str()));

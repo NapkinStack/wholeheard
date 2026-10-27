@@ -262,3 +262,41 @@ body.small-window .bar { display: none; }
 .making-state.failed .what { color: var(--red); font-weight: 500; }
 @keyframes travel { from { background-position: -40% 0, 0 0; } to { background-position: 140% 0, 0 0; } }
 @media (prefers-reduced-motion: reduce) { .making-state .making-bar { animation: none; background: var(--accent); opacity: 0.5; } }
+
+/* The first run's assistant (D58's board): one card, centred, alone in the window; its answers
+   are radio cards, the setting said in a tinted band, then plain rows. */
+#welcome { min-height: 100vh; justify-content: center; align-items: center; padding: 24px 16px; }
+.welcome { width: min(600px, 100%); padding: 24px; display: flex; flex-direction: column; gap: 16px; animation: arrive 180ms ease-out; }
+@keyframes arrive { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .welcome { animation: none; } }
+.welcome-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.welcome h1 { margin: 0; font-size: 22px; line-height: 1.3; letter-spacing: -0.01em; }
+.welcome h1:focus { outline: none; }
+.welcome-eyebrow { margin: 0 0 -8px; font-size: 15px; }
+.welcome > .says { margin-top: -6px; }
+.welcome-choices { display: flex; flex-direction: column; gap: 10px; }
+.welcome .choice { border-width: 1.5px; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.welcome .choice:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.welcome .choice:has(input:checked) { background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.choice:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
+.welcome-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 4px; }
+.welcome-actions .link { align-self: center; color: var(--soft); }
+.welcome-actions .primary { margin-left: auto; }
+.welcome-top .link { color: var(--soft); }
+.welcome-mode { padding: 14px 16px; border-radius: 12px; background: color-mix(in srgb, var(--ok) 12%, var(--surface)); display: flex; flex-direction: column; gap: 2px; }
+.welcome-mode.connected { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.welcome-mode h1 { font-size: 19px; }
+.welcome-mode p { margin: 0; color: var(--soft); font-size: 14px; }
+.welcome-facts { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; }
+.welcome-facts dt { color: var(--soft); }
+.welcome-facts dd { margin: 0; display: flex; flex-wrap: wrap; column-gap: 8px; }
+.welcome-facts dd .says::before { content: "· "; }
+.welcome-wait { padding: 10px 12px; border-radius: 10px; background: var(--raised); }
+.welcome-from { margin-top: -8px; font-size: 13px; text-align: right; }
+.welcome-said:empty { display: none; }
+@media (max-width: 480px) {
+  .welcome { padding: 18px; }
+  .welcome-facts { grid-template-columns: 1fr; gap: 2px; }
+  .welcome-facts dd { margin-bottom: 8px; }
+  .welcome-from { text-align: left; }
+}

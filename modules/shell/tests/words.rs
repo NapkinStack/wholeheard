@@ -828,3 +828,31 @@ fn what_the_devices_are_decides_what_is_said_of_one_gone_and_one_back() {
         )
     );
 }
+
+#[test]
+fn the_first_run_s_french_is_typeset_as_french_and_both_languages_say_it() {
+    let french = words::window(Language::French);
+    let english = words::window(Language::English);
+    let said = [
+        french.welcome_question,
+        french.welcome_writer,
+        french.welcome_here[1],
+        french.welcome_connected[1],
+        french.welcome_ollama_silent,
+        french.welcome_ollama_lacks,
+        french.welcome_again[1],
+    ];
+    for sentence in said {
+        // A space before ? ! ; is a narrow one, before : a no-break one — never a plain space.
+        for mark in ['?', '!', ';', ':'] {
+            assert!(!sentence.contains(&format!(" {mark}")), "{sentence}");
+        }
+        assert!(!sentence.contains('\''), "{sentence}");
+    }
+    assert!(french.welcome_question.ends_with("confidentiels\u{202f}?"));
+    assert!(french.welcome_ollama_silent.contains("ordinateur\u{a0}:") && french.welcome_ollama_silent.contains("ollama.com"));
+    assert_eq!(french.welcome_private[0], "Mode privé");
+    assert_eq!(english.welcome_private[0], "Private mode");
+    assert_eq!(english.welcome_connected[0], "Connected mode");
+    assert!(english.welcome_ollama_silent.contains("ollama.com"));
+}

@@ -70,7 +70,8 @@ titles() {
 
 start() { # the language, the settings file's text, the recorder
   mkdir -p "$work/config/wholeheard" "$work/sessions"; rm -f "$work/sessions/given" "$work/sessions/told"
-  printf 'sessions = "%s"\n%b\n' "$work/sessions" "$2" > "$work/config/wholeheard/settings.toml"
+  # Set up already (D58): the first run's assistant is the window's scenario's, never these.
+  printf 'sessions = "%s"\nwelcomed = true\n%b\n' "$work/sessions" "$2" > "$work/config/wholeheard/settings.toml"
   LANGUAGE= LC_ALL="$1" LANG="$1" XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" XDG_STATE_HOME="$work/state" WHOLEHEARD_CAPTURE="$3" \
     WHOLEHEARD_TRANSCRIPTION="$work/wholeheard-transcription" WHOLEHEARD_MODEL_PUBLISHED="$published" WHOLEHEARD_SUMMARY="$work/wholeheard-summary" WHOLEHEARD_KEYRING=memory "$bin" 2>> "$work/errors" &
   app=$!
