@@ -34,7 +34,7 @@ jobs:
   check:
     name: Windows — ${{ matrix.module }}
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -47,3 +47,8 @@ jobs:
       - name: cargo check
         working-directory: modules/${{ matrix.module }}
         run: cargo check --locked --all-targets --keep-going
+
+      # D53's first criterion: each program's tests pass on Windows, not only build there.
+      - name: cargo test
+        working-directory: modules/${{ matrix.module }}
+        run: cargo test --locked --no-fail-fast
