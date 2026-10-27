@@ -115,6 +115,8 @@ noise of a run: three ways to store the same model gave 27.3, 28.0 and 28.4 %.
 
 ## Success criterion
 
+Read at 01-first-meeting-on-three-systems's closure, 2026-10-27: met
+
 > We will consider this was the right call if, **by the end of cycle 01 (2026-10-27)**, D4 is
 > accepted on Fedora with this engine, and if a second engine — any one — is added **without
 > a change to the step**: only a new implementation of the interface, and a setting.
