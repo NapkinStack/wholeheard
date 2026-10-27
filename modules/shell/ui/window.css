@@ -332,3 +332,8 @@ body.small-window .bar { display: none; }
 .chip.locked .lock { width: 13px; height: 13px; color: inherit; }
 #small .confidential .name { font-size: 14px; }
 #small .confidential .says { font-size: 12.5px; }
+/* The context open, the small window is full: the switch on one line, its words still read; the
+   devices' names in their meters' titles alone. */
+.small-live.context-open { gap: 10px; }
+.small-live.context-open .meter .device { display: none; }
+.small-live.context-open .confidential .says { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

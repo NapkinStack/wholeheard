@@ -2019,6 +2019,8 @@ function showSmall(words) {
     toggled.textContent = open ? words.context_open : field.area.value.trim() ? words.context_edit : words.context_add;
     disclose.lastChild.textContent = open ? "▴" : "▾";
     note.hidden = open || note.dataset.follows !== "true";
+    // Open, the window is full: the switch keeps its name, its words said to a screen reader (D60).
+    live.classList.toggle("context-open", open);
   };
   unfold(false);
   disclose.addEventListener("click", () => {
@@ -2126,6 +2128,8 @@ function showSmall(words) {
       const named = document.getElementById(id);
       named.textContent = now.devices[index] ?? "";
       named.title = now.devices[index] ?? "";
+      // Its name hidden while the context is open: said on its meter still (D60).
+      named.closest(".meter").title = now.devices[index] ?? "";
     }
     stop.disabled = !now.recording;
     note.dataset.follows = String(now.transcript_follows);
