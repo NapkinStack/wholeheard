@@ -908,6 +908,7 @@ def first_run(now: dt.datetime) -> None:
         press(browser, "welcome-later")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
         check("confirmed, it is saved", 'minutes_model = "qwen3:8b"' in window.file.read_text(), window.file.read_text())
+        check("and the reminder left on, as it was", "reminder = false" not in window.file.read_text(), window.file.read_text())
         # Private changes who transcribes and who writes, and nothing else: from a service that
         # hears, with the reminder off, a model and a folder of the user's, confirmed private.
         lines = [line for line in window.file.read_text().splitlines()
