@@ -40,7 +40,9 @@ BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
 # wholeheard-summary played here: it says what it was given — its arguments, the key in its
 # environment, the context it would send (D59), read where the real one reads it. A test refuses a
 # key at openrouter.ai and answers elsewhere; minutes are written, naming their context as the
-# real ones do, the way it was called kept beside them. Nothing leaves the machine.
+# real ones do, the way it was called kept beside them. Nothing leaves the machine. Where a scenario
+# stands a service in ($STANDIN, D60), a request for a provider elsewhere than this computer is sent
+# to it, as the real one would send it there, and the minutes name the host that answered.
 SUMMARY = WORK / "wholeheard-summary"
 SUMMARY.write_text(
     """#!/bin/sh
@@ -48,13 +50,16 @@ here=$(dirname "$0")
 printf '%s\\n' "$*" > "$here/summary-args"
 printf '%s' "${WHOLEHEARD_PROVIDER_KEY:-none}" > "$here/summary-key"
 if [ "$1" != --test ]; then
+  provider=local
+  case "$3" in http://127.0.0.1*|http://localhost*) ;; *) provider=$(python3 -c "$HOST" "$3"); [ -n "$STANDIN" ] && python3 -c "$SEND" "$STANDIN/write";; esac
   [ -e "$here/slow-minutes" ] && sleep 3
   [ -e "$here/fail-minutes" ] && { echo '{"event": "failed", "code": "answer.not_minutes"}'; echo "wholeheard-summary: the provider's answer is not minutes" >&2; exit 1; }
   [ -e "$here/fail-plainly" ] && { echo "wholeheard-summary: a failure no code names" >&2; exit 1; }
   context=$(python3 -c "$CONTEXT" "$1")
   printf '%s' "$context" > "$here/summary-context"
   echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'
-  printf -- '---\\ncontract: minutes/v1\\nmodel: %s\\ncontext: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n' "$5" "$context" > "$1/minutes.md"
+  named=""; [ -n "$STANDIN" ] && named="provider: $provider\\n"
+  printf -- "---\\ncontract: minutes/v1\\n${named}model: %s\\ncontext: %s\\n---\\n\\n## A\\n\\n## B\\n\\n## C\\n" "$5" "$context" > "$1/minutes.md"
   echo '{"event": "written", "file": "x"}'
   exit 0
 fi
@@ -64,15 +69,22 @@ echo '{"event": "answered"}'
 """
 )
 SUMMARY.chmod(0o755)
-# wholeheard-transcription played here: a whole transcript, naming the model it was given.
+# wholeheard-transcription played here: a whole transcript, naming the model it was given — a
+# service's by its host, as the real one names it; where a scenario stands the service in
+# ($STANDIN, D60), its request is sent to it, as the real one would send the sound there.
 HEARING = WORK / "wholeheard-transcription"
 HEARING.write_text(
     """#!/bin/sh
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
-[ -e "$(dirname "$0")/slow-hearing" ] && sleep 3
+engine=whisper.cpp
 model=$(basename "$3" .bin)
+if [ "$2" = --provider ]; then
+  engine=$(python3 -c "$HOST" "$3"); model=$5
+  [ -n "$STANDIN" ] && python3 -c "$SEND" "$STANDIN/hear"
+fi
+[ -e "$(dirname "$0")/slow-hearing" ] && sleep 3
 context=$(python3 -c "$CONTEXT" "$1")
-printf '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"%s","language":null,"context":%s}\\n{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Refait avec %s."}\\n{"type":"complete","duration":1.0}\\n' "$model" "$context" "$model" > "$1/transcript.jsonl"
+printf '{"type":"header","contract":"transcript/v1","engine":"%s","model":"%s","language":null,"context":%s}\\n{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Refait avec %s."}\\n{"type":"complete","duration":1.0}\\n' "$engine" "$model" "$context" "$model" > "$1/transcript.jsonl"
 """
 )
 HEARING.chmod(0o755)
@@ -82,6 +94,10 @@ os.environ["CONTEXT"] = (
     "import json, pathlib, sys; f = pathlib.Path(sys.argv[1], 'context.txt'); "
     "t = f.read_text().strip() if f.exists() else ''; print(json.dumps(t or None, ensure_ascii=False))"
 )
+# The host of a provider's address, and a request sent to a stand-in service, for the two above.
+os.environ["HOST"] = "import sys, urllib.parse; print(urllib.parse.urlsplit(sys.argv[1]).hostname)"
+os.environ["SEND"] = "import sys, urllib.request; urllib.request.urlopen(urllib.request.Request(sys.argv[1], data=b'x', method='POST'), timeout=5)"
+
 # wholeheard-capture played here: it says it started, then each source's level ten times a second,
 # until it is told to stop. No device, nobody recorded.
 RECORDER = WORK / "wholeheard-capture"
@@ -1031,7 +1047,7 @@ def context_written(now: dt.datetime) -> None:
         check("reached by Tab and opened by Enter, the field takes the focus, named by its label",
               reached and opened and area.get_attribute("aria-label") == "De quoi parle la réunion ? Qui y participe ?"
               and area.get_attribute("placeholder") == area.get_attribute("aria-label"), (reached, focused(browser), area.get_attribute("aria-label")))
-        check("open, the note on the transcript makes room for it", not browser.find_element(By.CSS_SELECTOR, "#small .says").is_displayed())
+        check("open, the note on the transcript makes room for it", not browser.find_element(By.ID, "small-note").is_displayed())
         check("its count is said where a screen reader hears it, before a word is typed",
               browser.find_element(By.ID, "small-context-count").get_attribute("role") == "status"
               and area.get_attribute("aria-describedby") == "small-context-count"
@@ -1212,6 +1228,296 @@ def context_written(now: dt.datetime) -> None:
         check("in English, a meeting's page offers Redo with this context", changed
               and browser.find_element(By.ID, "context-redo").text == "Redo with this context", browser.find_element(By.ID, "context-redo").text)
         seen(browser, "d59-4-page-changed-dark")
+
+
+def confidential_kept(now: dt.datetime) -> None:
+    """AA. A meeting said confidential (D60): with a service named in the settings to hear and to
+    write, nothing is asked of it — a stand-in service counts its requests —; the meeting is made
+    here, by Whisper and Ollama; turned on while a service makes it, after it wrote, or while its
+    agreement is asked, made again here and what had left said; turned off, the settings choose
+    again."""
+    print("AA. a meeting said confidential: nothing sent to the services the settings name, made here; turned off, the settings choose again (D60)")
+    counted = {"hear": 0, "write": 0}
+    ollama = {"held": ["mistral:7b", "qwen3:8b"], "silent": False}
+
+    # The services the settings name, stood in: each request the steps send them is counted.
+    class Service(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_POST(self):
+            counted[self.path.strip("/")] += 1
+            self.rfile.read(int(self.headers.get("content-length") or 0))
+            self.send_response(200)
+            self.send_header("content-length", "0")
+            self.end_headers()
+
+        def log_message(self, *_):
+            pass
+
+    # Ollama on this computer: its models; silent when the scenario says so; a pull that is whole.
+    class Ollama(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_GET(self):
+            body = json.dumps({"models": [{"name": name} for name in ollama["held"]]}).encode()
+            self.send_response(500 if ollama["silent"] else 200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("content-length") or 0))
+            ollama["held"].append("qwen3:8b")
+            self.send_response(200)
+            self.send_header("content-type", "application/x-ndjson")
+            self.end_headers()
+            self.wfile.write(b'{"status":"success"}\n')
+
+        def log_message(self, *_):
+            pass
+
+    servers = [http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) for handler in (Service, Ollama)]
+    for server in servers:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+    standin, base = (f"http://127.0.0.1:{server.server_port}" for server in servers)
+    model = WORK / "confidential-model.bin"
+    model.write_bytes(b"\0" * 16)
+    named = (f'after = "minutes"\nreminder = false\nmodel = "{model}"\n'
+             'engine = "service"\ntranscription_provider = "https://hears.example/v1"\ntranscription_model = "whisper-1"\n'
+             'transcription_agreed = "hears.example"\nminutes_provider = "https://writes.example/v1"\nminutes_model = "gpt-4.1-mini"\n')
+    agreed = named + 'minutes_agreed = "writes.example"\n'
+    fits = lambda b: b.execute_script("const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
+    front = lambda folder, key: next((line.split(": ", 1)[1] for line in (folder / "minutes.md").read_text().splitlines()
+                                      if line.startswith(f"{key}: ")), None) if (folder / "minutes.md").exists() else None
+    engine = lambda folder: json.loads((folder / "transcript.jsonl").read_text().splitlines()[0]).get("engine") \
+        if (folder / "transcript.jsonl").exists() and (folder / "transcript.jsonl").read_text().strip() else None
+    names = lambda folder: sorted(p.name for p in folder.iterdir())
+    switch = lambda b, id_: b.find_element(By.ID, id_)
+    focused = lambda b: b.execute_script("return document.activeElement.id")
+    left = "return document.getElementById('confidential-left')?.hidden ? '' : (document.getElementById('confidential-left')?.innerText || '')"
+    css = (Path(__file__).parent.parent / "ui" / "window.css").read_text()
+    light = css[css.index(":root {") + len(":root {"):css.index("}", css.index(":root {"))].replace("\n", " ").strip()
+
+    def seen(browser, name: str) -> None:
+        """A screenshot in the theme its name says: the light one put on the page over a dark desktop."""
+        forced = "light" in name and browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
+        if forced:
+            browser.execute_script("document.documentElement.style.cssText = arguments[0] + '; color-scheme: light'", light)
+            time.sleep(0.3)
+        shot(browser, name)
+        if forced:
+            browser.execute_script("document.documentElement.style.cssText = ''")
+
+    def window(folder: Path, language: str, more: str, small: bool = False, dark: bool = False) -> "Window":
+        made = Window(folder, language, more, ollama=base, small=small)
+        made.env.update(STANDIN=standin)
+        if dark:
+            made.env.update(GTK_THEME="Adwaita:dark")
+        return made
+
+    # While recording, in the small window: said confidential by the keyboard, the file written.
+    meetings = WORK / "confidential"
+    meetings.mkdir()
+    meeting = meetings / "2026-10-18_12-00"
+    with window(meetings, "fr_FR.UTF-8", agreed, small=True) as browser:
+        # Started by the keyboard, once the page has the focus.
+        wait_for(browser, lambda b: focused(b) == "small-record", 10)
+        ActionChains(browser).send_keys(Keys.ENTER).perform()
+        started = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        row = browser.find_element(By.CSS_SELECTOR, "#small .confidential")
+        check("recording, the small window offers « Réunion confidentielle — rien ne quitte cet ordinateur », off",
+              started and "Réunion confidentielle" in row.text and "Rien ne quitte cet ordinateur" in row.text
+              and switch(browser, "small-confidential").get_attribute("role") == "switch"
+              and not switch(browser, "small-confidential").is_selected(), row.text)
+        check("the lock before its words is drawn, never read aloud",
+              browser.execute_script("return document.querySelector('#small .confidential svg.lock')?.getAttribute('aria-hidden')") == "true")
+        time.sleep(0.4)
+        seen(browser, "d60-1-small-off-light")
+        wait_for(browser, lambda b: (meeting / "session.json").exists(), 3)
+        switch(browser, "small-confidential").send_keys(Keys.SPACE)
+        marked = wait_for(browser, lambda b: (meeting / "confidential").exists(), 3)
+        check("turned on by the keyboard, the meeting's file confidential is written, empty, nothing beside it",
+              marked and (meeting / "confidential").read_bytes() == b"" and names(meeting) == ["confidential", "session.json"], names(meeting))
+        time.sleep(0.3)
+        check("on, the window holds whole — 380 × 400", fits(browser)[0] <= fits(browser)[1]
+              and browser.execute_script("return [innerWidth, innerHeight]") == [380, 400], fits(browser))
+        seen(browser, "d60-2-small-on-light")
+        press(browser, "small-context-toggle")
+        time.sleep(0.4)
+        check("its context opened too, the window still holds whole", fits(browser)[0] <= fits(browser)[1], fits(browser))
+        seen(browser, "d60-3-small-on-context-light")
+        stop_from_small(browser)
+        made = wait_for(browser, lambda b: front(meeting, "provider") == "local", 20)
+        check("stopped: the transcript made by Whisper with the settings' model, the minutes by Ollama's recommended model",
+              made and engine(meeting) == "whisper.cpp" and front(meeting, "model") == "qwen3:8b"
+              and f"--provider {base}/v1" in (WORK / "summary-args").read_text(), (engine(meeting), front(meeting, "model")))
+        check("the services the settings name count no request", counted == {"hear": 0, "write": 0}, counted)
+
+    # In the full window: the list's lock; turned off, the settings choose again; on, made again here.
+    with window(meetings, "fr_FR.UTF-8", agreed) as browser:
+        chips = browser.execute_script("return [...document.querySelectorAll('.session .chip.locked')].map(c => [c.textContent, !!c.querySelector('svg.lock')])")
+        check("the list shows the meeting with a lock and its word", chips == [["Confidentielle", True]], chips)
+        seen(browser, "d60-4-list-light")
+        browser.execute_script(f"location.hash = '#/meeting/{meeting.name}'")
+        shown = wait_for(browser, lambda b: b.find_elements(By.ID, "confidential-switch"), 10)
+        check("its page says it, the switch on, the lock among what it holds, nothing said to have left",
+              shown and switch(browser, "confidential-switch").is_selected()
+              and browser.find_element(By.CSS_SELECTOR, "#meeting .meeting-title .chip.locked").text == "Confidentielle"
+              and browser.execute_script(left) == "")
+        press(browser, "confidential-switch")
+        off = wait_for(browser, lambda b: not (meeting / "confidential").exists(), 3)
+        check("turned off, the file is removed", off and "confidential" not in names(meeting), names(meeting))
+        (meeting / "minutes.md").unlink()
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script(f"location.hash = '#/meeting/{meeting.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"), 10)
+        press(browser, "make-minutes")
+        sent = wait_for(browser, lambda b: front(meeting, "provider") == "writes.example", 10)
+        check("turned off, the settings choose again: the service named writes them", sent and counted["write"] == 1, counted)
+        press(browser, "confidential-switch")
+        again = wait_for(browser, lambda b: front(meeting, "provider") == "local", 10)
+        said = wait_for(browser, lambda b: b.execute_script(left) == "Déjà parti avant\u00a0: le transcript vers writes.example.", 5)
+        check("turned on after a service wrote them: written again here, nothing more sent",
+              again and front(meeting, "model") == "qwen3:8b" and counted["write"] == 1, (front(meeting, "provider"), counted))
+        check("and the page says what had left, to which host", said, browser.execute_script(left))
+        seen(browser, "d60-5-page-left-light")
+
+    # Turned on while a service hears it: ended, heard here, the minutes after it here too.
+    heard = WORK / "confidential-heard"
+    session(heard / "live", now - dt.timedelta(hours=1), 3, {"local.wav": 1000})
+    (WORK / "slow-hearing").touch()
+    try:
+        with window(heard, "fr_FR.UTF-8", agreed) as browser:
+            browser.execute_script("location.hash = '#/meeting/live'")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "make-transcript"), 10)
+            press(browser, "make-transcript")
+            asked = wait_for(browser, lambda b: counted["hear"] == 1, 10)
+            press(browser, "confidential-switch")
+            remade = wait_for(browser, lambda b: front(heard / "live", "provider") == "local", 25)
+            check("turned on while a service hears it: ended, heard here by Whisper, the minutes written here",
+                  asked and remade and engine(heard / "live") == "whisper.cpp" and counted == {"hear": 1, "write": 1}, (engine(heard / "live"), counted))
+            said = wait_for(browser, lambda b: b.execute_script(left) == "Déjà parti avant\u00a0: le son vers hears.example.", 5)
+            check("the page says the sound had left, to which host", said, browser.execute_script(left))
+            check("its end is no failure said", not browser.find_elements(By.ID, "transcript-again"))
+    finally:
+        (WORK / "slow-hearing").unlink()
+
+    # Its agreement asked: no longer, made here.
+    asking = WORK / "confidential-asked"
+    session(asking / "asked", now - dt.timedelta(hours=2), 3, {"local.wav": 1000, "transcript.jsonl": 0})
+    (asking / "asked" / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n{"type":"complete","duration":1.0}\n'
+    )
+    with window(asking, "fr_FR.UTF-8", named) as browser:
+        browser.execute_script("location.hash = '#/meeting/asked'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"), 10)
+        press(browser, "make-minutes")
+        agreeing = wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/agree/asked", 5)
+        browser.execute_script("location.hash = '#/meeting/asked'")
+        waits = wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-agree"), 10)
+        check("a service not agreed to: the agreement is asked, nothing sent", agreeing and waits and counted["write"] == 1, counted)
+        press(browser, "confidential-switch")
+        here = wait_for(browser, lambda b: front(asking / "asked", "provider") == "local", 10)
+        check("turned on while it is asked: no longer asked, written here, nothing sent",
+              here and not browser.find_elements(By.ID, "minutes-agree") and counted["write"] == 1, counted)
+        browser.execute_script("location.hash = '#/agree/asked'")
+        back = wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/", 5)
+        check("its agreement page is no longer shown", back, browser.execute_script("return location.hash"))
+
+    # Ollama silent, then holding no model: the minutes wait, said, its model offered.
+    waiting = WORK / "confidential-waiting"
+    session(waiting / "wait", now - dt.timedelta(hours=3), 3, {"local.wav": 1000, "transcript.jsonl": 0})
+    (waiting / "wait" / "transcript.jsonl").write_text((asking / "asked" / "transcript.jsonl").read_text())
+    (waiting / "wait" / "confidential").touch()
+    ollama.update(held=[], silent=True)
+    state = "return document.getElementById('minutes-state')?.innerText || ''"
+    with window(waiting, "fr_FR.UTF-8", agreed) as browser:
+        browser.execute_script("location.hash = '#/meeting/wait'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"), 10)
+        press(browser, "make-minutes")
+        silent = wait_for(browser, lambda b: "Ollama ne répond pas sur cet ordinateur" in b.execute_script(state), 10)
+        check("Ollama silent: the minutes wait, said where to get it, nothing asked nor sent",
+              silent and browser.find_elements(By.ID, "minutes-again") and counted["write"] == 1
+              and not (waiting / "wait" / "minutes.md").exists(), browser.execute_script(state))
+        ollama["silent"] = False
+        press(browser, "minutes-again")
+        empty = wait_for(browser, lambda b: "Ollama n’a aucun modèle sur cet ordinateur" in b.execute_script(state), 10)
+        offered = browser.find_elements(By.ID, "ollama-fetch")
+        check("holding no model: said, its recommended model offered", empty and offered and offered[0].text == "Télécharger qwen3:8b",
+              browser.execute_script(state))
+        seen(browser, "d60-6-ollama-empty-light")
+        press(browser, "ollama-fetch")
+        written = wait_for(browser, lambda b: front(waiting / "wait", "model") == "qwen3:8b", 15)
+        check("fetched, the minutes waiting are written by it, here", written and front(waiting / "wait", "provider") == "local"
+              and counted["write"] == 1, counted)
+
+    # In English, in the dark theme.
+    english = WORK / "confidential-en"
+    english.mkdir()
+    with window(english, "en_GB.UTF-8", agreed, small=True, dark=True) as browser:
+        wait_for(browser, lambda b: focused(b) == "small-record", 10)
+        ActionChains(browser).send_keys(Keys.ENTER).perform()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        wait_for(browser, lambda b: (english / "2026-10-18_12-00" / "session.json").exists(), 3)
+        press(browser, "small-confidential")
+        marked = wait_for(browser, lambda b: (english / "2026-10-18_12-00" / "confidential").exists(), 3)
+        row = browser.find_element(By.CSS_SELECTOR, "#small .confidential").text
+        time.sleep(0.3)
+        check("in English, « Confidential meeting — nothing leaves this computer », on, the window whole",
+              marked and "Confidential meeting" in row and "Nothing leaves this computer" in row and fits(browser)[0] <= fits(browser)[1], row)
+        seen(browser, "d60-2-small-on-dark")
+        stop_from_small(browser)
+        wait_for(browser, lambda b: front(english / "2026-10-18_12-00", "provider") == "local", 20)
+    with window(english, "en_GB.UTF-8", agreed, dark=True) as browser:
+        chips = browser.execute_script("return [...document.querySelectorAll('.session .chip.locked')].map(c => c.textContent)")
+        seen(browser, "d60-4-list-dark")
+        browser.execute_script("location.hash = '#/meeting/2026-10-18_12-00'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "confidential-switch"), 10)
+        check("in English, the list and the page say it", chips == ["Confidential"] and switch(browser, "confidential-switch").is_selected()
+              and counted == {"hear": 1, "write": 1}, (chips, counted))
+        seen(browser, "d60-5-page-dark")
+
+    # Turned on while a service writes the minutes: that making ended, written again here.
+    writing = WORK / "confidential-writing"
+    session(writing / "sent", now - dt.timedelta(hours=3), 3, {"local.wav": 1000, "transcript.jsonl": 0})
+    (writing / "sent" / "transcript.jsonl").write_text((asking / "asked" / "transcript.jsonl").read_text())
+    (WORK / "slow-minutes").touch()
+    try:
+        with window(writing, "fr_FR.UTF-8", agreed) as browser:
+            browser.execute_script("location.hash = '#/meeting/sent'")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"), 10)
+            press(browser, "make-minutes")
+            asked = wait_for(browser, lambda b: counted["write"] == 2, 10)
+            press(browser, "confidential-switch")
+            here = wait_for(browser, lambda b: front(writing / "sent", "provider") == "local", 25)
+            check("turned on while a service writes the minutes: ended, written here, nothing more sent",
+                  asked and here and counted == {"hear": 1, "write": 2}, (front(writing / "sent", "provider"), counted))
+            said = wait_for(browser, lambda b: b.execute_script(left) == "Déjà parti avant\u00a0: le transcript vers writes.example.", 5)
+            check("the page says the transcript had left, to which host", said, browser.execute_script(left))
+            check("its end is no failure said", not browser.find_elements(By.ID, "minutes-again"))
+    finally:
+        (WORK / "slow-minutes").unlink()
+
+    # A service named to hear, the default Whisper model not there: said confidential, the meeting
+    # waits for the model, offered as Settings offer it, and nothing is sent.
+    unmodelled = WORK / "confidential-no-model"
+    session(unmodelled / "kept", now - dt.timedelta(hours=4), 3, {"local.wav": 1000})
+    (unmodelled / "kept" / "confidential").touch()
+    bare = window(unmodelled, "fr_FR.UTF-8", agreed.replace(f'model = "{model}"\n', ""))
+    # Its own data folder: no default model fetched there by an earlier scenario.
+    bare.env.update(XDG_DATA_HOME=str(WORK / "data-confidential"))
+    with bare as browser:
+        browser.execute_script("location.hash = '#/meeting/kept'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-transcript"), 10)
+        press(browser, "make-transcript")
+        waits = "return document.getElementById('transcript-state')?.innerText || ''"
+        offered = wait_for(browser, lambda b: "En attente du modèle Whisper" in b.execute_script(waits)
+                           and b.find_elements(By.CSS_SELECTOR, "#transcript-state #model-fetch"), 10)
+        check("the Whisper model missing: said and offered as Settings offer it, the service named asked nothing",
+              offered and counted == {"hear": 1, "write": 2}, (browser.execute_script(waits), counted, names(unmodelled / "kept")))
+    for server in servers:
+        server.shutdown()
 
 
 def main() -> int:
@@ -2271,7 +2577,7 @@ def main() -> int:
         lost = wait_for(browser, lambda b: named(b) == ("AirPods Pro", ""), 1.5)
         check("a device changed is named within a second; a side with none names none", moved and lost, named(browser))
         shot(browser, "6-small-devices")
-        check("nothing follows the stop here: the small window does not say the transcript writes itself", not browser.find_element(By.CSS_SELECTOR, "#small .says").is_displayed())
+        check("nothing follows the stop here: the small window does not say the transcript writes itself", not browser.find_element(By.ID, "small-note").is_displayed())
         browser.find_element(By.ID, "small-stop").click()
         rest = wait_for(browser, lambda b: b.find_elements(By.ID, "small-record") and b.find_element(By.ID, "small-record").is_displayed(), 5)
         stopped = '"stopped"' in (taping / "2026-10-18_12-00" / "session.json").read_text()
@@ -2317,7 +2623,7 @@ def main() -> int:
         check("in English too, it holds in its window", said == "Your microphone" and fits[0] <= fits[1], (said, fits))
         starts = browser.execute_script("return [...document.querySelectorAll('#small .track')].map(t => t.getBoundingClientRect().left)")
         check("the two meters start at the same place", len(starts) == 2 and starts[0] == starts[1], starts)
-        note = browser.find_element(By.CSS_SELECTOR, "#small .says")
+        note = browser.find_element(By.ID, "small-note")
         check("the transcript follows the stop: the small window says so", note.is_displayed() and "transcript" in note.text, note.text)
         browser.find_element(By.ID, "small-stop").click()
         rest = wait_for(browser, lambda b: b.find_elements(By.ID, "small-record") and b.find_element(By.ID, "small-record").is_displayed(), 5)
@@ -2605,6 +2911,7 @@ def main() -> int:
     ollama_pulled(now)
     first_run(now)
     context_written(now)
+    confidential_kept(now)
     return 1 if FAILED else 0
 
 

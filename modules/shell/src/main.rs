@@ -27,7 +27,9 @@ use tauri_plugin_notification::NotificationExt;
 #[cfg(target_os = "linux")]
 use wholeheard_shell::microphone;
 use wholeheard_shell::{
-    autostart, context, desktop, keys, log,
+    autostart,
+    confidential::{self, Left, Wait, What},
+    context, desktop, keys, log,
     meeting::{self, Read, Transcript},
     migrate,
     minutes::{self, Minutes},
@@ -132,6 +134,19 @@ struct Shell {
     /// model is needed and not there.
     menu: Menu<Wry>,
     download: MenuItem<Wry>,
+    /// The host the transcript being made is sent to, when a service hears it (D60).
+    hearing_host: Mutex<Option<String>>,
+    /// The host the minutes being written are sent to, when it is not this computer (D60).
+    minutes_host: Mutex<Option<String>>,
+    /// Makings ended because their meeting was said confidential — its transcript, its minutes —:
+    /// made again here, their end is no failure to tell (D60).
+    heard_here: Mutex<std::collections::HashSet<PathBuf>>,
+    written_here: Mutex<std::collections::HashSet<PathBuf>>,
+    /// What had left before a meeting was said confidential, and to which host: said on its page
+    /// while it stays so, until Wholeheard quits (D60).
+    left: Mutex<HashMap<PathBuf, Vec<Left>>>,
+    /// Confidential meetings whose minutes wait for Ollama: silent, or holding no model (D60).
+    ollama_waiting: Mutex<HashMap<PathBuf, Wait>>,
     /// The model is coming.
     fetching: Mutex<bool>,
     /// The model being fetched, by its file, and how far: the bytes held, of how many (D37).
@@ -222,6 +237,7 @@ fn main() {
             context_shown,
             context_saved,
             context_redo,
+            confidential_set,
             transcript_redo,
             transcript_asked,
             transcript_again,
@@ -347,6 +363,12 @@ fn main() {
                 transcripts_tried: Mutex::new(HashMap::new()),
                 menu,
                 download,
+                hearing_host: Mutex::new(None),
+                minutes_host: Mutex::new(None),
+                heard_here: Mutex::default(),
+                written_here: Mutex::default(),
+                left: Mutex::default(),
+                ollama_waiting: Mutex::default(),
                 fetching: Mutex::new(false),
                 fetched: Mutex::new(None),
             });
@@ -784,6 +806,8 @@ struct Now {
     /// The meeting being recorded, once its folder holds its session: its context can be written
     /// (D59).
     meeting: Option<String>,
+    /// Whether it is said confidential (D60).
+    confidential: bool,
 }
 
 #[tauri::command]
@@ -795,8 +819,9 @@ fn recording_now(shell: State<'_, Shell>) -> Now {
         .lock()
         .unwrap()
         .clone()
-        .filter(|folder| recording && folder.join("session.json").is_file())
-        .map(|folder| named(&folder));
+        .filter(|folder| recording && folder.join("session.json").is_file());
+    let confidential = meeting.as_deref().is_some_and(confidential::marked);
+    let meeting = meeting.map(|folder| named(&folder));
     Now {
         recording: shell.recording.lock().unwrap().is_some() && started.is_some(),
         seconds: started.map_or(0.0, |started| started.elapsed().as_secs_f64()),
@@ -804,6 +829,7 @@ fn recording_now(shell: State<'_, Shell>) -> Now {
         devices: shell.devices.lock().unwrap().names(),
         transcript_follows: shell.settings.lock().unwrap().after != settings::After::Nothing,
         meeting,
+        confidential,
     }
 }
 
@@ -849,6 +875,7 @@ struct Opened {
     /// a path (D26, ADR-0009); none when its audio went to the trash or holds no track.
     listen: Option<String>,
     context: ContextShown,
+    confidential: ConfidentialShown,
 }
 
 #[tauri::command]
@@ -866,7 +893,100 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
         developer: shell.settings().developer,
         listen: playable(&shell, &folder),
         context: context_of(&shell, &folder),
+        confidential: confidential_of(&shell, &folder),
     })
+}
+
+/// Whether a meeting is said confidential, and what had left before it was (D60).
+#[derive(serde::Serialize)]
+struct ConfidentialShown {
+    on: bool,
+    left: Vec<Left>,
+}
+
+fn confidential_of(shell: &Shell, folder: &Path) -> ConfidentialShown {
+    let on = confidential::marked(folder);
+    let mut left = shell.left.lock().unwrap().get(folder).cloned().unwrap_or_default();
+    let read = confidential::left(
+        &meeting::transcript(folder),
+        &minutes::minutes(folder, words::window(shell.language).minutes_sections),
+    );
+    for said in read {
+        confidential::add(&mut left, said.what, &said.host);
+    }
+    ConfidentialShown {
+        on,
+        left: if on { left } else { Vec::new() },
+    }
+}
+
+/// « Réunion confidentielle » turned on or off (D60): the file written or removed whole. Turned
+/// on, nothing more leaves: a making that sends is ended and made again here, an agreement asked
+/// is no longer, minutes a service wrote are written again here — what had already left kept to
+/// be said, with its host. Turned off, the settings choose again, for what is made next.
+#[tauri::command]
+fn confidential_set(app: AppHandle, shell: State<'_, Shell>, name: String, on: bool) -> Result<ConfidentialShown, String> {
+    let folder = session_folder(&shell, &name)?;
+    confidential::mark(&folder, on).map_err(|error| error.to_string())?;
+    tracing::info!(on, "shell.confidential");
+    if !on {
+        // Waiting for Ollama no longer: the page offers them again, made as the settings say.
+        shell.ollama_waiting.lock().unwrap().remove(&folder);
+        return Ok(confidential_of(&shell, &folder));
+    }
+    let mut left = confidential::left(
+        &meeting::transcript(&folder),
+        &minutes::minutes(&folder, words::window(shell.language).minutes_sections),
+    );
+    // The transcript a service is making: ended, made again here first in line.
+    let running = shell.transcription.lock().unwrap();
+    let hearing = shell.hearing.lock().unwrap().as_deref() == Some(folder.as_path());
+    let heard_elsewhere = shell.hearing_host.lock().unwrap().clone().filter(|_| hearing);
+    if let (Some(host), Some(transcription)) = (heard_elsewhere, running.as_ref()) {
+        confidential::add(&mut left, What::Sound, &host);
+        shell.heard_here.lock().unwrap().insert(folder.clone());
+        let mut waiting = shell.waiting.lock().unwrap();
+        waiting.retain(|(queued, _)| *queued != folder);
+        waiting.push_front((folder.clone(), Some(Again::Settings)));
+        drop(waiting);
+        tracing::info!(host = %host, "shell.confidential_ended");
+        transcription.end();
+    }
+    drop(running);
+    // The minutes a service is writing: ended, made again here first in line.
+    let writing = shell.writing_minutes.lock().unwrap().as_deref() == Some(folder.as_path());
+    let written_elsewhere = shell.minutes_host.lock().unwrap().clone().filter(|_| writing);
+    if let Some(host) = &written_elsewhere {
+        confidential::add(&mut left, What::Transcript, host);
+        shell.written_here.lock().unwrap().insert(folder.clone());
+        tracing::info!(host = %host, "shell.confidential_ended");
+        if let Some(making) = shell.minuting.lock().unwrap().as_ref() {
+            making.end();
+        }
+    }
+    {
+        let mut kept = shell.left.lock().unwrap();
+        let said = kept.entry(folder.clone()).or_default();
+        for one in left {
+            confidential::add(said, one.what, &one.host);
+        }
+    }
+    // Its agreement asked: no longer — made here instead. Its minutes a service wrote: written
+    // again here, the ones there kept until the new ones are whole.
+    let awaiting = shell.awaiting.lock().unwrap().iter().any(|(aside, _)| *aside == folder);
+    let queued = shell.minutes_waiting.lock().unwrap().iter().any(|queued| queued.folder == folder);
+    let by_service = matches!(
+        minutes::minutes(&folder, words::window(shell.language).minutes_sections),
+        Read::Present(minutes) if minutes.provider.as_deref().is_some_and(|provider| provider != "local")
+    );
+    if awaiting {
+        shell.awaiting.lock().unwrap().retain(|(aside, _)| *aside != folder);
+        shell.asked_again.lock().unwrap().remove(&folder);
+    }
+    if !writing && !queued && (awaiting || by_service) {
+        write_minutes_from(&app, folder.clone(), None, None, true);
+    }
+    Ok(confidential_of(&shell, &folder))
 }
 
 /// A meeting's context, as the field shows it (D59).
@@ -996,6 +1116,10 @@ struct Agreement {
 #[tauri::command]
 async fn agreement_shown(shell: State<'_, Shell>, name: String) -> Result<Agreement, String> {
     let folder = session_folder(&shell, &name)?;
+    // Said confidential: nothing is sent, nothing is asked (D60).
+    if confidential::marked(&folder) {
+        return Err(format!("{name} is confidential: nothing is sent"));
+    }
     let settings = shell.reread()?;
     let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
         return Err("no one is chosen to write the minutes".into());
@@ -1030,6 +1154,9 @@ async fn agreement_shown(shell: State<'_, Shell>, name: String) -> Result<Agreem
 #[tauri::command]
 fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, remember: bool) -> Result<(), String> {
     let folder = session_folder(&shell, &name)?;
+    if confidential::marked(&folder) {
+        return Err(format!("{name} is confidential: nothing is sent"));
+    }
     // The word given is for the host the page showed: chosen otherwise meanwhile, nothing goes.
     let read = shell.reread()?;
     let named = read.minutes_provider.clone().zip(read.minutes_model.clone());
@@ -1685,6 +1812,7 @@ fn minutes_ended(app: &AppHandle, folder: &Path, failed: Option<(String, Option<
     // What says it is being written goes first, the meeting freed last: nothing started in
     // between is left without its model, nor the tray's entry greyed off.
     shell.minutes_by.lock().unwrap().take();
+    shell.minutes_host.lock().unwrap().take();
     if let Some((why, cause)) = failed {
         let why = if why.trim().is_empty() {
             "wholeheard-summary stopped without saying why".to_string()
@@ -1695,6 +1823,12 @@ fn minutes_ended(app: &AppHandle, folder: &Path, failed: Option<(String, Option<
     } else {
         *shell.minutes_made.lock().unwrap().entry(folder.to_path_buf()).or_default() += 1;
     }
+    minutes_next(app);
+}
+
+/// The meeting whose minutes ended freed, and the next one asked meanwhile started.
+fn minutes_next(app: &AppHandle) {
+    let shell = app.state::<Shell>();
     minuting(app, false);
     *shell.writing_minutes.lock().unwrap() = None;
     if *shell.leaving.lock().unwrap() {
@@ -1710,6 +1844,24 @@ fn minutes_ended(app: &AppHandle, folder: &Path, failed: Option<(String, Option<
             return;
         }
     }
+}
+
+/// Minutes ended because their meeting was said confidential (D60): no failure kept nor told —
+/// they are made again here, first in line.
+fn minutes_ended_here(app: &AppHandle, folder: &Path) {
+    let shell = app.state::<Shell>();
+    shell.written_here.lock().unwrap().remove(folder);
+    let mut waiting = shell.minutes_waiting.lock().unwrap();
+    waiting.retain(|queued| queued.folder != folder);
+    waiting.push_front(Queued {
+        folder: folder.to_path_buf(),
+        agreed: None,
+        chosen: None,
+    });
+    drop(waiting);
+    shell.minutes_by.lock().unwrap().take();
+    shell.minutes_host.lock().unwrap().take();
+    minutes_next(app);
 }
 
 /// What is being made in the background, for the pages (D25): the minutes being written, by
@@ -1738,6 +1890,9 @@ struct Makings {
     failed_said: HashMap<String, String>,
     awaiting: HashMap<String, String>,
     made: HashMap<String, u64>,
+    /// Confidential meetings whose minutes wait for Ollama, and why (D60); the model it would fetch.
+    ollama_waiting: HashMap<String, Wait>,
+    ollama_recommended: &'static str,
 }
 
 #[derive(serde::Serialize)]
@@ -1787,6 +1942,13 @@ fn makings(shell: State<'_, Shell>) -> Makings {
     };
     let writing = shell.writing_minutes.lock().unwrap().clone();
     let by = shell.minutes_by.lock().unwrap().clone();
+    let settings = shell.settings();
+    let (transcripts_waiting, model_needed) = {
+        let waiting = shell.waiting.lock().unwrap();
+        let names = waiting.iter().map(|(folder, _)| named(folder)).collect();
+        let needed = default_model_missing(&settings) || waiting.iter().any(|(folder, _)| default_model_missing_for(&settings, folder));
+        (names, needed)
+    };
     Makings {
         minutes: writing.zip(by).map(|(folder, (model, host, since))| Making {
             name: named(&folder),
@@ -1812,8 +1974,8 @@ fn makings(shell: State<'_, Shell>) -> Makings {
                 model,
                 seconds: since.elapsed().as_secs(),
             }),
-        transcripts_waiting: shell.waiting.lock().unwrap().iter().map(|(folder, _)| named(folder)).collect(),
-        model_needed: default_model_missing(&shell.settings()),
+        transcripts_waiting,
+        model_needed,
         // The default model coming, not another: one fetch at a time, said as such (D37).
         model_coming: fetched.as_ref().is_some_and(|(file, ..)| file == model::file(&model::DEFAULT)),
         model_fetching: fetched.map(|(file, held, bytes)| Fetching { file, held, bytes }),
@@ -1849,6 +2011,14 @@ fn makings(shell: State<'_, Shell>) -> Makings {
             .iter()
             .map(|(folder, host)| (named(folder), host.clone()))
             .collect(),
+        ollama_waiting: shell
+            .ollama_waiting
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(folder, wait)| (named(folder), *wait))
+            .collect(),
+        ollama_recommended: providers::RECOMMENDED,
     }
 }
 
@@ -1929,7 +2099,36 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
     };
     let named = settings.minutes_provider.clone().zip(settings.minutes_model.clone());
     // Made again with another model, this time only; or by whoever the settings name.
-    let (provider, model) = match chosen.or(settings.minutes_provider.zip(settings.minutes_model)) {
+    let wanted = chosen.or(settings.minutes_provider.zip(settings.minutes_model));
+    // Said confidential: on this computer alone, whatever was named — Ollama silent or holding no
+    // model, they wait, said, and nothing is asked nor sent (D60).
+    let wanted = if confidential::marked(&folder) {
+        let base = ollama();
+        match confidential::writer(wanted, &base, || providers::ollama_listed(&base)) {
+            Ok(choice) => {
+                shell.ollama_waiting.lock().unwrap().remove(&folder);
+                tracing::info!(model = %choice.1, "shell.confidential_written");
+                Some(choice)
+            }
+            Err(wait) => {
+                shell.awaiting.lock().unwrap().retain(|(aside, _)| *aside != folder);
+                shell.asked_again.lock().unwrap().remove(&folder);
+                shell.minutes_failed.lock().unwrap().remove(&folder);
+                shell.ollama_waiting.lock().unwrap().insert(folder.clone(), wait);
+                tracing::info!(wait = ?wait, "shell.confidential_waits");
+                if from_line {
+                    return;
+                }
+                let said = words::Minutes::OllamaWaits {
+                    silent: wait == Wait::Silent,
+                };
+                return tell(app, &words::minutes(&said, shell.language));
+            }
+        }
+    } else {
+        wanted
+    };
+    let (provider, model) = match wanted {
         Some(choice) => choice,
         None => {
             refused("no one is chosen to write the minutes, in the settings".into());
@@ -1984,6 +2183,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
     shell.minutes_waiting.lock().unwrap().retain(|queued| queued.folder != folder);
     shell.awaiting.lock().unwrap().retain(|(aside, _)| *aside != folder);
     *shell.minutes_by.lock().unwrap() = Some((model.clone(), host.clone(), Instant::now()));
+    *shell.minutes_host.lock().unwrap() = (!providers::local(&provider)).then(|| host.clone());
     shell.minutes_failed.lock().unwrap().remove(&folder);
     minuting(app, true);
     let app = app.clone();
@@ -2008,17 +2208,34 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                 );
             }
         };
-        let started = Summarising::start(
-            &program("wholeheard-summary", "WHOLEHEARD_SUMMARY"),
-            &folder,
-            &provider,
-            &model,
-            key.as_deref(),
-        );
+        // Said confidential since it was asked: nothing is sent — ended here, made again here (D60).
+        let here =
+            || !providers::local(&provider) && (confidential::marked(&folder) || shell.written_here.lock().unwrap().contains(&folder));
+        let started = if here() {
+            Err(std::io::Error::other("the meeting was said confidential"))
+        } else {
+            Summarising::start(
+                &program("wholeheard-summary", "WHOLEHEARD_SUMMARY"),
+                &folder,
+                &provider,
+                &model,
+                key.as_deref(),
+            )
+        };
         let events = match started {
             Ok((making, events)) => {
+                // Said confidential as it started: ended at once.
+                if here() {
+                    making.end();
+                }
                 *shell.minuting.lock().unwrap() = Some(making);
                 events
+            }
+            Err(_) if here() => {
+                if let Some(previous) = &previous {
+                    let _ = std::fs::remove_file(previous);
+                }
+                return minutes_ended_here(&app, &folder);
             }
             Err(error) => {
                 if let Some(previous) = &previous {
@@ -2036,6 +2253,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
             })
             .unwrap_or(summarising::Made::Failed(String::new(), None));
         shell.minuting.lock().unwrap().take();
+        let ended_here = matches!(made, summarising::Made::Failed(..)) && here();
         // Replaced, the earlier minutes go to the trash — refused, they stay beside, and it is said.
         let mut kept_beside = None;
         if let Some(previous) = previous {
@@ -2048,6 +2266,17 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                     let _ = std::fs::remove_file(&previous);
                 }
             }
+        }
+        if ended_here {
+            return minutes_ended_here(&app, &folder);
+        }
+        // Written all the same, said confidential as it ended: written again here, next.
+        if shell.written_here.lock().unwrap().remove(&folder) {
+            shell.minutes_waiting.lock().unwrap().push_front(Queued {
+                folder: folder.clone(),
+                agreed: None,
+                chosen: None,
+            });
         }
         minutes_ended(
             &app,
@@ -2254,15 +2483,24 @@ fn wait(shell: &Shell, folder: PathBuf, again: Option<Again>) {
 fn hearing(shell: &Shell, folder: &Path, hearer: &Hearer) {
     *shell.hearing.lock().unwrap() = Some(folder.to_path_buf());
     *shell.hearing_by.lock().unwrap() = Some((hearer.name(), Instant::now()));
+    *shell.hearing_host.lock().unwrap() = match hearer {
+        // A service on this computer sends nothing away (D60).
+        Hearer::Service { provider, .. } if !providers::local(provider) => providers::host(provider),
+        _ => None,
+    };
     shell.transcripts_failed.lock().unwrap().remove(folder);
 }
 
-/// A transcript ended: counted when written, its reason kept when not — said on its page.
-fn heard(shell: &Shell, folder: &Path, made: &Made) {
+/// A transcript ended: counted when written, its reason kept when not — said on its page. Whether
+/// it was ended because its meeting was said confidential, to be made again here: no failure then.
+fn heard(shell: &Shell, folder: &Path, made: &Made) -> bool {
     shell.hearing.lock().unwrap().take();
     shell.hearing_by.lock().unwrap().take();
+    shell.hearing_host.lock().unwrap().take();
+    let here = shell.heard_here.lock().unwrap().remove(folder);
     match made {
         Made::Written(_) => *shell.transcripts_made.lock().unwrap().entry(folder.to_path_buf()).or_default() += 1,
+        Made::Failed(_) if here => {}
         Made::Failed(why) => {
             let why = if why.trim().is_empty() {
                 "wholeheard-transcription stopped without saying why"
@@ -2276,6 +2514,7 @@ fn heard(shell: &Shell, folder: &Path, made: &Made) {
                 .insert(folder.to_path_buf(), why.to_string());
         }
     }
+    here
 }
 
 /// The next transcript in line, once one ends: made, or made again with the model a Refaire…
@@ -2289,12 +2528,12 @@ fn transcribe_next(app: &AppHandle) {
         // Taken from the line under its lock, one at a time, in order. The default model missing,
         // those made with it wait where they are — offered once already —, and the first
         // Refaire… behind them, its model there, is made.
-        let missing = default_model_missing(&shell.settings());
+        let settings = shell.settings();
         let next = {
             let mut waiting = shell.waiting.lock().unwrap();
             let at = waiting
                 .iter()
-                .position(|(_, again)| matches!(again, Some(Again::Model(_))) || !missing);
+                .position(|(folder, again)| matches!(again, Some(Again::Model(_))) || !default_model_missing_for(&settings, folder));
             at.and_then(|at| waiting.remove(at))
         };
         match next {
@@ -2336,7 +2575,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
             return Err(format!("{} is no model on this computer", model.display()));
         }
         Again::Model(model) => (Hearer::Model(model.clone()), None),
-        Again::Settings => hearer_now(&shell, &settings),
+        Again::Settings => hearer_now(&shell, &settings, &folder),
     };
     if let Hearer::Model(model) = &hearer
         && !model.is_file()
@@ -2391,7 +2630,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
         // Ended and said so at once: none begun in between loses what it says of itself.
         let mut running = shell.transcription.lock().unwrap();
         running.take();
-        heard(&shell, &folder, &made);
+        let here = heard(&shell, &folder, &made);
         drop(running);
         transcribing(&app, false);
         // Replaced, the earlier transcript goes to the trash — refused, it stays beside, and it is
@@ -2408,6 +2647,10 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
         }
         if *shell.leaving.lock().unwrap() {
             return;
+        }
+        // Ended for its meeting said confidential: made again here, first in line.
+        if here {
+            return transcribe_next(&app);
         }
         tell(&app, &words::made(&made, shell.language));
         if let Some((name, not_put_back)) = kept_beside {
@@ -2430,14 +2673,21 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
 
 /// Who hears now, as the settings name it — Apple's SpeechAnalyzer while this Mac offers it, a
 /// service once agreed to (D42, D43) —, and the service's key: what a transcript is made with.
-fn hearer_now(shell: &Shell, settings: &Settings) -> (Hearer, Option<String>) {
+fn hearer_now(shell: &Shell, settings: &Settings, folder: &Path) -> (Hearer, Option<String>) {
     // Apple's SpeechAnalyzer needs no model file: its own is on the Mac (D42). Chosen and no
     // longer offered here — an older macOS, the program gone —, Whisper hears, and it is logged.
     let language = shell.language.code();
-    let hearer = Hearer::of(settings, language, || {
+    let apple_ready = || {
         let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
         speech::status(&program, language).is_some_and(|status| status.offered && status.installed)
-    });
+    };
+    // Said confidential: on this computer alone, whatever the settings name — no key, nothing sent (D60).
+    if confidential::marked(folder) {
+        let hearer = confidential::hearer(settings, language, apple_ready);
+        tracing::info!(engine = %hearer.name(), "shell.confidential_heard");
+        return (hearer, None);
+    }
+    let hearer = Hearer::of(settings, language, apple_ready);
     if settings.engine == Engine::SpeechAnalyzer && matches!(hearer, Hearer::Model(_)) {
         tracing::warn!("shell.speech_unavailable");
     }
@@ -2469,7 +2719,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
     let _ = shell.reread();
     let settings = shell.settings();
     let model = &settings.model;
-    let (hearer, key) = hearer_now(&shell, &settings);
+    let (hearer, key) = hearer_now(&shell, &settings, &folder);
     if matches!(hearer, Hearer::Model(_)) && !model.is_file() {
         // The default model is offered, its size and host shown; one the user named is theirs.
         if *model == Settings::default().model {
@@ -2514,12 +2764,16 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         let shell = app.state::<Shell>();
         let mut running = shell.transcription.lock().unwrap();
         running.take();
-        heard(&shell, &heard_folder, &made);
+        let here = heard(&shell, &heard_folder, &made);
         drop(running);
         transcribing(&app, false);
         // Ended by Wholeheard as it quits: nothing to tell, it goes on next time.
         if *shell.leaving.lock().unwrap() {
             return;
+        }
+        // Ended for its meeting said confidential: made again here, first in line.
+        if here {
+            return transcribe_next(&app);
         }
         let notice = words::made(&made, shell.language);
         match made {
@@ -2636,6 +2890,16 @@ fn default_model_missing(settings: &Settings) -> bool {
     settings.engine == Engine::Whisper && settings.model == Settings::default().model && !settings.model.is_file()
 }
 
+/// The same for one meeting: a confidential one is heard by Whisper where a service is named (D60).
+fn default_model_missing_for(settings: &Settings, folder: &Path) -> bool {
+    let whisper = match settings.engine {
+        Engine::Whisper => true,
+        Engine::Service => confidential::marked(folder),
+        Engine::SpeechAnalyzer => false,
+    };
+    whisper && settings.model == Settings::default().model && !settings.model.is_file()
+}
+
 /// The window's offer of the default model, where it says it is missing (D36): the tray's own
 /// fetch. One the user named is theirs: nothing is fetched for it.
 #[tauri::command]
@@ -2683,6 +2947,13 @@ fn pull(app: &AppHandle) {
         }
         tell(&app, &words::pulled(&outcome, providers::RECOMMENDED, language));
         waiting(&app, true);
+        // The confidential minutes that waited for a model of Ollama's: made now (D60).
+        if outcome.is_ok() {
+            let waited: Vec<PathBuf> = shell.ollama_waiting.lock().unwrap().keys().cloned().collect();
+            for folder in waited {
+                write_minutes_from(&app, folder, None, None, true);
+            }
+        }
     });
 }
 

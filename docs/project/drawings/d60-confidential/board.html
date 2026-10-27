@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>D60 — une réunion confidentielle</title>
+<!-- The source of the two images beside it, rendered at 1280 px by chromium-browser --headless;
+     the colours are ui/window.css's. ?dark draws the dark theme. The small windows are drawn at
+     their size, 380 × 400. -->
+<style>
+  :root {
+    --ground: #F2F4F7; --surface: #FFFFFF; --raised: #EEF1F5; --line: #D9DDE5;
+    --ink: #15171C; --soft: #4C5464; --accent: #2253CF; --ok: #16794A; --red: #C2352D;
+    --on-accent: #FFFFFF; --note: #7A5A00; --note-ground: #FFF6DB;
+  }
+  :root.dark {
+    --ground: #15171C; --surface: #1E2129; --raised: #282C37; --line: #343946;
+    --ink: #EEF0F4; --soft: #AAB1BF; --accent: #8AB0FF; --ok: #63D49C; --red: #FF7A72;
+    --on-accent: #15171C; --note: #F2CC6B; --note-ground: #2E2A1E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1280px; padding: 34px; background: var(--ground); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: repeat(2, 590px); gap: 32px 34px; align-items: start; }
+  .pair { display: flex; gap: 20px; align-items: flex-start; }
+  h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .small { width: 380px; height: 400px; padding: 14px 20px; gap: 12px; overflow: hidden; border-radius: 12px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .icon { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); display: grid; place-items: center; color: var(--ink); font-size: 18px; margin-left: auto; }
+  .primary { display: block; padding: 13px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font: 600 16px system-ui, sans-serif; text-align: center; }
+  .danger { background: var(--red); color: var(--surface); }
+  .time { display: flex; align-items: center; gap: 12px; font: 500 30px ui-monospace, monospace; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--red); }
+  .meters { display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; align-items: center; }
+  .side { display: flex; flex-direction: column; min-width: 110px; }
+  .device { color: var(--soft); font-size: 12px; max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { height: 8px; border-radius: 4px; background: var(--raised); overflow: hidden; }
+  .fill { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+  .fill.others { background: var(--ok); }
+  .hint { margin: 0; color: var(--soft); font-size: 13px; }
+  .note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--note-ground); color: var(--note); font-size: 13px; line-height: 1.4; }
+  .note b { display: block; margin-bottom: 2px; }
+  .disclose { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--raised); font-weight: 600; font-size: 14px; }
+  .disclose .chev { margin-left: auto; color: var(--soft); }
+
+  /* The switch: the settings' own (a checkbox drawn as a switch), a lock beside its words. */
+  .confidential { display: flex; align-items: center; gap: 10px; }
+  .confidential .said { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .confidential .name { font-weight: 600; font-size: 14px; }
+  .confidential .says { font-size: 12.5px; }
+  .lock { width: 18px; height: 18px; flex: 0 0 18px; color: var(--soft); }
+  .on .lock { color: var(--ok); }
+  .switch { width: 38px; height: 22px; border-radius: 11px; background: var(--line); position: relative; flex: 0 0 38px; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); }
+  .on .switch { background: var(--ok); }
+  .on .switch::after { left: 19px; }
+
+  .full { padding: 0; overflow: hidden; gap: 0; }
+  .bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
+  .brand svg { width: 22px; height: 22px; }
+  .nav { display: flex; gap: 4px; flex: 1; }
+  .nav span { padding: 6px 10px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+  .nav span.on { background: var(--raised); }
+  .page { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .back { color: var(--soft); font-size: 14px; }
+  .title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px; }
+  .title b { font-size: 19px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--raised); color: var(--soft); }
+  .chip.locked { color: var(--ok); font-weight: 600; }
+  .chip .lock { width: 13px; height: 13px; flex-basis: 13px; color: inherit; }
+  .box { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .says { color: var(--soft); font-size: 13px; margin: 0; }
+  .left { color: var(--ink); font-size: 13px; margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--note-ground); }
+  .open { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); font-weight: 600; font-size: 14px; white-space: nowrap; }
+  .making { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--soft); }
+  .making i { flex: 0 0 60px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent) 40%, var(--raised) 40%); }
+  .wait { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; font-size: 13px; }
+  .wait .says { flex: 1 1 240px; color: var(--ink); }
+  .line { height: 10px; border-radius: 5px; background: var(--raised); }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .session { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .session .day { font-weight: 600; flex: 1; }
+  .holds { display: flex; gap: 6px; flex-wrap: wrap; }
+</style>
+<script>if (location.search.includes("dark")) document.documentElement.classList.add("dark");</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 11 V8 a4 4 0 0 1 8 0 V11" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol></svg>
+<div class="row">
+  <section style="grid-column: 1 / -1">
+    <h2>1 · Pendant l’enregistrement — la petite fenêtre, 380 × 400, éteint puis allumé</h2>
+    <div class="pair">
+      <div class="card small">
+        <div class="top"><div class="time"><span class="dot"></span>00:16:42</div><div class="icon">⤢</div></div>
+        <div class="meters">
+          <span class="side">Votre micro<span class="device">AirPods Pro</span></span><span class="track"><span class="fill" style="width:62%"></span></span>
+          <span class="side">La réunion<span class="device">Ryzen HD Audio Controller Speaker</span></span><span class="track"><span class="fill others" style="width:38%"></span></span>
+        </div>
+        <div class="primary danger">Arrêter</div>
+        <div class="confidential"><svg class="lock"><use href="#lock"/></svg><span class="said"><span class="name">Réunion confidentielle</span><span class="says">Rien ne quitte cet ordinateur</span></span><span class="switch"></span></div>
+        <div class="disclose">＋ Ajouter le contexte<span class="chev">▾</span></div>
+        <p class="hint">À l’arrêt, le transcript s’écrit tout seul. Vous serez prévenu.</p>
+      </div>
+      <div class="card small">
+        <div class="top"><div class="time"><span class="dot"></span>00:17:05</div><div class="icon">⤢</div></div>
+        <div class="meters">
+          <span class="side">Votre micro<span class="device">AirPods Pro</span></span><span class="track"><span class="fill" style="width:48%"></span></span>
+          <span class="side">La réunion<span class="device">Ryzen HD Audio Controller Speaker</span></span><span class="track"><span class="fill others" style="width:55%"></span></span>
+        </div>
+        <div class="primary danger">Arrêter</div>
+        <div class="confidential on"><svg class="lock"><use href="#lock"/></svg><span class="said"><span class="name">Réunion confidentielle</span><span class="says">Rien ne quitte cet ordinateur</span></span><span class="switch"></span></div>
+        <div class="disclose">＋ Ajouter le contexte<span class="chev">▾</span></div>
+        <p class="hint">À l’arrêt, le transcript s’écrit tout seul. Vous serez prévenu.</p>
+      </div>
+    </div>
+    <div class="note"><b>Propositions</b>Sous « Arrêter », qui ne bouge jamais : l’interrupteur des Réglages, un cadenas devant ses mots. Allumé, le fichier <code>confidential</code> est écrit dans le dossier de la réunion, dès qu’il existe ; éteint, il est retiré. Le contexte ouvert, la fenêtre est pleine : l’interrupteur reste au-dessus de lui, sur une ligne, ses mots lus par un lecteur d’écran ; les noms des appareils passent dans l’info-bulle de leur jauge ; la phrase sur le transcript laisse sa place, comme avec D59. Rien d’autre ne change pendant l’enregistrement : le transcript et le compte rendu se font après l’arrêt.</div>
+  </section>
+
+  <section>
+    <h2>2 · La page d’une réunion — allumée après un envoi</h2>
+    <div class="card full">
+      <div class="page">
+        <span class="back">‹ Réunions</span>
+        <div class="title"><b>Hier, 10:30</b><span style="color:var(--soft);font-size:14px">42 min</span><span class="chip locked"><svg class="lock"><use href="#lock"/></svg>Confidentielle</span><span class="chip">✓ Transcript</span></div>
+        <div class="box">
+          <div class="confidential on"><svg class="lock"><use href="#lock"/></svg><span class="said"><span class="name">Réunion confidentielle</span><span class="says">Rien ne quitte cet ordinateur</span></span><span class="switch"></span></div>
+          <p class="left">Déjà parti avant : le son vers api.groq.com · le transcript vers openrouter.ai.</p>
+        </div>
+        <div class="making"><span>Compte rendu en cours</span><span>Qwen3 8B · 0:12</span><i></i></div>
+        <div class="line" style="width:70%"></div><div class="line" style="width:50%"></div>
+      </div>
+    </div>
+    <div class="note"><b>Propositions</b>Allumée pendant qu’un service fabrique, ou attend l’accord, ou après qu’il a écrit le compte rendu : la fabrication qui envoie est arrêtée, refaite ici ; l’accord n’est plus demandé. Ce qui était déjà parti est dit, et vers quel hôte : ce que Wholeheard sait des fabrications et ce que nomment le transcript et le compte rendu. Le transcript ici : SpeechAnalyzer s’il est choisi, sinon Whisper avec le modèle des Réglages ; le compte rendu : Ollama, avec son modèle des Réglages, sinon qwen3:8b, sinon le premier qu’il a. Éteinte, les Réglages choisissent de nouveau.</div>
+  </section>
+
+  <section>
+    <h2>3 · Le compte rendu attend Ollama — dit, son modèle offert</h2>
+    <div class="card full">
+      <div class="page">
+        <span class="back">‹ Réunions</span>
+        <div class="title"><b>Aujourd’hui, 09:00</b><span style="color:var(--soft);font-size:14px">25 min</span><span class="chip locked"><svg class="lock"><use href="#lock"/></svg>Confidentielle</span></div>
+        <div class="box">
+          <span class="says" style="font-weight:600;color:var(--soft);text-transform:uppercase;font-size:12px;letter-spacing:.04em">Compte rendu</span>
+          <div class="wait"><p class="says">Ollama n’a aucun modèle sur cet ordinateur : le compte rendu l’attend.</p><span class="open">Télécharger qwen3:8b</span></div>
+        </div>
+        <div class="box">
+          <div class="wait"><p class="says">Ollama ne répond pas sur cet ordinateur : le compte rendu l’attend. Il est gratuit, sur ollama.com.</p><span class="open">Réessayer</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="note"><b>Propositions</b>Rien n’est demandé, rien n’est envoyé : jamais la page d’accord. Le modèle Whisper absent est dit et offert comme dans Réglages ; Ollama muet ou vide, le compte rendu attend, et se fait dès que son modèle est là.</div>
+  </section>
+
+  <section style="grid-column: 1 / -1">
+    <h2>4 · La liste des réunions — le cadenas et ses mots</h2>
+    <div class="list" style="width:760px">
+      <div class="session"><span class="day">mar. 27 oct. · 10:30</span><span class="holds"><span class="chip locked"><svg class="lock"><use href="#lock"/></svg>Confidentielle</span><span class="chip">Compte rendu</span><span class="chip">Transcript</span><span class="chip">Audio · 48 Mo</span></span></div>
+      <div class="session"><span class="day">lun. 26 oct. · 14:05</span><span class="holds"><span class="chip">Compte rendu</span><span class="chip">Transcript</span><span class="chip">Audio · 31 Mo</span></span></div>
+    </div>
+    <div class="note"><b>Proposition</b>Le cadenas ne porte jamais le sens seul : ses mots, « Confidentielle », sont toujours là ; il est le premier de ce que la réunion contient.</div>
+  </section>
+</div>
+</body>
+</html>

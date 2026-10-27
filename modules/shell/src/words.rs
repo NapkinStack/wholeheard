@@ -611,6 +611,18 @@ pub struct Window {
     pub context_changed: [&'static str; 2],
     pub context_redo: &'static str,
     pub context_not_saved: &'static str,
+    /// A meeting said confidential (D60): the switch's name and its words; the list's word beside
+    /// the lock; what had left before ({} what, then each: the sound, the transcript, {} a host);
+    /// the switch not saved; the minutes waiting for Ollama holding no model, and the fetch of {}.
+    pub confidential_name: &'static str,
+    pub confidential_says: &'static str,
+    pub confidential_chip: &'static str,
+    pub confidential_left: &'static str,
+    pub confidential_left_sound: &'static str,
+    pub confidential_left_transcript: &'static str,
+    pub confidential_not_saved: &'static str,
+    pub confidential_ollama_empty: &'static str,
+    pub confidential_fetch: &'static str,
 }
 
 pub fn window(language: Language) -> Window {
@@ -929,6 +941,15 @@ pub fn window(language: Language) -> Window {
             ],
             context_redo: "Redo with this context",
             context_not_saved: "The context could not be saved.",
+            confidential_name: "Confidential meeting",
+            confidential_says: "Nothing leaves this computer",
+            confidential_chip: "Confidential",
+            confidential_left: "Had already left before: {}.",
+            confidential_left_sound: "the sound, to {}",
+            confidential_left_transcript: "the transcript, to {}",
+            confidential_not_saved: "The meeting could not be said confidential: try again.",
+            confidential_ollama_empty: "Ollama holds no model on this computer: the minutes wait for it.",
+            confidential_fetch: "Download {}",
         },
         Language::French => Window {
             locale: "fr",
@@ -1247,6 +1268,15 @@ pub fn window(language: Language) -> Window {
             ],
             context_redo: "Refaire avec ce contexte",
             context_not_saved: "Le contexte n’a pas pu être enregistré.",
+            confidential_name: "Réunion confidentielle",
+            confidential_says: "Rien ne quitte cet ordinateur",
+            confidential_chip: "Confidentielle",
+            confidential_left: "Déjà parti avant\u{a0}: {}.",
+            confidential_left_sound: "le son vers {}",
+            confidential_left_transcript: "le transcript vers {}",
+            confidential_not_saved: "Le réglage n’a pas pu être enregistré\u{a0}: réessayez.",
+            confidential_ollama_empty: "Ollama n’a aucun modèle sur cet ordinateur\u{a0}: le compte rendu l’attend.",
+            confidential_fetch: "Télécharger {}",
         },
     }
 }
@@ -1452,6 +1482,10 @@ pub enum Minutes {
     NoProvider(String),
     /// The last recording has no whole transcript.
     NoTranscript,
+    /// The meeting is confidential, and Ollama does not answer (`silent`) or holds no model (D60).
+    OllamaWaits {
+        silent: bool,
+    },
 }
 
 impl Minutes {
@@ -1551,6 +1585,28 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
             format!(
                 "Le dernier enregistrement n’a pas de transcript entier : «\u{a0}{}\u{a0}» d’abord.",
                 menu(language).transcribe
+            ),
+        ),
+        (Minutes::OllamaWaits { silent: true }, English) => (
+            "The minutes wait for Ollama",
+            "The meeting is confidential, and Ollama does not answer on this computer. It is free, at ollama.com.".to_string(),
+        ),
+        (Minutes::OllamaWaits { silent: true }, French) => (
+            "Le compte rendu attend Ollama",
+            "La réunion est confidentielle, et Ollama ne répond pas sur cet ordinateur. Il est gratuit, sur ollama.com.".to_string(),
+        ),
+        (Minutes::OllamaWaits { silent: false }, English) => (
+            "The minutes wait for Ollama",
+            format!(
+                "The meeting is confidential, and Ollama holds no model yet: Wholeheard’s window fetches {} in one click.",
+                crate::providers::RECOMMENDED
+            ),
+        ),
+        (Minutes::OllamaWaits { silent: false }, French) => (
+            "Le compte rendu attend Ollama",
+            format!(
+                "La réunion est confidentielle, et Ollama n’a encore aucun modèle\u{a0}: la fenêtre de Wholeheard télécharge {} en un clic.",
+                crate::providers::RECOMMENDED
             ),
         ),
     };

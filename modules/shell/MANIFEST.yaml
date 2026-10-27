@@ -230,7 +230,8 @@ evidence:
     - pattern: '"message":"shell\.recording_failed"'
       level: error
       scenario: D
-    # The played engine fails once; the window's N has a transcript redone that fails.
+    # The played engine fails once; the window's N has a transcript redone that fails; the window's AA
+    # ends a service hearing a meeting said confidential (D60).
     - pattern: '"message":"shell\.transcript_failed"'
       level: error
       scenario: F
@@ -258,7 +259,8 @@ evidence:
     - pattern: '"message":"shell\.test_failed"'
       level: error
       scenario: K
-    # The played summary answers no minutes.
+    # The played summary answers no minutes; the window's AA ends one a service writes, the meeting
+    # said confidential (D60).
     - pattern: '"message":"shell\.minutes_failed"'
       level: error
       scenario: N

@@ -3,6 +3,7 @@
 //! the shortcut and the window are built on this, and hold none of it.
 
 pub mod autostart;
+pub mod confidential;
 pub mod context;
 pub mod desktop;
 pub mod keys;
