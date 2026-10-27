@@ -908,6 +908,31 @@ def first_run(now: dt.datetime) -> None:
         press(browser, "welcome-later")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
         check("confirmed, it is saved", 'minutes_model = "qwen3:8b"' in window.file.read_text(), window.file.read_text())
+        # Private changes who transcribes and who writes, and nothing else: from a service that
+        # hears, with the reminder off, a model and a folder of the user's, confirmed private.
+        lines = [line for line in window.file.read_text().splitlines()
+                 if not line.startswith(("engine", "transcription_", "reminder", "model ="))]
+        mine = window.file.parent / "my-model.bin"
+        window.file.write_text("\n".join(lines + [
+            'engine = "service"', 'transcription_provider = "http://127.0.0.1:9/v1"',
+            'transcription_model = "a-model"', 'transcription_agreed = "127.0.0.1:9"',
+            "reminder = false", f'model = "{mine}"']) + "\n")
+        kept = [line for line in window.file.read_text().splitlines()
+                if line.startswith(("transcription_", "reminder", "model =", "sessions"))]
+        press(browser, "settings-link")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "welcome-again") and b.find_element(By.ID, "welcome-again").is_displayed(), 10)
+        press(browser, "welcome-again")
+        until_question(browser)
+        browser.execute_script("document.querySelector('#welcome input[value=often]').click()")
+        press(browser, "welcome-next")
+        wait_for(browser, lambda b: "Mode privé" in b.execute_script(summary), 5)
+        press(browser, "welcome-later")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
+        after = window.file.read_text()
+        check("private from a service: the engine back to this computer",
+              'engine = "whisper"' in after, after)
+        check("and nothing else: the service's fields, the reminder, the model and the folder as they were",
+              all(line in after.splitlines() for line in kept), (kept, after))
 
     # 4. The dark theme, in English.
     window = started("dark", "en_GB.UTF-8", dark=True)
