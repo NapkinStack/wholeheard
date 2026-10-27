@@ -68,13 +68,13 @@ deliverables:
       - "Given Settings, when the user tests the service, then it is said in one sentence whether it hears, with a sound of the test's own, nothing of a meeting"
       - "Given a service that refuses the key, does not answer, answers no transcript, or gives text without its segments' times, when a session is transcribed, then it is said in one sentence, nothing is kept of a half, and the transcript can be made again"
   - id: D53
-    title: "On Windows, Wholeheard opens from one zip the forge made, and records a call there"
+    title: "On Windows, Wholeheard opens from one zip the forge made — and does a call recorded there hold both sides?"
     module: install
     state: ready
     acceptance:
       - "Given a run of the Windows workflow on main, or one started by hand, when it ends, then each program's tests pass on GitHub's Windows runner, and it leaves one artifact, Wholeheard-<version>-windows-x64.zip, holding wholeheard.exe and the three programs side by side, kept 7 days as the Mac's"
       - "Given that zip on the colleague's Windows 11, when they unpack it and open wholeheard.exe — past SmartScreen's warning on an unsigned program —, then Wholeheard's icon is in the notification area and its window opens from it, with nothing installed before it and no terminal"
-      - "Given a call recorded there for at least five minutes, when it stops, then the cycle records, for each track — local, the microphone; remote, what Windows plays: whether it holds the call's speech, and what Windows asked before it recorded; below both sides heard, what was missing is recorded for the next framing. A refuted result is a delivered one"
+      - "Given a call recorded there for at least five minutes, when it stops, then the cycle records, for each track — local, the microphone; remote, what Windows plays: whether it holds the call's speech, and what Windows asked before it recorded — read against D39's threshold: both tracks hold the call's speech as the colleague hears it at the start, the middle and the end of each, and capture's code holds no line added for Windows; below it, what was missing is recorded for the next framing. A refuted result is a delivered one"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -290,6 +290,12 @@ is the first cut should it not fit, and its third criterion is the colleague's, 
 - The remote side: cpal records what an output plays on Windows through WASAPI's loopback
   *(assumption, from cpal's documentation, to be read when it is built)*; whether capture needs a
   line for it is what the first run says.
+- **Modules beyond `install`**: the first criterion's tests may need fixes in `shell`, `capture`,
+  `transcription` or `summary`, as the Mac's did (#416, #417) — each in a pull request of its own,
+  never one that crosses them.
+- Unsigned, the zip meets SmartScreen's warning, and Smart App Control, where it is on, may refuse
+  it outright (PDR-0004, *Impacts*): the colleague's trial needs it off, or waits on the Store's
+  signed package.
 - The zip is for the colleague, as the Mac's: no release, no link outside the project
   (open question of 2026-10-26). The Store's MSIX, signed by Microsoft, is *Later*: it needs the
   decider's Partner Center account.
@@ -302,6 +308,8 @@ is the first cut should it not fit, and its third criterion is the colleague's, 
   an hour by 2026-10-31, the app ready by 2026-10-29 — for D42, its three pull requests
   merged before then, or its last criterion waits on another session. The cycle does not hold it: missed, the
   deliverables stay where they are at the end date.
+- **The colleague on Windows**, for D53's second and third criteria: one session of an hour by
+  2026-10-31, the zip ready by 2026-10-30. Missed, D53 stays where it is at the end date.
 
 ## Out of scope
 

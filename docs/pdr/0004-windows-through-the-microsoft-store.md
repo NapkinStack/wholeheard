@@ -84,9 +84,13 @@ that updates itself; on macOS, for a tool that records the system's sound, a not
 ## Decision
 
 1. **Windows is sold through the Microsoft Store**, as an MSIX package that Microsoft signs,
-   hosts and updates, with the Store's trial and Microsoft's commerce. The price stays in
-   PDR-0001's range; its exact figure, the trial's length the Store offers, and the developer
-   account are the decider's.
+   hosts and updates, with the Store's trial and Microsoft's commerce. The Store's trial is
+   time-limited — 1, 7, 15 or 30 days — or unlimited, and limiting it by meetings needs code
+   ([*Set app pricing and availability*](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/price-and-availability),
+   read by the verifier, 2026-10-27): on Windows, PDR-0001's "14 days or 10 meetings" becomes
+   **15 days**, the nearest the Store offers, and Wholeheard reads the Store's licence to stop
+   recording once it ends — the one piece of the trial written for Windows. The price stays in
+   PDR-0001's range; its exact figure and the developer account are the decider's.
 2. **macOS stays as PDR-0001 decided**: a download notarised by Apple, a trial and a licence key,
    a merchant of record. The Mac App Store follows if a spike shows a sandboxed build records
    both sides of a call.
@@ -117,7 +121,9 @@ that updates itself; on macOS, for a tool that records the system's sound, a not
 
 How it is observed: Partner Center's acquisitions report.
 
-If it is not met: a signed download with the project's own key, as PDR-0001 decided.
+If it is not met: a signed download with the project's own key, as PDR-0001 decided — signed by
+a yearly certificate or by Microsoft's Artifact Signing (formerly Trusted Signing), a monthly
+subscription whose price and eligibility are not checked here *(uncertainty)*.
 
 ---
 
@@ -140,5 +146,18 @@ If it is not met: a signed download with the project's own key, as PDR-0001 deci
   developer programme for macOS.
 - **ADR-0010**: its signed list comes before the first build published for people outside the
   project — a Store build is one.
+- **Risks the Store package must answer**, each a criterion of the deliverable that builds it:
+  - a packaged app's writes to its application data are redirected per package and removed on
+    uninstall ([Advanced Installer, *MSIX file redirection*](https://www.advancedinstaller.com/msix-files-redirection.html),
+    not read again here): the meetings must live where uninstalling leaves them, as D27 asks of
+    the deb;
+  - `runFullTrust` and the microphone are capabilities justified at certification;
+  - GPL-3.0 beside the Store's standard licence terms: Partner Center takes the publisher's own
+    terms — to be read before the first submission *(uncertainty)*;
+  - `capture` becomes `critical` before the first build published outside the project
+    (PDR-0002, decision 2): a Store build is one.
+- **D53's unsigned zip** meets SmartScreen's warning, and may be refused outright by Smart App
+  Control where it is on (reported by the press, not read in Microsoft's documentation): a
+  precondition of the colleague's trial.
 - **Data**: unchanged — Microsoft's commerce knows the buyer, as a merchant would; Wholeheard
   sends nothing.
