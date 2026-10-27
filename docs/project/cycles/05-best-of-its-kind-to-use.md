@@ -49,11 +49,10 @@ deliverables:
       - "Given a title that holds markup — `<img src=x onerror=alert(1)>` —, when it shows, then it is shown as text, never as markup, held by a test (`security.md`)"
       - "Given the minutes made again, when they are written, then the meeting takes the new title"
   - id: D49
-    title: "The first run holds the user's hand: the model offered before the first meeting, each side heard checked live"
+    title: "The first recording holds the user's hand: each side heard checked live"
     module: shell
     state: proposed
     acceptance:
-      - "Given the small window at rest, the chosen Whisper model not on the machine and no meeting yet, when it shows, then board 5's card stands in place of « Aucune réunion pour l'instant. »: the model's size and host, that it is checked before it is used, « Télécharger » / \"Download\" and « Plus tard » / \"Later\"; Télécharger fetches it as Settings do (`model_fetch`); Plus tard hides the card until Wholeheard starts again"
       - "Given a recording started, when it records, then the small window shows, for each side — « Votre micro » / \"Your microphone\", « Le son de la réunion » / \"The meeting's sound\" —, a check that turns ✓ as soon as its levels rise above silence (`level`, `recording/v1`), then fades"
       - "Given a side that stays silent, when capture says it silent, then the small window says under its check what to do, as well as the notification it says today: for a microphone that sends nothing (`Said::Nothing`, #457), the sentence of `sends_nothing` — check the device's own mute; otherwise (`Said::Silent`), speak, or play a sound in the call"
       - "Given the small window at 380×400 while recording, with the checks, their sentences and D50's line, when it shows in either theme, then nothing overflows or is cut — a departure from board 6 and D34, screenshots of both themes in the sheet"
@@ -229,6 +228,9 @@ search and export would share. The cheap fix stays the fallback if the decider p
   minutes are written without one rather than refused (criterion 2).
 
 ### D49
+
+- Its first criterion — the model offered before the first meeting, board 5's card — went to
+  cycle 04's D58 on 2026-10-27: the assistant's last screen offers the model.
 
 - Board 5 of D11 drew the card, « Summit a besoin d'un modèle… » with *Télécharger le modèle* /
   *Plus tard*; today the 874 MB model is offered only after the first recording, through a

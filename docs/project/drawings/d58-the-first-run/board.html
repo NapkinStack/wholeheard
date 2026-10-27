@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>D58 — le premier lancement</title>
+<!-- The source of the two images beside it, rendered at 1280 px by chromium-browser --headless;
+     the colours are ui/window.css's. ?dark draws the dark theme. -->
+<style>
+  :root {
+    --ground: #F2F4F7; --surface: #FFFFFF; --raised: #EEF1F5; --line: #D9DDE5;
+    --ink: #15171C; --soft: #4C5464; --accent: #2253CF; --ok: #16794A; --red: #C2352D;
+    --on-accent: #FFFFFF; --note: #7A5A00; --note-ground: #FFF6DB;
+  }
+  :root.dark {
+    --ground: #15171C; --surface: #1E2129; --raised: #282C37; --line: #343946;
+    --ink: #EEF0F4; --soft: #AAB1BF; --accent: #8AB0FF; --ok: #63D49C; --red: #FF7A72;
+    --on-accent: #15171C; --note: #F2CC6B; --note-ground: #2E2A1E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1280px; padding: 34px; background: var(--ground); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: repeat(2, 590px); gap: 32px 34px; align-items: start; }
+  h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; flex: 1; }
+  .brand svg { width: 22px; height: 22px; }
+  .icon { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); display: grid; place-items: center; color: var(--ink); font-size: 18px; }
+  .primary { display: block; width: 100%; padding: 13px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font: 600 16px system-ui, sans-serif; text-align: center; }
+  .danger { background: var(--red); color: var(--surface); }
+  .hint { margin: -8px 0 0; text-align: center; color: var(--soft); font-size: 13px; }
+  kbd { font: 12px ui-monospace, monospace; padding: 1px 5px; border: 1px solid var(--line); border-radius: 5px; background: var(--raised); }
+  .last { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .last .label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+  .last .what { font-weight: 600; }
+  .last .when { color: var(--soft); font-size: 13px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--raised); color: var(--soft); }
+  .chip.done { color: var(--ok); }
+  .link { color: var(--accent); font-weight: 600; font-size: 14px; }
+  .foot { display: flex; justify-content: space-between; color: var(--soft); font-size: 13px; }
+  .time { display: flex; align-items: center; gap: 12px; font: 600 30px ui-monospace, monospace; flex: 1; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--red); }
+  .meters { display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; align-items: center; }
+  .side { display: flex; flex-direction: column; }
+  .device { color: var(--soft); font-size: 12px; max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { height: 8px; border-radius: 4px; background: var(--raised); overflow: hidden; }
+  .fill { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+  .fill.others { background: var(--ok); }
+  .full { padding: 0; overflow: hidden; gap: 0; }
+  .bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .bar .brand { flex: 0 0 auto; }
+  .nav { display: flex; gap: 4px; flex: 1; }
+  .nav span { padding: 6px 10px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+  .nav span.on { background: var(--raised); }
+  .ghost { padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); font-weight: 600; font-size: 13px; white-space: nowrap; }
+  .page { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .line { height: 10px; border-radius: 5px; background: var(--raised); }
+  .tray { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 6px 0; font-size: 14px; }
+  .tray div { padding: 6px 14px; }
+  .tray .em { font-weight: 600; }
+  .tray hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+  .note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--note-ground); color: var(--note); font-size: 13px; line-height: 1.4; }
+  .note b { display: block; margin-bottom: 2px; }
+
+  .step { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+  .q { font-size: 21px; font-weight: 700; line-height: 1.3; margin: 0; }
+  .sub { color: var(--soft); margin: -6px 0 0; }
+  .choices { display: flex; flex-direction: column; gap: 10px; }
+  .choice { border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start; }
+  .choice.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+  .choice .em { font-size: 20px; line-height: 1.2; }
+  .choice b { display: block; }
+  .choice span { color: var(--soft); font-size: 14px; }
+  .actions { display: flex; justify-content: space-between; align-items: center; }
+  .actions .primary { width: auto; padding: 11px 20px; }
+  .later { color: var(--soft); font-weight: 600; font-size: 14px; }
+  .mode { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--ok) 12%, var(--surface)); }
+  .mode .em { font-size: 22px; } .mode b { font-size: 17px; }
+  .facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; font-size: 14px; }
+  .facts dt { color: var(--soft); } .facts dd { margin: 0; }
+  .field { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; color: var(--soft); font-size: 14px; background: var(--raised); }
+  .dots { display: flex; gap: 6px; } .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); } .dots i.on { background: var(--accent); }
+</style>
+<script>if (location.search.includes("dark")) document.documentElement.classList.add("dark");</script>
+</head>
+<body>
+<div class="row">
+  <section>
+    <h2>1 · Au premier lancement, une seule fois — la grande fenêtre</h2>
+    <div class="card">
+      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div></div>
+      <p class="sub" style="margin:0">Réglons Wholeheard en une question.</p>
+      <p class="q">Vos réunions parlent-elles de sujets confidentiels ?</p>
+      <p class="sub">Clients, ressources humaines, santé, juridique, chiffres non publiés…</p>
+      <div class="choices">
+        <div class="choice"><div><b>Oui, souvent</b><span>Rien ne doit quitter cet ordinateur.</span></div></div>
+        <div class="choice"><div><b>Rarement ou jamais</b><span>Je peux confier le texte d’une réunion à un service que je choisis.</span></div></div>
+        <div class="choice"><div><b>Je ne sais pas</b><span>Wholeheard choisira le plus discret.</span></div></div>
+      </div>
+      <div class="actions"><span class="later">Passer — tout sur cet ordinateur</span><span class="primary">Suivant</span></div>
+    </div>
+    <div class="note"><b>Propositions</b>Rien n’est choisi d’avance ; « Suivant » sans réponse, « Passer » et « Je ne sais pas » gardent tout sur cet ordinateur. Rouvert depuis Réglages (« Refaire le réglage »), « Passer » devient « Annuler » et rien ne change avant la confirmation.</div>
+  </section>
+
+  <section>
+    <h2>2 · Seulement si « Rarement ou jamais »</h2>
+    <div class="card">
+      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div></div>
+      <p class="q">Qui écrit le compte rendu ?</p>
+      <div class="choices">
+        <div class="choice"><div><b>Cet ordinateur</b><span>Rien ne sort. Il faut Ollama, gratuit ; un peu plus lent.</span></div></div>
+        <div class="choice on"><div><b>Un service en ligne</b><span>Plus rapide et plus fin. Le texte de la réunion lui est envoyé, jamais le son. Vous le choisirez dans Réglages, et votre accord sera demandé une fois avant le premier envoi.</span></div></div>
+      </div>
+      <div class="actions"><span class="later">Retour</span><span class="primary">Suivant</span></div>
+    </div>
+    <div class="note"><b>Proposition</b>La transcription reste sur cet ordinateur dans les deux cas : un service qui l’entend reste un choix de Réglages, pour qui le connaît.</div>
+  </section>
+
+  <section>
+    <h2>3 · Le réglage, dit en clair — mode privé</h2>
+    <div class="card">
+      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div></div>
+      <div class="mode"><div><b>Mode privé</b><br><span style="color:var(--soft);font-size:14px">Vos réunions ne quittent pas cet ordinateur.</span></div></div>
+      <dl class="facts">
+        <dt>Transcription</dt><dd>Sur cet ordinateur <span style="color:var(--soft)">· Whisper, le plus précis</span></dd>
+        <dt>Compte rendu</dt><dd>Sur cet ordinateur <span style="color:var(--soft)">· avec Ollama</span></dd>
+        <dt>Rappel</dt><dd>Prévenir les participants au début de chaque réunion</dd>
+      </dl>
+      <div class="actions"><span class="later">Plus tard</span><span class="primary">Télécharger le modèle (874 Mo)</span></div>
+      <p class="hint" style="margin:0;text-align:left">Depuis huggingface.co, vérifié avant d’être utilisé.</p>
+    </div>
+    <div class="note"><b>Propositions</b>Le modèle déjà là : « Terminer ». Sur un Mac où SpeechAnalyzer d’Apple est déjà choisi, c’est lui. Ollama absent : le compte rendu attend Ollama, avec le lien ollama.com. Le téléchargement se poursuit dans Réglages et la barre système ; la fenêtre passe aux réunions.</div>
+  </section>
+
+  <section>
+    <h2>3 · Le réglage, dit en clair — mode connecté</h2>
+    <div class="card">
+      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div></div>
+      <div class="mode" style="background:color-mix(in srgb, var(--accent) 10%, var(--surface))"><div><b>Mode connecté</b><br><span style="color:var(--soft);font-size:14px">Le compte rendu est écrit par un service en ligne ; la transcription reste sur cet ordinateur.</span></div></div>
+      <dl class="facts">
+        <dt>Transcription</dt><dd>Sur cet ordinateur <span style="color:var(--soft)">· Whisper, le plus précis</span></dd>
+        <dt>Compte rendu</dt><dd>Un service en ligne, à choisir maintenant <span style="color:var(--soft)">· OpenRouter, OpenAI ou Mistral</span></dd>
+        <dt>Rappel</dt><dd>Prévenir les participants au début de chaque réunion</dd>
+      </dl>
+      <div class="actions"><span class="later">Plus tard</span><span class="primary">Choisir mon service</span></div>
+    </div>
+    <div class="note"><b>Proposition</b>« Choisir mon service » ouvre Réglages sur le compte rendu : le service, son modèle, sa clé et « Tester », tels qu’ils sont déjà.</div>
+  </section>
+</div>
+</body>
+</html>

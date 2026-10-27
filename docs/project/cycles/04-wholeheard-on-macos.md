@@ -75,6 +75,16 @@ deliverables:
       - "Given a run of the Windows workflow on main, or one started by hand, when it ends, then each program's tests pass on GitHub's Windows runner, and it leaves one artifact, Wholeheard-<version>-windows-x64.zip, holding wholeheard.exe and the three programs side by side, kept 7 days as the Mac's"
       - "Given that zip on the colleague's Windows 11, when they unpack it and open wholeheard.exe — past SmartScreen's warning on an unsigned program —, then Wholeheard's icon is in the notification area and its window opens from it, with nothing installed before it and no terminal"
       - "Given a call recorded there for at least five minutes, when it stops, then the cycle records, for each track — local, the microphone; remote, what Windows plays: whether it holds the call's speech, and what Windows asked before it recorded — read against D39's threshold: both tracks hold the call's speech as the colleague hears it at the start, the middle and the end of each, and capture's code holds no line added for Windows; below it, what was missing is recorded for the next framing. A refuted result is a delivered one"
+  - id: D58
+    title: "At the first start, one or two questions set Wholeheard up, said plainly"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given a start where the setting `welcomed` is not true and the folder of meetings holds none, when Wholeheard starts — with `--window` or not, on Linux, macOS and Windows —, then the full window opens on the assistant of D58's board (`docs/project/drawings/d58-the-first-run/`) and `welcomed` is written true at once, so that it opens by itself once only — a start with the session included, the one departure from D35's « started again with the session, nothing does », once —; a start with a meeting already there, or with `welcomed` true, never shows it, and closing it midway changes nothing else"
+      - "Given the first screen, nothing chosen in advance, when the user answers « Oui, souvent » or « Je ne sais pas », goes on with none, or chooses « Passer », then the setting is private: the transcription on this computer — Whisper with the model the settings name, or Apple's SpeechAnalyzer where it is chosen already — and the minutes by Ollama on this computer, its model the settings name or the recommended one; given « Rarement ou jamais » and « Un service en ligne », then the last screen's « Choisir mon service » opens Settings at the minutes, where the service, its model and key are chosen and tested as ever, its host agreed before the first sending as ever"
+      - "Given the last screen, when it shows, then it says the mode — « Mode privé » or « Mode connecté » — and who transcribes, who writes the minutes and the reminder in plain words, the models by their spoken names; in private mode, the model missing, « Télécharger le modèle » fetches it as Settings do, its size and host shown, the window then going to the meetings while it is fetched, a failure or a refused fingerprint said as Settings say it — the model there, « Terminer »; Ollama not answering, it says the minutes wait for Ollama, with ollama.com; « Plus tard » leaves the model unfetched; connected and no service chosen afterwards, the first meeting's minutes say none is chosen and open Settings, as today"
+      - "Given Settings, when the user chooses « Refaire le réglage », then the assistant opens, « Passer » reads « Annuler », and nothing changes until the last screen's button; confirming private switches who transcribes and who writes the minutes to this computer and nothing else — never the model file, the keys, the reminder or the folders; confirming connected opens Settings at the minutes and changes nothing by itself"
+      - "Given the assistant, when it is gone through with the keyboard alone, in either theme, in French and in English, then each question is a group of radios, the focus is always seen, no emoji, nothing overflows at the full window's smallest size (420 × 400) — screenshots of both themes in the sheet —, the window left to reopen is the one it was (D35), and the window's e2e goes through every path, its other scenarios unaffected"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -326,6 +336,31 @@ runtimes inside each program (#478) — first made on `main` at 18bc62c, run 404
 there — Windows lets a file opened to append only grow (#483) —, and the shell's logs kept a
 sessions' folder written with a last `/`; its tests wrote Unix paths and TOML a Windows path breaks (#484). All four programs' tests pass there
 (run 40493801338, `main` at 8131c04). The colleague's trial: [#482](https://github.com/NapkinStack/wholeheard/issues/482).
+
+### D58
+
+**Added on the decider's word, 2026-10-27** (« cadre le et continue en autonomie, il nous le faut
+proprement, user friendly et ux/ui optimal, on le fait maintenant pour l'integré au test macos et
+windows »), after their idea the same day — a short assistant that sets Wholeheard up from plain
+questions (« est ce que vos données sont sensible ») rather than models and addresses. Drawn first:
+[D58's board](../drawings/d58-the-first-run/README.md). Built before the colleagues' trials (D38,
+D53), so that their first start is this one: the Mac's and Windows' builds and #426 and #482
+brought current once it is merged. The end date does not move; cycle 05's D49 keeps its live
+check, its model card now this assistant's last screen.
+
+- Private by default: *Passer*, « Je ne sais pas », no answer — the product's promise (PDR-0001).
+- **Revised on 2026-10-27 after the framing's review** (#487's verifier): the trigger is a setting
+  of its own, `welcomed` — the settings file exists from the first start on Linux, written by
+  `autostart::first`; the assistant opens by itself once; one question first, the welcome merged
+  into it, no emoji; the online path asks no address, key or model — it opens Settings, where the
+  services are named, tested, and their model chosen —; « Refaire le réglage » changes nothing until
+  confirmed, and private changes only who transcribes and who writes.
+- No question the user cannot answer: the machine is not asked about. The recommended model
+  always, the faster one a choice of Settings — no setting tuned to a machine.
+- The transcription stays on this computer in both modes: a service that hears (D43) is a choice
+  of Settings, for whoever knows it.
+- Out of scope: the live check of each side (cycle 05, D49); a line in the small window offering
+  the model after « Plus tard » — Settings and the notification after a recording offer it, as today.
 
 ## Dependency with a date
 
