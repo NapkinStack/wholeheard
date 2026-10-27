@@ -97,13 +97,13 @@ repository, read by the application, each entry with its address, size and check
   - `GET /api/models?pipeline_tag=automatic-speech-recognition&sort=downloads` — of the first
     eight, none is a file whisper.cpp reads: three wav2vec2 models (Japanese, Russian,
     Portuguese) and `openai/whisper-large-v3-turbo` in transformers' format, WhisperKit's Core ML,
-    faster-whisper's CTranslate2, and pyannote's speaker diarization, which transcribes nothing.
+    faster-whisper's CTranslate2, and two pyannote speaker-diarization models, which transcribe nothing.
   - The same with `filter=ggml` — Parakeet, SenseVoice, Qwen3-ASR, VibeVoice: the format's
     family, not Whisper; whisper.cpp runs none of them.
   - `ggerganov/whisper.cpp`, where the models offered come from, is in neither: tagged
     `automatic-speech-recognition` but not `ggml`, its downloads counted as 0.
   - That repository's own tree (`/api/models/ggerganov/whisper.cpp/tree/main`) gives each file's
-    size and SHA-256 — 47 files, encoders for Core ML and quantised variants among them.
+    model file's size and SHA-256 — 47 entries, encoders for Core ML and quantised variants among them.
 - Drawbacks: no filter picks the files the engine reads; downloads and likes say what is
   popular, not what hears a meeting in French; a fingerprint read from the host that serves the
   file checks nothing against that host.
