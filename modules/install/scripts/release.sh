@@ -9,7 +9,8 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 dist=${NSTACK_DIST:?run through nstack release, which names this module\'s artefacts folder}
 artefacts=$(cd "$dist/.." && pwd)
-version=$(cat "$artefacts/shell/VERSION")
+# Without the carriage return Python writes on Windows, which no file name holds.
+version=$(tr -d '\r' < "$artefacts/shell/VERSION")
 # Unset, the system this runs on, as it names itself (fedora-44, ubuntu-24.04); a Mac, by its
 # processor (macos-arm64); Windows, windows-x64.
 if [ "$(uname -s)" = Darwin ]; then
