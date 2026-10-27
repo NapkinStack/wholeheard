@@ -86,61 +86,65 @@
 <body>
 <div class="row">
   <section>
-    <h2>1 · Au premier lancement — la grande fenêtre s’ouvre ici</h2>
-    <div class="card">
-      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div><div class="dots"><i class="on"></i><i></i><i></i></div></div>
-      <p class="q">Réglons Wholeheard en deux questions.</p>
-      <p class="sub">Vos réponses choisissent où vos réunions sont transcrites et résumées. Tout reste modifiable dans Réglages.</p>
-      <div class="actions"><span class="later">Passer — tout sur cet ordinateur</span><span class="primary">Commencer</span></div>
-    </div>
-    <div class="note"><b>Proposition</b>Passer garde le réglage le plus discret : tout sur cet ordinateur. L’assistant revient depuis Réglages, « Refaire le réglage ».</div>
-  </section>
-
-  <section>
-    <h2>2 · Première question</h2>
-    <div class="card">
-      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div><div class="dots"><i></i><i class="on"></i><i></i></div></div>
-      <p class="q">Vos réunions parlent-elles de sujets confidentiels ?</p>
-      <p class="sub">Clients, ressources humaines, santé, juridique, chiffres non publiés…</p>
-      <div class="choices">
-        <div class="choice on"><span class="em">🔒</span><div><b>Oui, souvent</b><span>Rien ne doit quitter cet ordinateur.</span></div></div>
-        <div class="choice"><span class="em">💬</span><div><b>Rarement</b><span>Je peux confier le texte d’une réunion à un service que je choisis.</span></div></div>
-        <div class="choice"><span class="em">🤔</span><div><b>Je ne sais pas</b><span>Wholeheard choisira le plus discret.</span></div></div>
-      </div>
-      <div class="actions"><span class="later">Retour</span><span class="primary">Suivant</span></div>
-    </div>
-  </section>
-
-  <section>
-    <h2>3 · Seulement si « Rarement »</h2>
-    <div class="card">
-      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div><div class="dots"><i></i><i></i><i class="on"></i></div></div>
-      <p class="q">Qui écrit le compte rendu ?</p>
-      <div class="choices">
-        <div class="choice"><span class="em">💻</span><div><b>Cet ordinateur</b><span>Rien ne sort. Il faut Ollama, gratuit ; un peu plus lent.</span></div></div>
-        <div class="choice on"><span class="em">✨</span><div><b>Un service en ligne</b><span>Plus rapide et plus fin. Le texte de la réunion lui est envoyé — jamais le son.</span></div></div>
-      </div>
-      <div class="field">Son adresse — https://openrouter.ai/api/v1</div>
-      <div class="field">Sa clé — gardée dans le trousseau de l’ordinateur</div>
-      <div class="actions"><span class="later">Retour</span><span class="primary">Suivant</span></div>
-    </div>
-    <div class="note"><b>Proposition</b>La transcription reste sur cet ordinateur dans les deux cas : un service qui l’entend reste un choix de Réglages, pour qui le connaît.</div>
-  </section>
-
-  <section>
-    <h2>4 · Le réglage, dit en clair</h2>
+    <h2>1 · Au premier lancement, une seule fois — la grande fenêtre</h2>
     <div class="card">
       <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div></div>
-      <div class="mode"><span class="em">🔒</span><div><b>Mode privé</b><br><span style="color:var(--soft);font-size:14px">Vos réunions ne quittent pas cet ordinateur.</span></div></div>
+      <p class="sub" style="margin:0">Réglons Wholeheard en une question.</p>
+      <p class="q">Vos réunions parlent-elles de sujets confidentiels ?</p>
+      <p class="sub">Clients, ressources humaines, santé, juridique, chiffres non publiés…</p>
+      <div class="choices">
+        <div class="choice"><div><b>Oui, souvent</b><span>Rien ne doit quitter cet ordinateur.</span></div></div>
+        <div class="choice"><div><b>Rarement ou jamais</b><span>Je peux confier le texte d’une réunion à un service que je choisis.</span></div></div>
+        <div class="choice"><div><b>Je ne sais pas</b><span>Wholeheard choisira le plus discret.</span></div></div>
+      </div>
+      <div class="actions"><span class="later">Passer — tout sur cet ordinateur</span><span class="primary">Suivant</span></div>
+    </div>
+    <div class="note"><b>Propositions</b>Rien n’est choisi d’avance ; « Suivant » sans réponse, « Passer » et « Je ne sais pas » gardent tout sur cet ordinateur. Rouvert depuis Réglages (« Refaire le réglage »), « Passer » devient « Annuler » et rien ne change avant la confirmation.</div>
+  </section>
+
+  <section>
+    <h2>2 · Seulement si « Rarement ou jamais »</h2>
+    <div class="card">
+      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div></div>
+      <p class="q">Qui écrit le compte rendu ?</p>
+      <div class="choices">
+        <div class="choice"><div><b>Cet ordinateur</b><span>Rien ne sort. Il faut Ollama, gratuit ; un peu plus lent.</span></div></div>
+        <div class="choice on"><div><b>Un service en ligne</b><span>Plus rapide et plus fin. Le texte de la réunion lui est envoyé, jamais le son. Vous le choisirez dans Réglages, et votre accord sera demandé une fois avant le premier envoi.</span></div></div>
+      </div>
+      <div class="actions"><span class="later">Retour</span><span class="primary">Suivant</span></div>
+    </div>
+    <div class="note"><b>Proposition</b>La transcription reste sur cet ordinateur dans les deux cas : un service qui l’entend reste un choix de Réglages, pour qui le connaît.</div>
+  </section>
+
+  <section>
+    <h2>3 · Le réglage, dit en clair — mode privé</h2>
+    <div class="card">
+      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div></div>
+      <div class="mode"><div><b>Mode privé</b><br><span style="color:var(--soft);font-size:14px">Vos réunions ne quittent pas cet ordinateur.</span></div></div>
       <dl class="facts">
-        <dt>Transcription</dt><dd>Sur cet ordinateur — Whisper large v3 turbo</dd>
-        <dt>Compte rendu</dt><dd>Sur cet ordinateur — Ollama, qwen3:8b</dd>
+        <dt>Transcription</dt><dd>Sur cet ordinateur <span style="color:var(--soft)">· Whisper, le plus précis</span></dd>
+        <dt>Compte rendu</dt><dd>Sur cet ordinateur <span style="color:var(--soft)">· avec Ollama</span></dd>
         <dt>Rappel</dt><dd>Prévenir les participants au début de chaque réunion</dd>
       </dl>
-      <div class="actions"><span class="later">Plus tard</span><span class="primary">Télécharger le modèle (834 Mo)</span></div>
+      <div class="actions"><span class="later">Plus tard</span><span class="primary">Télécharger le modèle (874 Mo)</span></div>
       <p class="hint" style="margin:0;text-align:left">Depuis huggingface.co, vérifié avant d’être utilisé.</p>
     </div>
-    <div class="note"><b>Propositions</b>Sur un Mac sous macOS 26, la transcription est SpeechAnalyzer d’Apple. Ollama absent : le compte rendu attend, avec le lien pour l’installer. Le modèle rapide (264 Mo) reste un choix de Réglages.</div>
+    <div class="note"><b>Propositions</b>Le modèle déjà là : « Terminer ». Sur un Mac où Réglages proposent SpeechAnalyzer d’Apple, c’est lui. Ollama absent : le compte rendu attend Ollama, avec le lien ollama.com. Le téléchargement se poursuit dans Réglages et la barre système ; la fenêtre passe aux réunions.</div>
+  </section>
+
+  <section>
+    <h2>3 · Le réglage, dit en clair — mode connecté</h2>
+    <div class="card">
+      <div class="top"><div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>Wholeheard</div></div>
+      <div class="mode" style="background:color-mix(in srgb, var(--accent) 10%, var(--surface))"><div><b>Mode connecté</b><br><span style="color:var(--soft);font-size:14px">Le compte rendu est écrit par un service en ligne ; la transcription reste sur cet ordinateur.</span></div></div>
+      <dl class="facts">
+        <dt>Transcription</dt><dd>Sur cet ordinateur <span style="color:var(--soft)">· Whisper, le plus précis</span></dd>
+        <dt>Compte rendu</dt><dd>Un service en ligne, à choisir maintenant <span style="color:var(--soft)">· OpenRouter, OpenAI ou Mistral</span></dd>
+        <dt>Rappel</dt><dd>Prévenir les participants au début de chaque réunion</dd>
+      </dl>
+      <div class="actions"><span class="later">Plus tard</span><span class="primary">Choisir mon service</span></div>
+    </div>
+    <div class="note"><b>Proposition</b>« Choisir mon service » ouvre Réglages sur le compte rendu : le service, son modèle, sa clé et « Tester », tels qu’ils sont déjà.</div>
   </section>
 </div>
 </body>

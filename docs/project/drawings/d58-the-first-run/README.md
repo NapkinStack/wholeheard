@@ -6,7 +6,7 @@ The words are proposals, in French; the yellow notes are the framer's proposals 
 
 | # | Board | What the user sees, and can do |
 |---|---|---|
-| 1 | [The first run](1-first-run-light.png) · [dark](1-first-run-dark.png) | At the first start, the full window opens on the assistant: two questions — are the meetings confidential; if rarely, who writes the minutes — then the setting said plainly, the model fetched on a click. *Passer* keeps everything on this computer |
+| 1 | [The first run](1-first-run-light.png) · [dark](1-first-run-dark.png) | At the first start, the full window opens on the assistant: one question — are the meetings confidential —, a second if rarely — who writes the minutes —, then the setting said plainly: private, the model fetched on a click; connected, Settings opened at the minutes. *Passer* keeps everything on this computer. Opens by itself once |
 
 [`board.html`](board.html) is the board's source, with `ui/window.css`'s colours; the images are
 rendered from it at 1280 px wide (`chromium-browser --headless --screenshot`, `?dark` for the dark
