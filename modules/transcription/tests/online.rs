@@ -19,31 +19,34 @@ fn served(status: u16, answered: &'static str) -> (String, mpsc::Receiver<(Strin
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = format!("http://{}/v1", listener.local_addr().unwrap());
     let (tell, asked) = mpsc::channel();
+    // As many requests as are asked, each answered the same: a session sends a span per track.
     thread::spawn(move || {
-        let (stream, _) = listener.accept().unwrap();
-        let mut reader = BufReader::new(stream.try_clone().unwrap());
-        let mut head = String::new();
-        let mut length = 0;
-        loop {
-            let mut line = String::new();
-            reader.read_line(&mut line).unwrap();
-            if line.trim().is_empty() {
-                break;
+        for stream in listener.incoming() {
+            let stream = stream.unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut head = String::new();
+            let mut length = 0;
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line.trim().is_empty() {
+                    break;
+                }
+                if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = value.trim().parse().unwrap();
+                }
+                head.push_str(&line);
             }
-            if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
-                length = value.trim().parse().unwrap();
-            }
-            head.push_str(&line);
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let _ = tell.send((head, body));
+            let mut stream = stream;
+            let answer = format!(
+                "HTTP/1.1 {status} Status\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answered}",
+                answered.len()
+            );
+            let _ = stream.write_all(answer.as_bytes());
         }
-        let mut body = vec![0; length];
-        reader.read_exact(&mut body).unwrap();
-        let _ = tell.send((head, body));
-        let mut stream = stream;
-        let answer = format!(
-            "HTTP/1.1 {status} Status\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answered}",
-            answered.len()
-        );
-        let _ = stream.write_all(answer.as_bytes());
     });
     (address, asked)
 }
@@ -201,8 +204,8 @@ fn the_program_writes_the_transcript_from_the_service_its_host_in_the_header() {
         audio.extend_from_slice(&(if (RATE..RATE * 3).contains(&n) { 8000i16 } else { 0 }).to_le_bytes());
     }
     std::fs::write(folder.path().join("me.wav"), &audio).unwrap();
-    // The other side holds no sound: nothing of it is sent.
-    std::fs::write(folder.path().join("others.wav"), &audio[..44]).unwrap();
+    // Both sides sound: each is heard by the service, and each segment goes to its own track.
+    std::fs::write(folder.path().join("others.wav"), &audio).unwrap();
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
         .arg(folder.path())
         .args(["--provider", &address, "--model", "whisper-large-v3", "--language", "fr"])
@@ -218,6 +221,22 @@ fn the_program_writes_the_transcript_from_the_service_its_host_in_the_header() {
         header["engine"].as_str().is_some_and(|engine| engine.starts_with("127.0.0.1:")) && header["model"] == "whisper-large-v3",
         "{header}"
     );
+    let segments: Vec<serde_json::Value> = transcript
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .filter(|line: &serde_json::Value| line["type"] == "segment")
+        .collect();
+    for (speaker, track) in [("me", "local"), ("others", "remote")] {
+        let theirs: Vec<_> = segments.iter().filter(|segment| segment["speaker"] == speaker).collect();
+        assert!(!theirs.is_empty(), "no segment of {speaker}: {transcript}");
+        assert!(
+            theirs
+                .iter()
+                .all(|segment| segment["track"] == track && segment["start"].as_f64() < segment["end"].as_f64()),
+            "{transcript}"
+        );
+    }
+    assert!(transcript.lines().last().unwrap().contains("\"complete\""), "{transcript}");
 }
 
 #[test]
