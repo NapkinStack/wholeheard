@@ -2,6 +2,7 @@
 //! lost, nothing overwritten; a step interrupted is done at the next start.
 
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
@@ -81,6 +82,8 @@ fn a_settings_file_with_no_line_end_stays_readable() {
     assert_eq!(read.sessions, here.documents.join("Summit"));
 }
 
+// A folder that refuses by its mode, and a link: Unix's, as Summit's users had (D28).
+#[cfg(unix)]
 #[test]
 fn a_move_that_failed_is_done_at_the_next_start_and_the_meetings_never_lost() {
     let root = tempfile::tempdir().unwrap();
@@ -247,6 +250,7 @@ fn a_folder_the_user_took_out_of_their_settings_stays_out() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn a_settings_file_kept_elsewhere_by_a_link_is_written_there_with_its_permissions() {
     let root = tempfile::tempdir().unwrap();
