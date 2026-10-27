@@ -98,7 +98,7 @@ deliverables:
   - id: D60
     title: "A meeting said confidential is transcribed and summarised on this computer alone, whatever the settings say"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given `contracts/session-audio/v2` and v1, when their pages are changed — in a pull request of the contracts module alone, merged first —, then each says an optional file `confidential`, empty, written by the shell on the user's word, which only the shell reads: it asks the shell to make the meeting on this computer alone; the steps that follow need not read it"
       - "Given the window while recording, and a meeting's page, when the user turns on « Réunion confidentielle » — « rien ne quitte cet ordinateur » —, then the file is written, and turned off it is removed; the page and the list of meetings show it with a lock and its words"

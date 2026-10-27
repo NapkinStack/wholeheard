@@ -1498,6 +1498,21 @@ def confidential_kept(now: dt.datetime) -> None:
             check("its end is no failure said", not browser.find_elements(By.ID, "minutes-again"))
     finally:
         (WORK / "slow-minutes").unlink()
+
+    # A service named to hear, the default Whisper model not there: said confidential, the meeting
+    # waits for the model, offered as Settings offer it, and nothing is sent.
+    unmodelled = WORK / "confidential-no-model"
+    session(unmodelled / "kept", now - dt.timedelta(hours=4), 3, {"local.wav": 1000})
+    (unmodelled / "kept" / "confidential").touch()
+    with window(unmodelled, "fr_FR.UTF-8", agreed.replace(f'model = "{model}"\n', "")) as browser:
+        browser.execute_script("location.hash = '#/meeting/kept'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "make-transcript"), 10)
+        press(browser, "make-transcript")
+        waits = "return document.getElementById('transcript-state')?.innerText || ''"
+        offered = wait_for(browser, lambda b: "En attente du modèle Whisper" in b.execute_script(waits)
+                           and b.find_elements(By.CSS_SELECTOR, "#transcript-state #model-fetch"), 10)
+        check("the Whisper model missing: said and offered as Settings offer it, the service named asked nothing",
+              offered and counted == {"hear": 1, "write": 2}, (browser.execute_script(waits), counted))
     for server in servers:
         server.shutdown()
 
