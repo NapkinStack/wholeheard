@@ -95,6 +95,41 @@ made, or a transcript is left unfinished. Changed after they were made, *Refaire
 makes the transcript again with whoever the settings name to hear, then the minutes with whoever
 they name to write — each kept in place until the new one is whole, put back if it is not.
 
+**A meeting said confidential** (D60, [its board](../../docs/project/drawings/d60-confidential/)) is
+made on this computer alone, whatever the settings name.
+
+```mermaid
+flowchart LR
+    S["« Réunion confidentielle »<br/>small window · meeting's page"]:::user --> F["confidential<br/>empty file, written whole"]:::file
+    F --> H{"Who hears"}:::shell
+    H -->|SpeechAnalyzer chosen| A["SpeechAnalyzer"]:::here
+    H -->|else| W["Whisper<br/>the settings' model"]:::here
+    F --> M{"Who writes"}:::shell
+    M -->|settings name this computer's| O1["that model"]:::here
+    M -->|else| O2["Ollama: qwen3:8b,<br/>else its first model"]:::here
+    M -->|Ollama silent or empty| X["the minutes wait, said"]:::wait
+    classDef user fill:#1e3a8a,color:#fff
+    classDef file fill:#374151,color:#fff
+    classDef shell fill:#5b21b6,color:#fff
+    classDef here fill:#065f46,color:#fff
+    classDef wait fill:#92400e,color:#fff
+```
+
+**Legend** — blue: the user's gesture · grey: the meeting's file · violet: the shell's choice ·
+green: made here · amber: waiting.
+
+The switch writes the meeting's `confidential` (`contracts/session-audio/v2`), turned off removes
+it; the list and the page show a lock and its word. The shell reads it where it chooses, before it
+starts either step (`hearer_now`, `write_minutes_from`): no key is read, no agreement asked, the
+agreement's page refused. Turned on while a service makes the transcript or the minutes, that
+making is ended and made again here first in line; while an agreement is asked, it is no longer;
+after a service wrote the minutes, they are written again here. What had left — the sound to the
+host that heard it, the transcript to the one that wrote — is said on the page, from what the
+shell saw of the makings and what the transcript's header and the minutes' front matter name; it
+is kept in memory, until Wholeheard quits. A Whisper model missing is offered as for any meeting;
+Ollama silent or holding no model, the minutes wait, said, its recommended model offered, made
+once it is there. Turned off, the settings choose again for what is made next.
+
 **The transcript follows the stop.** Once a recording is stopped, its transcript is made
 without another gesture, on this machine, with the model the settings name; a notification
 says when it is there, and a click on it opens the session's folder under a Linux desktop.

@@ -65,6 +65,87 @@ function chip(text, kind) {
   return element;
 }
 
+// A lock, drawn: its meaning is always in the words beside it (D60).
+function lock() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "lock");
+  svg.setAttribute("aria-hidden", "true");
+  const body = document.createElementNS(ns, "rect");
+  for (const [key, value] of Object.entries({ x: 5, y: 11, width: 14, height: 10, rx: 2, fill: "currentColor" })) body.setAttribute(key, value);
+  const shackle = document.createElementNS(ns, "path");
+  for (const [key, value] of Object.entries({ d: "M8 11 V8 a4 4 0 0 1 8 0 V11", fill: "none", stroke: "currentColor", "stroke-width": 2.2 })) shackle.setAttribute(key, value);
+  svg.append(body, shackle);
+  return svg;
+}
+
+function lockedChip(words) {
+  const said = chip(words.confidential_chip, "locked");
+  said.prepend(lock());
+  return said;
+}
+
+// « Réunion confidentielle » (D60): the settings' own switch, a lock before its words.
+function confidentialSwitch(words, id) {
+  const row = element("label", "row confidential");
+  const box = element("input");
+  box.type = "checkbox";
+  box.id = id;
+  box.setAttribute("role", "switch");
+  const said = element("span", "said");
+  said.append(element("span", "name", words.confidential_name), element("span", "says", words.confidential_says));
+  row.append(lock(), said, box);
+  return { row, box };
+}
+
+// What had left before the meeting was said confidential, and to which host.
+function leftSaid(words, left) {
+  const each = left.map(({ what, host }) => fill(what === "sound" ? words.confidential_left_sound : words.confidential_left_transcript, host));
+  return each.length === 0 ? "" : fill(words.confidential_left, each.join(" · "));
+}
+
+// The switch on a meeting's page: the file written or removed at once; what had left said.
+function confidentialCard(session, confidential, words) {
+  const name = nameOf(session);
+  const card = element("section", "card confidential-card");
+  card.id = "confidential";
+  const { row, box } = confidentialSwitch(words, "confidential-switch");
+  box.checked = confidential.on;
+  const left = element("p", "left");
+  left.id = "confidential-left";
+  const said = element("p", "says");
+  said.id = "confidential-said";
+  said.setAttribute("role", "status");
+  const paint = (shown) => {
+    card.classList.toggle("on", shown.on);
+    left.textContent = leftSaid(words, shown.left);
+    left.hidden = left.textContent === "";
+    said.hidden = said.textContent === "";
+  };
+  box.addEventListener("change", async () => {
+    box.disabled = true;
+    try {
+      const shown = await window.__TAURI__.core.invoke("confidential_set", { name, on: box.checked });
+      said.textContent = "";
+      paint(shown);
+      // The title's chips say it at once.
+      const holds = document.querySelector("#meeting .meeting-title .holds");
+      holds?.querySelector(".chip.locked")?.remove();
+      if (shown.on) holds?.prepend(lockedChip(words));
+    } catch {
+      box.checked = !box.checked;
+      said.textContent = words.confidential_not_saved;
+      said.hidden = false;
+    }
+    box.disabled = false;
+    readMakings();
+  });
+  card.append(row, left, said);
+  paint(confidential);
+  return card;
+}
+
 // A session's folder name: what the window calls it, and the only date it says when its start
 // cannot be read.
 const nameOf = (session) => session.folder.split(/[\\/]/).pop();
@@ -83,6 +164,8 @@ function holdings(session, words, where) {
   holds.className = "holds";
   // A place is said only where it is known: `here` true or false; unknown, the chip says none.
   const ran = (text, here) => (where && here !== undefined ? `${text} · ${here ? words.ran_here : words.ran_online}` : text);
+  // Said confidential (D60): the lock and its word, first — never the lock alone.
+  if (session.confidential) holds.append(lockedChip(words));
   if (session.state === "recording") holds.append(chip(words.recording, "live"));
   if (session.state === "interrupted") holds.append(chip(words.interrupted, "cut"));
   if (session.minutes) holds.append(chip(ran(words.minutes, where?.minutes_here)));
@@ -105,6 +188,10 @@ function minutesState(name) {
   const waiting = makings.minutes_waiting.indexOf(name);
   if (waiting >= 0) return { kind: "waiting", before: waiting + 1 };
   if (makings.awaiting[name] !== undefined) return { kind: "awaiting", host: makings.awaiting[name] };
+  // Confidential, waiting for Ollama: silent, or holding no model (D60).
+  if (makings.ollama_waiting[name] !== undefined) {
+    return { kind: "ollama", silent: makings.ollama_waiting[name] === "silent", busy: makings.model_fetching !== null };
+  }
   if (makings.failed[name] !== undefined) return { kind: "failed", why: makings.failed[name], said: makings.failed_said[name] };
   return null;
 }
@@ -150,6 +237,32 @@ function paintState(said, shown, of) {
   } else if (shown.kind === "model") {
     if (shown.coming) said.replaceChildren(element("span", "what", words.transcript_model_coming));
     else said.replaceChildren(element("span", "what", words.transcript_model_needed), modelFetch(shown.busy));
+  } else if (shown.kind === "ollama") {
+    // Silent: said where to get it, and tried again on a click; holding none: its model offered,
+    // as Settings offer it — once it is there, the minutes are made.
+    if (shown.silent) {
+      const again = element("button", "open", words.try_again);
+      again.type = "button";
+      again.id = of.again;
+      again.addEventListener("click", async () => {
+        again.disabled = true;
+        await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name }).catch(() => {});
+        said.dataset.key = "";
+        readMakings();
+      });
+      said.replaceChildren(element("span", "what", words.welcome_ollama_silent), again);
+    } else {
+      const fetch_ = element("button", "open", fill(words.confidential_fetch, makings.ollama_recommended));
+      fetch_.type = "button";
+      fetch_.id = "ollama-fetch";
+      fetch_.disabled = shown.busy;
+      fetch_.addEventListener("click", async () => {
+        fetch_.disabled = true;
+        await window.__TAURI__.core.invoke("ollama_pull_offered").catch(() => {});
+        readMakings();
+      });
+      said.replaceChildren(element("span", "what", words.confidential_ollama_empty), fetch_);
+    }
   } else if (shown.kind === "awaiting") {
     const agree = element("a", "open", words.agree_open);
     agree.id = "minutes-agree";
@@ -254,7 +367,7 @@ function paintMakings() {
     chip_.hidden = state === null;
     if (state === null) continue;
     chip_.textContent = minutes
-      ? { making: words.chip_making, waiting: words.chip_waiting, awaiting: words.chip_awaiting, failed: words.chip_failed }[state.kind]
+      ? { making: words.chip_making, waiting: words.chip_waiting, ollama: words.chip_waiting, awaiting: words.chip_awaiting, failed: words.chip_failed }[state.kind]
       : { making: words.chip_transcribing, waiting: words.chip_waiting, model: words.chip_waiting, failed: words.chip_transcript_failed }[state.kind];
     chip_.classList.toggle("failed", state.kind === "failed");
   }
@@ -962,7 +1075,7 @@ document.addEventListener("keydown", (event) => {
   player.playing() ? player.pause() : player.play();
 });
 
-function showMeeting({ session, transcript, minutes, developer, listen: listened, context }, words) {
+function showMeeting({ session, transcript, minutes, developer, listen: listened, context, confidential }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
   const back = element("a", "back", `‹ ${words.back}`);
@@ -1017,7 +1130,7 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
   page.dataset.name = nameOf(session);
-  page.replaceChildren(top, title, contextCard(session, { context, transcript, minutes }, words), drawn, columns);
+  page.replaceChildren(top, title, confidentialCard(session, confidential, words), contextCard(session, { context, transcript, minutes }, words), drawn, columns);
   // The line being said, marked while it plays; the page stays where the user left it (D26, the
   // decider, 2026-10-24: following the line was intrusive).
   if (player?.name === nameOf(session)) {
@@ -1917,7 +2030,26 @@ function showSmall(words) {
     unfold(false);
     disclose.focus();
   });
-  live.append(top, meters, stop, disclose, opened, note);
+  // Said confidential (D60): under Arrêter, above the context; kept as it is turned, once the
+  // meeting's folder holds its session.
+  const secret = confidentialSwitch(words, "small-confidential");
+  const mark = { wanted: null };
+  const marked = async () => {
+    if (meeting.name === null || mark.wanted === null) return;
+    const wanted = mark.wanted;
+    try {
+      await invoke("confidential_set", { name: meeting.name, on: wanted });
+      if (mark.wanted === wanted) mark.wanted = null;
+    } catch {
+      // Tried again at the next tick.
+    }
+  };
+  secret.box.addEventListener("change", () => {
+    mark.wanted = secret.box.checked;
+    secret.row.classList.toggle("on", secret.box.checked);
+    marked();
+  });
+  live.append(top, meters, stop, secret.row, disclose, opened, note);
   live.hidden = true;
   page.replaceChildren(rest, live);
 
@@ -1969,6 +2101,9 @@ function showSmall(words) {
       recording = now.recording;
       // Each recording its own context: nothing of the one before.
       Object.assign(meeting, { name: null, saved: null, typed: null });
+      mark.wanted = null;
+      secret.box.checked = false;
+      secret.row.classList.remove("on");
       field.area.value = "";
       field.painted();
       unfold(false);
@@ -2011,6 +2146,12 @@ function showSmall(words) {
       }
     }
     keep();
+    // What the folder says, unless a turn of the switch is still to be kept.
+    if (mark.wanted === null && now.meeting !== null && secret.box.checked !== now.confidential) {
+      secret.box.checked = now.confidential;
+      secret.row.classList.toggle("on", now.confidential);
+    }
+    marked();
   };
   setInterval(tick, 100);
   setInterval(() => recording === false && drawRest(), 1500);

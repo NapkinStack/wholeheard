@@ -317,3 +317,18 @@ body.small-window .bar { display: none; }
 #small .disclose .chevron { color: var(--soft); font-size: 13px; }
 .small-context { display: flex; flex-direction: column; gap: 5px; margin-top: -4px; }
 #small .context-text { resize: none; }
+
+/* A meeting said confidential (D60's board): the settings' switch, a lock before its words. */
+.lock { width: 18px; height: 18px; flex: none; color: var(--soft); }
+.confidential { flex-wrap: nowrap; gap: 10px; cursor: pointer; }
+.confidential .said { flex: 1 1 auto; }
+.confidential .says { font-size: 13px; }
+.confidential.on .lock, .confidential-card.on .lock { color: var(--ok); }
+.confidential input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.confidential-card { padding: 14px 24px; display: flex; flex-direction: column; gap: 8px; }
+.confidential-card .left { margin: 0; padding: 8px 12px; border-radius: 10px; font-size: 13.5px; background: color-mix(in srgb, var(--red) 10%, var(--surface)); }
+.confidential-card .says:empty { display: none; }
+.chip.locked { display: inline-flex; align-items: center; gap: 5px; color: var(--ok); font-weight: 600; }
+.chip.locked .lock { width: 13px; height: 13px; color: inherit; }
+#small .confidential .name { font-size: 14px; }
+#small .confidential .says { font-size: 12.5px; }

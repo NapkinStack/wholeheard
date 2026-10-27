@@ -890,3 +890,50 @@ fn the_context_s_words_are_said_in_both_languages_french_typeset_as_french() {
     }
     assert!(french.context_script.contains("Whisper") && english.context_script.contains("Whisper"));
 }
+
+#[test]
+fn a_confidential_meeting_s_words_are_said_in_both_languages_french_typeset_as_french() {
+    let french = words::window(Language::French);
+    let english = words::window(Language::English);
+    // The switch's name and words, as D60's criterion says them.
+    assert_eq!(french.confidential_name, "Réunion confidentielle");
+    assert_eq!(french.confidential_says, "Rien ne quitte cet ordinateur");
+    assert_eq!(english.confidential_name, "Confidential meeting");
+    for sentence in [
+        french.confidential_left,
+        french.confidential_not_saved,
+        french.confidential_ollama_empty,
+    ] {
+        for mark in ['?', '!', ';', ':'] {
+            assert!(!sentence.contains(&format!(" {mark}")), "{sentence}");
+        }
+        assert!(!sentence.contains('\''), "{sentence}");
+    }
+    for (said, holes) in [
+        (french.confidential_left, 1),
+        (english.confidential_left, 1),
+        (french.confidential_left_sound, 1),
+        (english.confidential_left_sound, 1),
+        (french.confidential_left_transcript, 1),
+        (english.confidential_left_transcript, 1),
+        (french.confidential_fetch, 1),
+        (english.confidential_fetch, 1),
+    ] {
+        assert_eq!(said.matches("{}").count(), holes, "{said}");
+    }
+    // Waiting for Ollama, said in a notification too, the model it would fetch named.
+    for language in [Language::French, Language::English] {
+        for silent in [true, false] {
+            let said = words::minutes(&words::Minutes::OllamaWaits { silent }, language);
+            assert!(said.body.contains("Ollama"), "{}", said.body);
+            assert_eq!(
+                said.body.contains(wholeheard_shell::providers::RECOMMENDED),
+                !silent,
+                "{}",
+                said.body
+            );
+        }
+    }
+    let said = words::minutes(&words::Minutes::OllamaWaits { silent: false }, Language::French);
+    assert!(!said.body.contains(" :"), "{}", said.body);
+}
