@@ -1101,6 +1101,15 @@ def context_written(now: dt.datetime) -> None:
             seen(browser, "d59-5-page-closed-light")
             browser.find_element(By.ID, "context-text").send_keys(" X")
             check("closed, nothing typed is taken", (meeting / "context.txt").read_text() == said + more)
+            # The shell itself refuses, not only the page.
+            refused = browser.execute_async_script(
+                "const done = arguments[arguments.length - 1], name = arguments[0];"
+                "Promise.all([window.__TAURI__.core.invoke('context_saved', {name, text: 'X'}).then(() => 'saved', () => 'refused'),"
+                "window.__TAURI__.core.invoke('context_redo', {name}).then(() => 'redone', () => 'refused')]).then(done)",
+                meeting.name,
+            )
+            check("and the shell refuses a context written or made again meanwhile",
+                  refused == ["refused", "refused"] and (meeting / "context.txt").read_text() == said + more, refused)
         finally:
             (WORK / "slow-hearing").unlink()
         remade = wait_for(browser, lambda b: json.loads((meeting / "minutes.md").read_text().split("context: ", 1)[1].split("\n", 1)[0]) == said + more, 20)
@@ -1125,9 +1134,12 @@ def context_written(now: dt.datetime) -> None:
               failed and ((meeting / "transcript.jsonl").read_text(), (meeting / "minutes.md").read_text()) == before
               and not list(meeting.glob("transcript-before-*")), sorted(p.name for p in meeting.iterdir()))
         check("and Refaire avec ce contexte is offered again", wait_for(browser, lambda b: b.find_element(By.ID, "context-changed").is_displayed(), 5))
-        # Pasted past the most: cut to it, as the shell counts — in characters.
+        # Pasted past the most: cut to it, as the shell counts — in characters. As WebKit pastes: a
+        # beforeinput that may refuse it, then the text in and an input.
         browser.execute_script(
-            "const a = document.getElementById('context-text'); a.value = 'é'.repeat(450); a.dispatchEvent(new Event('input'))"
+            "const a = document.getElementById('context-text'), data = 'é'.repeat(450);"
+            "const asked = new InputEvent('beforeinput', {inputType: 'insertFromPaste', data, cancelable: true});"
+            "if (a.dispatchEvent(asked)) { a.value = data; a.dispatchEvent(new InputEvent('input', {inputType: 'insertFromPaste', data})) }"
         )
         cut = wait_for(browser, lambda b: len((meeting / "context.txt").read_text()) == 400, 3)
         check("a paste past 400 characters is cut to 400, in the field and the file",

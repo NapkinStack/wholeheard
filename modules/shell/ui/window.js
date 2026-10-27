@@ -421,8 +421,10 @@ function contextField(words, text, save, id) {
     count.textContent = other ? `${leftSaid} · ${words.context_script}` : `${fill(words.context_most, CONTEXT_MOST)} · ${leftSaid}`;
     count.classList.toggle("other-script", other);
   };
-  // A character typed past the most is not taken; a paste too long is cut to it.
+  // A character typed past the most is not taken; a paste or a drop too long is let in, then cut
+  // to it below — refused whole, nothing of it would be taken.
   area.addEventListener("beforeinput", (event) => {
+    if (/^insertFrom(Paste|Drop)/.test(event.inputType)) return;
     const data = event.data ?? (/^insert(LineBreak|Paragraph)$/.test(event.inputType) ? "\n" : null);
     if (data === null || !event.inputType.startsWith("insert")) return;
     const replaced = [...area.value.slice(area.selectionStart, area.selectionEnd)].length;
@@ -1951,6 +1953,8 @@ function showSmall(words) {
     if (now === null) return;
     if (now.recording !== recording) {
       const first = recording === null;
+      // What was typed last, kept before the field is emptied for the next recording.
+      if (recording) await keep();
       recording = now.recording;
       // Each recording its own context: nothing of the one before.
       Object.assign(meeting, { name: null, saved: null, typed: null });

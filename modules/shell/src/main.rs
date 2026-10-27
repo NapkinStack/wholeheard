@@ -2333,6 +2333,16 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
     if let Hearer::Model(model) = &hearer
         && !model.is_file()
     {
+        // Made again by the settings' Whisper, its default model missing: it waits for it and the
+        // model is offered, as for a first transcript.
+        if again == Again::Settings && *model == Settings::default().model {
+            drop(running);
+            wait(&shell, folder, Some(again));
+            if !*shell.fetching.lock().unwrap() {
+                offer(app);
+            }
+            return Ok(());
+        }
         return Err(format!("{} is no model on this computer", model.display()));
     }
     // Made again with the context: its minutes too, when it had some or the settings make them.
