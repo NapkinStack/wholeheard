@@ -284,11 +284,11 @@ standing for a real one:
 |---|---|
 | 1. Chosen as for the minutes: this computer, or a service's address, model and key | #454 S1, S4, S7 |
 | 2. Nothing sent before the host is agreed to; another host asks again | #454 S2, S7 |
-| 3. A service that answers: `transcript/v1` written by the step, the header its host and model | #451 S1, S6 (`src/step.rs` unchanged); the meeting's page, #465 S1 |
+| 3. A service that answers: `transcript/v1` written by the step, each segment on its track with its times, the header its host and model | #451 S1 (times), S6 (header, `src/step.rs` unchanged); the meeting's page, #465 S1; each segment on its track: the program run against a service played on the machine, both tracks sounding, by #472's verifier |
 | 4. *Tester* says in one sentence whether it hears, with a sound of its own | #451 S5; #454 S4 |
-| 5. A key refused, no answer, no transcript, text without times: one sentence; nothing kept of a half; made again | #451 S2, S3; #466 S1, S2; the span refused is not written, and the step takes up as with any engine (`tests/taking_up.rs`, `tests/step.rs`), `src/step.rs` unchanged |
+| 5. A key refused, no answer, no transcript, text without times: one sentence; nothing kept of a half; made again | #451 S2, S3; #466 S1, S2; a refused span is not written, and the step takes up the same making (`tests/taking_up.rs`, `tests/step.rs`); made again by another model after a refusal of the first span — found missing by #472's verifier, built by #473 S1 |
 
-Never run: a real service on a real meeting (#454's S6) — its answer's times, the system's keyring
+*Tester*'s sentence when the service hears (« Il entend : … ») is shown by no test: the e2e reaches no service. Never run: a real service on a real meeting (#454's S6) — its answer's times, the system's keyring
 holding the key; #463 stays open for it, on the decider's time.
 
 ### D53
