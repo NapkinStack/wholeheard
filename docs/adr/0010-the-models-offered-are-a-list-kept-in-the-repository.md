@@ -2,8 +2,9 @@
 
 > The framework's words: `.nstack/handbook/glossary.md`.
 
-- **Status**: Proposed — the framer's, on the decider's word of 2026-10-26: "on peut le faire
-  maintenant, tranche tu es autonome". Accepting it is the decider's.
+- **Status**: Accepted — by the decider, 2026-10-27: "ok, ajoute ça à l'ADR-0010 et j'accepte
+  l'ADR", once option 5 below was added. Proposed by the framer on the decider's word of
+  2026-10-26: "on peut le faire maintenant, tranche tu es autonome".
 - **Date**: 2026-10-26
 - **Decision makers**: the decider, `@napkinstack-admin`
 - **Scope**: module `shell`
@@ -89,6 +90,24 @@ repository, read by the application, each entry with its address, size and check
   the decider's, kept outside any repository.
 - Drawback: every change to the list waits on the decider's signing gesture.
 
+### Option 5 — Hugging Face's own listing, filtered (the decider's question, 2026-10-27)
+- No list kept: Settings ask Hugging Face's API for the speech-to-text models, the best rated
+  first, and their files' sizes and SHA-256 from the same API.
+- Read on 2026-10-27:
+  - `GET /api/models?pipeline_tag=automatic-speech-recognition&sort=downloads` — of the first
+    eight, none is a file whisper.cpp reads: three wav2vec2 models (Japanese, Russian,
+    Portuguese) and `openai/whisper-large-v3-turbo` in transformers' format, WhisperKit's Core ML,
+    faster-whisper's CTranslate2, and two pyannote speaker-diarization models, which transcribe nothing.
+  - The same with `filter=ggml` — Parakeet, SenseVoice, Qwen3-ASR, VibeVoice: the format's
+    family, not Whisper; whisper.cpp runs none of them.
+  - `ggerganov/whisper.cpp`, where the models offered come from, is in neither: tagged
+    `automatic-speech-recognition` but not `ggml`, its downloads counted as 0.
+  - That repository's own tree (`/api/models/ggerganov/whisper.cpp/tree/main`) gives each file's
+    model file's size and SHA-256 — 47 entries, encoders for Core ML and quantised variants among them.
+- Drawbacks: no filter picks the files the engine reads; downloads and likes say what is
+  popular, not what hears a meeting in French; a fingerprint read from the host that serves the
+  file checks nothing against that host.
+
 ## Decision
 
 **Option 2.**
@@ -153,4 +172,7 @@ host not allowed, a size of zero or a fingerprint that is not 64 hexadecimal cha
   the price of the decider's gesture on every change. It comes **before the first build
   published for people outside the project**, the event PDR-0002 makes `capture` `critical` on:
   from then on, strangers' machines would trust the list.
+- **Hugging Face's listing, filtered** (option 5, read 2026-10-27): what it returns first, the
+  engine does not run, and what it guards is only what the host says of itself. The list stays
+  short and chosen; a second local engine, when one comes, gets its own section in the same file.
 - **Reading it at each start**: a request the user did not ask for (security rule 1).
