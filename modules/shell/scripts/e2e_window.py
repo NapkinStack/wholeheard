@@ -2018,6 +2018,8 @@ def main() -> int:
         )
         check("in developer mode, the meeting offers its diagnostic: its failed minutes, no path of the run",
               offered and '"shell.minutes_failed"' in lines and str(WORK) not in lines, lines[-600:])
+        check("and each track's level, after the logs: one line a track, numbers only",
+              lines.count('"type":"levels"') == 2 and lines.rstrip().endswith("}") and '"track":"remote"' in lines.splitlines()[-1], lines[-400:])
         to_settings()
         press(browser, "developer")
         wait_for(browser, lambda b: "developer = false" in window.file.read_text(), 5)
