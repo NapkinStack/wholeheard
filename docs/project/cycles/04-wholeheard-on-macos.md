@@ -182,7 +182,7 @@ whose trials are what D38, D39 and D27 wait on. The end date does not move.
 before (#434); read again on *Mettre à jour la liste (raw.githubusercontent.com)* only, refused
 whole when it is not a list this build would ship, a redirect included (#435). Every criterion is
 held by a scenario of the two sheets, automated but for one: a model of the list read again is
-fetched as any other, read in the code (#435's S5) — the 64 KB bound included (#434,
+fetched as any other, read in the code (#435's S5). The 64 KB bound is held by tests (#434,
 `a_list_larger_than_64_kb_is_refused_before_it_is_read`; #435, S4). Not exercised: a list that
 answers too slowly (its timeouts), and the list read again kept only until Wholeheard quits (read in
 the code: a static `RwLock`, `main.rs`).
