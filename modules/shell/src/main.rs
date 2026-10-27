@@ -862,16 +862,21 @@ fn playable(shell: &Shell, folder: &Path) -> Option<String> {
 /// A meeting's diagnostic, for the page to copy: every program's log lines of its makings, then
 /// each track's level — nothing of the meeting, which no line holds (D29).
 #[tauri::command]
-fn diagnostic(shell: State<'_, Shell>, name: String) -> Result<String, String> {
+async fn diagnostic(shell: State<'_, Shell>, name: String) -> Result<String, String> {
     if !shell.settings().developer {
         return Err("the developer mode is off".into());
     }
     let session = session_folder(&shell, &name)?;
     let folder = log::folder().ok_or("this system names no folder for logs")?;
-    // Each track's level beside the logs: whether a side was heard at all, in numbers (D39).
-    let lines = log::diagnostic(&folder, &name);
-    let levels = wholeheard_shell::levels::levels(&session);
-    Ok(if lines.is_empty() { levels } else { format!("{lines}\n{levels}") })
+    // Each track's level beside the logs: whether a side was heard at all, in numbers (D39) —
+    // read away from the window's thread, an hour of tracks taking a second.
+    tauri::async_runtime::spawn_blocking(move || {
+        let lines = log::diagnostic(&folder, &name);
+        let levels = wholeheard_shell::levels::levels(&session);
+        if lines.is_empty() { levels } else { format!("{lines}\n{levels}") }
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 /// A failure of the window's page, as it reports its own (D29): an error, its kind and where in

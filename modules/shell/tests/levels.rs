@@ -126,3 +126,32 @@ fn a_track_absent_or_unreadable_is_said_so_and_sixteen_bits_are_read() {
         "{said}"
     );
 }
+
+#[test]
+fn a_version_1_session_is_read_by_its_own_names_and_a_length_longer_than_the_file_is_cut_to_it() {
+    let folder = tempfile::tempdir().unwrap();
+    fs::write(folder.path().join("session.json"), r#"{"contract":"session-audio/v1"}"#).unwrap();
+    wav(&folder.path().join("me.wav"), 16_000, 1, 16, false, 16_000, sine(0.5));
+    // A data length that says two seconds, one second in the file.
+    let others = folder.path().join("others.wav");
+    wav(&others, 16_000, 1, 16, false, 16_000, sine(0.5));
+    let mut bytes = fs::read(&others).unwrap();
+    let at = bytes.windows(4).position(|w| w == b"data").unwrap() + 4;
+    bytes[at..at + 4].copy_from_slice(&64_000u32.to_le_bytes());
+    fs::write(&others, bytes).unwrap();
+    let said = levels(folder.path());
+    assert_eq!(line(&said, "local")["read"], true, "{said}");
+    let remote = line(&said, "remote");
+    assert!((remote["seconds"].as_f64().unwrap() - 1.0).abs() < 0.01, "{remote}");
+    assert!(remote["zeros"][0].as_f64().unwrap() < 0.01, "{remote}");
+}
+
+#[test]
+fn a_sample_that_is_no_number_is_neither_sound_nor_an_exact_zero() {
+    let folder = tempfile::tempdir().unwrap();
+    let odd = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.5];
+    wav(&folder.path().join("local.wav"), 48_000, 1, 32, false, 4, |frame, _| odd[frame]);
+    let local = line(&levels(folder.path()), "local");
+    assert_eq!(local["zeros"][0].as_f64(), Some(0.0), "{local}");
+    assert!((local["peak_dbfs"][0].as_f64().unwrap() + 6.02).abs() < 0.2, "{local}");
+}

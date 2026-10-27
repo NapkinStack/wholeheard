@@ -10,15 +10,26 @@ use std::{
 
 use serde_json::{Value, json};
 
-/// The tracks a session's folder holds, as both versions of `session-audio` name them.
-const TRACKS: [&str; 2] = ["local", "remote"];
+/// The tracks a session's folder holds, each by its file: version 1 names them `me.wav` and
+/// `others.wav`, version 2 — and a folder whose `session.json` does not read — `local.wav` and
+/// `remote.wav`.
+fn tracks(folder: &Path) -> [(&'static str, &'static str); 2] {
+    let contract = std::fs::read_to_string(folder.join("session.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|session| session["contract"].as_str().map(str::to_string));
+    match contract.as_deref() {
+        Some("session-audio/v1") => [("local", "me.wav"), ("remote", "others.wav")],
+        _ => [("local", "local.wav"), ("remote", "remote.wav")],
+    }
+}
 
-/// One JSON line a track, in the order of [`TRACKS`].
+/// One JSON line a track, the local one first.
 pub fn levels(folder: &Path) -> String {
-    TRACKS
+    tracks(folder)
         .iter()
-        .map(|track| {
-            let path = folder.join(format!("{track}.wav"));
+        .map(|(track, file)| {
+            let path = folder.join(file);
             let line = if !path.is_file() {
                 json!({ "type": "levels", "track": track, "present": false })
             } else {
@@ -132,7 +143,11 @@ fn measured(path: &Path) -> io::Result<Value> {
                 (false, _) => f64::from(i32::from_le_bytes([sample[0], sample[1], sample[2], sample[3]])) / 2_147_483_648.0,
             };
             let channel = at % form.channels;
-            let value = if value.is_finite() { value.abs() } else { 0.0 };
+            // What is no number is no sound, and no exact zero either: left out of both.
+            if !value.is_finite() {
+                continue;
+            }
+            let value = value.abs();
             peak[channel] = peak[channel].max(value);
             squares[channel] += value * value;
             zeros[channel] += u64::from(value == 0.0);
