@@ -1983,6 +1983,7 @@ function showSmall(words) {
   const meters = element("div", "meters");
   meters.append(meter(words.small_mic, "level-me", "device-me"), meter(words.small_meeting, "level-others", "device-others"));
   const note = element("p", "says", words.small_note);
+  note.id = "small-note";
   note.hidden = true;
   // The meeting's context (D59): closed by default, opened in place of the note — Arrêter never
   // moves. Kept as it is typed, once the meeting's folder holds its session.

@@ -1047,7 +1047,7 @@ def context_written(now: dt.datetime) -> None:
         check("reached by Tab and opened by Enter, the field takes the focus, named by its label",
               reached and opened and area.get_attribute("aria-label") == "De quoi parle la réunion ? Qui y participe ?"
               and area.get_attribute("placeholder") == area.get_attribute("aria-label"), (reached, focused(browser), area.get_attribute("aria-label")))
-        check("open, the note on the transcript makes room for it", not browser.find_element(By.CSS_SELECTOR, "#small .says").is_displayed())
+        check("open, the note on the transcript makes room for it", not browser.find_element(By.ID, "small-note").is_displayed())
         check("its count is said where a screen reader hears it, before a word is typed",
               browser.find_element(By.ID, "small-context-count").get_attribute("role") == "status"
               and area.get_attribute("aria-describedby") == "small-context-count"
@@ -1293,6 +1293,7 @@ def confidential_kept(now: dt.datetime) -> None:
         if (folder / "transcript.jsonl").exists() and (folder / "transcript.jsonl").read_text().strip() else None
     names = lambda folder: sorted(p.name for p in folder.iterdir())
     switch = lambda b, id_: b.find_element(By.ID, id_)
+    focused = lambda b: b.execute_script("return document.activeElement.id")
     left = "return document.getElementById('confidential-left')?.hidden ? '' : (document.getElementById('confidential-left')?.innerText || '')"
     css = (Path(__file__).parent.parent / "ui" / "window.css").read_text()
     light = css[css.index(":root {") + len(":root {"):css.index("}", css.index(":root {"))].replace("\n", " ").strip()
@@ -1319,8 +1320,10 @@ def confidential_kept(now: dt.datetime) -> None:
     meetings.mkdir()
     meeting = meetings / "2026-10-18_12-00"
     with window(meetings, "fr_FR.UTF-8", agreed, small=True) as browser:
+        # Started by the keyboard, once the page has the focus.
+        wait_for(browser, lambda b: focused(b) == "small-record", 10)
         ActionChains(browser).send_keys(Keys.ENTER).perform()
-        started = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 5)
+        started = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 10)
         row = browser.find_element(By.CSS_SELECTOR, "#small .confidential")
         check("recording, the small window offers « Réunion confidentielle — rien ne quitte cet ordinateur », off",
               started and "Réunion confidentielle" in row.text and "Rien ne quitte cet ordinateur" in row.text
@@ -1453,8 +1456,9 @@ def confidential_kept(now: dt.datetime) -> None:
     english = WORK / "confidential-en"
     english.mkdir()
     with window(english, "en_GB.UTF-8", agreed, small=True, dark=True) as browser:
+        wait_for(browser, lambda b: focused(b) == "small-record", 10)
         ActionChains(browser).send_keys(Keys.ENTER).perform()
-        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 5)
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 10)
         wait_for(browser, lambda b: (english / "2026-10-18_12-00" / "session.json").exists(), 3)
         press(browser, "small-confidential")
         marked = wait_for(browser, lambda b: (english / "2026-10-18_12-00" / "confidential").exists(), 3)
@@ -1473,6 +1477,27 @@ def confidential_kept(now: dt.datetime) -> None:
         check("in English, the list and the page say it", chips == ["Confidential"] and switch(browser, "confidential-switch").is_selected()
               and counted == {"hear": 1, "write": 1}, (chips, counted))
         seen(browser, "d60-5-page-dark")
+
+    # Turned on while a service writes the minutes: that making ended, written again here.
+    writing = WORK / "confidential-writing"
+    session(writing / "sent", now - dt.timedelta(hours=3), 3, {"local.wav": 1000, "transcript.jsonl": 0})
+    (writing / "sent" / "transcript.jsonl").write_text((asking / "asked" / "transcript.jsonl").read_text())
+    (WORK / "slow-minutes").touch()
+    try:
+        with window(writing, "fr_FR.UTF-8", agreed) as browser:
+            browser.execute_script("location.hash = '#/meeting/sent'")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"), 10)
+            press(browser, "make-minutes")
+            asked = wait_for(browser, lambda b: counted["write"] == 2, 10)
+            press(browser, "confidential-switch")
+            here = wait_for(browser, lambda b: front(writing / "sent", "provider") == "local", 25)
+            check("turned on while a service writes the minutes: ended, written here, nothing more sent",
+                  asked and here and counted == {"hear": 1, "write": 2}, (front(writing / "sent", "provider"), counted))
+            said = wait_for(browser, lambda b: b.execute_script(left) == "Déjà parti avant\u00a0: le transcript vers writes.example.", 5)
+            check("the page says the transcript had left, to which host", said, browser.execute_script(left))
+            check("its end is no failure said", not browser.find_elements(By.ID, "minutes-again"))
+    finally:
+        (WORK / "slow-minutes").unlink()
     for server in servers:
         server.shutdown()
 
@@ -2534,7 +2559,7 @@ def main() -> int:
         lost = wait_for(browser, lambda b: named(b) == ("AirPods Pro", ""), 1.5)
         check("a device changed is named within a second; a side with none names none", moved and lost, named(browser))
         shot(browser, "6-small-devices")
-        check("nothing follows the stop here: the small window does not say the transcript writes itself", not browser.find_element(By.CSS_SELECTOR, "#small .says").is_displayed())
+        check("nothing follows the stop here: the small window does not say the transcript writes itself", not browser.find_element(By.ID, "small-note").is_displayed())
         browser.find_element(By.ID, "small-stop").click()
         rest = wait_for(browser, lambda b: b.find_elements(By.ID, "small-record") and b.find_element(By.ID, "small-record").is_displayed(), 5)
         stopped = '"stopped"' in (taping / "2026-10-18_12-00" / "session.json").read_text()
@@ -2580,7 +2605,7 @@ def main() -> int:
         check("in English too, it holds in its window", said == "Your microphone" and fits[0] <= fits[1], (said, fits))
         starts = browser.execute_script("return [...document.querySelectorAll('#small .track')].map(t => t.getBoundingClientRect().left)")
         check("the two meters start at the same place", len(starts) == 2 and starts[0] == starts[1], starts)
-        note = browser.find_element(By.CSS_SELECTOR, "#small .says")
+        note = browser.find_element(By.ID, "small-note")
         check("the transcript follows the stop: the small window says so", note.is_displayed() and "transcript" in note.text, note.text)
         browser.find_element(By.ID, "small-stop").click()
         rest = wait_for(browser, lambda b: b.find_elements(By.ID, "small-record") and b.find_element(By.ID, "small-record").is_displayed(), 5)
