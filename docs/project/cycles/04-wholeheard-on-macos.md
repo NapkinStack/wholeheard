@@ -323,8 +323,9 @@ Whisper on the processor there (no Vulkan SDK on the runner), the shell's `icon.
 the zip, `Wholeheard-<version>-windows-x64.zip`, made and judged by `windows-app.yml`, the C and C++
 runtimes inside each program (#478) — first made on `main` at 18bc62c, run 40486111684, kept until
 2026-11-03. The tests run on Windows too (#481): a transcript interrupted could not be taken up
-there — Windows lets a file opened to append only grow (#483) —, and the shell's tests wrote Unix
-paths (#484). The colleague's trial: [#482](https://github.com/NapkinStack/wholeheard/issues/482).
+there — Windows lets a file opened to append only grow (#483) —, and the shell's logs kept a
+sessions' folder written with a last `/`; its tests wrote Unix paths and TOML a Windows path breaks (#484). All four programs' tests pass there
+(run 40493801338, `main` at 8131c04). The colleague's trial: [#482](https://github.com/NapkinStack/wholeheard/issues/482).
 
 ## Dependency with a date
 
