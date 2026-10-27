@@ -217,8 +217,8 @@ flowchart TD
     AU --> REV["REVIEW AT THE DEADLINE"]
     AU2 --> REV
     REV --> REV1{"Success criterion<br/>met?"}
-    REV1 -->|Yes| CONF["Confirm<br/>+ a new deadline when relevant"]
-    REV1 -->|No| SUP["Supersede, correct<br/>or remove"]
+    REV1 -->|Yes| CONF["Met: confirmed<br/>+ a new deadline when relevant"]
+    REV1 -->|No| SUP["Missed: supersede,<br/>correct or remove"]
 
     style PA fill:#1f2937,color:#fff
     style AU fill:#065f46,color:#fff
@@ -276,7 +276,7 @@ denounces: a rule that is only text produces no behaviour.
 | A mandatory **Deviation** section as soon as the decision departs from the convention, with the user value and the observation criterion | A decision marked "deviation" without the section → red |
 | Every new dependency declares **adoption and exit strategy** in the manifest | Undeclared dependency → red |
 | `BUILD` decisions: a **dated success criterion** is mandatory | No date → red |
-| A deadline passed without review | A CI warning, raised at the quarterly ritual |
+| A deadline passed without review | A CI warning at each cycle's closure (C10) |
 
 As long as one of these checks is not automated, it happens in review and sits in the
 automation backlog (`07-governance.md` §9): writing "red" is not enough to make it true.

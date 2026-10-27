@@ -70,7 +70,8 @@ You verify on someone's machine, beside work that goes on. Leave it as you found
    more than was exercised. A remark is not a result, and the approver reads it. After a
    fix, an *automated* scenario is run again at the head and its Commit cell takes the head —
    it is never confirmed; an *explored* one keeps its commit and is confirmed in
-   the `Confirmed` column with the head commit and what moved since; at criticality
+   the `Confirmed` column with the head commit and what moved since — after a `;` when the cell holds an
+   earlier confirmation; at criticality
    `critical`, every scenario is run again (`.nstack/handbook/05-workflow.md` §7).
 5. **Only then read the diff**, to explain a failure — never to decide a result — and ask one
    question of its tests: **is the entry point a real user calls exercised the way they call

@@ -173,7 +173,7 @@ Three meetings are enough. All of them produce a decision, never a mere observat
 | Ritual | Frequency | Content | Output |
 |---|---|---|---|
 | **Boundary review** | Monthly | Cross-module PRs, fitness function violations, overdue contractions | *Architecture* issues, or nothing |
-| **Decision review** | Quarterly | ADRs/PDRs whose criterion has come due | Confirmed · superseded · feature removed |
+| **Decision review** | At each cycle's closure | ADRs/PDRs whose criterion has come due, as C10 names them | A reading line: met · missed · superseded; a missed one, a decision of its own |
 | **Automation backlog review** | Quarterly | Rules still living in the prompt | Automate · remove · renew with a deadline |
 
 The last two can be held together: they address the same subject from two sides — what

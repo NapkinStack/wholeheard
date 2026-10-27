@@ -8,7 +8,7 @@ points at, and the checks are the engine's.
 flowchart LR
     W["Workstation<br/>and forge settings"]:::place --> L["L · G"]:::rule
     C["Every commit<br/>and every CI run"]:::place --> F["M · B · S · C · H"]:::rule
-    P["A pull request"]:::place --> R["P · T · K · V"]:::rule
+    P["A pull request"]:::place --> R["P · T · K · V · A · C9"]:::rule
     D["The default branch"]:::place --> X["W"]:::rule
 
     classDef place fill:#374151,color:#fff
