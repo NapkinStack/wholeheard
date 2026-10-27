@@ -98,7 +98,7 @@ deliverables:
     state: proposed
     acceptance:
       - "Given the repository, when `docs/privacy.md` is read on GitHub, then it says in French and in English what Wholeheard records, where it keeps it, what leaves the machine only when the user chose a service and to which host, that nothing is sent otherwise, and how to remove it all — its URL the one Partner Center is given"
-      - "Given `modules/install/windows/listing.md`, when it is read, then it holds the Store's description, its short features and the screenshots it needs, in French and in English, said as PDR-0001's promise, nothing the product does not do"
+      - "Given `docs/store/listing.md`, when it is read, then it holds the Store's description, its short features and the screenshots it needs, in French and in English, said as PDR-0001's promise — the decider reads it and says it claims nothing the product does not do"
 ---
 
 # Cycle 05 — The best day to day
@@ -158,7 +158,7 @@ everywhere · red: D54–D57, what a first submission waits on.
 ## Deliverables
 
 Each is the shell's but D48, whose minutes are written by the summary, D54, install's package, and
-D55, capture's. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
+D55, capture's, and D57, words outside the modules. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
 another, after it: the order to build them in. **Cut first** if the breaker nears: D47's errors, then D49's live check. D54–D57 are not cut:
 they are what publishing waits on.
 D44, D45, D47 and D50 all touch `words.rs` and the « Copié » status: one session at a time on them.
@@ -278,7 +278,6 @@ to make room, the appetite unchanged — the framer's cut, the decider's to reve
   PDR-0004's risk). The deb keeps both (D27); keeping the settings too is *Later*.
 - The identity in the manifest is the one Partner Center gives once the name is reserved: until
   then, a placeholder the run says is one, and the package is not submitted.
-
 - On a hosted runner no device sounds: the package's run places a meeting folder, it records
   nothing; the recording from inside a package is the colleague's criterion.
 - GPL-3.0 beside the Store's own licence terms, which Partner Center lets the publisher replace:
