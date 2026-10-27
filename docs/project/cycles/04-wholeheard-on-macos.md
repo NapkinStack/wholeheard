@@ -75,6 +75,16 @@ deliverables:
       - "Given a run of the Windows workflow on main, or one started by hand, when it ends, then each program's tests pass on GitHub's Windows runner, and it leaves one artifact, Wholeheard-<version>-windows-x64.zip, holding wholeheard.exe and the three programs side by side, kept 7 days as the Mac's"
       - "Given that zip on the colleague's Windows 11, when they unpack it and open wholeheard.exe — past SmartScreen's warning on an unsigned program —, then Wholeheard's icon is in the notification area and its window opens from it, with nothing installed before it and no terminal"
       - "Given a call recorded there for at least five minutes, when it stops, then the cycle records, for each track — local, the microphone; remote, what Windows plays: whether it holds the call's speech, and what Windows asked before it recorded — read against D39's threshold: both tracks hold the call's speech as the colleague hears it at the start, the middle and the end of each, and capture's code holds no line added for Windows; below it, what was missing is recorded for the next framing. A refuted result is a delivered one"
+  - id: D58
+    title: "At the first start, two questions set Wholeheard up, said plainly"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given a first start — no settings file —, when Wholeheard starts, then the full window opens on the assistant of D58's board (`docs/project/drawings/d58-the-first-run/`): two questions, then the setting said plainly; *Passer* saves everything on this computer and opens the meetings; a start with a settings file never shows it"
+      - "Given the answers « Oui, souvent » or « Je ne sais pas », when the user goes on, then the setting is private: the transcription on this computer — the recommended Whisper model, or Apple's SpeechAnalyzer where Settings offer it (D42) — and the minutes by Ollama on this computer; given « Rarement » and « Un service en ligne », then the minutes by the service whose address and key the user gives, kept as Settings keep them, its host agreed before the first sending as ever"
+      - "Given the last screen, when it shows, then it says the mode, who transcribes, who writes the minutes and the reminder, in one sentence each; *Télécharger le modèle* fetches it as Settings do, its size and host shown; Ollama not answering, it says the minutes wait for it, with ollama.com; *Plus tard* leaves the model unfetched"
+      - "Given Settings, when the user chooses « Refaire le réglage », then the assistant opens with the current setting chosen, and nothing changes until its last screen is confirmed"
+      - "Given the assistant, when it is gone through with the keyboard alone, in either theme, in French and in English, then each choice is a radio of its group, the focus is always seen, nothing overflows at the window's smallest size — screenshots of both themes in the sheet —, and the window's e2e goes through it"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -326,6 +336,27 @@ runtimes inside each program (#478) — first made on `main` at 18bc62c, run 404
 there — Windows lets a file opened to append only grow (#483) —, and the shell's logs kept a
 sessions' folder written with a last `/`; its tests wrote Unix paths and TOML a Windows path breaks (#484). All four programs' tests pass there
 (run 40493801338, `main` at 8131c04). The colleague's trial: [#482](https://github.com/NapkinStack/wholeheard/issues/482).
+
+### D58
+
+**Added on the decider's word, 2026-10-27** (« cadre le et continue en autonomie, il nous le faut
+proprement, user friendly et ux/ui optimal, on le fait maintenant pour l'integré au test macos et
+windows »), after their idea the same day — a short assistant that sets Wholeheard up from plain
+questions (« est ce que vos données sont sensible ») rather than models and addresses. Drawn first:
+[D58's board](../drawings/d58-the-first-run/README.md). Built before the colleagues' trials (D38,
+D53), so that their first start is this one: the Mac's and Windows' builds and #426 and #482
+brought current once it is merged. The end date does not move; cycle 05's D49 keeps its live
+check, its model card now this assistant's last screen.
+
+- Private by default: *Passer*, « Je ne sais pas » and an unanswered question keep everything on
+  this computer — the product's promise (PDR-0001).
+- Two questions, never one the user cannot answer: the machine is not asked about. The
+  recommended model always, the faster one a choice of Settings — no setting tuned to a machine
+  (the decider's « tolérer les défauts du moteur »).
+- The transcription stays on this computer in both modes: a service that hears (D43) is a choice
+  of Settings, for whoever knows it — the assistant names no service it has not seen work.
+- What exists is reused: Settings' saving, the keyring, `model_fetch`, the agreement before a
+  first sending (board 5), `ollama_listed`.
 
 ## Dependency with a date
 
