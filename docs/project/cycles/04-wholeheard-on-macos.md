@@ -70,7 +70,7 @@ deliverables:
   - id: D53
     title: "On Windows, Wholeheard opens from one zip the forge made — and does a call recorded there hold both sides?"
     module: install
-    state: ready
+    state: in-progress
     acceptance:
       - "Given a run of the Windows workflow on main, or one started by hand, when it ends, then each program's tests pass on GitHub's Windows runner, and it leaves one artifact, Wholeheard-<version>-windows-x64.zip, holding wholeheard.exe and the three programs side by side, kept 7 days as the Mac's"
       - "Given that zip on the colleague's Windows 11, when they unpack it and open wholeheard.exe — past SmartScreen's warning on an unsigned program —, then Wholeheard's icon is in the notification area and its window opens from it, with nothing installed before it and no terminal"
@@ -315,6 +315,17 @@ is the first cut should it not fit, and its third criterion is the colleague's, 
 - The zip is for the colleague, as the Mac's: no release, no link outside the project
   (open question of 2026-10-26). The Store's MSIX, signed by Microsoft, is *Later*: it needs the
   decider's Partner Center account.
+
+**Built, each pull request verified by an independent session (2026-10-27):** each program
+checked on GitHub's Windows runner (#471); what did not build there fixed in its module — tests
+that make a link, a file mode or run a shell script kept to Unix, each program shipped as `.exe`,
+Whisper on the processor there (no Vulkan SDK on the runner), the shell's `icon.ico` (#474–#477);
+the zip, `Wholeheard-<version>-windows-x64.zip`, made and judged by `windows-app.yml`, the C and C++
+runtimes inside each program (#478) — first made on `main` at 18bc62c, run 40486111684, kept until
+2026-11-03. The tests run on Windows too (#481): a transcript interrupted could not be taken up
+there — Windows lets a file opened to append only grow (#483) —, and the shell's logs kept a
+sessions' folder written with a last `/`; its tests wrote Unix paths and TOML a Windows path breaks (#484). All four programs' tests pass there
+(run 40493801338, `main` at 8131c04). The colleague's trial: [#482](https://github.com/NapkinStack/wholeheard/issues/482).
 
 ## Dependency with a date
 
