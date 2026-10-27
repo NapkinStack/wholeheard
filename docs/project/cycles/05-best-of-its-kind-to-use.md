@@ -1,5 +1,5 @@
 ---
-goal: "Day to day, Wholeheard is the best of its kind to use: a meeting ends in one notification that opens it, named, its actions read at a glance, its minutes copied in one click, said in a French that sounds native — and the first run holds the user's hand, the announcement one click away"
+goal: "Day to day, Wholeheard is the best of its kind to use: a meeting ends in one notification that opens it, named, its actions read at a glance, its minutes copied in one click, said in a French that sounds native — and the first run holds the user's hand, the announcement one click away — and ready to be published: Windows' Store package, capture `critical`, the list of models signed"
 status: proposed          # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 2         # (framer, to confirm) — the time the decider WANTS to spend, not an estimate
 start: 2026-11-02         # YYYY-MM-DD
@@ -66,24 +66,30 @@ deliverables:
       - "Given a recording with the reminder on, when it records, then the small window says « Prévenez les participants que cette réunion est enregistrée. » / its English, under the timer, in the soft colour, for the recording's first fifteen seconds *(framer, to confirm: UX review 1.2)* — as well as the notification at the start, so that it shows with notifications off or held back"
       - "Given that line, when the user clicks « Copier l'annonce » / \"Copy the announcement\", then the clipboard holds a sentence ready for the call's chat, in the language of Wholeheard's window, and « Copié » is said in place; the sentence is the decider's, adopted at the cycle's acceptance (D50's section)"
       - "Given the reminder off, when a recording starts, then neither the line nor the button shows"
-  - id: D51
-    title: "Minutes written by an online service show what the call cost, as the service reported it"
-    module: summary
+  - id: D54
+    title: "On Windows, Wholeheard installs from one MSIX package the Microsoft Store can take, and removing it keeps the meetings"
+    module: install
     state: proposed
     acceptance:
-      - "Given `contracts/minutes/v1`, when its page is changed — in D48's pull request of the contracts module, merged first —, then it says an optional `cost` — a number, at least zero, the price the provider reported for the call — with its `currency`, an ISO 4217 code, both or neither; absent when the provider reported none"
-      - "Given a provider whose answer carries `usage.cost` — OpenRouter's, read at its documentation when it is built —, when the summary writes the minutes, then their front matter carries that cost as reported; given a provider that reports none — Ollama on this computer, another service —, then no cost is written; given a `usage.cost` that is not a number at least zero, or a currency OpenRouter's documentation does not name, then none is written and one warning is logged; given an answer with a `usage.cost_details.upstream_inference_cost` neither null nor zero — the user's own key at the model's provider (BYOK) —, then no cost is written: OpenRouter's fee is not what the call cost. No price is ever estimated, and no table of prices is kept"
-      - "Given minutes that carry a cost, when their page shows, then the maker's line ends with it in the soft colour, formatted for the window's language (`Intl.NumberFormat`), in its `currency` (`style: \"currency\"`, two significant digits, `maximumSignificantDigits: 2`): « Écrit par Claude Sonnet, via openrouter.ai · mar. 13 oct. à 12:21 · 0,012 $US »; given none, the line is as today"
-      - "Given the agreement before a first sending and the small window while recording, when they show, then neither shows a price or a running count"
-      - "Given the summary's tests, when they run, then a stand-in provider's answer with `usage.cost`, one without and one with a cost that does not read are each held by a test; one real call to openrouter.ai is a scenario of the sheet"
-  - id: D52
-    title: "Spike — can a transcript followed live, on the machine alone, keep up during a call and be worth reading?"
-    module: platform
+      - "Given the Windows workflow on main, when it runs, then it leaves beside the zip Wholeheard-<version>-x64.msix, made with the Windows SDK's MakeAppx from an AppxManifest.xml that names Wholeheard, its version, the identity the decider reserves in Partner Center, `runFullTrust` and the microphone, and the shell as the program it starts; the four programs inside it"
+      - "Given that package signed for the run with a certificate made for it, when GitHub's Windows runner installs it (`Add-AppxPackage`), then Wholeheard starts from it and its window opens, and when it is removed (`Remove-AppxPackage`), then a meeting recorded under the user's Documents is still there"
+      - "Given the settings Wholeheard keeps, when they live inside the package's own data — which Windows removes with it —, then this is said in the package's notes for certification and in the README, never hidden; the meetings are never there"
+  - id: D55
+    title: "capture is critical before the first build published outside the project"
+    module: capture
     state: proposed
     acceptance:
-      - "Given a measuring program of the bench — a session's two tracks heard as they would arrive, in spans of 5 s and of 10 s, by `ggml-small-q8_0` (the list's \"faster\" model) —, when it runs on the decider's Fedora while capture records a stand-in call on devices made for the run, then the cycle records, for each span: the time to hear a span against its length, the processor and memory it took, the delay from a word said to the word shown, and capture's tracks against a recording of the same call without it — gaps of zeros, blocks lost"
-      - "Given SUMM-RE's passages of the bench (`bench.real`), when they are heard in those spans and scored, then the cycle records the share of words missed or misheard by the preview, side by side with the transcript of record's — the recommended model, whole — on the same passages"
-      - "Given that record, when it is read against the threshold *(framer, to confirm)* — each span heard in at most half its length, capture's tracks no worse than without it, and the preview's words missed or misheard at most 15 points above the transcript of record's —, then the next framing may build the preview, its ADR first; below it, what fell short is recorded. A refuted result is a delivered one"
+      - "Given capture's MANIFEST.yaml, when it is read, then its criticality is `critical`, as PDR-0002 decided for the first build published outside the project — the Store's (PDR-0004)"
+      - "Given capture, when its runbook is read (`docs/runbook.md`, which `critical` asks for), then it says how a recording that failed is found in the logs, what a user is told, and how a release is rolled back — each step tried once and its date written"
+      - "Given a pull request that changes capture after it, when its checks run, then every scenario of its sheet is run again at the head, as `critical` asks — held by `nstack pr-check`"
+  - id: D56
+    title: "The list of models read again is refused unless the decider's key signed it"
+    module: shell
+    state: proposed
+    acceptance:
+      - "Given `registry/models.json` and its signature `models.json.minisig` on main, made with minisign by the decider's key — the public key built into the shell, the private one never in a repository —, when the list is read again on the user's gesture, then it is offered only when its signature verifies; a list unsigned, signed by another key, or changed after it was signed is refused, and the shipped list stays, said in one sentence (ADR-0010, *Rejected alternatives*)"
+      - "Given a pull request that changes the list, when its checks run, then a list whose signature does not verify against the built-in key is refused"
+      - "Given the shell's tests, when they run, then a list signed by a key made for the test is offered, and the three refusals above are held, without the decider's key"
 ---
 
 # Cycle 05 — The best day to day
@@ -112,7 +118,9 @@ open the meeting in Wholeheard and are fewer; the minutes copied; the French wor
 rows (Qui · Quoi · Pour quand); a meeting's title; the first run — the model card, a live audio
 check, the reminder in the small window, « Copier l'annonce »; the informational cost an AI call
 reports (OpenRouter's `usage.cost`, never an estimate); and the reminder kept, « Garder, mais
-jamais éteint par défaut ». Their standing asks hold for each: modern, high-end, playful, the
+jamais éteint par défaut ». On 2026-10-27 they asked for the version complete enough to publish
+« sur les store » and left the choice to the framer (PDR-0004): Windows' Store package, `capture`
+`critical` and the list of models signed join the cycle; the cost and the live spike wait. Their standing asks hold for each: modern, high-end, playful, the
 easiest, non-intrusive, fluid; no over-engineering; words chosen with care.
 
 ```mermaid
@@ -120,10 +128,10 @@ flowchart LR
     S["Start<br/>reminder · Copier l'annonce"]:::d50 --> C["Each side heard<br/>✓ live"]:::d49
     C --> T["Stop"]:::rec
     T --> N["One notification<br/>opens the meeting"]:::d44
-    N --> M["The meeting, named<br/>actions as rows · cost"]:::d48
+    N --> M["The meeting, named<br/>actions as rows"]:::d48
     M --> P["Copied<br/>to mail, chat, Notion"]:::d45
     W["Wording, French first"]:::d47 -.-> S & N & M
-    L["Spike: a transcript<br/>followed live"]:::spike -. "measured, not built" .-> T
+    Z["Published<br/>Store package · capture critical<br/>list signed"]:::pub
     classDef d50 fill:#92400e,color:#fff
     classDef d49 fill:#065f46,color:#fff
     classDef rec fill:#374151,color:#fff
@@ -131,19 +139,19 @@ flowchart LR
     classDef d48 fill:#5b21b6,color:#fff
     classDef d45 fill:#0f766e,color:#fff
     classDef d47 fill:#4b5563,color:#fff
-    classDef spike fill:#7c2d12,color:#fff
+    classDef pub fill:#7c2d12,color:#fff
 ```
 
 **Legend** — one meeting, left to right · amber: D50 · green: D49 · grey: what is there today ·
-blue: D44 · violet: D48, with D46 and D51 on the same page · teal: D45 · slate: D47, said
-everywhere · red: D52, a measure only.
+blue: D44 · violet: D48, with D46 on the same page · teal: D45 · slate: D47, said
+everywhere · red: D54–D56, what publishing waits on.
 
 ## Deliverables
 
-Each is the shell's but D48 and D51, whose minutes are written by the summary, and D52, a measure
-of the bench. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
-another, after it: the order to build them in. **Cut first** if the breaker nears: D52 (apart, and
-it takes the decider's machine), then D51 (three pull requests and a key), then D47's errors.
+Each is the shell's but D48, whose minutes are written by the summary, D54, install's package, and
+D55, capture's. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
+another, after it: the order to build them in. **Cut first** if the breaker nears: D47's errors, then D49's live check. D54–D56 are not cut:
+they are what publishing waits on.
 D44, D45, D47 and D50 all touch `words.rs` and the « Copié » status: one session at a time on them.
 
 ### D44
@@ -199,7 +207,7 @@ The UX review weighed two forms (3.1):
 | Cost | S | M |
 
 The framer proposes the title: the boards, accepted as criteria, drew names; the contract's pull
-request is one D51 needs anyway, so both fields go in the same one; and a name is what a later
+request is small and additive; and a name is what a later
 search and export would share. The cheap fix stays the fallback if the decider prefers S.
 
 - Additive (`.nstack/handbook/03-contracts.md` §3): no consumer changes to keep working — the
@@ -244,52 +252,52 @@ search and export would share. The cheap fix stays the fallback if the decider p
   - EN: "I'm recording this meeting to write up its minutes. Tell me if you'd rather I didn't."
 - Posting it into the call's chat itself is an integration: out of scope.
 
-### D51
+### D54
 
-- Today nothing records a cost: `Provider::ask` hands back the answer's text alone
-  (`modules/summary/src/provider.rs:165` at 66b1ff7) and the front matter holds `made`,
-  `provider`, `model`, `context` (UX review §9).
-- OpenRouter returns `usage.cost` in every response, with no parameter — `usage: {include: true}`
-  is deprecated ([OpenRouter, *Usage accounting*](https://openrouter.ai/docs/use-cases/usage-accounting),
-  read by the market review on 2026-10-26: the "total charged to your account"). The review read no
-  currency named: that it is US dollars is an **assumption**, read again at the source when it is
-  built (*Open questions*); without it, D51 shows nothing, which the decider weighs at the
-  acceptance. With the user's own key at the model's provider (BYOK), `usage.cost` is
-  OpenRouter's fee alone, the call's cost in `cost_details.upstream_inference_cost` (market review):
-  no cost is written then.
-- The cost of an online transcription (D43, #451) is not this deliverable's: *Later*.
-- Three pull requests, one module each, in this order: contracts (the page, with D48's `title`),
-  summary (reads the cost, writes it), shell (shows it). The deliverable is the summary's, as D42's
-  was transcription's.
-- The summary reads more of an answer it already receives: no new connection, no new host, the
-  key where it is. `security.md` applies to that answer as external input — criterion 2's
-  refusal of a cost that does not read.
-- No estimate before the call, no running meter, no monthly total: the decider's "never an estimate", and the UX review's §9.3 total is not asked for.
+**Added on the decider's word, 2026-10-27** (« il nous faut la version complete pour commencer la
+publication sur les store … tu tranches »), after [PDR-0004](../../pdr/0004-windows-through-the-microsoft-store.md):
+Windows through the Microsoft Store, an MSIX that Microsoft signs. D51 and D52 went to *Later*
+to make room, the appetite unchanged — the framer's cut, the decider's to reverse.
 
-### D52
+- The zip of cycle 04's D53 holds the four programs; the package holds the same, with its
+  manifest. The Store signs what it publishes; outside it, the package installs only signed, so
+  the run signs it with a certificate of its own, thrown away after.
+- Where Wholeheard keeps things on Windows, read when it is built: the meetings go to the
+  user's Documents (the shell's default), which a package's removal leaves; its settings and logs
+  go to the application data, which Windows redirects into the package's own and removes with it
+  ([Advanced Installer, *MSIX file redirection*](https://www.advancedinstaller.com/msix-files-redirection.html),
+  PDR-0004's risk). The deb keeps both (D27); keeping the settings too is *Later*.
+- The identity in the manifest is the one Partner Center gives once the name is reserved: until
+  then, a placeholder the run says is one, and the package is not submitted.
 
-- The decider's idea of 2026-10-26 (« la possibilité de faire la transcription live, le
-  traitement qu'on ne peut pas faire live est celui des minutes »), framed in cycle 04's *Later*:
-  a provisional preview while recording, on the machine alone, in the small window and the full
-  one; the transcript of record made after the stop as today. Short spans lose words — cycle 01,
-  D4: 34.5 % of the words differed heard thirty seconds at a time, 26.7 % whole — so the preview
-  never replaces the transcript.
-- It departs from the market review, which says not to build a floating live-transcript panel
-  (recommendation 15, §4): the decider's idea, measured before anything is built.
-- The program keeps the model loaded across spans, as a live preview would; its load is recorded
-  apart. The threshold's 15 points: twice D4's difference (7.8 points), *(framer, to confirm)*.
-- A measure, not the product: the program lives in the bench (`modules/platform/bench`), nothing
-  in the shell, capture or transcription changes. Building the preview is the next framing's, its
-  ADR first, if the threshold is met.
-- On the decider's Fedora, on devices made for the run while the decider is not on a call; SUMM-RE's
-  passages (CC BY-SA 4.0) for the words. Nothing of a real meeting is recorded or published.
-- SpeechAnalyzer's own live results on a Mac are not measured here: GitHub's runner offers no
-  SpeechTranscriber (cycle 04, D42), and the colleague's hour is cycle 04's.
+### D55
+
+- PDR-0002, decision 2: `capture` becomes `critical` before the first build published for people
+  outside the project. The Store's package is that build (PDR-0004, *Impacts*). The decider settled
+  it then; this deliverable carries it out before D54's package is submitted.
+- What `critical` costs, from `.nstack/handbook/05-workflow.md` §7: every scenario run again at
+  the head, a runbook. The module's code does not change.
+
+### D56
+
+- ADR-0010 deferred the signature to "before the first build published for people outside the
+  project": the list read again would then be trusted by strangers' machines. The Store's package
+  is that build.
+- minisign: the established tool for signing a file with a key pair, its format read by the
+  `minisign-verify` crate in Rust *(framer, to confirm when built: the crate's version and
+  maintenance)*. The private key is the decider's, made with `minisign -G` and kept outside any
+  repository; each change to the list waits on their signing gesture — ADR-0010's accepted cost.
+- A key made for the tests holds the refusals; the decider's public key is written into the shell
+  the day they give it (*Dependency with a date*).
 
 ## Dependency with a date
 
-- **One real call to openrouter.ai**, for D51's sheet: a key of OpenRouter's, with credit, by
-  2026-11-11 *(framer, to confirm whose)*. Missed, D51's other scenarios hold and that one waits.
+- **The decider's Partner Center account** (a company's, PDR-0004) and **the name Wholeheard
+  reserved** in it, for D54's identity: by 2026-11-09. Missed, the package is made with its
+  placeholder and is not submitted.
+- **The decider's minisign key**, for D56: `minisign -G`, its public key handed over, by
+  2026-11-09. Missed, the shell holds the refusals with the tests' key and offers no list read
+  again until it is given.
 
 ## Out of scope
 
@@ -304,14 +312,23 @@ The review's "do not build" (market review §4, §8):
 
 And for this cycle:
 
-- The live preview built into the product: D52 measures it only.
+- The live preview built into the product.
 - A notification's click on macOS and Windows.
 - A price estimated before a call, a running meter, a monthly total, a table of prices.
 - Export to a file or to Notion; rich text promised in the copy.
 
 ## Later
 
-- The cost of an online transcription (D43), as D51 shows the minutes'.
+- **D51, the cost an AI call reports, and D52, the spike on a live transcript** — framed for this
+  cycle on 2026-10-26 (their criteria in this page's history, at #461), moved here on 2026-10-27 to
+  make room for publishing (D54–D56).
+- The Store's trial on Windows: Wholeheard reads the Store's licence and records no new meeting
+  once it ends (PDR-0004, decision 1) — after D54, tried through Partner Center's package flight.
+- macOS notarised — Apple's developer programme, the decider's —, a trial and a licence key, a
+  merchant of record (PDR-0001); the Mac App Store after a spike on the sandbox (PDR-0004).
+- Settings kept when Windows' package is removed, as the deb keeps them.
+
+- The cost of an online transcription (D43), with the minutes' (D51).
 - The live preview built, on D52's record and its ADR; SpeechAnalyzer's live results on a Mac.
 - Each decision and action linked to its passage, the audio played there (market review,
   recommendation 2): what Granola, which deletes the audio, cannot do.
@@ -328,9 +345,6 @@ And for this cycle:
 
 **Not blocking:**
 
-- **Tokens beside the cost** (D51)? The reviews disagree: the market review shows them (« 12 480
-  jetons », §6), the UX review never — jargon, the log and developer mode at most (§9). The
-  framer's default: not shown, written to the log; adding them later is another additive field.
 - ***Transcript* or *Transcription*** in French (D47)? Both reviews say *Transcription*: the
   French word for the text, the one every French product uses, already the step's name in
   Settings (UX review §10, market review §7). Boards 1 and 2 of D11, accepted, say *Transcript*.
@@ -339,9 +353,6 @@ And for this cycle:
   (recommendation 3), or board 2's and the contract's, what · who · when? The framer's
   default: Qui · Quoi · Pour quand on screen, without visible headers; the contract's order
   unchanged.
-- **The currency of `usage.cost`** (D51): the market review read none named. The framer's default:
-  `USD` only if OpenRouter's documentation says so when D51 is built; otherwise no cost is written
-  — a number without its currency is not shown.
 - **The wording table of the UX review §10** (D47): adopted as it is, or amended line by line?
   The framer's default: adopted, with *Transcription* below.
 - **The reminder's line for fifteen seconds** (D50), as the UX review proposed (1.2), or the whole
