@@ -58,7 +58,7 @@ missing.
 
 | Check | When | Rules |
 |---|---|---|
-| The plan, a fitness function | Every push | Formats; one accepted cycle at a time, under an accepted charter; `end` = `start` + the appetite; acceptance criteria once a deliverable is ready; closures recorded; a discovery decided with its decider and date, a charter only after a go. A charter, a cycle or a deliverable still holding the template's words is refused |
+| The plan, a fitness function | Every push | Formats; one accepted cycle at a time, under an accepted charter; `end` = `start` + the appetite; acceptance criteria once a deliverable is ready; closures recorded; a discovery decided with its decider and date, a charter only after a go. A charter, a cycle or a deliverable still holding the template's words is refused. A decision record due at a closure and not yet read is warned of, never refused (C10) |
 | The pull request check | Every pull request changing a module beyond its description — manifest, `AGENTS.md`, `README.md`, `docs/`; not a framework update — **once the charter is accepted** | An accepted cycle; not past its end date; a ready or in-progress deliverable named — and, when someone holds it, delivered by its holder — or the `out-of-cycle` label with its justification |
 
 ## A cycle's progress
@@ -157,6 +157,11 @@ deliverable someone else holds (K5): its commits name none of the hold's session
 author, committer or opener is its person; nobody holds it, it asks nothing. A holder working
 from a new session names it on the hold first — `nstack claim D30 --session <it>`. A hold says who is
 accountable; it proves nobody's identity.
+
+**A hold lasts its cycle.** Once the cycle is closed or stopped, nothing it guarded can be delivered, and
+a deliverable framed again is held afresh, on a branch of the new cycle. `nstack unclaim` says such a
+hold ended rather than refusing it. Its branch is never deleted — the ruleset forbids it: it is the
+hold's record, and the cycle in its name tells a finished hold from a live one.
 
 The charter changes only through a PDR (`.nstack/handbook/06-decisions.md` §4). A cycle is never
 extended: past its end date, delivery work stops until the decider records a decision.

@@ -103,6 +103,8 @@ for the purpose: if it judges one of them otherwise after an update, the tests s
 
 ## Success criterion
 
+Read at 02-the-audio-kept-as-recorded's closure, 2026-10-27: met
+
 > We will consider this was the right call if, **by the end of cycle 02 (2026-11-04)**, the
 > three pages known to be wrong are corrected in place with the comparator's approval, and a
 > change that removes or renames a field of `recording/v1` or `transcript/v1` is refused by

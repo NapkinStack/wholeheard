@@ -125,6 +125,12 @@ cycle — in a pull request they approve; accepted after `start`, the cycle's `s
 move in the same pull request. The modules accepted there are created with the engine's
 module scaffolding, declared user-facing when a user sees them.
 
+**Where the project's own rules waive approval** — an agent merging alone on an attested,
+verified head, `doctor`'s G2 taken knowingly — nobody approves that pull request, and the
+decider's word stands for the approval: quoted in the page it accepts (the charter, the cycle),
+with its date and where it was said — a comment, a message, a meeting's note. The same holds
+for a deliverable accepted below. Without that line, the acceptance is the agent's alone.
+
 **The pull request that accepts the charter writes the project's front page from it** —
 `README.md`: a diagram of who uses the product and what it talks to, how to run what exists,
 and the sentence when no discovery wrote it. Until then that page holds its sentence at most;
@@ -141,7 +147,8 @@ from then on the plan check refuses an accepted charter over a form left as it c
   request with the `out-of-cycle` label and the line `Out of cycle: <reason>`.
 - **A deliverable** moves `proposed` → `ready` (testable acceptance criteria, set by the
   framer, confirmed when the decider accepts the cycle) → `in-progress` → `accepted`: its
-  test sheet run and its pull request approved — or, for a spike outside the code, its result
+  test sheet run and its pull request approved, or the decider's word quoted where approval is
+  waived (§3) — or, for a spike outside the code, its result
   approved by the decider: a decision record when it binds the project (*Decisions* below),
   otherwise a line in the project's log issue, which the deliverable's section links. A deliverable that several pull requests
   deliver, or that a person must try, is `accepted` when **each of its criteria** is held by a
@@ -184,4 +191,4 @@ concerns one module.
 | An accepted charter has to change — a constraint, a user, what the project is not | A **PDR** first, which the change cites; the charter is never rewritten in place (CI warns, C9) |
 | The framing chooses a module, a stack, a contract | An **ADR**: the module's creation decision is one |
 | A spike's result binds the project | A PDR or an ADR; otherwise a line in the project's log issue |
-| A cycle's **closure** | Read again every decision anchored to this cycle, and every one whose criterion's date has passed: met, missed, or superseded — say which in the record |
+| A cycle's **closure** | Read every decision the plan names as due (C10): its criterion names this cycle, or a date its end reached. The record gains one line under its criterion, *Read at <cycle>'s closure, <date>: met \| missed \| superseded*, and nothing else; a *missed* one is the decider's to answer, by a new record or the removal condition |

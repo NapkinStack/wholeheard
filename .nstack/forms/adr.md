@@ -89,6 +89,11 @@ description: the argument that settled it.>
 
 What we do if it is not: <correct · supersede · roll back>
 
+<!-- Read at each cycle's closure that names it, or that reaches a date of this criterion: a
+     cycle by its file (03-the-window) or as "cycle 03", a date written YYYY-MM-DD — written
+     otherwise it is not read. The plan warns until a line of its own says it (C10):
+Read at <cycle>'s closure, <YYYY-MM-DD>: met | missed | superseded -->
+
 ---
 
 ## Consequences

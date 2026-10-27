@@ -147,6 +147,8 @@ What it fixes, and what it leaves open:
 
 ## Success criterion
 
+Read at 01-first-meeting-on-three-systems's closure, 2026-10-27: met
+
 > We will consider this was the right call if, **by the end of cycle 01 (2026-10-27)**, D3
 > is accepted on Fedora with the capture's code holding **no branch written for one
 > system**, and if the first Windows and macOS builds record two files of a real call

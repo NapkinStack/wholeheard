@@ -56,7 +56,7 @@ section, with its own stack's commands.
 | `check` | All the fast validations: format, lint, types | In under 2 minutes |
 | `test` | The module's test suite | With no dependency on another module |
 | `run` | Start the module locally | With doubles for the dependencies |
-| `e2e` | The module's end-to-end scenarios; logs and screenshots written to `$NSTACK_EVIDENCE` (`.evidence/e2e/`), read after the run; exit 77 when it cannot run here | Against the running module, in CI |
+| `e2e` | The module's end-to-end scenarios; logs and screenshots written to `$NSTACK_EVIDENCE` (`.evidence/e2e/`), read after the run; exit 77 when it cannot run here. One at a time on a machine: a second waits for the first, whichever project or command started it, and says for whom | Against the running module, in CI |
 | `clean` | Remove what the module's commands left in its folder — build outputs | After its checks in CI on a self-hosted runner, even failed ones |
 | `compat` | Tell whether a change to a contract version is compatible: exit 0 when `$NSTACK_HEAD_PATH` accepts what `$NSTACK_BASE_PATH` did | On the module holding contracts, once one is consumed or stable |
 | `contracts` | Validate and generate the contract artefacts | On every contract change |
@@ -82,7 +82,9 @@ release` with no module runs each after what it assembles, and fails on a module
 none only when that module is named. One target for every module — a platform, an
 architecture — is set in the environment they all inherit (`TARGET=… nstack release`); a module
 needing several targets of another's makes them all in that one's release, since each release
-empties its folder. Reading another module's artefacts without declaring it fails (`B9`), as a
+empties its folder and names what it removed. So does a project shipping one package per system from one
+checkout — a `.deb` and an `.rpm`: one release makes both, or the first is moved out of `dist/` before
+the second is made. Reading another module's artefacts without declaring it fails (`B9`), as a
 path into its folder does (`B2`); `assembles` names modules by their folder, as the verbs do.
 
 **A job leaves nothing behind.** GitHub's hosted runners are thrown away after each job; a
