@@ -65,6 +65,21 @@ fn the_context_is_written_whole_and_nothing_is_left_beside_it() {
     assert_eq!(names(folder.path()), ["context.txt", "session.json"]);
 }
 
+// Renamed over, never written in place: a transcript starting meanwhile reads the old one or the
+// new one, never half of it. A file that cannot be written in place is replaced all the same.
+#[cfg(unix)]
+#[test]
+fn the_context_is_renamed_over_the_old_one_never_written_in_place() {
+    use std::os::unix::fs::PermissionsExt;
+    let folder = meeting_folder();
+    let file = folder.path().join("context.txt");
+    fs::write(&file, "Ancien contexte.").unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o444)).unwrap();
+    context::write(folder.path(), "Comité produit.").unwrap();
+    assert_eq!(fs::read_to_string(&file).unwrap(), "Comité produit.");
+    assert_eq!(names(folder.path()), ["context.txt", "session.json"]);
+}
+
 #[test]
 fn a_context_emptied_leaves_no_file() {
     let folder = meeting_folder();
