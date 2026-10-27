@@ -255,6 +255,8 @@ fn main() {
                 }
             }
             let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
+            // The first run (D58): never set up, nothing recorded — the assistant, once.
+            let welcome = read.as_ref().is_ok_and(settings::welcome_due);
             let toggle = MenuItem::with_id(app, "toggle", labels.start, true, None::<&str>)?;
             let again = MenuItem::with_id(app, "transcribe", labels.transcribe, true, None::<&str>)?;
             let minutes = MenuItem::with_id(app, "minutes", labels.minutes, true, None::<&str>)?;
@@ -354,7 +356,9 @@ fn main() {
             // settings page says so when one is given.
             let keyring = keys::open_system_keyring().err();
             *app.state::<Shell>().keyring.lock().unwrap() = keyring;
-            if std::env::args().skip(1).any(|arg| arg == "--window") {
+            if welcome {
+                show_welcome(app.handle());
+            } else if std::env::args().skip(1).any(|arg| arg == "--window") {
                 open_window(app.handle());
             }
             Ok(())
@@ -455,11 +459,39 @@ fn show_full(app: &AppHandle) {
         let _ = window.set_focus();
         return;
     }
-    let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+    build_full(app, "");
+}
+
+/// The full window made, on one of its pages.
+fn build_full(app: &AppHandle, page: &str) {
+    let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(format!("index.html{page}").into()))
         .title("Wholeheard")
         .inner_size(1100.0, 800.0)
         .min_inner_size(420.0, 400.0)
         .build();
+}
+
+/// The first start (D58): the full window opens on the assistant — a first launch is the user's
+/// gesture —, and it is said shown at once, so that it never opens by itself again; closed
+/// midway, the defaults stay, already private. The window left is not changed: the small one
+/// stays the one reopened (D35).
+fn show_welcome(app: &AppHandle) {
+    let shell = app.state::<Shell>();
+    {
+        let _saving = shell.saving.lock().unwrap();
+        let written = shell.reread().and_then(|mut settings| {
+            settings.welcomed = true;
+            let file = settings::file().ok_or("this system names no folder for settings")?;
+            settings::write(&file, &settings).map_err(|error| error.to_string())?;
+            *shell.settings.lock().unwrap() = settings;
+            Ok(())
+        });
+        if let Err(error) = written {
+            tracing::warn!(detail = %error, "shell.welcomed_not_kept");
+        }
+    }
+    tracing::info!("shell.welcome_shown");
+    build_full(app, "#/welcome");
 }
 
 /// The small window's size, the same at rest and recording: GTK does not shrink a window the
@@ -1965,11 +1997,7 @@ fn open_window_at(app: &AppHandle, page: &str) {
     if let Some(small) = app.get_webview_window("small") {
         let _ = small.close();
     }
-    let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(format!("index.html{page}").into()))
-        .title("Wholeheard")
-        .inner_size(1100.0, 800.0)
-        .min_inner_size(420.0, 400.0)
-        .build();
+    build_full(app, page);
 }
 
 /// Shows a notification. A desktop that shows none is no reason to stop anything.

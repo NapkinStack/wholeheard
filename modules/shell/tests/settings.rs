@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path};
 
-use wholeheard_shell::settings::{After, Engine, KeepAudio, Log, Settings, Window, file, read, whisper_models, write};
+use wholeheard_shell::settings::{After, Engine, KeepAudio, Log, Settings, Window, file, read, welcome_due, whisper_models, write};
 
 fn written(text: &str) -> Result<Settings, String> {
     let folder = tempfile::tempdir().unwrap();
@@ -449,4 +449,52 @@ fn a_transcription_service_is_named_as_the_minutes_one_is() {
     write(&path, &named).unwrap();
     assert_eq!(read(&path).unwrap(), named);
     assert!(Settings::default().transcription_provider.is_none());
+}
+
+#[test]
+fn welcomed_is_false_until_written_and_kept_by_every_other_write() {
+    // Absent is not welcomed yet: the first start's file, written by the autostart, says nothing of it.
+    assert!(!Settings::default().welcomed);
+    assert!(!written("autostart = true\n").unwrap().welcomed);
+    assert!(written("welcomed = true\n").unwrap().welcomed);
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "# mine\nautostart = true\n").unwrap();
+    let mut settings = read(&path).unwrap();
+    settings.welcomed = true;
+    write(&path, &settings).unwrap();
+    assert_eq!(read(&path), Ok(settings.clone()));
+    assert!(fs::read_to_string(&path).unwrap().contains("welcomed = true"));
+    // Another choice written after it: still welcomed.
+    settings.reminder = false;
+    write(&path, &settings).unwrap();
+    let again = read(&path).unwrap();
+    assert!(again.welcomed && !again.reminder);
+    assert!(fs::read_to_string(&path).unwrap().contains("# mine"));
+}
+
+#[test]
+fn the_assistant_is_due_only_with_no_meeting_and_not_welcomed() {
+    let folder = tempfile::tempdir().unwrap();
+    let mut settings = Settings {
+        sessions: folder.path().join("Wholeheard"),
+        ..Settings::default()
+    };
+    // No folder yet, or an empty one, or one holding no session: due.
+    assert!(welcome_due(&settings));
+    fs::create_dir_all(settings.sessions.join("not-a-session")).unwrap();
+    assert!(welcome_due(&settings));
+    // Welcomed: never again.
+    settings.welcomed = true;
+    assert!(!welcome_due(&settings));
+    // A meeting there: a user who already recorded never sees it, welcomed or not.
+    settings.welcomed = false;
+    let meeting = settings.sessions.join("2026-10-27_10-00");
+    fs::create_dir_all(&meeting).unwrap();
+    fs::write(
+        meeting.join("session.json"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-27T10:00:00+01:00","tracks":{}}"#,
+    )
+    .unwrap();
+    assert!(!welcome_due(&settings));
 }

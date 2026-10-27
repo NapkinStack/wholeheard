@@ -1188,6 +1188,17 @@ function showSettings(shown, minutes, words) {
 
   const models = element("section", "card group");
   models.append(element("h2", "", words.models_title), element("p", "says", words.models_intro));
+  // The first run's assistant again, the current setting chosen (D58).
+  const redo = element("div", "row");
+  const redoSaid = element("span", "said");
+  redoSaid.append(element("span", "name", words.welcome_again[0]), element("span", "says", words.welcome_again[1]));
+  const redoButton = element("button", "open", words.welcome_again[0]);
+  redoButton.type = "button";
+  redoButton.id = "welcome-again";
+  redoButton.disabled = locked;
+  redoButton.addEventListener("click", () => (location.hash = "#/welcome/again"));
+  redo.append(redoSaid, redoButton);
+  models.append(redo);
   const step = element("div", "step");
   const row = element("div", "row");
   const label = element("label", "name", words.transcription);
@@ -1597,6 +1608,13 @@ function showSettings(shown, minutes, words) {
   }
   parts.push(advanced);
   page.replaceChildren(...parts);
+  // From the assistant's « Choisir mon service »: the minutes' choice, in view and focused.
+  if (focusMinutes) {
+    focusMinutes = false;
+    const minutesPick = document.getElementById("minutes");
+    minutesPick?.scrollIntoView({ block: "center" });
+    minutesPick?.focus();
+  }
 }
 
 // Before a meeting first leaves for a host (D11's fifth board): what leaves, what stays, to
@@ -1925,6 +1943,204 @@ function showFree(listing, busy, words) {
   draw();
 }
 
+// The first run's assistant (D58): one question — two when the minutes may go online —, then the
+// setting said plainly. Private unless the user says otherwise; from Settings (`#/welcome/again`)
+// the current setting chosen, and nothing saved before the last screen's confirmation.
+// Settings open at the minutes once, after « Choisir mon service ».
+let focusMinutes = false;
+
+async function showWelcome(again, words) {
+  const page = document.getElementById("welcome");
+  const { invoke } = window.__TAURI__.core;
+  const [shown, minutes] = await Promise.all([invoke("settings_shown"), invoke("minutes_shown")]);
+  // Apple's SpeechAnalyzer, asked aside: only the summary needs it.
+  const speech = invoke("speech_shown").catch(() => null);
+  const local = !minutes.provider || minutes.provider_local;
+  // From Settings, the setting as it stands; at the first run, nothing chosen for the user.
+  const state = { step: "question", private: again && minutes.provider ? (local ? "often" : "rarely") : null, writer: again && minutes.provider && !local ? "service" : null };
+  const connected = () => state.private === "rarely" && state.writer === "service";
+  const ollamaModel = minutes.provider === minutes.ollama_address && minutes.model ? minutes.model : minutes.recommended;
+  const engine = shown.engine === "speechanalyzer" ? "speechanalyzer" : "whisper";
+  const modelFile = shown.model.split(/[\\/]/).pop();
+  const modelHere = shown.models.some((model) => model.path === shown.model);
+  // The model the tray fetches is the list's first, the default: one the user named is theirs.
+  const fetchable = !modelHere && shown.offered[0]?.file === modelFile ? shown.offered[0] : null;
+
+  const card = (id) => {
+    const made = element("section", "card welcome");
+    made.id = id;
+    const top = element("div", "welcome-top");
+    top.append(document.querySelector("header.bar .brand").cloneNode(true));
+    made.append(top);
+    return [made, top];
+  };
+  const heading = (text) => {
+    const h1 = element("h1", "", text);
+    h1.id = "welcome-heading";
+    h1.tabIndex = -1;
+    return h1;
+  };
+  const button = (id, className, text, act) => {
+    const made = element("button", className, text);
+    made.type = "button";
+    made.id = id;
+    made.addEventListener("click", act);
+    return made;
+  };
+  const group = (name, labelled, options, chosen) => {
+    const radios = element("div", "welcome-choices");
+    radios.setAttribute("role", "radiogroup");
+    radios.setAttribute("aria-labelledby", labelled);
+    for (const [value, said] of options) {
+      const one = choice(name, value, said, chosen === value, false);
+      one.querySelector("input").addEventListener("change", () => (state[name] = value));
+      radios.append(one);
+    }
+    return radios;
+  };
+  const said = element("p", "says welcome-said");
+  said.id = "welcome-said";
+  said.setAttribute("role", "status");
+  const go = (step) => {
+    state.step = step;
+    draw();
+  };
+  // Confirmed: what the summary said, saved with Settings' own commands; refused, said, nothing more.
+  const save = async () => {
+    try {
+      if (!connected() && (minutes.provider !== minutes.ollama_address || minutes.model !== ollamaModel)) {
+        await invoke("minutes_saved", { provider: minutes.ollama_address, model: ollamaModel, key: null });
+      }
+      // Private: the transcription comes back to this computer, the engine alone. Connected
+      // changes nothing by itself: the service is chosen in Settings.
+      if (!connected() && shown.engine !== engine) await invoke("settings_saved", { change: { engine } });
+      return true;
+    } catch (why) {
+      said.textContent = fill(words.not_saved, why);
+      return false;
+    }
+  };
+  const done = (hash = "#/") => {
+    location.hash = hash;
+  };
+
+  const question = () => {
+    const [made] = card("welcome-question");
+    const examples = element("p", "says", words.welcome_examples);
+    examples.id = "welcome-examples";
+    const radios = group("private", "welcome-heading", [["often", words.welcome_often], ["rarely", words.welcome_rarely], ["unsure", words.welcome_unsure]], state.private);
+    const actions = element("div", "welcome-actions");
+    actions.append(
+      again
+        ? button("welcome-skip", "link", words.welcome_cancel, () => done("#/settings"))
+        : button("welcome-skip", "link", words.welcome_skip, async () => {
+          state.private = "often";
+          if (await save()) done();
+        }),
+      // Nothing chosen is the most discreet: private.
+      button("welcome-next", "primary", words.welcome_next, () => go(state.private === "rarely" ? "writer" : "summary")),
+    );
+    radios.setAttribute("aria-describedby", "welcome-examples");
+    made.append(element("p", "says welcome-eyebrow", words.welcome_title), heading(words.welcome_question), examples, radios, actions, said);
+    return made;
+  };
+
+  const writer = () => {
+    const [made] = card("welcome-writer");
+    const title = heading(words.welcome_writer);
+    const radios = group("writer", "welcome-heading", [["here", words.welcome_here], ["service", words.welcome_service]], state.writer);
+    const actions = element("div", "welcome-actions");
+    actions.append(button("welcome-back", "link", words.welcome_back, () => go("question")), button("welcome-next", "primary", words.welcome_next, () => go("summary")));
+    made.append(title, radios, actions, said);
+    return made;
+  };
+
+  const summary = async () => {
+    const status = await speech;
+    const [made, top] = card("welcome-summary");
+    top.append(button("welcome-back", "link", words.welcome_back, () => go(state.private === "rarely" ? "writer" : "question")));
+    const online = connected();
+    const [name, line] = online ? words.welcome_connected : words.welcome_private;
+    const mode = element("div", `welcome-mode ${online ? "connected" : "private"}`);
+    mode.append(heading(name), element("p", "", line));
+    const facts = element("dl", "welcome-facts");
+    const fact = (term, main, secondary) => {
+      const value = element("dd");
+      value.append(element("span", "name", main));
+      if (secondary) value.append(element("span", "says", secondary));
+      facts.append(element("dt", "", term), value);
+    };
+    const [transcription, minutesRow_, reminder] = words.welcome_rows;
+    // Connected leaves who hears as it is: a service already chosen in Settings is said as one.
+    let hearer = shown.transcription_provider ?? "";
+    try {
+      hearer = new URL(hearer).host;
+    } catch {}
+    if (online && shown.engine === "service") fact(transcription, words.service_option, hearer);
+    else fact(transcription, words.welcome_on_this_computer, engine === "speechanalyzer" ? words.speech_option : spoken(modelFile));
+    let host = "";
+    try {
+      host = new URL(minutes.provider).host;
+    } catch {}
+    // Online, chosen already (from Settings): its host; else the services Settings offer.
+    const offered = new Intl.ListFormat(words.locale, { type: "disjunction" }).format(minutes.online.map((service) => service.name));
+    if (online) fact(minutesRow_, local ? words.welcome_online : words.welcome_online_chosen, local ? offered : host);
+    else fact(minutesRow_, words.welcome_on_this_computer, fill(words.welcome_ollama_by, modelSaid(ollamaModel)));
+    fact(reminder, shown.reminder ? words.welcome_reminder_on : words.welcome_reminder_off);
+    made.append(mode, facts);
+    // The minutes wait for Ollama: said, with where it comes from — Wholeheard never installs it.
+    if (!online && !minutes.ollama_answers) made.append(element("p", "says welcome-wait", words.welcome_ollama_silent));
+    else if (!online && !minutes.ollama.includes(ollamaModel)) made.append(element("p", "says welcome-wait", fill(words.welcome_ollama_lacks, ollamaModel)));
+    const actions = element("div", "welcome-actions");
+    const later = button("welcome-later", "link", words.welcome_later, async () => {
+      if (await save()) done();
+    });
+    let primary;
+    let from = null;
+    if (online) {
+      primary = button("welcome-go", "primary", words.welcome_choose, async () => {
+        if (!(await save())) return;
+        focusMinutes = true;
+        done("#/settings");
+      });
+    } else if (engine === "speechanalyzer" && status?.offered && !status.installed) {
+      // Apple's model, fetched by macOS on this click, as Settings fetch it (D42).
+      primary = button("welcome-go", "primary", words.speech_fetch, async () => {
+        if (!(await save())) return;
+        invoke("speech_installed").catch(() => {});
+        done();
+      });
+    } else if (engine === "whisper" && fetchable) {
+      // The tray's own fetch, its size and host shown first (D36); how far is said where Settings
+      // and the tray say it.
+      primary = button("welcome-go", "primary", fill(words.welcome_fetch, size(fetchable.bytes, words)), async () => {
+        if (!(await save())) return;
+        await invoke("model_fetch").catch(() => {});
+        done();
+      });
+      from = element("p", "says welcome-from", fill(words.welcome_fetch_from, fetchable.host));
+      from.id = "welcome-host";
+    } else {
+      primary = button("welcome-go", "primary", words.welcome_done, async () => {
+        if (await save()) done();
+      });
+    }
+    actions.append(later, primary);
+    made.append(actions);
+    if (from) made.append(from);
+    made.append(said);
+    return made;
+  };
+
+  const draw = async () => {
+    said.textContent = "";
+    const made = state.step === "question" ? question() : state.step === "writer" ? writer() : await summary();
+    page.replaceChildren(made);
+    made.querySelector("#welcome-heading").focus();
+  };
+  await draw();
+}
+
 let words = null;
 
 // What the last save on the settings' page could not do, for the page drawn after it.
@@ -1958,6 +2174,15 @@ async function refresh() {
     player = null;
   }
   const settings = location.hash === "#/settings";
+  // The first run's assistant, alone in the window: no header, no other page (D58).
+  const welcoming = /^#\/welcome(\/again)?$/.test(location.hash);
+  document.querySelector("header.bar").hidden = welcoming;
+  document.getElementById("welcome").hidden = !welcoming;
+  if (welcoming) {
+    for (const other of ["list", "meeting", "settings", "agree", "free"]) document.getElementById(other).hidden = true;
+    return showWelcome(location.hash === "#/welcome/again", words);
+  }
+  document.getElementById("welcome").replaceChildren();
   const freeing = location.hash === "#/free";
   document.getElementById("free").hidden = !freeing;
   if (freeing) {
@@ -2046,7 +2271,9 @@ refresh();
 // Coming back to the window draws it anew — unless who writes the minutes is being chosen there
 // and not yet saved: that choice stays.
 window.addEventListener("focus", () => {
-  const choosing = document.querySelector("#settings:not([hidden]) #minutes-unsaved:not([hidden])")
+  // The assistant too: its answers are not drawn over.
+  const choosing = !document.getElementById("welcome").hidden
+    || document.querySelector("#settings:not([hidden]) #minutes-unsaved:not([hidden])")
     || [...document.querySelectorAll("#settings:not([hidden]) .fields input")].some((input) => input.value !== input.defaultValue);
   if (!choosing) refresh();
 });

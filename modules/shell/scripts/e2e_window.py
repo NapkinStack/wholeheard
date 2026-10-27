@@ -189,14 +189,18 @@ def session(folder: Path, started: dt.datetime, minutes: float | None, files: di
 class Window:
     """Wholeheard with its window, for as long as the `with` lasts."""
 
-    def __init__(self, sessions: Path, language: str, more: str = "", ollama: str = "http://127.0.0.1:9", small: bool = False) -> None:
+    def __init__(self, sessions: Path, language: str, more: str = "", ollama: str = "http://127.0.0.1:9", small: bool = False,
+                 welcomed: bool = True, args: tuple[str, ...] = ("--window",)) -> None:
         config = WORK / f"config-{language}-{sessions.name}"
         (config / "wholeheard").mkdir(parents=True, exist_ok=True)
         self.file = config / "wholeheard" / "settings.toml"
         # The full window, as the scenarios before D35 knew it; the small one, opened first, where asked.
         self.small = small
         opened = "" if small else 'window = "full"\n'
-        self.file.write_text(f'sessions = "{sessions}"\n{opened}{more}')
+        # Set up already (D58): a scenario with no meeting yet is not met by the first run's assistant.
+        greeted = "welcomed = true\n" if welcomed else ""
+        self.args = list(args)
+        self.file.write_text(f'sessions = "{sessions}"\n{opened}{greeted}{more}')
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(WORK / "data"), XDG_STATE_HOME=str(WORK / "state"), LANGUAGE="")
         # An Ollama and a keyring of the scenario's, never the user's own.
         self.env.update(LANG=language, LC_ALL=language, WHOLEHEARD_OLLAMA=ollama, WHOLEHEARD_KEYRING="memory", WHOLEHEARD_SUMMARY=str(SUMMARY), WHOLEHEARD_TRANSCRIPTION=str(HEARING), WHOLEHEARD_CAPTURE=str(RECORDER))
@@ -211,7 +215,7 @@ class Window:
         )
         options = ArgOptions()
         options.set_capability("browserName", "wry")
-        options.set_capability("tauri:options", {"application": str(BINARY), "args": ["--window"]})
+        options.set_capability("tauri:options", {"application": str(BINARY), "args": self.args})
         # The driver answers once it is up: until then, connections are refused or cut.
         for _ in range(50):
             try:
@@ -752,6 +756,184 @@ def ollama_pulled(now: dt.datetime) -> None:
     server.shutdown()
 
 
+def first_run(now: dt.datetime) -> None:
+    """Y. The first start (D58): the full window opens on one question, then the setting said plainly."""
+    print("Y. the first start: one question, the setting said plainly, private by default (D58)")
+    welcome = "return !document.getElementById('welcome').hidden && document.getElementById('welcome').innerText || ''"
+    focused = "return [document.activeElement.tagName, document.activeElement.name || document.activeElement.id, document.activeElement.value || ''].join(':')"
+    picked = "return [...document.querySelectorAll('#welcome input[type=radio]:checked')].map(i => i.value).join(',')"
+    summary = "return document.getElementById('welcome-summary')?.innerText || ''"
+    keys = lambda browser, *sent: ActionChains(browser).send_keys(*sent).perform()
+
+    def started(name: str, language: str = "fr_FR.UTF-8", dark: bool = False) -> "Window":
+        meetings = WORK / f"welcome-{name}"
+        meetings.mkdir()
+        # No `window` line: the small one is the one left, as at a real first start (D35).
+        window = Window(meetings, language, small=True, welcomed=False, args=())
+        window.env.update(XDG_DATA_HOME=str(WORK / f"data-welcome-{name}"), WHOLEHEARD_SPEECH=str(WORK / "nowhere"))
+        # The dark theme asked of GTK, whatever the desktop shows; the light one cannot be asked
+        # of a dark desktop without changing the user's setting — its colours are put on the page
+        # for its screenshots instead, below.
+        if dark:
+            window.env.update(GTK_THEME="Adwaita:dark")
+        return window
+
+    # The light theme's colours, as `ui/window.css` sets them first.
+    css = (Path(__file__).parent.parent / "ui" / "window.css").read_text()
+    light = css[css.index(":root {") + len(":root {"):css.index("}", css.index(":root {"))].replace("\n", " ").strip()
+
+    def seen(browser, name: str) -> None:
+        time.sleep(0.4)  # the card's arrival, 180 ms, ended
+        forced = "light" in name and browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
+        if forced:
+            browser.execute_script("document.documentElement.style.cssText = arguments[0] + '; color-scheme: light'", light)
+            time.sleep(0.3)  # the choices' borders, which ease to their colour
+        shot(browser, name)
+        if forced:
+            browser.execute_script("document.documentElement.style.cssText = ''")
+
+    def until_question(browser) -> bool:
+        return wait_for(browser, lambda b: "Vos réunions parlent-elles" in b.execute_script(welcome) or "Do your meetings" in b.execute_script(welcome), 10)
+
+    # 1. Skipped: everything on this computer, the meetings opened.
+    window = started("skip")
+    with window as browser:
+        shown = until_question(browser)
+        check("started without --window, not welcomed, no meeting: the full window opens on the assistant",
+              shown and not browser.find_elements(By.ID, "small-record"), browser.execute_script(welcome))
+        said = browser.execute_script(welcome)
+        check("one question, its three answers in plain words, its sentence typeset as French has it",
+              "Réglons Wholeheard en une question." in said and "Vos réunions parlent-elles de sujets confidentiels ?" in said
+              and all(a in said for a in ("Oui, souvent", "Rarement ou jamais", "Je ne sais pas", "Passer — tout sur cet ordinateur", "Suivant")), said)
+        check("nothing is chosen for the user", browser.execute_script(picked) == "", browser.execute_script(picked))
+        check("each answer is a radio of one group, named by the question",
+              browser.execute_script("const g = document.querySelector('#welcome [role=radiogroup]'); return !!g && !!g.getAttribute('aria-labelledby') && g.querySelectorAll('input[type=radio][name=private]').length === 3"))
+        check("no header of the meetings while it is answered", not browser.find_element(By.CSS_SELECTOR, "header.bar").is_displayed())
+        marked = wait_for(browser, lambda b: "welcomed = true" in window.file.read_text(), 5)
+        check("welcomed is written as soon as it is shown, nothing else", marked and "minutes_provider" not in window.file.read_text(), window.file.read_text())
+        browser.set_window_size(420, 400)
+        time.sleep(0.5)
+        wide = browser.execute_script("return document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+        check("at the window's smallest size nothing overflows sideways", wide)
+        seen(browser, "d58-1-question-light-small")
+        browser.set_window_size(1100, 800)
+        time.sleep(0.3)
+        seen(browser, "d58-1-question-light")
+        # Passer, by the keyboard: Tab from the question reaches it after the answers.
+        keys(browser, Keys.TAB)
+        first = browser.execute_script(focused)
+        keys(browser, Keys.TAB)
+        skip = browser.execute_script(focused)
+        check("Tab reaches the answers, then Passer", first.startswith("INPUT:private") and skip == "BUTTON:welcome-skip:", (first, skip))
+        ring = browser.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0")
+        check("the focus is seen", ring)
+        keys(browser, Keys.ENTER)
+        listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed() and b.find_element(By.CSS_SELECTOR, "header.bar").is_displayed(), 10)
+        text = window.file.read_text()
+        check("Passer: the minutes by Ollama on this computer, the meetings opened",
+              listed and 'minutes_provider = "http://127.0.0.1:9/v1"' in text and 'minutes_model = "qwen3:8b"' in text, text)
+        check("the window left is not changed: the small one stays the one reopened (D35)", "window =" not in text, text)
+        check("nothing is fetched on Passer", not (WORK / "data-welcome-skip" / "wholeheard" / "models").exists())
+    # Started again, welcomed: no assistant.
+    window.args = ["--window"]
+    with window as browser:
+        time.sleep(1)
+        check("welcomed, it never comes back at a start", browser.execute_script(welcome) == "" and browser.find_elements(By.ID, "small-record"))
+
+    # 2. Private, by the keyboard: the summary, then Plus tard.
+    window = started("private")
+    with window as browser:
+        until_question(browser)
+        keys(browser, Keys.TAB, Keys.SPACE)
+        check("Space chooses the answer focused", browser.execute_script(picked) == "often", browser.execute_script(picked))
+        keys(browser, Keys.ARROW_DOWN)
+        keys(browser, Keys.ARROW_DOWN)
+        check("the arrows go through the answers", browser.execute_script(picked) == "unsure", browser.execute_script(picked))
+        keys(browser, Keys.TAB, Keys.TAB, Keys.ENTER)
+        shown = wait_for(browser, lambda b: "Mode privé" in b.execute_script(summary), 5)
+        said = browser.execute_script(summary)
+        check("« Je ne sais pas »: the private mode, who transcribes, who writes, the reminder, each said plainly",
+              shown and "Vos réunions ne quittent pas cet ordinateur." in said and "Transcription" in said and "Whisper large v3 turbo" in said
+              and "Compte rendu" in said and "Qwen3 8b" in said and "Rappel" in said and "ggml" not in said, said)
+        check("Ollama not answering: the minutes wait for it, with ollama.com", "ollama.com" in said, said)
+        check("the model missing: offered with its size and host",
+              "Télécharger le modèle (874 Mo)" in said.replace(" Mo", " Mo") and "Depuis huggingface.co, vérifié avant d’être utilisé." in said, said)
+        check("nothing is saved before the last screen", "minutes_provider" not in window.file.read_text(), window.file.read_text())
+        seen(browser, "d58-3-summary-private-light")
+        press(browser, "welcome-later")
+        listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
+        check("Plus tard: saved private, the meetings opened, the model left unfetched",
+              listed and 'minutes_model = "qwen3:8b"' in window.file.read_text() and not (WORK / "data-welcome-private" / "wholeheard" / "models").exists(),
+              window.file.read_text())
+
+    # 3. Rarely, then a service: connected, chosen in Settings.
+    window = started("service")
+    with window as browser:
+        until_question(browser)
+        keys(browser, Keys.TAB, Keys.ARROW_DOWN)
+        check("the arrows choose « Rarement ou jamais »", browser.execute_script(picked) == "rarely", browser.execute_script(picked))
+        keys(browser, Keys.TAB, Keys.TAB, Keys.ENTER)
+        asked = wait_for(browser, lambda b: "Qui écrit le compte rendu ?" in b.execute_script(welcome), 5)
+        said = browser.execute_script(welcome)
+        check("then who writes the minutes, its two answers, no address nor key asked",
+              asked and "Cet ordinateur" in said and "Un service en ligne" in said and not browser.find_elements(By.CSS_SELECTOR, "#welcome input:not([type=radio])"), said)
+        seen(browser, "d58-2-writer-light")
+        keys(browser, Keys.TAB, Keys.ARROW_DOWN)
+        check("« Un service en ligne » chosen by the keyboard", browser.execute_script(picked) == "service", browser.execute_script(picked))
+        keys(browser, Keys.TAB, Keys.TAB, Keys.ENTER)
+        shown = wait_for(browser, lambda b: "Mode connecté" in b.execute_script(summary), 5)
+        said = browser.execute_script(summary)
+        check("the connected mode: the minutes online, the transcription on this computer",
+              shown and "la transcription reste sur cet ordinateur" in said and "Choisir mon service" in said, said)
+        seen(browser, "d58-3-summary-connected-light")
+        press(browser, "welcome-go")
+        opened = wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed()
+                          and b.execute_script("return document.activeElement.id") == "minutes", 10)
+        check("Choisir mon service opens Settings at the minutes, nothing saved for them yet",
+              opened and "minutes_provider" not in window.file.read_text(), (browser.execute_script("return document.activeElement.id"), window.file.read_text()))
+        # Refaire le réglage: Annuler changes nothing; confirmed, it is saved.
+        before = window.file.read_text()
+        press(browser, "welcome-again")
+        again = until_question(browser)
+        check("Refaire le réglage opens the assistant, with Annuler", again and "Annuler" in browser.execute_script(welcome) and "Passer" not in browser.execute_script(welcome))
+        press(browser, "welcome-skip")
+        back = wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed(), 5)
+        check("Annuler: back to Settings, nothing changed", back and window.file.read_text() == before, window.file.read_text())
+        press(browser, "welcome-again")
+        until_question(browser)
+        browser.execute_script("document.querySelector('#welcome input[value=often]').click()")
+        press(browser, "welcome-next")
+        wait_for(browser, lambda b: "Mode privé" in b.execute_script(summary), 5)
+        check("nothing changes before the last screen is confirmed", window.file.read_text() == before, window.file.read_text())
+        press(browser, "welcome-later")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
+        check("confirmed, it is saved", 'minutes_model = "qwen3:8b"' in window.file.read_text(), window.file.read_text())
+
+    # 4. The dark theme, in English.
+    window = started("dark", "en_GB.UTF-8", dark=True)
+    with window as browser:
+        until_question(browser)
+        dark = browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
+        check("the system's dark theme is the page's", dark and browser.execute_script("return getComputedStyle(document.body).backgroundColor") == GROUND["dark"])
+        said = browser.execute_script(welcome)
+        check("in English", "Do your meetings discuss confidential matters?" in said and "Skip — everything on this computer" in said, said)
+        seen(browser, "d58-1-question-dark")
+        press(browser, "welcome-next")
+        wait_for(browser, lambda b: "Private mode" in b.execute_script(summary), 5)
+        check("Next with nothing chosen is private", "Private mode" in browser.execute_script(summary), browser.execute_script(summary))
+        seen(browser, "d58-3-summary-private-dark")
+        press(browser, "welcome-back")
+        until_question(browser)
+        browser.execute_script("document.querySelector('#welcome input[value=rarely]').click()")
+        press(browser, "welcome-next")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#welcome input[name=writer]"), 5)
+        seen(browser, "d58-2-writer-dark")
+        browser.execute_script("document.querySelector('#welcome input[value=service]').click()")
+        press(browser, "welcome-next")
+        wait_for(browser, lambda b: "Connected mode" in b.execute_script(summary), 5)
+        seen(browser, "d58-3-summary-connected-dark")
+
+
 def main() -> int:
     now = dt.datetime.now().astimezone()
     sessions = WORK / "sessions"
@@ -1268,7 +1450,7 @@ def main() -> int:
         warned = browser.find_element(By.CSS_SELECTOR, "#settings .warn").text
         locked = browser.execute_script("return [...document.querySelectorAll('#settings input, #settings select')].every(e => e.disabled)")
         check("a settings file that cannot be read is said so, and nothing can be changed", warned.startswith("Le fichier des réglages ne peut pas être lu") and locked, warned)
-        check("it is left as it was", window.file.read_text() == f'sessions = "{broken}"\nkeep_audio = 0\n')
+        check("it is left as it was", window.file.read_text() == f'sessions = "{broken}"\nwelcomed = true\nkeep_audio = 0\n')
         # The shell itself refuses, not only the page.
         refused = browser.execute_async_script(
             "const done = arguments[0]; window.__TAURI__.core.invoke('settings_saved', {change: {reminder: false}})"
@@ -2139,6 +2321,7 @@ def main() -> int:
     speech_offered(now)
     service_named(now)
     ollama_pulled(now)
+    first_run(now)
     return 1 if FAILED else 0
 
 
