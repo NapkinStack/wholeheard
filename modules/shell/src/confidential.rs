@@ -69,7 +69,8 @@ pub enum Wait {
 
 /// Who writes a confidential meeting's minutes, as `(provider, model)`: the one `named` — the
 /// settings', or a Refaire…'s — when it is this computer's; else Ollama at `base`, with the
-/// recommended model when it holds it, else the first it holds (`held`, asked only then).
+/// recommended model when it holds it, else the first it holds (`held`, asked only then). An
+/// Ollama elsewhere than this computer is asked nothing and waited for, silent.
 pub fn writer(named: Option<(String, String)>, base: &str, held: impl FnOnce() -> Option<Vec<String>>) -> Result<(String, String), Wait> {
     if let Some((provider, model)) = named
         && providers::local(&provider)
@@ -77,13 +78,17 @@ pub fn writer(named: Option<(String, String)>, base: &str, held: impl FnOnce() -
     {
         return Ok((provider, model));
     }
+    let address = providers::ollama_address(base);
+    if !providers::local(&address) {
+        return Err(Wait::Silent);
+    }
     let held = held().ok_or(Wait::Silent)?;
     let model = held
         .iter()
         .find(|model| *model == providers::RECOMMENDED)
         .or(held.first())
         .ok_or(Wait::Empty)?;
-    Ok((providers::ollama_address(base), model.clone()))
+    Ok((address, model.clone()))
 }
 
 /// What had left the computer.
@@ -111,13 +116,14 @@ pub fn add(left: &mut Vec<Left>, what: What, host: &str) {
 }
 
 /// What the meeting's files say had left: a transcript whose header names a service's host as
-/// its engine — this computer's engines name themselves —, minutes whose front matter names a
+/// its engine — this computer's engines name themselves, a service on it its own address —, minutes whose front matter names a
 /// host and not `local`.
 pub fn left(transcript: &Read<Transcript>, minutes: &Read<Minutes>) -> Vec<Left> {
     let mut left = Vec::new();
     if let Read::Present(transcript) = transcript
         && let Some(engine) = transcript.engine.as_deref().filter(|engine| !engine.trim().is_empty())
         && !matches!(engine, "whisper.cpp" | "SpeechAnalyzer")
+        && !providers::local(&format!("http://{engine}"))
     {
         add(&mut left, What::Sound, engine);
     }

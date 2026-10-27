@@ -196,6 +196,17 @@ fn ollama_silent_or_empty_the_minutes_wait_and_nothing_is_sent() {
         confidential::writer(named("localhost:11434", "qwen3:8b"), OLLAMA, || None),
         Err(Wait::Silent)
     );
+    // An Ollama elsewhere is asked nothing: waited for, silent.
+    let asked = std::cell::Cell::new(false);
+    let elsewhere = confidential::writer(
+        named("https://openrouter.ai/api/v1", "mistralai/mistral-small"),
+        "http://192.0.2.7:11434",
+        || {
+            asked.set(true);
+            Some(vec![providers::RECOMMENDED.to_string()])
+        },
+    );
+    assert_eq!((elsewhere, asked.get()), (Err(Wait::Silent), false));
 }
 
 fn transcript_by(folder: &Path, engine: &str) {
@@ -234,6 +245,9 @@ fn what_had_left_is_read_from_who_heard_and_who_wrote() {
     minutes_by(folder.path(), "local");
     assert_eq!(left_of(folder.path()), []);
     transcript_by(folder.path(), "SpeechAnalyzer");
+    assert_eq!(left_of(folder.path()), []);
+    // A service on this computer: nothing left either.
+    transcript_by(folder.path(), "localhost:8000");
     assert_eq!(left_of(folder.path()), []);
     // A service heard it: its sound left, to the host the header names.
     transcript_by(folder.path(), "api.groq.com");

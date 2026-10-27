@@ -1942,6 +1942,13 @@ fn makings(shell: State<'_, Shell>) -> Makings {
     };
     let writing = shell.writing_minutes.lock().unwrap().clone();
     let by = shell.minutes_by.lock().unwrap().clone();
+    let settings = shell.settings();
+    let (transcripts_waiting, model_needed) = {
+        let waiting = shell.waiting.lock().unwrap();
+        let names = waiting.iter().map(|(folder, _)| named(folder)).collect();
+        let needed = default_model_missing(&settings) || waiting.iter().any(|(folder, _)| default_model_missing_for(&settings, folder));
+        (names, needed)
+    };
     Makings {
         minutes: writing.zip(by).map(|(folder, (model, host, since))| Making {
             name: named(&folder),
@@ -1967,17 +1974,8 @@ fn makings(shell: State<'_, Shell>) -> Makings {
                 model,
                 seconds: since.elapsed().as_secs(),
             }),
-        transcripts_waiting: shell.waiting.lock().unwrap().iter().map(|(folder, _)| named(folder)).collect(),
-        model_needed: {
-            let settings = shell.settings();
-            default_model_missing(&settings)
-                || shell
-                    .waiting
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .any(|(folder, _)| default_model_missing_for(&settings, folder))
-        },
+        transcripts_waiting,
+        model_needed,
         // The default model coming, not another: one fetch at a time, said as such (D37).
         model_coming: fetched.as_ref().is_some_and(|(file, ..)| file == model::file(&model::DEFAULT)),
         model_fetching: fetched.map(|(file, held, bytes)| Fetching { file, held, bytes }),
@@ -2486,7 +2484,8 @@ fn hearing(shell: &Shell, folder: &Path, hearer: &Hearer) {
     *shell.hearing.lock().unwrap() = Some(folder.to_path_buf());
     *shell.hearing_by.lock().unwrap() = Some((hearer.name(), Instant::now()));
     *shell.hearing_host.lock().unwrap() = match hearer {
-        Hearer::Service { provider, .. } => providers::host(provider),
+        // A service on this computer sends nothing away (D60).
+        Hearer::Service { provider, .. } if !providers::local(provider) => providers::host(provider),
         _ => None,
     };
     shell.transcripts_failed.lock().unwrap().remove(folder);
