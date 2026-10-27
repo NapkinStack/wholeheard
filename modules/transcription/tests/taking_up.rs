@@ -114,6 +114,24 @@ fn a_step_killed_while_writing_leaves_a_transcript_that_is_continued_without_a_s
 }
 
 #[test]
+fn another_making_s_header_with_nothing_heard_is_started_again_by_this_one() {
+    let folder = tempfile::tempdir().unwrap();
+    let refused = Making {
+        model: "a-model-the-service-does-not-know".into(),
+        ..making()
+    };
+    drop(Transcript::open(folder.path(), &refused).unwrap());
+    Transcript::open(folder.path(), &making())
+        .unwrap()
+        .heard(Speaker::Me, &[said(1.0, 2.0, "Un.")], 30.0)
+        .unwrap();
+    let written = lines(folder.path());
+    assert_eq!(written[0]["model"], making().model.as_str(), "{written:?}");
+    assert_eq!(written.iter().filter(|line| line["type"] == "header").count(), 1, "{written:?}");
+    assert_eq!(written[1]["text"], "Un.", "{written:?}");
+}
+
+#[test]
 fn a_transcript_of_another_making_is_never_continued() {
     let folder = tempfile::tempdir().unwrap();
     Transcript::open(folder.path(), &making())

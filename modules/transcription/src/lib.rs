@@ -147,10 +147,17 @@ impl Transcript {
             }
             Some(Ok(header)) if header["type"] == "header" && header["contract"] == CONTRACT => {
                 let ours = making.header();
-                if ["engine", "model", "language", "context"]
+                let another = ["engine", "model", "language", "context"]
                     .iter()
-                    .any(|field| header[*field] != ours[*field])
-                {
+                    .any(|field| header[*field] != ours[*field]);
+                // Another making's header and nothing after it — its first span refused, a model
+                // a service does not know (D43): nothing is lost, and this making starts it again.
+                if another && whole == written.len() && lines.clone().next().is_none() {
+                    transcript.file.set_len(0)?;
+                    transcript.add(&[ours])?;
+                    return Ok(transcript);
+                }
+                if another {
                     return refused(
                         io::ErrorKind::InvalidData,
                         &format!("this transcript was made by another engine, model, language or context: {again}"),
