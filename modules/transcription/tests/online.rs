@@ -14,12 +14,12 @@ use wholeheard_transcription::{
     step::{Engine, RATE},
 };
 
-/// Answers one request with `status` and `body`; gives its address, and what was asked.
+/// Answers each request with `status` and `body`; gives its address, and what was asked.
 fn served(status: u16, answered: &'static str) -> (String, mpsc::Receiver<(String, Vec<u8>)>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = format!("http://{}/v1", listener.local_addr().unwrap());
     let (tell, asked) = mpsc::channel();
-    // As many requests as are asked, each answered the same: a session sends a span per track.
+    // A session sends a span per track.
     thread::spawn(move || {
         for stream in listener.incoming() {
             let stream = stream.unwrap();
