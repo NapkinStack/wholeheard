@@ -6,9 +6,11 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 dist=${NSTACK_DIST:?run through nstack release, which names this module\'s artefacts folder}
 target=${WHOLEHEARD_TARGET:-}
+# Windows names a program with its .exe (D53).
+exe=; [ "${OS:-}" = Windows_NT ] && exe=.exe
 if [ -z "$target" ]; then
   (cd "$here" && cargo build --locked --release)
-  cp "${CARGO_TARGET_DIR:-$here/target}/release/wholeheard-summary" "$dist/"
+  cp "${CARGO_TARGET_DIR:-$here/target}/release/wholeheard-summary$exe" "$dist/"
   exit 0
 fi
 recipe=$here/containers/$target.Containerfile
