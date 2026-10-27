@@ -5,7 +5,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 python3 - "$here/wholeheard.spec" "$here/deb/build.sh" "$here/deb/control.in" "$here/mac" <<'PY'
-import json, os, plistlib, re, subprocess, sys, tempfile
+import json, os, plistlib, re, subprocess, sys, tempfile, zipfile
 spec = open(sys.argv[1], encoding="utf-8").read()
 macros = {"%{_bindir}": "/usr/bin", "%{_datadir}": "/usr/share", "%{buildroot}": ""}
 def expand(path):
@@ -74,6 +74,22 @@ with tempfile.TemporaryDirectory() as work:
     strings = open(os.path.join(app, "Contents", "Resources", "fr.lproj", "InfoPlist.strings"), encoding="utf-8").read()
     check("and in French, from the same file", all(words["fr"].get(key) and f'{key} = "{words["fr"][key]}";' in strings for key in asked) and
           info.get("CFBundleLocalizations") == ["en", "fr"], strings)
+# Windows' zip (D53): made on Windows by windows/build.py, run here on artefacts of its names.
+windows = os.path.join(os.path.dirname(mac), "windows", "build.py")
+with tempfile.TemporaryDirectory() as work:
+    artefacts, out = os.path.join(work, "artefacts"), os.path.join(work, "out")
+    names = ("shell/wholeheard.exe", "capture/wholeheard-capture.exe",
+             "transcription/wholeheard-transcription.exe", "summary/wholeheard-summary.exe")
+    for name in names:
+        os.makedirs(os.path.join(artefacts, os.path.dirname(name)), exist_ok=True)
+        open(os.path.join(artefacts, name), "wb").write(name.encode())
+    os.makedirs(out)
+    subprocess.run([sys.executable, windows, artefacts, "1.2.3", out], check=True, stdout=subprocess.DEVNULL)
+    made = os.listdir(out)
+    check("Windows' zip is named by its version and processor", made == ["Wholeheard-1.2.3-windows-x64.zip"], made)
+    inside = sorted(zipfile.ZipFile(os.path.join(out, made[0])).namelist()) if made else []
+    check("the four programs side by side in one folder, where the shell looks for them",
+          inside == sorted(f"Wholeheard/{name.split('/')[1]}" for name in names), inside)
 print("test: passed" if not failed else "test: FAILED")
 sys.exit(failed)
 PY
