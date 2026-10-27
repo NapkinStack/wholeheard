@@ -35,7 +35,7 @@ system offers software.
 
 - An account, a sign-up, a server of ours that a user's machine must reach to work.
 - A subscription: everything runs on the user's machine, there is no service to pay for.
-- The Mac App Store and the Microsoft Store, for now (see the options).
+- The Mac App Store and the Microsoft Store, for now (see the options). — Windows goes through the Microsoft Store since [PDR-0004](./0004-windows-through-the-microsoft-store.md), 2026-10-27; the Mac App Store waits on a spike.
 - A paid tier of features: every platform runs the same product.
 - Telemetry, still (the charter's) — unless the user turns it on, since [PDR-0003](./0003-telemetry-only-if-the-user-turns-it-on.md), 2026-10-26.
 
@@ -121,7 +121,7 @@ sentence. No network is needed, ever, to use a valid key.
 ## Success criterion
 
 > We will consider this was the right call if **ten people outside the project use Wholeheard
-> on Linux through its repositories, and the first licence is sold on macOS**, before
+> on Linux through its repositories, and the first licence is sold on macOS** — or in the Microsoft Store, since [PDR-0004](./0004-windows-through-the-microsoft-store.md) —, before
 > **2027-06-30**.
 
 How it is observed: the repositories' download counts, the merchant's sales, the testers'

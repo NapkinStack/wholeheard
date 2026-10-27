@@ -67,6 +67,14 @@ deliverables:
       - "Given a service that answers, when a session is transcribed, then `transcript/v1` is written by the step as ever, each segment on its track with its times, the header naming the service's host and model"
       - "Given Settings, when the user tests the service, then it is said in one sentence whether it hears, with a sound of the test's own, nothing of a meeting"
       - "Given a service that refuses the key, does not answer, answers no transcript, or gives text without its segments' times, when a session is transcribed, then it is said in one sentence, nothing is kept of a half, and the transcript can be made again"
+  - id: D53
+    title: "On Windows, Wholeheard opens from one zip the forge made — and does a call recorded there hold both sides?"
+    module: install
+    state: ready
+    acceptance:
+      - "Given a run of the Windows workflow on main, or one started by hand, when it ends, then each program's tests pass on GitHub's Windows runner, and it leaves one artifact, Wholeheard-<version>-windows-x64.zip, holding wholeheard.exe and the three programs side by side, kept 7 days as the Mac's"
+      - "Given that zip on the colleague's Windows 11, when they unpack it and open wholeheard.exe — past SmartScreen's warning on an unsigned program —, then Wholeheard's icon is in the notification area and its window opens from it, with nothing installed before it and no terminal"
+      - "Given a call recorded there for at least five minutes, when it stops, then the cycle records, for each track — local, the microphone; remote, what Windows plays: whether it holds the call's speech, and what Windows asked before it recorded — read against D39's threshold: both tracks hold the call's speech as the colleague hears it at the start, the middle and the end of each, and capture's code holds no line added for Windows; below it, what was missing is recorded for the next framing. A refuted result is a delivered one"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -267,6 +275,31 @@ Second of the two, should both not fit. The end date does not move.
   real service's, whose trial is the decider's (a key and a meeting of theirs), in
   [#463](https://github.com/NapkinStack/wholeheard/issues/463).
 
+### D53
+
+**Added on the decider's word, 2026-10-27** ("avance l'application autant que possible, il nous
+faut la version complete pour commencer la publication sur les store"), after
+[PDR-0004](../../pdr/0004-windows-through-the-microsoft-store.md), settled the same day on the
+choice they delegated: Windows is sold through the Microsoft Store, and its build is the first
+step — none exists. The charter's Windows colleague waits on it. The end date does not move: this
+is the first cut should it not fit, and its third criterion is the colleague's, on their time.
+
+- What exists: the shell's keyring for Windows (`windows-native-keyring-store`), `.exe` found
+  beside the shell (`program()`), each program's log folder for Windows; nothing compiled on
+  Windows yet, no workflow runs there.
+- The remote side: cpal records what an output plays on Windows through WASAPI's loopback
+  *(assumption, from cpal's documentation, to be read when it is built)*; whether capture needs a
+  line for it is what the first run says.
+- **Modules beyond `install`**: the first criterion's tests may need fixes in `shell`, `capture`,
+  `transcription` or `summary`, as the Mac's did (#416, #417) — each in a pull request of its own,
+  never one that crosses them.
+- Unsigned, the zip meets SmartScreen's warning, and Smart App Control, where it is on, may refuse
+  it outright (PDR-0004, *Impacts*): the colleague's trial needs it off, or waits on the Store's
+  signed package.
+- The zip is for the colleague, as the Mac's: no release, no link outside the project
+  (open question of 2026-10-26). The Store's MSIX, signed by Microsoft, is *Later*: it needs the
+  decider's Partner Center account.
+
 ## Dependency with a date
 
 - **The colleague on Ubuntu 24.04**, for D27: the trial of #255 by 2026-10-31 (the framer's
@@ -275,12 +308,14 @@ Second of the two, should both not fit. The end date does not move.
   an hour by 2026-10-31, the app ready by 2026-10-29 — for D42, its three pull requests
   merged before then, or its last criterion waits on another session. The cycle does not hold it: missed, the
   deliverables stay where they are at the end date.
+- **The colleague on Windows**, for D53's second and third criteria: one session of an hour by
+  2026-10-31, the zip ready by 2026-10-30. Missed, D53 stays where it is at the end date.
 
 ## Out of scope
 
 - Apple's signing and notarisation, a `.dmg`, the App Store.
 - Intel Macs, macOS 14.6 and before.
-- Windows.
+- ~~Windows.~~ D53, on the decider's word of 2026-10-27 — its build only; its Store package is *Later*.
 - Anything of the window or of the settings made for macOS beyond opening — but D42's choice of who hears, on the decider's word of 2026-10-26.
 
 ## Later
@@ -305,6 +340,12 @@ Second of the two, should both not fit. The end date does not move.
   week, 2026-10-26). The charter's second criterion — two weeks of meetings on the Mac — needs it.
 - ~~macOS's own transcription engine (SpeechAnalyzer), against Whisper.~~ D42, 2026-10-26.
 - A refusal of macOS's trash said by its cause: today it is said as *other* (#417).
+
+- **Windows in the Microsoft Store** (PDR-0004, 2026-10-27): an MSIX package that Microsoft signs,
+  its trial and its commerce — after D53, once the decider's Partner Center account exists.
+- **macOS notarised**, a trial and a licence key, a merchant of record (PDR-0001, decision 4) —
+  once Apple's developer programme is joined; the Mac App Store after a spike on the sandbox.
+- **The signed list of models** (ADR-0010) before the first Store or download build.
 
 ## Open questions
 
