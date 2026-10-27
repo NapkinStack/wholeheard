@@ -17,6 +17,7 @@ fn places(root: &Path) -> Places {
     }
 }
 
+/// Paths are written in TOML's literal strings: a Windows path's `\` is no escape there.
 fn write(path: &Path, text: &str) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, text).unwrap();
@@ -38,7 +39,7 @@ fn summits_folders_are_moved_and_the_meetings_kept_where_they_were() {
     write(&model, "a model of 874 MB");
     write(
         &here.config.join("summit/settings.toml"),
-        &format!("# mine\nmodel = \"{}\"\n", model.display()),
+        &format!("# mine\nmodel = '{}'\n", model.display()),
     );
     a_meeting_in(&here.documents.join("Summit"));
 
@@ -113,7 +114,7 @@ fn an_empty_folder_under_the_new_name_gives_way() {
     let mine = root.path().join("my meetings");
     write(
         &here.config.join("summit/settings.toml"),
-        &format!("sessions = \"{}\"\n", mine.display()),
+        &format!("sessions = '{}'\n", mine.display()),
     );
     fs::create_dir_all(here.config.join("wholeheard")).unwrap();
     a_meeting_in(&here.documents.join("Summit"));
@@ -137,7 +138,7 @@ fn a_model_written_from_home_is_named_where_it_went() {
     };
     write(&here.data.join("summit/models/a.bin"), "a model");
     let written = format!("~/{}/summit/models/a.bin", data.path().strip_prefix(&home).unwrap().display());
-    write(&here.config.join("summit/settings.toml"), &format!("model = \"{written}\"\n"));
+    write(&here.config.join("summit/settings.toml"), &format!("model = '{written}'\n"));
 
     let carried = carry_over(&here).unwrap();
 
@@ -154,7 +155,7 @@ fn a_model_beside_summits_folder_is_not_renamed_by_its_text() {
     write(&here.data.join("summit/models/a.bin"), "a model");
     write(
         &here.config.join("summit/settings.toml"),
-        &format!("model = \"{}\"\n", beside.display()),
+        &format!("model = '{}'\n", beside.display()),
     );
 
     carry_over(&here).unwrap();
