@@ -1,6 +1,9 @@
 //! Apple's SpeechAnalyzer behind the step's interface (D42, ADR-0012), tried with a program played
 //! here in place of `wholeheard-speech`: what it is asked, and what is made of what it says. Apple's
 //! engine itself is tried on a Mac — the macOS workflow, the colleague's.
+//!
+//! The program played here is a few lines of shell: these tests run where one runs, never on Windows.
+#![cfg(unix)]
 
 use std::{fs, os::unix::fs::PermissionsExt, path::Path, process::Command};
 
