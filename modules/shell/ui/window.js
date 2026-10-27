@@ -494,6 +494,17 @@ function paintContext() {
   const making = minutesState(name)?.kind === "making" || transcriptState(name)?.kind === "making";
   const closed = making ? words.context_making : card.dataset.unfinished === "true" ? words.context_unfinished : null;
   const area = document.getElementById("context-text");
+  // A making of it ended: whether what is there now was made with this context is read again.
+  if (card.dataset.making === "true" && !making) {
+    window.__TAURI__.core
+      .invoke("context_shown", { name })
+      .then((shown) => {
+        card.dataset.changed = String(shown.changed);
+        paintContext();
+      })
+      .catch(() => {});
+  }
+  card.dataset.making = String(making);
   area.readOnly = closed !== null;
   const said = document.getElementById("context-said");
   if (closed !== null) said.textContent = closed;

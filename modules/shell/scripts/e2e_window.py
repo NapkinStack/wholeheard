@@ -1014,9 +1014,10 @@ def context_written(now: dt.datetime) -> None:
     said = "Budget du T4 avec Inès Durand, Jiří Novák et l’équipe achats."
     window, meeting = recording("fr", "fr_FR.UTF-8")
     with window as browser:
-        # Started by the keyboard: the recording's gesture has the focus at rest.
+        # Started by the keyboard: the recording's gesture has the focus at rest — once the page has it.
+        wait_for(browser, lambda b: focused(b) == "small-record", 10)
         keys(browser, Keys.ENTER)
-        started = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 5)
+        started = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 10)
         toggle = browser.find_element(By.ID, "small-context-toggle")
         check("recording, the small window offers the context, closed", started and toggle.text.startswith("Ajouter le contexte")
               and toggle.get_attribute("aria-expanded") == "false" and not browser.find_element(By.ID, "small-context").is_displayed(), toggle.text)
@@ -1070,7 +1071,9 @@ def context_written(now: dt.datetime) -> None:
         asked = (WORK / "summary-context").read_text() if (WORK / "summary-context").exists() else None
         check("the minutes' request carried it", heard and asked is not None and json.loads(asked) == said, asked)
 
-    # The meeting's page: the context shown, changed, made again with it.
+    # The meeting's page: the context shown, changed, made again with it — from its audio, which the
+    # stand-in capture does not write: a track of its own, numbers only.
+    (meeting / "local.wav").write_bytes(b"\0" * 1000)
     window = Window(meeting.parent, "fr_FR.UTF-8", settings)
     with window as browser:
         browser.execute_script(f"location.hash = '#/meeting/{meeting.name}'")
@@ -1137,7 +1140,7 @@ def context_written(now: dt.datetime) -> None:
         # Pasted past the most: cut to it, as the shell counts — in characters. As WebKit pastes: a
         # beforeinput that may refuse it, then the text in and an input.
         browser.execute_script(
-            "const a = document.getElementById('context-text'), data = 'é'.repeat(450);"
+            "const a = document.getElementById('context-text'), data = '🙂'.repeat(10) + 'é'.repeat(440);"
             "const asked = new InputEvent('beforeinput', {inputType: 'insertFromPaste', data, cancelable: true});"
             "if (a.dispatchEvent(asked)) { a.value = data; a.dispatchEvent(new InputEvent('input', {inputType: 'insertFromPaste', data})) }"
         )
@@ -1145,10 +1148,14 @@ def context_written(now: dt.datetime) -> None:
         check("a paste past 400 characters is cut to 400, in the field and the file",
               cut and len(browser.find_element(By.ID, "context-text").get_attribute("value")) == 400
               and count(browser, "context-text") == "400 caractères au plus · 0 restant", count(browser, "context-text"))
+        full_ = (meeting / "context.txt").read_text()
         browser.find_element(By.ID, "context-text").send_keys(Keys.END, "x")
+        browser.find_element(By.ID, "context-text").send_keys(Keys.CONTROL, Keys.HOME)
+        browser.find_element(By.ID, "context-text").send_keys("x")
         time.sleep(0.5)
-        check("at 400, a character typed is not taken", len((meeting / "context.txt").read_text()) == 400
-              and len(browser.find_element(By.ID, "context-text").get_attribute("value")) == 400)
+        check("at 400, a character typed is not taken, at the end or at the start — nothing of the rest pushed out",
+              (meeting / "context.txt").read_text() == full_ == browser.find_element(By.ID, "context-text").get_attribute("value")
+              and len(full_) == 400 and full_.startswith("🙂"), len(full_))
 
     # A transcript left unfinished: the field closed, said so.
     unfinished = WORK / "context-unfinished"
@@ -1160,15 +1167,17 @@ def context_written(now: dt.datetime) -> None:
     with Window(unfinished, "fr_FR.UTF-8", settings) as browser:
         browser.execute_script("location.hash = '#/meeting/half'")
         closed = wait_for(browser, lambda b: b.find_elements(By.ID, "context-text") and b.find_element(By.ID, "context-text").get_attribute("readonly") is not None, 10)
-        sentence = browser.find_element(By.ID, "context-said").text if closed else ""
+        # Read as written: WebDriver's text makes a no-break space a plain one.
+        sentence = browser.execute_script("return document.getElementById('context-said').textContent") if closed else ""
         check("a transcript left unfinished closes the field, said with its way out",
               sentence == "Le transcript n’est pas terminé : terminez-le (Réessayer) avant de changer le contexte.", sentence)
 
     # In English, in the dark theme: the small window and a meeting's page.
     window, meeting = recording("en", "en_GB.UTF-8", dark=True)
     with window as browser:
+        wait_for(browser, lambda b: focused(b) == "small-record", 10)
         keys(browser, Keys.ENTER)
-        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 5)
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 10)
         toggle = browser.find_element(By.ID, "small-context-toggle")
         check("in English, the context is offered", toggle.text.startswith("Add the context"), toggle.text)
         time.sleep(0.4)
@@ -1192,6 +1201,7 @@ def context_written(now: dt.datetime) -> None:
         seen(browser, "d59-3-small-script-dark")
         stop_from_small(browser)
         wait_for(browser, lambda b: (meeting / "minutes.md").exists(), 15)
+    (meeting / "local.wav").write_bytes(b"\0" * 1000)
     window = Window(meeting.parent, "en_GB.UTF-8", settings)
     window.env.update(GTK_THEME="Adwaita:dark")
     with window as browser:
