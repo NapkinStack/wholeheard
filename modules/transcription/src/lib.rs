@@ -96,6 +96,12 @@ pub struct Transcript {
     complete: bool,
 }
 
+/// Cuts the transcript at `length`. Through a handle of its own: Windows lets a file opened to
+/// append only grow, never be cut (D53).
+fn cut(path: &Path, length: u64) -> io::Result<()> {
+    OpenOptions::new().write(true).open(path)?.set_len(length)
+}
+
 impl Transcript {
     /// Starts the transcript of a session's folder; one that is already there is not touched.
     pub fn start(folder: &Path, making: &Making) -> io::Result<Self> {
@@ -141,7 +147,7 @@ impl Transcript {
         match lines.next().map(serde_json::from_str::<Value>) {
             // Nothing whole yet: only the start of this very header may be there, and is written again.
             None if format!("{}\n", making.header()).as_bytes().starts_with(&written) => {
-                transcript.file.set_len(0)?;
+                cut(&path, 0)?;
                 transcript.add(&[making.header()])?;
                 return Ok(transcript);
             }
@@ -153,7 +159,7 @@ impl Transcript {
                 // Another making's header and nothing after it — its first span refused, a model
                 // a service does not know (D43): nothing is lost, and this making starts it again.
                 if another && whole == written.len() && lines.clone().next().is_none() {
-                    transcript.file.set_len(0)?;
+                    cut(&path, 0)?;
                     transcript.add(&[ours])?;
                     return Ok(transcript);
                 }
@@ -223,7 +229,7 @@ impl Transcript {
         }
         // Only now, accepted: the end that never was a line goes, so that nothing is glued to it.
         if whole < written.len() {
-            transcript.file.set_len(whole as u64)?;
+            cut(&path, whole as u64)?;
         }
         Ok(transcript)
     }
