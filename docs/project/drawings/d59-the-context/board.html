@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>D59 — le contexte d’une réunion</title>
+<!-- The source of the two images beside it, rendered at 1280 px by chromium-browser --headless;
+     the colours are ui/window.css's. ?dark draws the dark theme. The small windows are drawn at
+     their size, 380 × 400. -->
+<style>
+  :root {
+    --ground: #F2F4F7; --surface: #FFFFFF; --raised: #EEF1F5; --line: #D9DDE5;
+    --ink: #15171C; --soft: #4C5464; --accent: #2253CF; --ok: #16794A; --red: #C2352D;
+    --on-accent: #FFFFFF; --note: #7A5A00; --note-ground: #FFF6DB;
+  }
+  :root.dark {
+    --ground: #15171C; --surface: #1E2129; --raised: #282C37; --line: #343946;
+    --ink: #EEF0F4; --soft: #AAB1BF; --accent: #8AB0FF; --ok: #63D49C; --red: #FF7A72;
+    --on-accent: #15171C; --note: #F2CC6B; --note-ground: #2E2A1E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1280px; padding: 34px; background: var(--ground); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: repeat(2, 590px); gap: 32px 34px; align-items: start; }
+  .pair { display: flex; gap: 20px; align-items: flex-start; }
+  h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .small { width: 380px; height: 400px; padding: 14px 20px; gap: 12px; overflow: hidden; border-radius: 12px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .icon { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); display: grid; place-items: center; color: var(--ink); font-size: 18px; margin-left: auto; }
+  .primary { display: block; padding: 13px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font: 600 16px system-ui, sans-serif; text-align: center; }
+  .danger { background: var(--red); color: var(--surface); }
+  .time { display: flex; align-items: center; gap: 12px; font: 500 30px ui-monospace, monospace; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--red); }
+  .meters { display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; align-items: center; }
+  .side { display: flex; flex-direction: column; min-width: 110px; }
+  .device { color: var(--soft); font-size: 12px; max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { height: 8px; border-radius: 4px; background: var(--raised); overflow: hidden; }
+  .fill { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+  .fill.others { background: var(--ok); }
+  .hint { margin: 0; color: var(--soft); font-size: 13px; }
+  .note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--note-ground); color: var(--note); font-size: 13px; line-height: 1.4; }
+  .note b { display: block; margin-bottom: 2px; }
+
+  /* The field: a disclosure in the small window, open on the meeting's page. */
+  .disclose { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--raised); font-weight: 600; font-size: 14px; }
+  .disclose .chev { margin-left: auto; color: var(--soft); }
+  .context { display: flex; flex-direction: column; gap: 5px; }
+  .context label { font-weight: 600; font-size: 14px; }
+  .area { min-height: 70px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); font-size: 14px; line-height: 1.4; }
+  .area.focus { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .area.closed { color: var(--soft); background: var(--raised); }
+  .area .ph { color: var(--soft); }
+  .count { font-size: 12.5px; color: var(--soft); font-variant-numeric: tabular-nums; }
+  .warn { font-size: 12.5px; color: var(--note); line-height: 1.35; }
+  .small .area { min-height: 54px; }
+
+  .full { padding: 0; overflow: hidden; gap: 0; }
+  .bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
+  .brand svg { width: 22px; height: 22px; }
+  .nav { display: flex; gap: 4px; flex: 1; }
+  .nav span { padding: 6px 10px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+  .nav span.on { background: var(--raised); }
+  .rec { padding: 7px 12px; border-radius: 9px; background: var(--red); color: var(--surface); font-weight: 600; font-size: 13px; }
+  .page { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .back { color: var(--soft); font-size: 14px; }
+  .title { display: flex; align-items: baseline; gap: 10px; }
+  .title b { font-size: 19px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--raised); color: var(--soft); }
+  .chip.live { color: var(--red); font-weight: 600; }
+  .box { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .box .label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+  .says { color: var(--soft); font-size: 13px; margin: 0; }
+  .changed { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+  .changed .says { flex: 1; color: var(--ink); }
+  .open { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); font-weight: 600; font-size: 14px; white-space: nowrap; }
+  .making { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--soft); }
+  .making i { flex: 0 0 60px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent) 40%, var(--raised) 40%); }
+  .line { height: 10px; border-radius: 5px; background: var(--raised); }
+</style>
+<script>if (location.search.includes("dark")) document.documentElement.classList.add("dark");</script>
+</head>
+<body>
+<div class="row">
+  <section style="grid-column: 1 / -1">
+    <h2>1 · Pendant l’enregistrement — la petite fenêtre, 380 × 400, fermé puis ouvert</h2>
+    <div class="pair">
+      <div class="card small">
+        <div class="top"><div class="time"><span class="dot"></span>00:16:42</div><div class="icon">⤢</div></div>
+        <div class="meters">
+          <span class="side">Votre micro<span class="device">AirPods Pro</span></span><span class="track"><span class="fill" style="width:62%"></span></span>
+          <span class="side">La réunion<span class="device">Ryzen HD Audio Controller Speaker</span></span><span class="track"><span class="fill others" style="width:38%"></span></span>
+        </div>
+        <div class="primary danger">Arrêter</div>
+        <div class="disclose">＋ Ajouter le contexte<span class="chev">▾</span></div>
+        <p class="hint">À l’arrêt, le transcript s’écrit tout seul. Vous serez prévenu.</p>
+      </div>
+      <div class="card small">
+        <div class="top"><div class="time"><span class="dot"></span>00:17:05</div><div class="icon">⤢</div></div>
+        <div class="meters">
+          <span class="side">Votre micro<span class="device">AirPods Pro</span></span><span class="track"><span class="fill" style="width:48%"></span></span>
+          <span class="side">La réunion<span class="device">Ryzen HD Audio Controller Speaker</span></span><span class="track"><span class="fill others" style="width:55%"></span></span>
+        </div>
+        <div class="primary danger">Arrêter</div>
+        <div class="disclose">Contexte de la réunion<span class="chev">▴</span></div>
+        <div class="context">
+          <div class="area focus">Budget du T4 avec Inès Durand, Jiří Novák et l’équipe achats.</div>
+          <span class="count">400 caractères au plus · 338 restants</span>
+        </div>
+      </div>
+      <div class="card small">
+        <div class="top"><div class="time"><span class="dot"></span>00:17:40</div><div class="icon">⤢</div></div>
+        <div class="meters">
+          <span class="side">Votre micro<span class="device">AirPods Pro</span></span><span class="track"><span class="fill" style="width:30%"></span></span>
+          <span class="side">La réunion<span class="device">Ryzen HD Audio Controller Speaker</span></span><span class="track"><span class="fill others" style="width:66%"></span></span>
+        </div>
+        <div class="primary danger">Arrêter</div>
+        <div class="disclose">Contexte de la réunion<span class="chev">▴</span></div>
+        <div class="context">
+          <div class="area focus">Point avec Γιώργος Παπαδόπουλος et Ελένη.</div>
+          <span class="warn">358 restants · Écriture non latine : Whisper n’en gardera peut-être que la fin, un service peut le refuser.</span>
+        </div>
+      </div>
+    </div>
+    <div class="note"><b>Propositions</b>Fermé par défaut : la fenêtre reste calme, « Arrêter » ne bouge jamais. Ouvert, le champ — « De quoi parle la réunion ? Qui y participe ? », son nom et son texte d’attente — prend la place de la phrase sur le transcript, le curseur dedans ; Échap le referme. Le texte s’enregistre à chaque frappe dans <code>context.txt</code>, dès que le dossier de la réunion existe ; rien n’est perdu en fermant le champ. Avec un contexte déjà écrit, le bouton dit « Modifier le contexte ». Le compte est lu par un lecteur d’écran. Une écriture autre que latine ou cyrillique (grec, arabe, chinois…) : le compte le dit, en deux lignes au plus. Au-delà de 400, la frappe s’arrête ; un collage trop long est coupé à 400.</div>
+  </section>
+
+  <section>
+    <h2>2 · Pendant l’enregistrement — la grande fenêtre, la réunion en cours</h2>
+    <div class="card full">
+      <div class="bar">
+        <div class="brand"><svg viewBox="0 0 24 24"><path d="M3 18 L8 7 L12 14 L16 6 L21 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></div>
+        <div class="nav"><span class="on">Réunions</span><span>Réglages</span></div>
+        <span class="rec">● Arrêter</span>
+      </div>
+      <div class="page">
+        <span class="back">‹ Réunions</span>
+        <div class="title"><b>Aujourd’hui, 14:05</b><span class="chip live">● En cours</span></div>
+        <div class="box">
+          <span class="label">Contexte</span>
+          <label style="font-weight:600;font-size:14px">De quoi parle la réunion ? Qui y participe ?</label>
+          <div class="area"><span class="ph">Ex. : budget du T4 avec Inès Durand et l’équipe achats</span></div>
+          <span class="count">400 caractères au plus · 400 restants</span>
+          <p class="says">La transcription l’entend comme les premiers mots : les noms y sont écrits comme ici. Le compte rendu s’en sert pour attribuer les actions.</p>
+        </div>
+        <div class="line" style="width:70%"></div><div class="line" style="width:50%"></div>
+      </div>
+    </div>
+    <div class="note"><b>Proposition</b>La grande fenêtre n’a pas de bloc « en direct » à part : c’est la page de la réunion en cours, ouverte depuis sa ligne « En cours », qui porte le champ, ouvert. Le même champ, le même fichier que la petite fenêtre.</div>
+  </section>
+
+  <section>
+    <h2>3 · La page d’une réunion — le contexte changé après</h2>
+    <div class="card full">
+      <div class="page">
+        <span class="back">‹ Réunions</span>
+        <div class="title"><b>Hier, 10:30</b><span style="color:var(--soft);font-size:14px">42 min</span><span class="chip">✓ Transcript</span><span class="chip">✓ Compte rendu</span></div>
+        <div class="box">
+          <span class="label">Contexte</span>
+          <label style="font-weight:600;font-size:14px">De quoi parle la réunion ? Qui y participe ?</label>
+          <div class="area focus">Comité produit : Inès Durand (produit), Jiří Novák (achats), Siobhán O’Neill (juridique).</div>
+          <span class="count">400 caractères au plus · 313 restants</span>
+          <div class="changed"><p class="says">Le transcript et le compte rendu ont été faits avec un autre contexte.</p><span class="open">Refaire avec ce contexte</span></div>
+        </div>
+        <div class="line" style="width:85%"></div><div class="line" style="width:60%"></div>
+      </div>
+    </div>
+    <div class="note"><b>Propositions</b>« Refaire avec ce contexte » refait le transcript avec qui l’entend dans Réglages, puis le compte rendu avec qui l’écrit dans Réglages. Les anciens restent en place jusqu’à ce que les nouveaux soient entiers ; un échec les remet, et le dit. Offert seulement quand le contexte diffère de celui que le transcript ou le compte rendu nomment.</div>
+  </section>
+
+  <section>
+    <h2>4 · Pendant une fabrication — le champ fermé, dit</h2>
+    <div class="card full">
+      <div class="page">
+        <span class="back">‹ Réunions</span>
+        <div class="title"><b>Hier, 10:30</b><span style="color:var(--soft);font-size:14px">42 min</span><span class="chip">Transcription…</span></div>
+        <div class="box">
+          <span class="label">Contexte</span>
+          <label style="font-weight:600;font-size:14px">De quoi parle la réunion ? Qui y participe ?</label>
+          <div class="area closed">Comité produit : Inès Durand (produit), Jiří Novák (achats), Siobhán O’Neill (juridique).</div>
+          <p class="says">Le contexte ne change pas pendant que le transcript ou le compte rendu se fait.</p>
+        </div>
+        <div class="making"><span>Transcription en cours</span><span>large-v3-turbo · 1:12</span><i></i></div>
+      </div>
+    </div>
+    <div class="note"><b>Propositions</b>Le texte reste lisible et sélectionnable, pas modifiable. Un transcript laissé inachevé ferme aussi le champ : « Le transcript n’est pas terminé : terminez-le (Réessayer) avant de changer le contexte. » — le reprendre avec un autre contexte le casserait.</div>
+  </section>
+
+  <section>
+    <h2>Rien ne change — l’accord avant un premier envoi (planche 5)</h2>
+    <div class="card">
+      <p class="says" style="color:var(--ink)"><b>Part : le contexte que vous avez joint</b><br>Environ 14 mots.</p>
+    </div>
+    <div class="note"><b>Fait</b>La page d’accord dit déjà que le contexte part avec le texte ; elle reste telle quelle. En mode privé, rien n’en sort.</div>
+  </section>
+</div>
+</body>
+</html>

@@ -270,6 +270,7 @@ function paintMakings() {
       offer: "make-transcript", again: "transcript-again", ask: "transcript_again", making: words.transcript_making, not_made: words.transcript_not_made,
     });
   }
+  paintContext();
 }
 
 async function readMakings() {
@@ -279,7 +280,7 @@ async function readMakings() {
   // The minutes or the transcript of the meeting shown written since its page was drawn, however
   // quickly: drawn again, to show them — unless the user has a panel open there, or is typing in
   // it, which a redraw would take from under them; then once that is done.
-  const busy = document.querySelector("#meeting .redo, #meeting input:focus");
+  const busy = document.querySelector("#meeting .redo, #meeting input:focus, #meeting textarea:focus");
   const drawn = (id) => document.getElementById(id)?.dataset.made;
   const moved = opened && makings
     && ((String(makings.made[opened] ?? 0) !== drawn("minutes-state") && minutesState(opened)?.kind !== "making")
@@ -396,6 +397,121 @@ const element = (tag, className, text) => {
   if (text !== undefined) made.textContent = text;
   return made;
 };
+
+// A meeting's context (D59): the field, its count, and the script it is written in. Never more
+// than the shell takes, counted as it counts: in characters, not in UTF-16's units.
+const CONTEXT_MOST = 400;
+// Latin and Cyrillic are heard whole within the 400; another script — Greek, Arabic, Chinese… —
+// may be cut by Whisper or refused by a service (#489).
+const otherScript = /[^\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Common}\p{Script=Inherited}]/u;
+
+function contextField(words, text, save, id) {
+  const area = element("textarea", "context-text");
+  area.id = id;
+  area.value = text;
+  const count = element("span", "context-count");
+  count.id = `${id}-count`;
+  // Announced as it changes, as a status is.
+  count.setAttribute("role", "status");
+  area.setAttribute("aria-describedby", count.id);
+  const painted = () => {
+    const left = CONTEXT_MOST - [...area.value].length;
+    const leftSaid = fill(words.context_left[left <= 1 ? 0 : 1], left);
+    const other = otherScript.test(area.value);
+    count.textContent = other ? `${leftSaid} · ${words.context_script}` : `${fill(words.context_most, CONTEXT_MOST)} · ${leftSaid}`;
+    count.classList.toggle("other-script", other);
+  };
+  // A character typed past the most is not taken; a paste or a drop too long is let in, then cut
+  // to it below — refused whole, nothing of it would be taken.
+  area.addEventListener("beforeinput", (event) => {
+    if (/^insertFrom(Paste|Drop)/.test(event.inputType)) return;
+    const data = event.data ?? (/^insert(LineBreak|Paragraph)$/.test(event.inputType) ? "\n" : null);
+    if (data === null || !event.inputType.startsWith("insert")) return;
+    const replaced = [...area.value.slice(area.selectionStart, area.selectionEnd)].length;
+    if ([...area.value].length - replaced + [...data].length > CONTEXT_MOST) event.preventDefault();
+  });
+  area.addEventListener("input", () => {
+    const typed = [...area.value];
+    if (typed.length > CONTEXT_MOST) area.value = typed.slice(0, CONTEXT_MOST).join("");
+    painted();
+    save(area.value);
+  });
+  painted();
+  return { area, count, painted };
+}
+
+// The context on a meeting's page: shown and written, closed while a making of it runs or its
+// transcript is left unfinished, and made again with it when what was made had another.
+function contextCard(session, { context, transcript, minutes }, words) {
+  const name = nameOf(session);
+  const card = element("section", "card context");
+  card.id = "context";
+  card.dataset.name = name;
+  card.dataset.changed = String(context.changed);
+  // Unfinished, nothing making it: continued with another context, it would be refused.
+  card.dataset.unfinished = String(transcript.state === "present" && !transcript.complete);
+  const said = element("p", "says");
+  said.id = "context-said";
+  said.setAttribute("role", "status");
+  const changed = element("div", "context-changed");
+  changed.id = "context-changed";
+  const redo = element("button", "open", words.context_redo);
+  redo.type = "button";
+  redo.id = "context-redo";
+  redo.addEventListener("click", async () => {
+    redo.disabled = true;
+    await window.__TAURI__.core.invoke("context_redo", { name }).catch(() => {});
+    await readMakings();
+    redo.disabled = false;
+  });
+  changed.append(element("p", "says", words.context_changed[minutes.state === "present" ? 1 : 0]), redo);
+  const save = async (text) => {
+    try {
+      const shown = await window.__TAURI__.core.invoke("context_saved", { name, text });
+      card.dataset.changed = String(shown.changed);
+      said.textContent = "";
+    } catch {
+      said.textContent = words.context_not_saved;
+    }
+    paintContext();
+  };
+  const { area, count } = contextField(words, context.text, save, "context-text");
+  area.rows = 3;
+  area.placeholder = words.context_example;
+  const label = element("label", "context-label", words.context_label);
+  label.htmlFor = area.id;
+  // Made again from its audio: a meeting whose audio was freed is not offered it.
+  card.dataset.redo = String(session.audio > 0);
+  card.append(element("h2", "label", words.context_title), label, area, count, element("p", "says", words.context_why), said, changed);
+  return card;
+}
+
+// The context's field as the makings stand: closed and said while one of its meeting runs.
+function paintContext() {
+  const card = document.getElementById("context");
+  if (!card) return;
+  const name = card.dataset.name;
+  const making = minutesState(name)?.kind === "making" || transcriptState(name)?.kind === "making";
+  const closed = making ? words.context_making : card.dataset.unfinished === "true" ? words.context_unfinished : null;
+  const area = document.getElementById("context-text");
+  // A making of it ended: whether what is there now was made with this context is read again.
+  if (card.dataset.making === "true" && !making) {
+    window.__TAURI__.core
+      .invoke("context_shown", { name })
+      .then((shown) => {
+        card.dataset.changed = String(shown.changed);
+        paintContext();
+      })
+      .catch(() => {});
+  }
+  card.dataset.making = String(making);
+  area.readOnly = closed !== null;
+  const said = document.getElementById("context-said");
+  if (closed !== null) said.textContent = closed;
+  else if (said.textContent !== words.context_not_saved) said.textContent = "";
+  said.hidden = said.textContent === "";
+  document.getElementById("context-changed").hidden = closed !== null || card.dataset.changed !== "true" || card.dataset.redo !== "true";
+}
 
 const clock = (seconds) => {
   const whole = Math.floor(seconds);
@@ -846,7 +962,7 @@ document.addEventListener("keydown", (event) => {
   player.playing() ? player.pause() : player.play();
 });
 
-function showMeeting({ session, transcript, minutes, developer, listen: listened }, words) {
+function showMeeting({ session, transcript, minutes, developer, listen: listened, context }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
   const back = element("a", "back", `‹ ${words.back}`);
@@ -901,7 +1017,7 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
   page.dataset.name = nameOf(session);
-  page.replaceChildren(top, title, drawn, columns);
+  page.replaceChildren(top, title, contextCard(session, { context, transcript, minutes }, words), drawn, columns);
   // The line being said, marked while it plays; the page stays where the user left it (D26, the
   // decider, 2026-10-24: following the line was intrusive).
   if (player?.name === nameOf(session)) {
@@ -1755,7 +1871,53 @@ function showSmall(words) {
   meters.append(meter(words.small_mic, "level-me", "device-me"), meter(words.small_meeting, "level-others", "device-others"));
   const note = element("p", "says", words.small_note);
   note.hidden = true;
-  live.append(top, meters, stop, note);
+  // The meeting's context (D59): closed by default, opened in place of the note — Arrêter never
+  // moves. Kept as it is typed, once the meeting's folder holds its session.
+  const meeting = { name: null, saved: null, typed: null };
+  const keep = async () => {
+    const { name, typed } = meeting;
+    if (name === null || typed === null || typed === meeting.saved) return;
+    try {
+      await invoke("context_saved", { name, text: typed });
+      meeting.saved = typed;
+    } catch {
+      // Tried again at the next tick.
+    }
+  };
+  const field = contextField(words, "", (text) => {
+    meeting.typed = text;
+    keep();
+  }, "small-context");
+  field.area.rows = 2;
+  field.area.placeholder = words.context_label;
+  field.area.setAttribute("aria-label", words.context_label);
+  const opened = element("div", "small-context");
+  opened.append(field.area, field.count);
+  opened.hidden = true;
+  const disclose = element("button", "open disclose");
+  disclose.type = "button";
+  disclose.id = "small-context-toggle";
+  disclose.setAttribute("aria-controls", "small-context");
+  const toggled = element("span", "", words.context_add);
+  disclose.append(toggled, element("span", "chevron", "▾"));
+  const unfold = (open) => {
+    opened.hidden = !open;
+    disclose.setAttribute("aria-expanded", String(open));
+    toggled.textContent = open ? words.context_open : field.area.value.trim() ? words.context_edit : words.context_add;
+    disclose.lastChild.textContent = open ? "▴" : "▾";
+    note.hidden = open || note.dataset.follows !== "true";
+  };
+  unfold(false);
+  disclose.addEventListener("click", () => {
+    unfold(opened.hidden);
+    if (!opened.hidden) field.area.focus();
+  });
+  field.area.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    unfold(false);
+    disclose.focus();
+  });
+  live.append(top, meters, stop, disclose, opened, note);
   live.hidden = true;
   page.replaceChildren(rest, live);
 
@@ -1802,7 +1964,14 @@ function showSmall(words) {
     if (now === null) return;
     if (now.recording !== recording) {
       const first = recording === null;
+      // What was typed last, kept before the field is emptied for the next recording.
+      if (recording) await keep();
       recording = now.recording;
+      // Each recording its own context: nothing of the one before.
+      Object.assign(meeting, { name: null, saved: null, typed: null });
+      field.area.value = "";
+      field.painted();
+      unfold(false);
       rest.hidden = recording;
       live.hidden = !recording;
       if (!recording) await drawRest();
@@ -1824,7 +1993,24 @@ function showSmall(words) {
       named.title = now.devices[index] ?? "";
     }
     stop.disabled = !now.recording;
-    note.hidden = !now.transcript_follows;
+    note.dataset.follows = String(now.transcript_follows);
+    note.hidden = !now.transcript_follows || !opened.hidden;
+    // The meeting's folder there: what it holds already is shown, what was typed before is kept.
+    if (now.meeting !== meeting.name) {
+      const another = meeting.name !== null;
+      meeting.name = now.meeting;
+      if (another) meeting.typed = null;
+      if (now.meeting !== null) {
+        const there = await invoke("context_shown", { name: now.meeting }).catch(() => null);
+        meeting.saved = there?.text ?? "";
+        if (meeting.typed === null && meeting.name === now.meeting) {
+          field.area.value = meeting.saved;
+          field.painted();
+          if (opened.hidden) unfold(false);
+        }
+      }
+    }
+    keep();
   };
   setInterval(tick, 100);
   setInterval(() => recording === false && drawRest(), 1500);

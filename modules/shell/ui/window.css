@@ -300,3 +300,20 @@ body.small-window .bar { display: none; }
   .welcome-facts dd { margin-bottom: 8px; }
   .welcome-from { text-align: left; }
 }
+
+/* A meeting's context (D59's board): a field, its count, closed while a making runs. */
+.context { padding: 18px 24px; display: flex; flex-direction: column; gap: 6px; }
+.context-label { font-weight: 600; font-size: 14.5px; }
+.context-text { width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.4; resize: vertical; }
+.context-text:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.context-text[readonly] { background: var(--raised); color: var(--soft); }
+.context-count { font-size: 12.5px; color: var(--soft); font-variant-numeric: tabular-nums; line-height: 1.35; }
+.context-count.other-script { color: var(--ink); }
+.context .says:empty { display: none; }
+#context-said { color: var(--ink); font-weight: 500; }
+.context-changed { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 4px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.context-changed .says { flex: 1 1 240px; color: var(--ink); }
+#small .disclose { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 40px; font-size: 14px; text-align: left; }
+#small .disclose .chevron { color: var(--soft); font-size: 13px; }
+.small-context { display: flex; flex-direction: column; gap: 5px; margin-top: -4px; }
+#small .context-text { resize: none; }
