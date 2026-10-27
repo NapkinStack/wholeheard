@@ -17,6 +17,8 @@ pub struct Transcript {
     /// What transcribed it: the engine and its model, as the header says.
     pub engine: Option<String>,
     pub model: Option<String>,
+    /// The context the engine received, as the header says (D59).
+    pub context: Option<String>,
     /// The `complete` line is there: the step finished.
     pub complete: bool,
     pub segments: Vec<Segment>,
@@ -65,6 +67,7 @@ pub fn transcript(folder: &Path) -> Read<Transcript> {
     let mut read = Transcript {
         engine: text_of(&header, "engine"),
         model: text_of(&header, "model"),
+        context: text_of(&header, "context"),
         complete: false,
         segments: Vec::new(),
         unread: 0,

@@ -27,7 +27,7 @@ use tauri_plugin_notification::NotificationExt;
 #[cfg(target_os = "linux")]
 use wholeheard_shell::microphone;
 use wholeheard_shell::{
-    autostart, desktop, keys, log,
+    autostart, context, desktop, keys, log,
     meeting::{self, Read, Transcript},
     migrate,
     minutes::{self, Minutes},
@@ -117,8 +117,8 @@ struct Shell {
     /// tried again, with that one (D25).
     minutes_tried: Mutex<HashMap<PathBuf, Option<(String, String)>>>,
     /// The sessions whose transcripts wait for the one being made, or for the model — in
-    /// the order they were asked, each once; with the model a *Refaire…* chose (D25).
-    waiting: Mutex<VecDeque<(PathBuf, Option<PathBuf>)>>,
+    /// the order they were asked, each once; made again as a *Refaire…* asked (D25, D59).
+    waiting: Mutex<VecDeque<(PathBuf, Option<Again>)>>,
     /// The model making the transcript, and since when: said on the meeting's page (D25).
     hearing_by: Mutex<Option<(String, Instant)>>,
     /// Why a meeting's last transcript was not made, until one is begun (D25).
@@ -126,8 +126,8 @@ struct Shell {
     /// How many transcripts each meeting got since the start: its page drawn with fewer is drawn
     /// again (D25).
     transcripts_made: Mutex<HashMap<PathBuf, u64>>,
-    /// The same for the transcript: the Whisper model a Refaire… chose, tried again with it.
-    transcripts_tried: Mutex<HashMap<PathBuf, Option<PathBuf>>>,
+    /// The same for the transcript: made again as a Refaire… asked, tried again so.
+    transcripts_tried: Mutex<HashMap<PathBuf, Option<Again>>>,
     /// The tray's menu, and its entry that fetches the default model — in it only while the
     /// model is needed and not there.
     menu: Menu<Wry>,
@@ -153,6 +153,15 @@ impl Shell {
         }
         read
     }
+}
+
+/// How a transcript is made again: with the Whisper model a *Refaire…* picked, this time only;
+/// or by whoever the settings name to hear, its minutes after it — *Refaire avec ce contexte*
+/// (D59).
+#[derive(Clone, PartialEq)]
+enum Again {
+    Model(PathBuf),
+    Settings,
 }
 
 /// Where the tray is in the life of a recording.
@@ -210,6 +219,9 @@ fn main() {
             busy_meetings,
             freed,
             minutes_redo,
+            context_shown,
+            context_saved,
+            context_redo,
             transcript_redo,
             transcript_asked,
             transcript_again,
@@ -681,7 +693,7 @@ fn minutes_redo(
 #[tauri::command]
 fn transcript_redo(app: AppHandle, shell: State<'_, Shell>, name: String, model: PathBuf) -> Result<(), String> {
     let folder = session_folder(&shell, &name)?;
-    retranscribe(&app, folder, model)
+    retranscribe(&app, folder, Again::Model(model))
 }
 
 /// *Try again*, on a meeting whose transcript was not made: as it was last asked — made again
@@ -692,7 +704,7 @@ fn transcript_again(app: AppHandle, shell: State<'_, Shell>, name: String) -> Re
     // Read, and the lock let go, before it is asked again: retranscribe takes it too.
     let tried = shell.transcripts_tried.lock().unwrap().get(&folder).cloned().flatten();
     match tried {
-        Some(model) => retranscribe_or_say(&app, folder, model),
+        Some(again) => retranscribe_or_say(&app, folder, again),
         None => transcribe(&app, folder),
     }
     Ok(())
@@ -769,17 +781,29 @@ struct Now {
     devices: [Option<String>; 2],
     /// Whether the transcript is made at the stop, by itself: the small window says so then only.
     transcript_follows: bool,
+    /// The meeting being recorded, once its folder holds its session: its context can be written
+    /// (D59).
+    meeting: Option<String>,
 }
 
 #[tauri::command]
 fn recording_now(shell: State<'_, Shell>) -> Now {
     let (started, levels) = *shell.meter.lock().unwrap();
+    let recording = shell.recording.lock().unwrap().is_some();
+    let meeting = shell
+        .recorded
+        .lock()
+        .unwrap()
+        .clone()
+        .filter(|folder| recording && folder.join("session.json").is_file())
+        .map(|folder| named(&folder));
     Now {
         recording: shell.recording.lock().unwrap().is_some() && started.is_some(),
         seconds: started.map_or(0.0, |started| started.elapsed().as_secs_f64()),
         levels,
         devices: shell.devices.lock().unwrap().names(),
         transcript_follows: shell.settings.lock().unwrap().after != settings::After::Nothing,
+        meeting,
     }
 }
 
@@ -824,6 +848,7 @@ struct Opened {
     /// Where the page plays it from: its tracks as one sound, from the loopback server — never
     /// a path (D26, ADR-0009); none when its audio went to the trash or holds no track.
     listen: Option<String>,
+    context: ContextShown,
 }
 
 #[tauri::command]
@@ -840,7 +865,67 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
         minutes: minutes::minutes(&folder, words::window(shell.language).minutes_sections),
         developer: shell.settings().developer,
         listen: playable(&shell, &folder),
+        context: context_of(&shell, &folder),
     })
+}
+
+/// A meeting's context, as the field shows it (D59).
+#[derive(serde::Serialize)]
+struct ContextShown {
+    text: String,
+    /// Its transcript or minutes were made with another: *Refaire avec ce contexte* is offered.
+    changed: bool,
+}
+
+fn context_of(shell: &Shell, folder: &Path) -> ContextShown {
+    let text = context::read(folder);
+    let transcript = meeting::transcript(folder);
+    let minutes = minutes::minutes(folder, words::window(shell.language).minutes_sections);
+    ContextShown {
+        changed: context::changed(text.as_deref(), &transcript, &minutes),
+        text: text.unwrap_or_default(),
+    }
+}
+
+/// The meeting's transcript or minutes are being made: their making read its context as it began.
+fn making(shell: &Shell, folder: &Path) -> bool {
+    shell.hearing.lock().unwrap().as_deref() == Some(folder) || shell.writing_minutes.lock().unwrap().as_deref() == Some(folder)
+}
+
+#[tauri::command]
+fn context_shown(shell: State<'_, Shell>, name: String) -> Result<ContextShown, String> {
+    let folder = session_folder(&shell, &name)?;
+    Ok(context_of(&shell, &folder))
+}
+
+/// The field written (D59): kept whole as the meeting's `context.txt` — the meeting being
+/// recorded once its folder holds its session —; refused while a making of it runs, or its
+/// transcript is left unfinished.
+#[tauri::command]
+fn context_saved(shell: State<'_, Shell>, name: String, text: String) -> Result<ContextShown, String> {
+    let folder = session_folder(&shell, &name)?;
+    if let Some(closed) = context::closed(making(&shell, &folder), &meeting::transcript(&folder)) {
+        return Err(format!("the context cannot change now: {closed:?}"));
+    }
+    context::write(&folder, &text).map_err(|error| error.to_string())?;
+    Ok(context_of(&shell, &folder))
+}
+
+/// *Refaire avec ce contexte* (D59): the transcript made again by whoever the settings name to
+/// hear, then the minutes by whoever they name to write — each kept in place until the new one
+/// is whole, put back if it is not.
+#[tauri::command]
+fn context_redo(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    if shell.recording.lock().unwrap().is_some() && shell.recorded.lock().unwrap().as_deref() == Some(folder.as_path()) {
+        return Err(format!("{name} is being recorded"));
+    }
+    if context::closed(making(&shell, &folder), &meeting::transcript(&folder)).is_some() {
+        return Err(format!("{name} is being made, or its transcript is unfinished"));
+    }
+    // One that cannot begin — no model, the program missing — says why on its page.
+    retranscribe_or_say(&app, folder, Again::Settings);
+    Ok(())
 }
 
 /// A meeting's tracks, offered to the window's player by the loopback server as one sound — these
@@ -2146,14 +2231,14 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     }
 }
 
-/// Puts a session in line for its transcript, once — with the model a *Refaire…* chose, the
-/// newer choice kept when it is asked again.
-fn wait(shell: &Shell, folder: PathBuf, model: Option<PathBuf>) {
+/// Puts a session in line for its transcript, once — made again as a *Refaire…* asked, the
+/// newer ask kept when it is asked again.
+fn wait(shell: &Shell, folder: PathBuf, again: Option<Again>) {
     let mut waiting = shell.waiting.lock().unwrap();
     match waiting.iter_mut().find(|(queued, _)| *queued == folder) {
-        Some((_, chosen)) if model.is_some() => *chosen = model,
+        Some((_, chosen)) if again.is_some() => *chosen = again,
         Some(_) => {}
-        None => waiting.push_back((folder, model)),
+        None => waiting.push_back((folder, again)),
     }
 }
 
@@ -2199,13 +2284,15 @@ fn transcribe_next(app: &AppHandle) {
         let missing = default_model_missing(&shell.settings());
         let next = {
             let mut waiting = shell.waiting.lock().unwrap();
-            let at = waiting.iter().position(|(_, model)| model.is_some() || !missing);
+            let at = waiting
+                .iter()
+                .position(|(_, again)| matches!(again, Some(Again::Model(_))) || !missing);
             at.and_then(|at| waiting.remove(at))
         };
         match next {
             None => return,
             Some((folder, None)) => transcribe(app, folder),
-            Some((folder, Some(model))) => retranscribe_or_say(app, folder, model),
+            Some((folder, Some(again))) => retranscribe_or_say(app, folder, again),
         }
         if shell.transcription.lock().unwrap().is_some() {
             return;
@@ -2213,31 +2300,43 @@ fn transcribe_next(app: &AppHandle) {
     }
 }
 
-/// Made again with the model a Refaire… picked; one that cannot begin says why on its page.
-fn retranscribe_or_say(app: &AppHandle, folder: PathBuf, model: PathBuf) {
-    if let Err(why) = retranscribe(app, folder.clone(), model) {
+/// Made again as a Refaire… asked; one that cannot begin says why on its page.
+fn retranscribe_or_say(app: &AppHandle, folder: PathBuf, again: Again) {
+    if let Err(why) = retranscribe(app, folder.clone(), again) {
         app.state::<Shell>().transcripts_failed.lock().unwrap().insert(folder, why);
     }
 }
 
-/// *Refaire…* on a transcript: made again with the model picked, this time only. The transcript
-/// there stays in place until the new one is whole — set aside for the run, since the program
-/// goes on from a transcript it finds —, then goes to the system's trash; a run that fails, or
-/// that Wholeheard ends as it quits, puts it back.
-fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), String> {
+/// *Refaire…* on a transcript: made again with the model picked, this time only — or, the context
+/// changed, by whoever the settings name to hear, the minutes made again after it (D59). The
+/// transcript there stays in place until the new one is whole — set aside for the run, since the
+/// program goes on from a transcript it finds —, then goes to the system's trash; a run that
+/// fails, or that Wholeheard ends as it quits, puts it back.
+fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), String> {
     let shell = app.state::<Shell>();
     let mut running = shell.transcription.lock().unwrap();
     if running.is_some() {
         // One at a time: it waits its turn, said on its page — the one being made too.
         drop(running);
-        wait(&shell, folder, Some(model));
+        wait(&shell, folder, Some(again));
         return Ok(());
     }
-    shell.transcripts_tried.lock().unwrap().insert(folder.clone(), Some(model.clone()));
+    shell.transcripts_tried.lock().unwrap().insert(folder.clone(), Some(again.clone()));
     let settings = shell.reread()?;
-    if !settings::whisper_models(&models_folder(), &settings).contains(&model) {
+    let (hearer, key) = match &again {
+        Again::Model(model) if !settings::whisper_models(&models_folder(), &settings).contains(model) => {
+            return Err(format!("{} is no model on this computer", model.display()));
+        }
+        Again::Model(model) => (Hearer::Model(model.clone()), None),
+        Again::Settings => hearer_now(&shell, &settings),
+    };
+    if let Hearer::Model(model) = &hearer
+        && !model.is_file()
+    {
         return Err(format!("{} is no model on this computer", model.display()));
     }
+    // Made again with the context: its minutes too, when it had some or the settings make them.
+    let minutes_after = again == Again::Settings && (folder.join("minutes.md").is_file() || settings.after == After::Minutes);
     // Set aside under a name of its own, never written over; put back if the new one is not made.
     let current = folder.join("transcript.jsonl");
     let previous = match sessions::set_aside(&current, true) {
@@ -2245,10 +2344,11 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(format!("the transcript there could not be set aside ({error}): nothing was made")),
     };
-    let started = Transcription::start(
+    let started = Transcription::start_with(
         &program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"),
         &folder,
-        &Hearer::Model(model.clone()),
+        &hearer,
+        key.as_deref(),
     );
     let (transcription, made) = match started {
         Ok(started) => started,
@@ -2263,7 +2363,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
     // Who puts the earlier transcript back, or trashes it: this run's end, or Wholeheard quitting —
     // whichever comes first takes it, the other finds nothing.
     *shell.redoing.lock().unwrap() = previous.clone().map(|previous| (current.clone(), previous));
-    hearing(&shell, &folder, &Hearer::Model(model.clone()));
+    hearing(&shell, &folder, &hearer);
     drop(running);
     transcribing(app, true);
     let app = app.clone();
@@ -2281,11 +2381,11 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         let mut kept_beside = None;
         if let Some((current, previous)) = shell.redoing.lock().unwrap().take() {
             let name = previous.file_name().map(|name| name.to_string_lossy().into_owned());
-            match made {
-                Made::Written(_) if trash::delete(&previous).is_err() => kept_beside = name.map(|name| (name, false)),
-                Made::Written(_) => {}
-                Made::Failed(_) if std::fs::rename(&previous, &current).is_err() => kept_beside = name.map(|name| (name, true)),
-                Made::Failed(_) => {}
+            let written = matches!(made, Made::Written(_));
+            if let Some(not_put_back) = sessions::settle(&current, &previous, written, |previous| {
+                trash::delete(previous).map_err(std::io::Error::other)
+            }) {
+                kept_beside = name.map(|name| (name, not_put_back));
             }
         }
         if *shell.leaving.lock().unwrap() {
@@ -2295,30 +2395,28 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, model: PathBuf) -> Result<(), 
         if let Some((name, not_put_back)) = kept_beside {
             tell(&app, &words::transcript_kept_beside(shell.language, &name, not_put_back));
         }
+        // The minutes made again from the new transcript, by whoever the settings name now: the
+        // ones there stay until the new ones are whole (`write_minutes_from`).
+        if minutes_after && matches!(made, Made::Written(_)) {
+            let named = shell
+                .reread()
+                .ok()
+                .and_then(|settings| settings.minutes_provider.zip(settings.minutes_model));
+            write_minutes(&app, folder, None, named);
+        }
         // The transcripts waiting in line go on, as after any other.
         transcribe_next(&app);
     });
     Ok(())
 }
 
-/// Makes the transcript of a session — after the one being made, if there is one. What is
-/// missing — the model, the program — is said in one sentence, and on its page; the recording is
-/// never touched. Whether it began.
-fn transcribe(app: &AppHandle, folder: PathBuf) {
-    let shell = app.state::<Shell>();
-    let mut running = shell.transcription.lock().unwrap();
-    if running.is_some() {
-        wait(&shell, folder, None);
-        return;
-    }
-    shell.transcripts_tried.lock().unwrap().insert(folder.clone(), None);
-    let _ = shell.reread();
-    let settings = shell.settings();
-    let model = &settings.model;
+/// Who hears now, as the settings name it — Apple's SpeechAnalyzer while this Mac offers it, a
+/// service once agreed to (D42, D43) —, and the service's key: what a transcript is made with.
+fn hearer_now(shell: &Shell, settings: &Settings) -> (Hearer, Option<String>) {
     // Apple's SpeechAnalyzer needs no model file: its own is on the Mac (D42). Chosen and no
     // longer offered here — an older macOS, the program gone —, Whisper hears, and it is logged.
     let language = shell.language.code();
-    let hearer = Hearer::of(&settings, language, || {
+    let hearer = Hearer::of(settings, language, || {
         let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
         speech::status(&program, language).is_some_and(|status| status.offered && status.installed)
     });
@@ -2336,6 +2434,24 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         }
         _ => None,
     };
+    (hearer, key)
+}
+
+/// Makes the transcript of a session — after the one being made, if there is one. What is
+/// missing — the model, the program — is said in one sentence, and on its page; the recording is
+/// never touched. Whether it began.
+fn transcribe(app: &AppHandle, folder: PathBuf) {
+    let shell = app.state::<Shell>();
+    let mut running = shell.transcription.lock().unwrap();
+    if running.is_some() {
+        wait(&shell, folder, None);
+        return;
+    }
+    shell.transcripts_tried.lock().unwrap().insert(folder.clone(), None);
+    let _ = shell.reread();
+    let settings = shell.settings();
+    let model = &settings.model;
+    let (hearer, key) = hearer_now(&shell, &settings);
     if matches!(hearer, Hearer::Model(_)) && !model.is_file() {
         // The default model is offered, its size and host shown; one the user named is theirs.
         if *model == Settings::default().model {

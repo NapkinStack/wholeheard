@@ -856,3 +856,37 @@ fn the_first_run_s_french_is_typeset_as_french_and_both_languages_say_it() {
     assert_eq!(english.welcome_connected[0], "Connected mode");
     assert!(english.welcome_ollama_silent.contains("ollama.com"));
 }
+
+#[test]
+fn the_context_s_words_are_said_in_both_languages_french_typeset_as_french() {
+    let french = words::window(Language::French);
+    let english = words::window(Language::English);
+    // The field's name, as D59's criterion says it.
+    assert_eq!(french.context_label, "De quoi parle la réunion\u{202f}? Qui y participe\u{202f}?");
+    assert_eq!(english.context_label, "What is the meeting about? Who takes part?");
+    assert_eq!(french.context_redo, "Refaire avec ce contexte");
+    for sentence in [
+        french.context_label,
+        french.context_example,
+        french.context_why,
+        french.context_script,
+        french.context_making,
+        french.context_unfinished,
+        french.context_changed[0],
+        french.context_changed[1],
+    ] {
+        for mark in ['?', '!', ';', ':'] {
+            assert!(!sentence.contains(&format!(" {mark}")), "{sentence}");
+        }
+        assert!(!sentence.contains('\''), "{sentence}");
+    }
+    // The count's two halves, each with its number.
+    for (most, left) in [
+        (french.context_most, french.context_left),
+        (english.context_most, english.context_left),
+    ] {
+        assert_eq!(most.matches("{}").count(), 1);
+        assert!(left.iter().all(|left| left.matches("{}").count() == 1));
+    }
+    assert!(french.context_script.contains("Whisper") && english.context_script.contains("Whisper"));
+}

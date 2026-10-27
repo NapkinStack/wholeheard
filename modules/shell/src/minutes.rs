@@ -15,6 +15,8 @@ pub struct Minutes {
     pub made: Option<String>,
     pub provider: Option<String>,
     pub model: Option<String>,
+    /// The context they were written with, as the front matter says (D59).
+    pub context: Option<String>,
     /// The three sections as HTML: their titles, paragraphs and lists as written. What the
     /// body holds as HTML is shown as text, and a link as its words: a page shows the minutes, it
     /// is never driven by them.
@@ -113,6 +115,7 @@ fn parse_minutes(text: &str, sections: [&str; 3]) -> Option<Minutes> {
         made: field("made"),
         provider: field("provider"),
         model: field("model"),
+        context: field("context"),
         body: html,
     })
 }

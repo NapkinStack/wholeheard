@@ -255,6 +255,18 @@ pub fn set_aside(file: &Path, moved: bool) -> std::io::Result<PathBuf> {
     Err(std::io::Error::other("no name free to set the file aside"))
 }
 
+/// A file set aside for a making (`set_aside`, moved), settled at the making's end: made whole
+/// (`written`), the one set aside is let go by `dispose` — to the system's trash, in the shell —;
+/// not made, it is put back in its place, over any half the making left. Settled: `None`; the
+/// one set aside kept beside instead: `Some(true)` when it could not be put back, `Some(false)`
+/// when it could not be let go.
+pub fn settle(current: &Path, previous: &Path, written: bool, dispose: impl FnOnce(&Path) -> std::io::Result<()>) -> Option<bool> {
+    match written {
+        true => dispose(previous).is_err().then_some(false),
+        false => fs::rename(previous, current).is_err().then_some(true),
+    }
+}
+
 /// Makes the folder of sessions when it is not there, and tries writing in it — what a recording
 /// will do first —, leaving nothing: a folder that refuses is said before any recorder starts.
 pub fn writable(folder: &Path) -> std::io::Result<()> {

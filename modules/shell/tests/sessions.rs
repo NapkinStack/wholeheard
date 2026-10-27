@@ -381,3 +381,46 @@ fn a_folder_of_sessions_is_writable_or_said_not_to_be_and_nothing_is_left_in_it(
     std::fs::write(root.path().join("a-file"), "").unwrap();
     assert!(wholeheard_shell::sessions::writable(&root.path().join("a-file").join("Wholeheard")).is_err());
 }
+
+#[test]
+fn a_file_set_aside_for_a_making_is_put_back_when_it_fails_and_let_go_when_it_is_made() {
+    let folder = tempfile::tempdir().unwrap();
+    let transcript = folder.path().join("transcript.jsonl");
+    // The making fails, a half of its own written: the one set aside goes back in its place.
+    fs::write(&transcript, "before").unwrap();
+    let aside = sessions::set_aside(&transcript, true).unwrap();
+    fs::write(&transcript, "half").unwrap();
+    let mut disposed = Vec::new();
+    let kept = sessions::settle(&transcript, &aside, false, |file| {
+        disposed.push(file.to_path_buf());
+        Ok(())
+    });
+    assert_eq!(kept, None);
+    assert!(disposed.is_empty());
+    assert_eq!(fs::read_to_string(&transcript).unwrap(), "before");
+    assert!(!aside.exists());
+    // Nothing written at all: put back the same.
+    let aside = sessions::set_aside(&transcript, true).unwrap();
+    assert_eq!(sessions::settle(&transcript, &aside, false, |_| Ok(())), None);
+    assert_eq!(fs::read_to_string(&transcript).unwrap(), "before");
+    // Made whole: the new one stays, the one set aside is let go — to the trash, in the shell.
+    let aside = sessions::set_aside(&transcript, true).unwrap();
+    fs::write(&transcript, "after").unwrap();
+    let kept = sessions::settle(&transcript, &aside, true, |file| {
+        disposed.push(file.to_path_buf());
+        fs::remove_file(file)
+    });
+    assert_eq!(kept, None);
+    assert_eq!(disposed, std::slice::from_ref(&aside));
+    assert_eq!(fs::read_to_string(&transcript).unwrap(), "after");
+    // Let go refused: it stays beside, and that is said — not put back.
+    let aside = sessions::set_aside(&transcript, true).unwrap();
+    fs::write(&transcript, "again").unwrap();
+    let kept = sessions::settle(&transcript, &aside, true, |_| Err(std::io::Error::other("no trash")));
+    assert_eq!(kept, Some(false));
+    assert!(aside.exists());
+    assert_eq!(fs::read_to_string(&transcript).unwrap(), "again");
+    // Put back refused — gone meanwhile —: said where it is, not put back.
+    fs::remove_file(&aside).unwrap();
+    assert_eq!(sessions::settle(&transcript, &aside, false, |_| Ok(())), Some(true));
+}
