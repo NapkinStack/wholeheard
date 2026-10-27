@@ -6,7 +6,8 @@ name: Windows
 # project ships to (charter).
 #
 # Run on a pull request that changes a program, on main, and on demand
-# (Actions → Windows → Run workflow) — the Windows minutes spent where they say something, as the
+# (Actions → Windows → Run workflow) — `--keep-going`: every target that does not build is said,
+# not the first alone. The Windows minutes spent where they say something, as the
 # Mac's (the decider, 2026-10-26: "il faut le faire avec parcimonie lorsque c'est utile uniquement").
 
 on:
@@ -45,4 +46,4 @@ jobs:
 
       - name: cargo check
         working-directory: modules/${{ matrix.module }}
-        run: cargo check --locked --all-targets
+        run: cargo check --locked --all-targets --keep-going
