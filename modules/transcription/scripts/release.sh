@@ -6,12 +6,15 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 dist=${NSTACK_DIST:?run through nstack release, which names this module\'s artefacts folder}
 target=${WHOLEHEARD_TARGET:-}
+# Windows names a program with its .exe (D53).
+exe=; [ "${OS:-}" = Windows_NT ] && exe=.exe
 # The processors it is built for: .cargo/config.toml, read by every build of the module.
 # On the graphics card through Vulkan where the machine has it — a tenth of the meeting's
 # length on the decider's laptop —, on the processor where it has not (ADR-0003). A Mac has no
-# Vulkan: there, Whisper on the processor, and Apple's own engine beside it (D42).
+# Vulkan: there, Whisper on the processor, and Apple's own engine beside it (D42). Windows, on the
+# processor for now: GitHub's runner has no Vulkan SDK to build with (D53).
 features=(--features vulkan)
-[ "$(uname -s)" = Darwin ] && features=()
+{ [ "$(uname -s)" = Darwin ] || [ -n "$exe" ]; } && features=()
 if [ -z "$target" ]; then
   (cd "$here" && cargo build --locked --release ${features[@]+"${features[@]}"})
   # whisper-rs-sys does not build again when the flags change: a whisper.cpp built before them,
@@ -20,7 +23,7 @@ if [ -z "$target" ]; then
   if grep -qs '^GGML_NATIVE:BOOL=ON' "$out"/build/whisper-rs-sys-*/out/build/CMakeCache.txt; then
     (cd "$here" && cargo clean --release -p whisper-rs-sys && cargo build --locked --release ${features[@]+"${features[@]}"})
   fi
-  cp "${CARGO_TARGET_DIR:-$here/target}/release/wholeheard-transcription" "$dist/"
+  cp "${CARGO_TARGET_DIR:-$here/target}/release/wholeheard-transcription$exe" "$dist/"
   # On a Mac, Apple's SpeechAnalyzer through a Swift program of its own, beside it (D42, ADR-0012).
   if [ "$(uname -s)" = Darwin ]; then
     swift build -c release --package-path "$here/speech"

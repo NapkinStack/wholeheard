@@ -202,6 +202,8 @@ fn whether_there_is_an_echo_is_decided_once_a_transcript_has_begun_and_kept() {
     assert_eq!(made(folder.path())["local"]["echo"]["taken_out"], true);
 }
 
+// A folder made read-only by its mode: Windows has no such mode for a folder.
+#[cfg(unix)]
 #[test]
 fn a_place_for_what_was_heard_that_cannot_be_written_is_said_by_its_name() {
     use std::os::unix::fs::PermissionsExt;
