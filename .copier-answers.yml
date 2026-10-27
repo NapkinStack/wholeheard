@@ -2,7 +2,7 @@
 # Lines starting with _ are Copier's: changed by nstack update, never by hand.
 # The project's answers below — checks and hold_days among them — are the decider's: changed by hand, in a
 # pull request; nstack update keeps them (.nstack/handbook/07-governance.md §7).
-_commit: v0.18.0
+_commit: v0.18.1
 _src_path: https://github.com/NapkinStack/engineering-os.git
 checks: attested
 forge: github

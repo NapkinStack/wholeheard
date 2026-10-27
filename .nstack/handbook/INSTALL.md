@@ -277,7 +277,7 @@ token, the GitHub part stays "not verified", never compliant.
 nstack --help        # lists the commands
 nstack fitness       # manifests + boundaries + skills + plan + hygiene — before every commit
 nstack discover <idea-file>   # starts a discovery, for your agent
-nstack plan          # the discovery, the charter and the cycles (docs/project/), the project across its cycles, who holds what
+nstack plan          # the discovery, the charter and the cycles (docs/project/), the decisions due at a closure, the project across its cycles, who holds what
 nstack claim D<n> --session <s> --person @<you>   # takes a deliverable before its first change; nstack unclaim gives it back
 nstack board [--dry-run]   # the cycles shown on GitHub as milestones and issues — CI runs it on every merge
 nstack skills        # generates the Claude Code skills from the playbooks
@@ -289,7 +289,7 @@ nstack check [module]   # the module's commands.check; default: every module
 nstack test [module]    # commands.test, likewise
 nstack bootstrap [module]   # commands.bootstrap, when declared
 nstack run <module>     # local start, when commands.run is declared
-nstack e2e [module]     # end-to-end scenarios, when commands.e2e is declared
+nstack e2e [module]     # end-to-end scenarios, when commands.e2e is declared — one run at a time on a machine
 nstack clean [module]   # removes a module's build outputs, when commands.clean is declared
 nstack pr-check --body-file <file> [--labels a,b]   # test sheet and cycle, as CI reads them from the pull request
 nstack attest --body-file <file> [--labels a,b]     # the CI's checks run here, recorded on the commit; labels as pr-check takes them
