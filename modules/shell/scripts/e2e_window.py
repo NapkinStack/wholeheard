@@ -1504,7 +1504,10 @@ def confidential_kept(now: dt.datetime) -> None:
     unmodelled = WORK / "confidential-no-model"
     session(unmodelled / "kept", now - dt.timedelta(hours=4), 3, {"local.wav": 1000})
     (unmodelled / "kept" / "confidential").touch()
-    with window(unmodelled, "fr_FR.UTF-8", agreed.replace(f'model = "{model}"\n', "")) as browser:
+    bare = window(unmodelled, "fr_FR.UTF-8", agreed.replace(f'model = "{model}"\n', ""))
+    # Its own data folder: no default model fetched there by an earlier scenario.
+    bare.env.update(XDG_DATA_HOME=str(WORK / "data-confidential"))
+    with bare as browser:
         browser.execute_script("location.hash = '#/meeting/kept'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "make-transcript"), 10)
         press(browser, "make-transcript")
@@ -1512,7 +1515,7 @@ def confidential_kept(now: dt.datetime) -> None:
         offered = wait_for(browser, lambda b: "En attente du modèle Whisper" in b.execute_script(waits)
                            and b.find_elements(By.CSS_SELECTOR, "#transcript-state #model-fetch"), 10)
         check("the Whisper model missing: said and offered as Settings offer it, the service named asked nothing",
-              offered and counted == {"hear": 1, "write": 2}, (browser.execute_script(waits), counted))
+              offered and counted == {"hear": 1, "write": 2}, (browser.execute_script(waits), counted, names(unmodelled / "kept")))
     for server in servers:
         server.shutdown()
 
