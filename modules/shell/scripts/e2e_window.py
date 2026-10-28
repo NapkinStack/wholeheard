@@ -820,11 +820,11 @@ def first_run(now: dt.datetime) -> None:
     summary = "return document.getElementById('welcome-summary')?.innerText || ''"
     keys = lambda browser, *sent: ActionChains(browser).send_keys(*sent).perform()
 
-    def started(name: str, language: str = "fr_FR.UTF-8", dark: bool = False) -> "Window":
+    def started(name: str, language: str = "fr_FR.UTF-8", dark: bool = False, ollama: str = "http://127.0.0.1:9") -> "Window":
         meetings = WORK / f"welcome-{name}"
         meetings.mkdir()
         # No `window` line: the small one is the one left, as at a real first start (D35).
-        window = Window(meetings, language, small=True, welcomed=False, args=())
+        window = Window(meetings, language, ollama=ollama, small=True, welcomed=False, args=())
         window.env.update(XDG_DATA_HOME=str(WORK / f"data-welcome-{name}"), WHOLEHEARD_SPEECH=str(WORK / "nowhere"))
         # The dark theme asked of GTK, whatever the desktop shows; the light one cannot be asked
         # of a dark desktop without changing the user's setting — its colours are put on the page
@@ -1085,6 +1085,150 @@ def first_run(now: dt.datetime) -> None:
         check("Terminer: saved private, the meetings opened, nothing fetched",
               listed and 'minutes_model = "qwen3:8b"' in window.file.read_text() and [m.name for m in models.iterdir()] == ["ggml-large-v3-turbo-q8_0.bin"],
               (window.file.read_text(), list(models.iterdir())))
+
+    # 7. The model missing, Ollama answering without the recommended one: « Télécharger le modèle »
+    # fetches it as Settings do, the window at the meetings meanwhile — refused, cut, then whole.
+    right, ways, asked, posted = os.urandom(300_000), ["refused", "cut", "whole"], [], []
+
+    class Model(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_GET(self):
+            way = ways.pop(0)
+            asked.append(way)
+            sent = os.urandom(len(right)) if way == "refused" else right
+            self.send_response(200)
+            self.send_header("content-length", str(len(right)))
+            self.end_headers()
+            for at in range(0, len(right), 30_000):
+                if way == "cut" and at == 150_000:
+                    return
+                self.wfile.write(sent[at:at + 30_000])
+                self.wfile.flush()
+                time.sleep(0.3)
+
+        def log_message(self, *_):
+            pass
+
+    class Ollama(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"models": [{"name": "mistral:7b"}]}).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            posted.append(self.path)
+            self.send_response(500)
+            self.end_headers()
+
+        def log_message(self, *_):
+            pass
+
+    servers = [http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) for handler in (Model, Ollama)]
+    for server in servers:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+    host, ollama = f"127.0.0.1:{servers[0].server_address[1]}", f"http://127.0.0.1:{servers[1].server_address[1]}"
+    fetched = WORK / "data-welcome-fetch" / "wholeheard" / "models" / "ggml-large-v3-turbo-q8_0.bin"
+    state = "return document.getElementById('model-state')?.innerText || ''"
+    notified = WORK / "notified-welcome"
+    monitor = subprocess.Popen(
+        ["dbus-monitor", "--session", "interface='org.freedesktop.Notifications',member='Notify'"],
+        stdout=open(notified, "w"), stderr=subprocess.DEVNULL,
+    )
+
+    def last_screen(browser) -> str:
+        """From Settings, Refaire le réglage gone through to its last screen, private."""
+        press(browser, "settings-link")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "welcome-again") and b.find_element(By.ID, "welcome-again").is_displayed(), 10)
+        offered = wait_for(browser, lambda b: b.find_elements(By.ID, "model-fetch"), 5)
+        press(browser, "welcome-again")
+        until_question(browser)
+        press(browser, "welcome-next")
+        wait_for(browser, lambda b: "Mode privé" in b.execute_script(summary), 5)
+        return offered
+
+    try:
+        window = started("fetch", ollama=ollama)
+        window.env.update(WHOLEHEARD_MODEL_PUBLISHED=f"http://{host}/model.bin {len(right)} {hashlib.sha256(right).hexdigest()}")
+        with window as browser:
+            until_question(browser)
+            press(browser, "welcome-next")
+            wait_for(browser, lambda b: "Mode privé" in b.execute_script(summary), 5)
+            wait_for(browser, lambda b: b.find_element(By.ID, "welcome-go").text != "", 2)
+            said, label = browser.execute_script(summary), browser.find_element(By.ID, "welcome-go").text
+            check("Ollama answering without qwen3:8b: the minutes wait for it, Settings fetch it — no ollama.com",
+                  "Ollama n’a pas encore qwen3:8b" in said and "ollama.com" not in said, said)
+            check("the model missing: Télécharger, its size and host shown, nothing fetched before the click",
+                  label == "Télécharger le modèle (300 ko)" and f"Depuis {host}, vérifié avant d’être utilisé." in said and asked == [], (label, said, asked))
+            for round_, way in enumerate(("refused", "cut", "whole")):
+                if round_:
+                    offered = last_screen(browser)
+                    check(f"before the {way} one: Settings offer it again, as after their own", offered)
+                    wait_for(browser, lambda b: b.find_element(By.ID, "welcome-go").text != "", 2)
+                # What is told after the click: each notice is seen twice on the bus, sent and relayed.
+                mark = len(notified.read_text())
+                press(browser, "welcome-go")
+                away = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed() and asked == ["refused", "cut", "whole"][:round_ + 1], 5)
+                check(f"{way}: the click fetches it, the window at the meetings while it comes",
+                      away and not fetched.exists() and "Le modèle" not in notified.read_text()[mark:], (asked, notified.read_text()[mark:]))
+                if way != "whole":
+                    told = wait_for(browser, lambda b: "Le modèle n’a pas été téléchargé" in notified.read_text()[mark:], 15)
+                    check(f"{way}: said as Settings say it, nothing of it kept", told and not fetched.exists(), notified.read_text()[mark:][-300:])
+            text = window.file.read_text()
+            check("saved private before it is fetched: the minutes by the Ollama answering, qwen3:8b",
+                  f'minutes_provider = "{ollama}/v1"' in text and 'minutes_model = "qwen3:8b"' in text, text)
+            press(browser, "settings-link")
+            coming = wait_for(browser, lambda b: "En cours de téléchargement" in b.execute_script(state), 5)
+            # Refaire le réglage answered while it comes: the model come, the page read again
+            # meanwhile, the answer stays the user's.
+            press(browser, "welcome-again")
+            until_question(browser)
+            browser.execute_script("document.querySelector('#welcome input[value=rarely]').click()")
+            came = wait_for(browser, lambda b: fetched.exists(), 15)
+            time.sleep(2)  # the page's next reading of what is being made, every 1.5 s
+            check("the model come while the assistant is answered: the answer chosen stays, never drawn over",
+                  came and browser.execute_script(picked) == "rarely", browser.execute_script(picked))
+            press(browser, "welcome-skip")
+            ready = wait_for(browser, lambda b: "Prêt" in b.execute_script(state), 15)
+            check("whole: how far it is said in Settings, then ready there, checked against its fingerprint",
+                  coming and ready and fetched.read_bytes() == right and wait_for(browser, lambda b: "Modèle prêt" in notified.read_text(), 5),
+                  browser.execute_script(state))
+            check("Ollama asked nothing but what it holds", posted == [], posted)
+
+        # 8. Connected, no service chosen afterwards: the first meeting's minutes say none is chosen,
+        # and open Settings.
+        window = started("unchosen")
+        with window as browser:
+            until_question(browser)
+            browser.execute_script("document.querySelector('#welcome input[value=rarely]').click()")
+            press(browser, "welcome-next")
+            wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#welcome input[name=writer]"), 5)
+            browser.execute_script("document.querySelector('#welcome input[value=service]').click()")
+            press(browser, "welcome-next")
+            wait_for(browser, lambda b: "Mode connecté" in b.execute_script(summary), 5)
+            press(browser, "welcome-go")
+            wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed(), 10)
+            first = WORK / "welcome-unchosen" / "2026-10-28_09-00"
+            session(first, now - dt.timedelta(hours=1), 3, {"local.wav": 1000})
+            (first / "transcript.jsonl").write_text(
+                '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+                '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n{"type":"complete","duration":1.0}\n'
+            )
+            browser.execute_script(f"location.hash = '#/meeting/{first.name}'")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "make-minutes"), 10)
+            press(browser, "make-minutes")
+            told = wait_for(browser, lambda b: "Personne n’est choisi pour écrire le compte rendu" in notified.read_text(), 10)
+            opened = wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed(), 5)
+            check("connected, no service chosen after: the first meeting's minutes say none is, and open Settings",
+                  told and opened and not (first / "minutes.md").exists() and "minutes_provider" not in window.file.read_text(),
+                  (notified.read_text()[-300:], window.file.read_text()))
+    finally:
+        monitor.terminate()
+        monitor.wait(timeout=10)
+        for server in servers:
+            server.shutdown()
 
 
 def context_written(now: dt.datetime) -> None:

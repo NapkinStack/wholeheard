@@ -2509,12 +2509,18 @@ async function refresh() {
   // The first run's assistant, alone in the window: no header, no other page (D58).
   const welcoming = /^#\/welcome(\/again)?$/.test(location.hash);
   document.querySelector("header.bar").hidden = welcoming;
-  document.getElementById("welcome").hidden = !welcoming;
+  const welcome = document.getElementById("welcome");
+  welcome.hidden = !welcoming;
   if (welcoming) {
     for (const other of ["list", "meeting", "settings", "agree", "free"]) document.getElementById(other).hidden = true;
+    // Drawn once while it is shown: the page read again meanwhile — a model come, a fetch ended —
+    // never takes the answers from under the user.
+    if (welcome.dataset.shown === location.hash) return;
+    welcome.dataset.shown = location.hash;
     return showWelcome(location.hash === "#/welcome/again", words);
   }
-  document.getElementById("welcome").replaceChildren();
+  welcome.replaceChildren();
+  delete welcome.dataset.shown;
   const freeing = location.hash === "#/free";
   document.getElementById("free").hidden = !freeing;
   if (freeing) {
