@@ -2096,7 +2096,7 @@ def main() -> int:
             "what leaves is said — the transcript, its length and words, the context —, what stays, to whom",
             "Le texte de cette réunion va quitter votre ordinateur" in page
             and "20 minutes, environ 7 mots" in page and "Environ 4 mots" in page
-            and "Reste ici\u00a0: l’audio" in page and "openrouter.ai" in page and "a-model" in page,
+            and "Reste ici : l’audio" in page and "openrouter.ai" in page and "a-model" in page,
             page,
         )
         check("nothing has left before the word", not (WORK / "summary-args").exists())
