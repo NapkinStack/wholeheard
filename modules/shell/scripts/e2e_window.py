@@ -33,6 +33,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.options import ArgOptions
+from selenium.webdriver.remote.client_config import ClientConfig
 from selenium.webdriver.support.expected_conditions import staleness_of
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.wait import WebDriverWait
@@ -246,9 +247,12 @@ class Window:
         options.set_capability("browserName", "wry")
         options.set_capability("tauri:options", {"application": str(BINARY), "args": self.args})
         # The driver answers once it is up: until then, connections are refused or cut.
+        # A command the driver never answers breaks off after a minute, on the line that sent it —
+        # never the run's twenty minutes, silent (#510).
+        address = f"http://127.0.0.1:{port}"
         for _ in range(50):
             try:
-                self.browser = webdriver.Remote(f"http://127.0.0.1:{port}", options=options)
+                self.browser = webdriver.Remote(address, options=options, client_config=ClientConfig(address, timeout=60))
                 break
             except (WebDriverException, HTTPError):
                 time.sleep(0.2)
