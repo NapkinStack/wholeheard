@@ -33,10 +33,11 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.options import ArgOptions
+from selenium.webdriver.remote.client_config import ClientConfig
 from selenium.webdriver.support.expected_conditions import staleness_of
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.wait import WebDriverWait
-from urllib3.exceptions import HTTPError
+from urllib3.exceptions import HTTPError, ReadTimeoutError
 
 BINARY, WORK = Path(sys.argv[1]), Path(sys.argv[2])
 # wholeheard-summary played here: it says what it was given — its arguments, the key in its
@@ -215,6 +216,18 @@ def session(folder: Path, started: dt.datetime, minutes: float | None, files: di
             made.truncate(size)
 
 
+def instances() -> list[int]:
+    """The processes of the Wholeheard under test."""
+    found = []
+    for process in Path("/proc").iterdir():
+        try:
+            if process.name.isdigit() and os.readlink(process / "exe") == str(BINARY.resolve()):
+                found.append(int(process.name))
+        except OSError:
+            pass
+    return found
+
+
 class Window:
     """Wholeheard with its window, for as long as the `with` lasts."""
 
@@ -235,6 +248,11 @@ class Window:
         self.env.update(LANG=language, LC_ALL=language, WHOLEHEARD_OLLAMA=ollama, WHOLEHEARD_KEYRING="memory", WHOLEHEARD_SUMMARY=str(SUMMARY), WHOLEHEARD_TRANSCRIPTION=str(HEARING), WHOLEHEARD_CAPTURE=str(RECORDER))
 
     def __enter__(self) -> webdriver.Remote:
+        # One Wholeheard per session: one still leaving takes this start's arguments and this one
+        # leaves, its session never opened (#510). Waited for.
+        until = time.monotonic() + 10
+        while instances() and time.monotonic() < until:
+            time.sleep(0.1)
         port, native = free_port(), free_port()
         self.driver_process = subprocess.Popen(
             ["tauri-driver", "--port", str(port), "--native-port", str(native)],
@@ -246,10 +264,18 @@ class Window:
         options.set_capability("browserName", "wry")
         options.set_capability("tauri:options", {"application": str(BINARY), "args": self.args})
         # The driver answers once it is up: until then, connections are refused or cut.
+        # A command the driver never answers breaks off after a minute, on the line that sent it —
+        # four minutes for a GET or a DELETE, which urllib3 tries again three times —, never the
+        # run's twenty minutes, silent (#510).
+        address = f"http://127.0.0.1:{port}"
         for _ in range(50):
             try:
-                self.browser = webdriver.Remote(f"http://127.0.0.1:{port}", options=options)
+                self.browser = webdriver.Remote(address, options=options, client_config=ClientConfig(address, timeout=60))
                 break
+            except ReadTimeoutError:
+                self.driver_process.terminate()
+                self.driver_process.wait(timeout=10)
+                raise RuntimeError(f"tauri-driver opened no session in a minute; Wholeheard's processes: {instances()}") from None
             except (WebDriverException, HTTPError):
                 time.sleep(0.2)
         else:
