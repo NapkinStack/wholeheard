@@ -265,7 +265,8 @@ class Window:
         options.set_capability("tauri:options", {"application": str(BINARY), "args": self.args})
         # The driver answers once it is up: until then, connections are refused or cut.
         # A command the driver never answers breaks off after a minute, on the line that sent it —
-        # never the run's twenty minutes, silent (#510).
+        # four minutes for a GET or a DELETE, which urllib3 tries again three times —, never the
+        # run's twenty minutes, silent (#510).
         address = f"http://127.0.0.1:{port}"
         for _ in range(50):
             try:
