@@ -1,9 +1,9 @@
 # Ties every change to an owner (.nstack/handbook/07-governance.md §7).
 # Updated automatically by nstack new-module.
 
-# approval: agent — no default owner: a path named below needs a human's approval; any other,
-# a `prototype` or `standard` module's, one approval, another contributor's agent counting
-# (.nstack/handbook/07-governance.md §7).
+# No default owner (approval: agent): a path named below waits for a human's
+# approval; any other by a human or by another contributor's agent. A module of criticality
+# high or critical is named; prototype and standard are not (.nstack/handbook/07-governance.md §7).
 
 # Foundation: any change to the OS itself goes through an ADR.
 /AGENTS.md                     @NapkinStack/maintainers

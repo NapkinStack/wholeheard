@@ -92,6 +92,10 @@ nstack update                            # branch nstack/update-vX.Y.Z, merged a
 git push -u origin nstack/update-vX.Y.Z  # then the PR, validated by CI
 ```
 
+A version published minutes ago may not be served yet: PyPI's CDN can list the previous ones for a
+few minutes, and `--refresh-package` clears only uv's own cache. *No version of napkinstack==X.Y.Z*
+right after a release means wait a few minutes, then run the same command again.
+
 An agent passes its session — `nstack update --session <its identifier>` — and the commit
 carries the trailer every commit of an agent carries (`AGENTS.md`, *Identity*).
 
@@ -209,6 +213,7 @@ repository — **the identity your agents work under** (`.nstack/handbook/07-gov
 - [ ] Its private key stored outside any repository: the workstation's secret store, or
       the CI's secrets
 - [ ] The agent's session reaches no human credential
+- [ ] On `approval: agent`, one App per contributor's agent: an App never approves what it pushed
 
 Rather than click through these pages, print the calls that close the distance and run them
 yourself — the command reads the repository, writes nothing, and never plans to lower a
