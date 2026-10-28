@@ -421,13 +421,13 @@ fn audio_sent_to_the_trash_is_said_with_its_counts_and_a_refusal_never_claims_to
     );
     assert_eq!(
         said(Language::French, Ok((1, 1))),
-        "Audio mis à la corbeille | L’audio d’une réunion gardé plus d’un jour est dans la corbeille ; \
+        "Audio mis à la corbeille | L’audio d’une réunion gardé plus d’un jour est dans la corbeille\u{202f}; \
          son transcript et son compte rendu restent."
     );
     assert_eq!(
         said(Language::French, Ok((3, 30))),
         "Audio mis à la corbeille | L’audio de 3 réunions gardé plus de 30 jours est dans la \
-         corbeille ; leurs transcripts et leurs comptes rendus restent."
+         corbeille\u{202f}; leurs transcripts et leurs comptes rendus restent."
     );
     // The trash may have taken some before it refused: what is said holds either way, in the
     // user's language, without the system's own wording.
@@ -439,12 +439,12 @@ fn audio_sent_to_the_trash_is_said_with_its_counts_and_a_refusal_never_claims_to
     assert_eq!(
         said(Language::French, Err(Refusal::NoSpace)),
         "L’audio n’a pas été entièrement mis à la corbeille | La corbeille n’a plus de place. Ce \
-         qui n’a pas été déplacé reste à sa place ; rien n’a été supprimé."
+         qui n’a pas été déplacé reste à sa place\u{202f}; rien n’a été supprimé."
     );
     assert_eq!(
         said(Language::French, Err(Refusal::Other)),
         "L’audio n’a pas été entièrement mis à la corbeille | La corbeille du système ne l’a pas \
-         pris. Ce qui n’a pas été déplacé reste à sa place ; rien n’a été supprimé."
+         pris. Ce qui n’a pas été déplacé reste à sa place\u{202f}; rien n’a été supprimé."
     );
     assert!(said(Language::English, Err(Refusal::NoSpace)).contains("The trash has no room left."));
     assert!(said(Language::English, Err(Refusal::Other)).contains("The system's trash did not take it."));
@@ -936,4 +936,27 @@ fn a_confidential_meeting_s_words_are_said_in_both_languages_french_typeset_as_f
     }
     let said = words::minutes(&words::Minutes::OllamaWaits { silent: false }, Language::French);
     assert!(!said.body.contains(" :"), "{}", said.body);
+}
+
+#[test]
+fn every_french_word_of_the_window_is_typeset_as_french() {
+    fn strings(value: &serde_json::Value, found: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(text) => found.push(text.clone()),
+            serde_json::Value::Array(values) => values.iter().for_each(|value| strings(value, found)),
+            serde_json::Value::Object(fields) => fields.values().for_each(|value| strings(value, found)),
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    strings(&serde_json::to_value(words::window(Language::French)).unwrap(), &mut found);
+    assert!(found.len() > 100, "{}", found.len());
+    // Before : and », after «, a space that does not break; before ? ! ;, a narrow one — never a
+    // plain space, which a narrow window would break the line on.
+    for sentence in &found {
+        for mark in ['?', '!', ';', ':', '»'] {
+            assert!(!sentence.contains(&format!(" {mark}")), "{sentence}");
+        }
+        assert!(!sentence.contains("« "), "{sentence}");
+    }
 }
