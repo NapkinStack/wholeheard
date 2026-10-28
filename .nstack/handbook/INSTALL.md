@@ -86,7 +86,7 @@ repository, and every run then says an unpublished framework judges it.
 ## Receiving a new version of NapkinStack
 
 ```bash
-uv tool install "napkinstack==X.Y.Z" --with-executables-from pre-commit  # the version you want
+uv tool install "napkinstack==X.Y.Z" --refresh-package napkinstack --with-executables-from pre-commit  # the version you want; the index read afresh
 git switch main                          # an update starts from the default branch
 nstack update                            # branch nstack/update-vX.Y.Z, merged and committed
 git push -u origin nstack/update-vX.Y.Z  # then the PR, validated by CI
