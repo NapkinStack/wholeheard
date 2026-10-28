@@ -450,7 +450,10 @@ in one gesture: this one leaves nothing on the machine. The connected mode for f
   [the surface](../reviews/2026-10-26-ux.md), each by an independent session. The decider's choice
   the same day: a cycle 05 after this one, "le meilleur au quotidien" — the notifications that open
   the meeting and are fewer, the minutes copied, the French wording, actions as rows, a meeting's
-  title, the first run, the cost an AI call reports — and the reminder kept, never off by default.
+  title ([#504](https://github.com/NapkinStack/wholeheard/issues/504), asked again on 2026-10-28:
+  the list and « Libérer de l’espace » tell meetings apart by date alone), the first run, the cost
+  an AI call reports ([#503](https://github.com/NapkinStack/wholeheard/issues/503): OpenRouter's
+  `usage.cost`) — and the reminder kept, never off by default.
 - **A transcript followed live**, the decider's idea of 2026-10-26 ("la possibilité de faire la
   transcription live, le traitement qu'on ne peut pas faire live est celui des minutes"): the
   framer's proposal, for cycle 05 — a provisional preview while recording, on the machine alone
