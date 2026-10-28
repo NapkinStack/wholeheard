@@ -86,11 +86,12 @@ How many cycles ended at their end date rather than with every deliverable accep
 occasional one is healthy: the appetite held. Every one: the appetites or the deliverables
 are wrong — frame smaller.
 
-### Findings beyond the verifier
+### Escaped defects
 
-On every pull request carrying a test sheet, what the approver found that the verifier had
-missed. It is the measurement that may one day let a verifier agent's approval count,
-module by module (`07-governance.md` §7).
+The share of merged pull requests a defect found within 30 days of their merge names — the bug
+form asks for the pull request that brought it. Read per module, and per answer to who approves
+(`approval: human` or `agent`, `07-governance.md` §7): it is what tells whether an agent's
+approval holds where the project lets it count.
 
 ### Overdue contractions
 

@@ -48,7 +48,10 @@ flowchart LR
   module, a pull request names the owner in its `MANIFEST.yaml` and `.github/CODEOWNERS`; you install the
   engine (`.nstack/handbook/INSTALL.md`) and run `pre-commit install`. Then *Before you start*.
 - **Who checks whom.** The author never verifies nor approves their own work: a verifier
-  runs the test sheet, the module's owner approves (`.nstack/handbook/05-workflow.md` §10).
+  runs the test sheet, the module's owner approves (`.nstack/handbook/05-workflow.md` §10) — or,
+  where the project answers `approval: agent`, another contributor's agent approves a `prototype`
+  or `standard` module, saying its session and what it is expert in
+  (`.nstack/handbook/07-governance.md` §7).
 
 ## The barriers against leaks
 

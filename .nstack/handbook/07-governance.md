@@ -345,9 +345,32 @@ settings close that door, and they only hold together:
    the approval merges content its approver never read.
 
 The human who drove the agent may approve its pull request. A team that wants four eyes
-adds "require approval of the most recent reviewable push", or a second reviewer. An
-agent's approval does not count toward merging until the test sheets show, module by
-module, that an independent verifier finds what a human would (`05-workflow.md` §7).
+adds "require approval of the most recent reviewable push", or a second reviewer.
+
+**Where another contributor's agent approves.** A project of several contributors, each with
+an agent under an identity of its own, may answer `approval: agent` in `.copier-answers.yml` — the
+decider's word, changed in a pull request a human approves. Another contributor's agent then
+approves a change to a `prototype` or `standard` module; a human still approves everything else.
+The forge does the sorting, path by path:
+
+- **The code owners file names a human** for the project's rules (`AGENTS.md`, `.nstack/`, the
+  forge's folder, `.copier-answers.yml`), its records (`docs/`) and every module neither
+  `prototype` nor `standard` — and **no default owner**: a path it does not name needs one
+  approval, an agent's counting. The code owners review stays required: nothing is lowered.
+  `nstack new-module` writes no line for a `prototype` or `standard` module; a module whose
+  criticality rises gets its line in the same pull request (`doctor`, L6).
+- **The last pusher's approval does not count** (G21): an agent that pushed a fix to the change
+  it reviews no longer approves it.
+- **The approving agent says, in its approval**, the session it ran in and what it is expert in
+  for the module. Where the module asks for a test sheet, it is the verifier who ran it; where
+  it asks none, it reviews the change on its oracle and its checks.
+- **A contributor alone** has nobody else's agent: their changes wait for a human. A second
+  identity of their own would be the author approving itself.
+
+Whether the answer holds is read on what escapes: a defect found within 30 days of a merge,
+which the bug form ties to its pull request (`10-measurement.md`). GitHub counts an App's approval
+toward the required ones once the App may write contents, never on a pull request it opened — as
+reported in practice; a project's first cross-approved pull request is its own proof.
 
 ### The approval is one gesture, not three
 

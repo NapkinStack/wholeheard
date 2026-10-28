@@ -346,9 +346,9 @@ criticality are read before and after the change, and the stricter applies:
 joins an earlier one in the same cell, after a `;`, each clause starting with its commit:
 `651e249 — <what moved>; deb508f — <what moved>`. The engine's pull
 request check reads the sheet in CI: missing, unfilled, without evidence, verified before the
-head and not confirmed on it, failed. The approver decides on the sheet, and notes what they found that
-the verifier had missed — that measurement decides, one day and module by module, whether
-a verifier agent's approval may count.
+head and not confirmed on it, failed. The approver decides on the sheet; where the project answers
+`approval: agent`, the approver of a `prototype` or `standard` module may be the verifier itself,
+another contributor's agent (`07-governance.md` §7).
 
 ---
 
@@ -406,6 +406,6 @@ never verifies its own work, and never approves it.
 | **Author** | An agent | Deliver one deliverable, in one module, within its criteria | Widen the scope; verify or approve its own work | The pull request and its oracle |
 | **Challenger** | An agent session other than the framer's, or a human | Attack a discovery: pre-mortem, the four risks, counter-evidence | Rewrite the document; soften an objection | Objections with their evidence (`.nstack/playbooks/discovery.md`) |
 | **Verifier** | An agent session other than the author's, or a human | Run the test sheet against the change, before reading the diff | Fix the code; report a preference as a gap | Results and evidence (`.nstack/playbooks/verification.md`) |
-| **Approver** | A human code owner | Decide the merge on the evidence | Approve without the sheet where one is required | The approval |
+| **Approver** | A human code owner — or, on `approval: agent`, another contributor's agent for a `prototype` or `standard` module | Decide the merge on the evidence | Approve without the sheet where one is required; approve what it pushed | The approval |
 | **Decider** | The human who owns the project | Validate the charter, the cycle and its appetite; accept a change of scope; choose at the circuit breaker | Extend a cycle silently | Decisions recorded in `docs/project/` |
 | **Owners** | The foundation team, a module's owner | Own the project's rules, or one module | Write a project rule into a framework file | The project's and the module's documents |

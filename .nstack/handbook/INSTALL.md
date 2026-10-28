@@ -157,6 +157,7 @@ Settings → Rules → Rulesets → on the main branch (private repository: Team
 - [ ] Bypass list empty: nobody merges around the rules, administrators included
 - [ ] Main branch cannot be deleted
 - [ ] Main branch history cannot be rewritten: no force push
+- [ ] The most recent push approved by someone other than its pusher (approval: agent)
 
 GitHub offers a check to require only once it has run: open a first pull request, then
 select them.

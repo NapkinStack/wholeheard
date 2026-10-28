@@ -104,7 +104,7 @@ other: <specify>
 > keeps its commit and gets the head commit here with what moved since, after a `;` when an earlier confirmation is there — except at criticality `critical`, where every scenario is run again. Leave
 > it empty when nothing moved — a confirmation is not a round.
 
-Verifier: <@handle, or session and the agent session's identifier>
+Verifier: <@handle, or session and the agent session's identifier> — <on approval agent: what it is expert in, for this module>
 
 | # | Given · when · then | Kind | Result | Evidence | Commit | Confirmed |
 |---|---|---|---|---|---|---|
