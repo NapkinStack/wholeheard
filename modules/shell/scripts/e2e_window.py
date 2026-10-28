@@ -1072,6 +1072,8 @@ def first_run(now: dt.datetime) -> None:
         press(browser, "welcome-next")
         wait_for(browser, lambda b: "Mode privé" in b.execute_script(summary), 5)
         said = browser.execute_script(summary)
+        # Read once the card has arrived (180 ms from transparent): `.text` is the text seen.
+        wait_for(browser, lambda b: b.find_element(By.ID, "welcome-go").text != "", 2)
         done = browser.find_element(By.ID, "welcome-go").text
         check("the model here: Terminer, no fetch offered", done == "Terminer" and "Télécharger" not in said, (done, said))
         browser.set_window_size(420, 400)
