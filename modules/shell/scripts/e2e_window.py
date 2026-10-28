@@ -978,6 +978,24 @@ def first_run(now: dt.datetime) -> None:
             "reminder = false", f'model = "{mine}"']) + "\n")
         kept = [line for line in window.file.read_text().splitlines()
                 if line.startswith(("transcription_", "reminder", "model =", "sessions"))]
+        # Refaire, confirmed connected, from a setting that saving private would change — a service
+        # that hears: Settings at the minutes, nothing changed by itself.
+        press(browser, "settings-link")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "welcome-again") and b.find_element(By.ID, "welcome-again").is_displayed(), 10)
+        press(browser, "welcome-again")
+        until_question(browser)
+        browser.execute_script("document.querySelector('#welcome input[value=rarely]').click()")
+        press(browser, "welcome-next")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#welcome input[name=writer]"), 5)
+        browser.execute_script("document.querySelector('#welcome input[value=service]').click()")
+        press(browser, "welcome-next")
+        wait_for(browser, lambda b: "Mode connecté" in b.execute_script(summary), 5)
+        staged = window.file.read_text()
+        press(browser, "welcome-go")
+        opened = wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed()
+                          and b.execute_script("return document.activeElement.id") == "minutes", 10)
+        check("Refaire, confirmed connected: Settings at the minutes, nothing changed by itself",
+              opened and window.file.read_text() == staged, window.file.read_text())
         press(browser, "settings-link")
         wait_for(browser, lambda b: b.find_elements(By.ID, "welcome-again") and b.find_element(By.ID, "welcome-again").is_displayed(), 10)
         press(browser, "welcome-again")
@@ -992,22 +1010,6 @@ def first_run(now: dt.datetime) -> None:
               'engine = "whisper"' in after, after)
         check("and nothing else: the service's fields, the reminder, the model and the folder as they were",
               all(line in after.splitlines() for line in kept), (kept, after))
-        # Refaire, confirmed connected: Settings at the minutes, nothing changed by itself.
-        press(browser, "settings-link")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "welcome-again") and b.find_element(By.ID, "welcome-again").is_displayed(), 10)
-        press(browser, "welcome-again")
-        until_question(browser)
-        browser.execute_script("document.querySelector('#welcome input[value=rarely]').click()")
-        press(browser, "welcome-next")
-        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#welcome input[name=writer]"), 5)
-        browser.execute_script("document.querySelector('#welcome input[value=service]').click()")
-        press(browser, "welcome-next")
-        wait_for(browser, lambda b: "Mode connecté" in b.execute_script(summary), 5)
-        press(browser, "welcome-go")
-        opened = wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed()
-                          and b.execute_script("return document.activeElement.id") == "minutes", 10)
-        check("Refaire, confirmed connected: Settings at the minutes, nothing changed by itself",
-              opened and window.file.read_text() == after, window.file.read_text())
 
     # 4. The dark theme, in English.
     window = started("dark", "en_GB.UTF-8", dark=True)
@@ -1033,7 +1035,8 @@ def first_run(now: dt.datetime) -> None:
         wait_for(browser, lambda b: "Connected mode" in b.execute_script(summary), 5)
         seen(browser, "d58-3-summary-connected-dark")
 
-    wide = lambda b: b.execute_script("return document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    # At the window's smallest size: the view 420 px at most, nothing wider than it.
+    wide = lambda b: b.execute_script("const e = document.documentElement; return window.innerWidth <= 420 && e.scrollWidth <= e.clientWidth")
 
     # 5. From the applications' menu, not welcomed: the assistant all the same; left midway, its
     # answers are not kept — only that it was shown.
@@ -1042,20 +1045,21 @@ def first_run(now: dt.datetime) -> None:
     with window as browser:
         shown = until_question(browser)
         check("started with --window, not welcomed, no meeting: the full window opens on the assistant",
-              shown and not browser.find_elements(By.ID, "small-record"), browser.execute_script(welcome))
+              shown and not browser.find_elements(By.ID, "small-record") and len(browser.window_handles) == 1,
+              (browser.window_handles, browser.execute_script(welcome)))
         wait_for(browser, lambda b: "welcomed = true" in window.file.read_text(), 5)
         before = window.file.read_text()
         browser.set_window_size(420, 400)
         browser.execute_script("document.querySelector('#welcome input[value=rarely]').click()")
         press(browser, "welcome-next")
-        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#welcome input[name=writer]"), 5)
+        reached = wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#welcome input[name=writer]"), 5)
         time.sleep(0.5)
-        check("its second question at the window's smallest size: nothing overflows sideways", wide(browser))
+        check("its second question at the window's smallest size: nothing overflows sideways", reached and wide(browser))
         browser.execute_script("document.querySelector('#welcome input[value=service]').click()")
         press(browser, "welcome-next")
-        wait_for(browser, lambda b: "Mode connecté" in b.execute_script(summary), 5)
+        reached = wait_for(browser, lambda b: "Mode connecté" in b.execute_script(summary), 5)
         time.sleep(0.5)
-        check("its last screen, connected, at the smallest size: nothing overflows sideways", wide(browser))
+        check("its last screen, connected, at the smallest size: nothing overflows sideways", reached and wide(browser))
     check("left midway, nothing of its answers is written", window.file.read_text() == before, window.file.read_text())
 
     # 6. The model here already: Terminer, nothing to fetch.
@@ -1072,7 +1076,7 @@ def first_run(now: dt.datetime) -> None:
         check("the model here: Terminer, no fetch offered", done == "Terminer" and "Télécharger" not in said, (done, said))
         browser.set_window_size(420, 400)
         time.sleep(0.5)
-        check("its last screen, private, at the smallest size: nothing overflows sideways", wide(browser))
+        check("its last screen, private, at the smallest size: nothing overflows sideways", done == "Terminer" and wide(browser))
         browser.set_window_size(1100, 800)
         press(browser, "welcome-go")
         listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
