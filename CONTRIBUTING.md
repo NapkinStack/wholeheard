@@ -5,16 +5,53 @@
 > ([PDR-0002](docs/pdr/0002-the-repository-opened-the-pace-kept.md), 2026-10-25). An issue — a
 > defect, an idea — is welcome.
 
+## Joining the project
+
+Once per person, before a first deliverable. Each step says where it is said in full.
+
+1. **Access.** The decider invites you on the forge. When you, or your team, will own a
+   module, a pull request names the owner in its `MANIFEST.yaml` — and in `.github/CODEOWNERS` when a
+   human approves it (step 6).
+2. **The engine, at the project's version, and the hooks** (prerequisites: uv and git):
+
+   ```bash
+   bash .nstack/install-engine.sh   # once per workstation: the version .copier-answers.yml records, pre-commit with it
+   pre-commit install               # once per clone
+   ```
+
+3. **Your agent's identity.** Any coding agent works: it reads `AGENTS.md` at the root and
+   follows it. It works under an identity of its own — a GitHub App (`.nstack/handbook/INSTALL.md`,
+   *the identity your agents work under*) — never with your credentials. Creating it and installing it on
+   the repository is a person's act: yours where you may, else the decider's on your
+   request; its key stays outside any repository. Each session your agent runs has a name — any
+   opaque label, `alice-d30` — that goes on its commits (`Agent-Session:`) and its holds (`--session`).
+   Where the project answers `approval: agent`, each contributor's agent needs an identity of its
+   own (step 6).
+4. **Check the workstation**: `nstack doctor` — the engine, the hooks, the project's version. The
+   forge's settings stay *not verified* without a token that may read them: that part is the
+   decider's.
+5. **See the work**: `nstack plan` — the cycle, its ready deliverables, who holds what. Then
+   *Before you start*.
+6. **Know who approves your changes**: the module's owner, a human — or, where the project
+   answers `approval: agent`, for a `prototype` or `standard` module, a human or another
+   contributor's agent, which then needs an identity of its own: an identity never approves what
+   it pushed. Everything else waits for a human code owner (`.nstack/handbook/07-governance.md` §7).
+7. **When the method gets in your way** — a message that misleads, a check that misjudges, a
+   page that contradicts a command — say it, never work around it: an issue here when it is the
+   project's; when it is the framework's, an issue at its repository — `_src_path` in
+   `.copier-answers.yml` — with what happened, what you expected and the exact command. That
+   repository is public: describe the defect, never the project (`.nstack/handbook/INSTALL.md`,
+   *When the framework is wrong*).
+
 ## Before you start
 
 1. Pick a **ready** deliverable of the current cycle (`docs/project/cycles/`) and **take it**:
-   `nstack claim D<n>` — or an issue, for what nobody planned: a defect, a debt. A project
+   `nstack claim D<n> --person @you --session <its session>` — or an issue, for what nobody planned: a defect, a debt. A project
    with no accepted charter has no cycle yet: pick the work, the other rules apply
    (`.nstack/handbook/project.md`).
 2. Identify **the** target module — exactly one.
 3. Read its `MANIFEST.yaml`, then its `AGENTS.md`.
 4. `nstack bootstrap <name> && nstack check <name>`
-5. `pre-commit install` — once per clone ([install pre-commit](https://pre-commit.com/#install)).
 
 ## Working with several contributors
 
@@ -33,25 +70,19 @@ flowchart LR
 **Legend** — grey: who decides · blue: the work and its review · green: a deliverable held.
 
 - **The work is shared by module.** Each module has an owner — `owner:` in its
-  `MANIFEST.yaml`, and `.github/CODEOWNERS` — who approves its changes; a deliverable belongs
+  `MANIFEST.yaml`, and `.github/CODEOWNERS` where a human approves it — who answers for its changes; a deliverable belongs
   to one module. Two contributors in two modules never meet but through a contract
   (`.nstack/handbook/02-modules.md`, `03-contracts.md`).
 - **A deliverable is taken before its first change**, so that nobody delivers it twice:
   `nstack claim D30 --person @you` — and an agent adds `--session <its session>`. `nstack plan`
   says who holds what; a hold nobody works on goes stale and may be taken over
   (`.nstack/handbook/project.md`, *Who holds a deliverable*).
-- **Any coding agent works.** It reads `AGENTS.md` at the root and follows it; the skills
+- **Any coding agent works**, under an identity of its own (*Joining the project*); the skills
   `nstack skills` makes under `.claude/skills/` are one tool's shortcut to the same playbooks
-  (`.nstack/playbooks/`). Give
-  your agent its own identity and a session name (`.nstack/handbook/07-governance.md` §7).
-- **Joining.** The decider invites you on the forge; when you, or your team, own a
-  module, a pull request names the owner in its `MANIFEST.yaml` and `.github/CODEOWNERS`; you install the
-  engine (`.nstack/handbook/INSTALL.md`) and run `pre-commit install`. Then *Before you start*.
+  (`.nstack/playbooks/`).
 - **Who checks whom.** The author never verifies nor approves their own work: a verifier
-  runs the test sheet, the module's owner approves (`.nstack/handbook/05-workflow.md` §10) — or,
-  where the project answers `approval: agent`, another contributor's agent approves a `prototype`
-  or `standard` module, saying its session and what it is expert in
-  (`.nstack/handbook/07-governance.md` §7).
+  runs the test sheet, then the approver of *Joining the project*, step 6, approves
+  (`.nstack/handbook/05-workflow.md` §10).
 
 ## The barriers against leaks
 

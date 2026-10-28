@@ -24,7 +24,9 @@ write, the **challenger**; to verify a change you did not write, the **verifier*
 loads its playbook (§4). You never verify, challenge or approve your own work.
 
 **Identity.** You work under your own identity at the forge — on GitHub, an App — never with a human's credentials,
-and you never approve a pull request (`.nstack/handbook/07-governance.md` §7). Every commit you make
+and you never approve a pull request — except where the project answers `approval: agent`, as the
+verifier — or, where no sheet is owed, the reviewer — of another contributor's change to a
+`prototype` or `standard` module, saying in the approval your session and what you are expert in (`.nstack/handbook/07-governance.md` §7). Every commit you make
 carries the trailer `Agent-Session: <an identifier of this session>`; as a verifier, you
 sign the sheet `Verifier: session <that identifier>`, and `pr-check` refuses one among the authors.
 

@@ -264,8 +264,9 @@ satisfies teaches the alias, so that row is owed to a human.
 
 **Human review is not in this table.** Who must approve a change is not a property of the
 code's blast radius but of the project's exposure — how many people depend on it, and what
-the forge is able to require. It lives in `07-governance.md` §7, where today it is the same
-for every project: a human code owner.
+the forge is able to require, and of what the project answers. It lives in `07-governance.md`
+§7: a human code owner — or, where the project answers `approval: agent`, another contributor's
+agent for a `prototype` or `standard` module.
 
 **One round.** The framework asks for **one** sheet, run by **one** verifier who is not an
 author. It never asks for a second adversarial round, and no check counts them. A project may
