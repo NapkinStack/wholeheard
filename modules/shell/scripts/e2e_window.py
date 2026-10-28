@@ -844,6 +844,8 @@ def first_run(now: dt.datetime) -> None:
         seen(browser, "d58-1-question-light-small")
         browser.set_window_size(1100, 800)
         time.sleep(0.3)
+        card = browser.execute_script("const c = document.querySelector('#welcome .welcome'), s = getComputedStyle(c); return [c.getBoundingClientRect().width / document.documentElement.clientWidth, parseFloat(s.paddingLeft)]")
+        check("at the window's opening size the card takes two thirds of it, its margin 20 px at most", 0.6 <= card[0] <= 0.7 and card[1] <= 20, card)
         seen(browser, "d58-1-question-light")
         # Passer, by the keyboard: Tab from the question reaches it after the answers.
         keys(browser, Keys.TAB)

@@ -266,7 +266,8 @@ body.small-window .bar { display: none; }
 /* The first run's assistant (D58's board): one card, centred, alone in the window; its answers
    are radio cards, the setting said in a tinted band, then plain rows. */
 #welcome { min-height: 100vh; justify-content: center; align-items: center; padding: 24px 16px; }
-.welcome { width: min(600px, 100%); padding: 24px; display: flex; flex-direction: column; gap: 16px; animation: arrive 180ms ease-out; }
+/* Wider as the window widens, never a narrow card lost in it: two thirds of it, 560 to 760 px. */
+.welcome { width: min(100%, clamp(560px, 64vw, 760px)); padding: 20px; display: flex; flex-direction: column; gap: 14px; animation: arrive 180ms ease-out; }
 @keyframes arrive { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .welcome { animation: none; } }
 .welcome-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -275,7 +276,7 @@ body.small-window .bar { display: none; }
 .welcome-eyebrow { margin: 0 0 -8px; font-size: 15px; }
 .welcome > .says { margin-top: -6px; }
 .welcome-choices { display: flex; flex-direction: column; gap: 10px; }
-.welcome .choice { border-width: 1.5px; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.welcome .choice { padding: 10px 14px; gap: 10px; border-width: 1.5px; transition: border-color 120ms ease, box-shadow 120ms ease; }
 .welcome .choice:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 .welcome .choice:has(input:checked) { background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .choice:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
