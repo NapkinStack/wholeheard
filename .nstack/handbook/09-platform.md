@@ -249,7 +249,7 @@ happens without touching the OS.
 | Access to official sources | Versions, APIs, real constraints |
 | Running commands and tests | Making the oracle actually executable |
 | Git, issue and pull request interaction | Traceability and small batches |
-| Agent identity | Changes arrive under the agent's own name, behind a human approval |
+| Agent identity | Changes arrive under the agent's own name, behind the approval the project asks for |
 | UI inspection and screenshots | UX validation beyond "it compiles" |
 | Driving a browser or an emulator | Explored scenarios of a test sheet, with their evidence |
 | Security analysis | Integrated automated checks |

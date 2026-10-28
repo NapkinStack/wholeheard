@@ -271,10 +271,10 @@ to use (GitHub wording, transposable elsewhere):
 | Protected environments | Deployment goes through an approval |
 | Dependency / security automation | CVEs do not depend on manual watching |
 | Merge queue | Avoids merges that break each other |
-| A dedicated identity for agents | An agent neither approves nor merges around a human approval |
+| A dedicated identity for agents | An agent never merges around the approval the project asks for |
 | Rulesets with an empty bypass list | Nobody, administrators included, merges around a rule |
 | Stale approvals dismissed on push | An approval covers the commits its approver read |
-| A default code owner | The code owner review covers every path |
+| A default code owner — on `approval: agent`, a human owner where one must approve | The code owner review covers every path a human must approve |
 | A record of what landed | Nothing reaches the protected branch in silence — it records, it never refuses |
 
 > **Critical rules must not be bypassable by an instruction given to the AI.** That is
@@ -339,7 +339,8 @@ settings close that door, and they only hold together:
    no human credential — no SSH key, token or command-line login of a human — through a
    sandbox, a container or a dedicated system user.
 2. **The merge requires a human code owner's approval**, and `CODEOWNERS` starts with a
-   default owner: an App can approve, but it is never a code owner.
+   default owner: an App can approve, but it is never a code owner. On `approval: agent`, below,
+   the code owners file names a human only where one must approve.
 3. **Nobody is on the rulesets' bypass list**, administrators included.
 4. **An approval is dismissed when new commits are pushed**: otherwise a force-push after
    the approval merges content its approver never read.
@@ -349,12 +350,14 @@ adds "require approval of the most recent reviewable push", or a second reviewer
 
 **Where another contributor's agent approves.** A project of several contributors, each with
 an agent under an identity of its own, may answer `approval: agent` in `.copier-answers.yml` — the
-decider's word, changed in a pull request a human approves. Another contributor's agent then
-approves a change to a `prototype` or `standard` module; a human still approves everything else.
+decider's word, changed in a pull request a human approves. A change to a `prototype` or `standard`
+module is then approved by a human **or** by another contributor's agent — whoever is neither its
+author nor its last pusher; everything else still waits for a human code owner.
 The forge does the sorting, path by path:
 
-- **The code owners file names a human** for the project's rules (`AGENTS.md`, `.nstack/`, the
-  forge's folder, `.copier-answers.yml`), its records (`docs/`) and every module neither
+- **The code owners file names a human** for the project's rules (`AGENTS.md`, `CONTRIBUTING.md`,
+  `SECURITY.md`, `.nstack/`, the forge's folder, the code owners file itself, the hooks'
+  configuration, `.copier-answers.yml`), its records (`docs/`) and every module neither
   `prototype` nor `standard` — and **no default owner**: a path it does not name needs one
   approval, an agent's counting. The code owners review stays required: nothing is lowered.
   `nstack new-module` writes no line for a `prototype` or `standard` module; a module whose
@@ -365,7 +368,13 @@ The forge does the sorting, path by path:
   for the module. Where the module asks for a test sheet, it is the verifier who ran it; where
   it asks none, it reviews the change on its oracle and its checks.
 - **A contributor alone** has nobody else's agent: their changes wait for a human. A second
-  identity of their own would be the author approving itself.
+  identity of their own would be the author approving itself. So the answer changes nothing until
+  a second contributor's agent works under an identity of its own; `doctor` says so while the
+  history shows a single agent identity.
+
+**Where the forge cannot guard** — a private repository on a plan that enforces no ruleset —
+neither answer is enforced: the code owners file only asks for reviews, and `doctor` says
+*unguarded*. Who approves is then the team's rule, kept by the people, as every rule there is.
 
 Whether the answer holds is read on what escapes: a defect found within 30 days of a merge,
 which the bug form ties to its pull request (`10-measurement.md`). GitHub counts an App's approval

@@ -147,7 +147,7 @@ it has no cycle, K1 to K3 and K5 say nothing there, and every other rule applies
 
 ## G — the forge's settings
 
-The twenty lines of GitHub's checklist, in its order (`INSTALL.md`, on GitHub). Read on
+The twenty-one lines of GitHub's checklist, in its order (`INSTALL.md`, on GitHub). Read on
 GitHub only: off it, `doctor` lists what the forge should refuse, reads none of it, and says the
 repository *unguarded*; `W1` does not run.
 
