@@ -2616,6 +2616,8 @@ window.addEventListener("focus", () => {
   if (!choosing) refresh();
 });
 window.addEventListener("hashchange", () => {
+  // Another address: the assistant, shown again, is drawn anew — even if the drawing that left it was cut short.
+  delete document.getElementById("welcome").dataset.shown;
   refresh();
   window.scrollTo(0, 0);
 });

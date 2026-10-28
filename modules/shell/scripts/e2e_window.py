@@ -1175,7 +1175,7 @@ def first_run(now: dt.datetime) -> None:
                       away and not fetched.exists() and "Le modèle" not in notified.read_text()[mark:], (asked, notified.read_text()[mark:]))
                 if way != "whole":
                     told = wait_for(browser, lambda b: "Le modèle n’a pas été téléchargé" in notified.read_text()[mark:], 15)
-                    check(f"{way}: said as Settings say it, nothing of it kept", told and not fetched.exists(), notified.read_text()[mark:][-300:])
+                    check(f"{way}: said as Settings say it, the model not put in its place", told and not fetched.exists(), notified.read_text()[mark:][-300:])
             text = window.file.read_text()
             check("saved private before it is fetched: the minutes by the Ollama answering, qwen3:8b",
                   f'minutes_provider = "{ollama}/v1"' in text and 'minutes_model = "qwen3:8b"' in text, text)
@@ -1186,13 +1186,16 @@ def first_run(now: dt.datetime) -> None:
             press(browser, "welcome-again")
             until_question(browser)
             browser.execute_script("document.querySelector('#welcome input[value=rarely]').click()")
-            came = wait_for(browser, lambda b: fetched.exists(), 15)
-            time.sleep(2)  # the page's next reading of what is being made, every 1.5 s
+            # Come, and read by the page — Settings, hidden, say it no longer missing —; its drawing
+            # then given a second to end.
+            came = wait_for(browser, lambda b: fetched.exists() and b.execute_script(
+                "return document.getElementById('model-state')?.dataset.kind") == "named", 15)
+            time.sleep(1)
             check("the model come while the assistant is answered: the answer chosen stays, never drawn over",
                   came and browser.execute_script(picked) == "rarely", browser.execute_script(picked))
             press(browser, "welcome-skip")
             ready = wait_for(browser, lambda b: "Prêt" in b.execute_script(state), 15)
-            check("whole: how far it is said in Settings, then ready there, checked against its fingerprint",
+            check("whole: said coming in Settings, then ready there, checked against its fingerprint",
                   coming and ready and fetched.read_bytes() == right and wait_for(browser, lambda b: "Modèle prêt" in notified.read_text(), 5),
                   browser.execute_script(state))
             check("Ollama asked nothing but what it holds", posted == [], posted)
