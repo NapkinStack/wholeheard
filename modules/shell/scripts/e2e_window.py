@@ -26,7 +26,9 @@ import wave
 from pathlib import Path
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchWindowException, StaleElementReferenceException, TimeoutException, WebDriverException
+from selenium.common.exceptions import (
+    ElementNotInteractableException, NoSuchWindowException, StaleElementReferenceException, TimeoutException, WebDriverException,
+)
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -151,12 +153,13 @@ def choose(browser, element_id: str, value: str) -> None:
 
 
 def press(browser, element_id: str) -> None:
-    """A click on the page as it is: drawn again under the driver, the element is found afresh."""
-    for _ in range(5):
+    """A click on the page as it is: drawn again under the driver, the element is found afresh;
+    found before it can be clicked — shown, laid out — it is clicked a moment later (#510)."""
+    for _ in range(10):
         try:
             browser.find_element(By.ID, element_id).click()
             return
-        except StaleElementReferenceException:
+        except (StaleElementReferenceException, ElementNotInteractableException):
             time.sleep(0.2)
     browser.find_element(By.ID, element_id).click()
 
@@ -853,7 +856,8 @@ def first_run(now: dt.datetime) -> None:
         keys(browser, Keys.TAB)
         skip = browser.execute_script(focused)
         check("Tab reaches the answers, then Passer", first.startswith("INPUT:private") and skip == "BUTTON:welcome-skip:", (first, skip))
-        ring = browser.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0")
+        # Drawn once the window has the system's focus: waited for, the desktop being in use (#510).
+        ring = wait_for(browser, lambda b: b.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0"), 3)
         check("the focus is seen", ring)
         keys(browser, Keys.ENTER)
         listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed() and b.find_element(By.CSS_SELECTOR, "header.bar").is_displayed(), 10)
