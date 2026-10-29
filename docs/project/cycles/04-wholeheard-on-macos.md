@@ -586,6 +586,13 @@ offer services by name. OpenRouter lists its transcription models
 without segment times — OpenAI's `gpt-4o-transcribe`, by #516's challenge, to be read again when it is
 built — gives D43 nothing to place, and is not offered.
 
+- **Mistral not offered**, on the decider's word, 2026-10-29: « Mistral non ». It publishes OpenAI's
+  `audio/transcriptions`, but it gives its segments' times in a field of its own, which the step does
+  not ask for. Offered, every meeting would be refused for want of times. Criterion 1 reads « and
+  Mistral if it does »: not, for the step as it is. This is #523's verifier's remark 1, settled.
+- Built by #523, *Tester*'s sentence and the e2e's double made true by #545. Left: the decider's trial
+  of a real service, with their key (#463).
+
 ### D64
 
 **Added on the decider's word, 2026-10-29**, after their question the same day (« je ne vois pas
