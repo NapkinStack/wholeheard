@@ -190,6 +190,14 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .drawn .player .at { font: 12.5px ui-monospace, monospace; color: var(--soft); font-variant-numeric: tabular-nums; }
 .lines li { cursor: pointer; border-radius: 8px; }
 .lines li.now { background: var(--raised); box-shadow: 0 0 0 6px var(--raised); }
+/* A line corrected by whoever listens (D62): its pencil quiet until the line is pointed or reached. */
+.lines .edit { margin-left: auto; flex: 0 0 auto; min-width: 32px; min-height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--soft); font: inherit; cursor: pointer; opacity: 0.35; }
+.lines li:hover .edit, .lines li:focus-within .edit, .lines .edit:focus-visible { opacity: 1; }
+.lines .edit:hover { background: var(--raised); color: var(--ink); }
+.lines .edited { margin-left: 8px; font-size: 12px; color: var(--soft); }
+.lines .correcting { width: 100%; min-height: 36px; padding: 4px 8px; border: 1px solid var(--accent); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+.corrected-since { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 4px 0 8px; }
+.corrected-since .note { margin: 0; }
 .maker { font: 12.5px ui-monospace, monospace; color: var(--soft); }
 .minutes > .primary, .transcript > .primary { align-self: flex-start; }
 

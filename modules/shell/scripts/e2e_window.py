@@ -15,6 +15,7 @@ import json
 import math
 import os
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -292,6 +293,13 @@ class Window:
         finally:
             self.driver_process.terminate()
             self.driver_process.wait(timeout=10)
+            # A session that never answered leaves the Wholeheard under test behind: ended, or it takes
+            # the next start's arguments and the next session never opens (#510). Only this binary's.
+            for pid in instances():
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
 
 
 # The run's own output, made by e2e.sh: the window's sound goes there, never to the speakers.
@@ -395,6 +403,10 @@ def model_offered(now: dt.datetime) -> None:
         label = browser.find_element(By.ID, "model-fetch").text if offered else ""
         check("Settings offer the missing model, with its size and host", offered and label == f"Télécharger le modèle (300 ko, {host})", label)
         check("nothing is fetched before the click", asked == [], asked)
+        # Coming back to the window draws it anew, by design: the window's focus waited for first —
+        # the desktop being in use, it may come late (#510).
+        wait_for(browser, lambda b: b.execute_script("return document.hasFocus()"), 5)
+        time.sleep(0.5)
         button = browser.find_element(By.ID, "model-fetch")
         time.sleep(3.5)
         check("in Settings too, the offer is not drawn again while nothing changes", not staleness_of(button)(browser))
@@ -652,7 +664,26 @@ def service_named(now: dt.datetime) -> None:
         '{"type":"header","contract":"transcript/v1","engine":"api.groq.com","model":"whisper-large-v3","language":"fr","context":null}\n'
         '{"type":"segment","speaker":"me","track":"local","voice":null,"start":0.5,"end":1.5,"text":"Bonjour."}\n{"type":"complete","duration":2.0}\n'
     )
+    # OpenRouter's stand-in: it lists its transcription models, by what they do (D63).
+    listed = []
+
+    class Listing(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            listed.append(self.path)
+            body = json.dumps({"data": [{"id": "openai/whisper-large-v3-turbo"}, {"id": "vendor/scribe"}]}).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Listing)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    stand = f"http://127.0.0.1:{server.server_address[1]}/api/v1"
     window = Window(meetings, "fr_FR.UTF-8")
+    window.env.update(WHOLEHEARD_HEARING=stand)
     said = "return document.getElementById('transcription-said')?.innerText || ''"
     with window as browser:
         browser.find_element(By.ID, "settings-link").click()
@@ -699,6 +730,42 @@ def service_named(now: dt.datetime) -> None:
         browser.execute_script("location.hash = '#/settings'")
         note = wait_for(browser, lambda b: "reçoit le son de vos réunions" in b.find_element(By.ID, "settings").text, 5)
         check("Settings say a transcription service receives the meetings' sound", note and "L’audio ne quitte jamais" not in browser.find_element(By.ID, "settings").text)
+        # Offered by name, as the minutes' services are (D63).
+        offered = lambda b, id_: b.execute_script("return [...document.querySelectorAll(arguments[0])].map(o => [o.value, o.textContent])", f"#{id_} option")
+        names = [said_ for value, said_ in offered(browser, "model") if value.startswith("service:")]
+        check("the services that hear are offered by name, as the minutes' are: OpenRouter, OpenAI", names == ["OpenRouter", "OpenAI"], names)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:0")
+        models = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["openai/whisper-large-v3-turbo", "vendor/scribe", "Un autre modèle…"], 5)
+        check("OpenRouter chosen: its transcription models listed from it, its address filled and not asked",
+              models and listed == ["/api/v1/models?output_modalities=transcription"] and not browser.find_element(By.ID, "transcription-provider").is_displayed()
+              and not browser.find_element(By.ID, "transcription-model").is_displayed(), (offered(browser, "transcription-models"), listed))
+        Select(browser.find_element(By.ID, "transcription-models")).select_by_value("")
+        typed = wait_for(browser, lambda b: b.find_element(By.ID, "transcription-model").is_displayed()
+                         and b.execute_script("return document.activeElement.id") == "transcription-model", 3)
+        check("« Un autre modèle… »: a model typed by hand", typed)
+        Select(browser.find_element(By.ID, "transcription-models")).select_by_value("vendor/scribe")
+        browser.find_element(By.ID, "transcription-key").send_keys("sk-stand-in-not-a-key")
+        if not browser.find_element(By.ID, "transcription-agreed").is_selected():
+            browser.find_element(By.ID, "transcription-agreed").click()
+        press(browser, "transcription-save")
+        saved = wait_for(browser, lambda b: f'transcription_provider = "{stand}"' in window.file.read_text(), 5)
+        text = window.file.read_text()
+        check("saved: OpenRouter's address, the model chosen in its list, the key never in the settings",
+              saved and 'transcription_model = "vendor/scribe"' in text and "sk-stand-in" not in text, text)
+        press(browser, "transcription-test")
+        tested = wait_for(browser, lambda b: b.execute_script(said) and "Enregistré" not in b.execute_script(said), 10)
+        check("Tester, on the service chosen from the list, says in one sentence what it answered", tested, browser.execute_script(said))
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
+        browser.execute_script("location.hash = '#/settings'")
+        kept = wait_for(browser, lambda b: b.find_elements(By.ID, "model") and b.find_element(By.ID, "model").get_attribute("value") == "service:0"
+                        and b.find_element(By.ID, "transcription-models").get_attribute("value") == "vendor/scribe", 5)
+        check("drawn again: OpenRouter chosen, its model in its list", kept)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:1")
+        named = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["whisper-1", "Un autre modèle…"], 5)
+        check("OpenAI chosen: the model it publishes with segments, named in the repository — not its own list",
+              named and len(listed) == 2, (offered(browser, "transcription-models"), listed))
+    server.shutdown()
 
 
 def ollama_pulled(now: dt.datetime) -> None:
@@ -885,7 +952,9 @@ def first_run(now: dt.datetime) -> None:
         skip = browser.execute_script(focused)
         check("Tab reaches the answers, then Passer", first.startswith("INPUT:private") and skip == "BUTTON:welcome-skip:", (first, skip))
         # Drawn once the window has the system's focus: waited for, the desktop being in use (#510).
-        ring = wait_for(browser, lambda b: b.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0"), 3)
+        # Asked for, then waited for: another window of the desktop may hold the system's focus.
+        browser.switch_to.window(browser.current_window_handle)
+        ring = wait_for(browser, lambda b: b.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0"), 10)
         check("the focus is seen", ring)
         keys(browser, Keys.ENTER)
         listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed() and b.find_element(By.CSS_SELECTOR, "header.bar").is_displayed(), 10)
@@ -1234,6 +1303,173 @@ def first_run(now: dt.datetime) -> None:
         monitor.wait(timeout=10)
         for server in servers:
             server.shutdown()
+
+
+def transcript_corrected(now: dt.datetime) -> None:
+    """AB. A line of a transcript corrected by whoever listens to it (D62, ADR-0014)."""
+    print("AB. a transcript's line corrected by whoever listens, the minutes offered again (D62)")
+    keys = lambda browser, *sent: ActionChains(browser).send_keys(*sent).perform()
+    focused = lambda b: b.execute_script("return document.activeElement.id || document.activeElement.className")
+
+    def when(text) -> dt.datetime:
+        """A time as the file says it, or long ago when it says none, or none that reads."""
+        try:
+            return dt.datetime.fromisoformat(text)
+        except (TypeError, ValueError):
+            return dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+
+    meetings = WORK / "correcting"
+    heard = meetings / "2026-10-27_09-00"
+    session(heard, now - dt.timedelta(days=1), 0.1, {})
+    record = json.loads((heard / "session.json").read_text())
+    record["tracks"] = {"local": {"device": "Mic"}}
+    (heard / "session.json").write_text(json.dumps(record))
+    with wave.open(str(heard / "local.wav"), "wb") as made:
+        made.setnchannels(1)
+        made.setsampwidth(2)
+        made.setframerate(48000)
+        made.writeframes(bytes(2 * 48000 * 3))
+    (heard / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n')
+    before = (
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","voice":null,"start":0.4,"end":1.2,"text":"Bonjour à tous, on commence."}\n'
+        '{"type":"segment","speaker":"others","track":"remote","voice":null,"start":1.5,"end":2.5,"text":"Le budget de Jiri est validé."}\n'
+        '{"type":"complete","duration":3.0}\n'
+    )
+    (heard / "transcript.jsonl").write_text(before)
+    minutes = ("---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
+               "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    (heard / "minutes.md").write_text(minutes)
+    # Not complete: nothing to correct yet.
+    unfinished = meetings / "2026-10-27_11-00"
+    session(unfinished, now - dt.timedelta(days=1), 0.1, {"local.wav": 1000})
+    (unfinished / "transcript.jsonl").write_text(before.replace('{"type":"complete","duration":3.0}\n', ""))
+    model = WORK / "correcting-model.bin"
+    model.write_bytes(b"\0" * 16)
+    settings = f'reminder = false\nmodel = "{model}"\nminutes_provider = "http://127.0.0.1:9/v1"\nminutes_model = "mistral"\n'
+    window = Window(meetings, "fr_FR.UTF-8", settings)
+    pencils = "return [...document.querySelectorAll('#meeting .lines .edit')].filter(p => !p.hidden).length"
+    with window as browser:
+        browser.execute_script(f"location.hash = '#/meeting/{unfinished.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#meeting .lines li"), 10)
+        refused = browser.execute_script(
+            "return window.__TAURI__.core.invoke('transcript_corrected', {name: arguments[0], track: 'local', start: 0.4, text: 'x'}).then(() => 'kept', (why) => String(why))",
+            unfinished.name)
+        check("a transcript not complete offers no line to correct, and a correction asked is refused, the file as it was",
+              browser.execute_script(pencils) == 0 and "not complete" in refused and (unfinished / "transcript.jsonl").read_text() == before.replace('{"type":"complete","duration":3.0}\n', ""),
+              (browser.execute_script(pencils), refused))
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#meeting .lines .edit"), 10)
+        check("complete, each line has its pencil, named by the line's time", browser.execute_script(pencils) == 2
+              and browser.find_elements(By.CSS_SELECTOR, "#meeting .lines .edit")[1].get_attribute("aria-label") == "Corriger la ligne de 00:01")
+        check("before any correction, the minutes say nothing of one", not browser.find_elements(By.ID, "corrected-since"))
+        # By the keyboard alone: Tab from the first line reaches its pencil; Enter opens the field.
+        first = browser.find_element(By.CSS_SELECTOR, "#meeting .lines li")
+        browser.execute_script("arguments[0].focus()", first)
+        keys(browser, Keys.TAB)
+        on_pencil = browser.execute_script("return document.activeElement.classList.contains('edit')")
+        keys(browser, Keys.ENTER)
+        field = wait_for(browser, lambda b: focused(b) == "correcting", 2)
+        check("Tab from a line reaches its pencil, Enter opens the line as a field, focused, holding its text",
+              on_pencil and field and browser.execute_script("return document.activeElement.value") == "Bonjour à tous, on commence.")
+        # Escape: as it was.
+        keys(browser, Keys.END, " encore", Keys.ESCAPE)
+        back = wait_for(browser, lambda b: b.execute_script("return document.activeElement.classList.contains('edit')"), 2)
+        check("Escape leaves the line as it was, the focus back on its pencil, the file untouched",
+              back and (heard / "transcript.jsonl").read_text() == before
+              and browser.find_element(By.CSS_SELECTOR, "#meeting .lines .text").text == "Bonjour à tous, on commence.")
+        # Emptied: refused, said.
+        keys(browser, Keys.ENTER)
+        wait_for(browser, lambda b: focused(b) == "correcting", 2)
+        browser.execute_script("document.activeElement.select()")
+        keys(browser, Keys.DELETE, Keys.ENTER)
+        said = wait_for(browser, lambda b: "ne reste pas vide" in b.find_element(By.ID, "correction-said").text, 2)
+        check("a line left empty is refused, said, the field kept", said and focused(browser) == "correcting" and (heard / "transcript.jsonl").read_text() == before)
+        keys(browser, "Bonjour à toutes, on commence — Γιώργος 🙂", Keys.ENTER)
+        kept = wait_for(browser, lambda b: "toutes" in (heard / "transcript.jsonl").read_text(), 3)
+        after = (heard / "transcript.jsonl").read_text().splitlines()
+        changed = [i for i, (a, b) in enumerate(zip(before.splitlines(), after)) if a != b]
+        line = json.loads(after[1]) if len(after) > 1 else {}
+        check("Enter keeps it: the file differs by that line alone, its text as typed — any script —, edited when",
+              kept and len(after) == 4 and changed == [1] and line.get("text") == "Bonjour à toutes, on commence — Γιώργος 🙂"
+              and when(line.get("edited")) > now - dt.timedelta(minutes=30)
+              and {k: v for k, v in line.items() if k not in ("text", "edited")} == {k: v for k, v in json.loads(before.splitlines()[1]).items() if k != "text"},
+              after)
+        # Against the contract's own schema, its formats checked: `edited` a date-time.
+        import jsonschema
+        schema = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "transcript" / "v1" / "line.schema.json").read_text())
+        validator = jsonschema.Draft202012Validator(schema, format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER)
+        invalid = [str(error.message) for kept_line in after for error in validator.iter_errors(json.loads(kept_line))]
+        check("the file corrected is valid against transcript/v1's schema, its `edited` a date-time", invalid == [], invalid)
+        shown = browser.find_element(By.CSS_SELECTOR, "#meeting .lines li").text
+        check("the page shows it, marked « corrigé », the focus back on its pencil",
+              "Bonjour à toutes" in shown and "corrigé" in shown and browser.execute_script("return document.activeElement.classList.contains('edit')"), shown)
+        # Left by the pointer — a click elsewhere —: what is typed is kept, as Enter keeps it.
+        browser.find_elements(By.CSS_SELECTOR, "#meeting .lines .edit")[1].click()
+        wait_for(browser, lambda b: focused(b) == "correcting", 2)
+        keys(browser, Keys.END, " en novembre")
+        browser.find_element(By.CSS_SELECTOR, "#meeting h1, #meeting .meeting-top").click()
+        left = wait_for(browser, lambda b: "validé. en novembre" in (heard / "transcript.jsonl").read_text(), 3)
+        check("leaving the field keeps what is typed", left, (heard / "transcript.jsonl").read_text().splitlines()[2:3])
+        # Drawn again: the minutes, older than the correction, say so and offer to be made again.
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        offered = wait_for(browser, lambda b: b.find_elements(By.ID, "corrected-since"), 10)
+        check("the minutes written before it say the transcript was corrected since, and offer « Refaire avec les corrections »",
+              offered and "corrigé après ce compte rendu" in browser.find_element(By.ID, "corrected-since").text
+              and browser.find_element(By.ID, "redo-corrections").text == "Refaire avec les corrections")
+        time.sleep(2)
+        check("nothing is made again without that click", (heard / "minutes.md").read_text() == minutes)
+        # Refaire… of a corrected transcript says its corrections will not be kept.
+        press(browser, "redo-transcript")
+        warned = wait_for(browser, lambda b: b.find_elements(By.ID, "redo-loses-corrections"), 5)
+        check("Refaire… of a corrected transcript says, before it starts, that its corrections will not be kept",
+              warned and "ne seront pas gardées" in browser.find_element(By.ID, "redo-loses-corrections").text)
+        browser.execute_script(f"location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-corrections"), 10)
+        # While they are written, no line is corrected: they read the transcript before.
+        (WORK / "slow-minutes").touch()
+        try:
+            press(browser, "redo-corrections")
+            writing = wait_for(browser, lambda b: b.execute_script(
+                "return window.__TAURI__.core.invoke('makings').then(m => m.minutes?.name === arguments[0])", heard.name), 5)
+            asked = browser.execute_script(
+                "return window.__TAURI__.core.invoke('transcript_corrected', {name: arguments[0], track: 'remote', start: 1.5, text: 'x'}).then(() => 'kept', (why) => String(why))",
+                heard.name)
+            hidden = wait_for(browser, lambda b: b.execute_script(pencils) == 0, 3)
+            check("while the minutes are written, no line is corrected: refused, its pencils hidden",
+                  writing and "being written" in asked and hidden and "Le budget de Jiri" in (heard / "transcript.jsonl").read_text(), (writing, asked))
+        finally:
+            (WORK / "slow-minutes").unlink()
+        remade = wait_for(browser, lambda b: (heard / "minutes.md").read_text() != minutes, 10)
+        check("« Refaire avec les corrections »: the minutes made again by whoever the settings name, from the corrected transcript",
+              remade and "model: mistral" in (heard / "minutes.md").read_text(), (heard / "minutes.md").read_text()[:200])
+        # Asked while the transcript is made again: refused — one writer at a time.
+        (WORK / "slow-hearing").touch()
+        try:
+            # Refused while the minutes asked just before are still made: asked again until taken.
+            wait_for(browser, lambda b: b.execute_script(
+                "return window.__TAURI__.core.invoke('context_redo', {name: arguments[0]}).then(() => true, () => false)", heard.name), 10)
+            # Made, or in line to be: what the shell says it is making.
+            wait_for(browser, lambda b: b.execute_script(
+                "return window.__TAURI__.core.invoke('makings').then(m => m.transcript?.name === arguments[0] || m.transcripts_waiting.includes(arguments[0]))",
+                heard.name), 5)
+            refused = browser.execute_script(
+                "return window.__TAURI__.core.invoke('transcript_corrected', {name: arguments[0], track: 'local', start: 0.4, text: 'x'}).then(() => 'kept', (why) => String(why))",
+                heard.name)
+        finally:
+            (WORK / "slow-hearing").unlink()
+        check("a correction asked while the transcript is made again is refused", "being made" in refused, refused)
+        # Its end waited for: the transcript set aside meanwhile, then the new one in its place.
+        def remade() -> bool:
+            try:
+                return "Refait avec" in (heard / "transcript.jsonl").read_text()
+            except FileNotFoundError:
+                return False
+        wait_for(browser, lambda b: remade(), 10)
 
 
 def context_written(now: dt.datetime) -> None:
@@ -2001,7 +2237,7 @@ def main() -> int:
         checked = browser.execute_script("return document.querySelector('input[name=after]:checked').value")
         check("out of the box, the transcript follows", checked == "transcript", checked)
         names = [o.text.split(" — ")[0] for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
-        check("the models on this computer are offered, by the names people say", names == ["Whisper large v3 turbo", "Whisper small", "Un service que je choisis"], names)
+        check("the models on this computer are offered, by the names people say", names == ["Whisper large v3 turbo", "Whisper small", "OpenRouter", "OpenAI", "Un service que je choisis"], names)
         ready = browser.find_element(By.ID, "model-state").text
         check("the transcription model's state is said at the page's end", "Prêt" in ready and "sans réseau" in ready, ready)
         # Each change is saved, then the page is drawn again: the next acts on the new one.
@@ -2897,7 +3133,9 @@ def main() -> int:
         browser.switch_to.window(main)
         opened = wait_for(browser, lambda b: b.execute_script("return location.hash").startswith("#/meeting/") and len(b.window_handles) == 1, 5)
         check("its last meeting opens in the full window, in place of the small one", opened, (browser.execute_script("return location.hash"), browser.window_handles))
-        browser.find_element(By.ID, "small-link").click()
+        # Clicked by the page itself: the driver's click, a window having just gone, was left unanswered
+        # for a minute twice on a desktop in use — the windows' count below is what is checked.
+        browser.execute_script("document.getElementById('small-link').click()")
         wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
         browser.switch_to.window([h for h in browser.window_handles if h != main][0])
         wait_for(browser, lambda b: b.find_elements(By.ID, "small-all"), 5)
@@ -3177,6 +3415,7 @@ def main() -> int:
     first_run(now)
     context_written(now)
     confidential_kept(now)
+    transcript_corrected(now)
     return 1 if FAILED else 0
 
 

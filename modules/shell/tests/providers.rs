@@ -6,7 +6,9 @@ use std::{
     thread,
 };
 
-use wholeheard_shell::providers::{self, ONLINE, host, local, ollama_address, ollama_listed, ollama_models, ollama_pull};
+use wholeheard_shell::providers::{
+    self, ONLINE, hearing, hearing_listed, host, local, ollama_address, ollama_listed, ollama_models, ollama_pull,
+};
 
 /// A server that answers each request with `body`, as many times as asked.
 fn answering(body: &'static str, times: usize) -> String {
@@ -202,4 +204,30 @@ fn ollama_answering_with_no_model_is_not_ollama_missing() {
     assert_eq!(ollama_listed(&answering(r#"{"models":[]}"#, 1)), Some(Vec::new()));
     let closed = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
     assert_eq!(ollama_listed(&format!("http://{closed}")), None);
+}
+
+#[test]
+fn the_services_that_hear_are_the_minutes_own_offered_by_name_with_their_published_models() {
+    let offered = hearing();
+    let names: Vec<_> = offered.iter().map(|service| service.name).collect();
+    assert_eq!(names, ["OpenRouter", "OpenAI"]);
+    assert_eq!(offered[0].address, ONLINE[0].address);
+    assert_eq!(offered[1].address, ONLINE[1].address);
+    // OpenRouter lists its own; OpenAI's with segments are named — `gpt-4o-transcribe` gives none.
+    assert!(offered[0].listed && !offered[1].listed);
+    assert_eq!(offered[1].models, ["whisper-1"]);
+}
+
+#[test]
+fn the_transcription_models_a_service_lists_are_offered_by_name_and_none_when_it_does_not_list() {
+    let listing = answering(
+        r#"{"data":[{"id":"openai/whisper-large-v3"},{"id":"vendor/scribe","name":"Scribe"},{"name":"no id"},{"id":""},{"id":"a\u0000b"}]}"#,
+        1,
+    );
+    assert_eq!(hearing_listed(&listing).unwrap(), ["openai/whisper-large-v3", "vendor/scribe"]);
+    // Not answering, not a list, an empty one: none — the models published are offered then.
+    let closed = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+    assert_eq!(hearing_listed(&format!("http://{closed}")), None);
+    assert_eq!(hearing_listed(&answering("not json", 1)), None);
+    assert_eq!(hearing_listed(&answering(r#"{"data":[]}"#, 1)), None);
 }

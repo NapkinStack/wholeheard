@@ -29,7 +29,7 @@ use wholeheard_shell::microphone;
 use wholeheard_shell::{
     autostart,
     confidential::{self, Left, Wait, What},
-    context, desktop, keys, log,
+    context, correction, desktop, keys, log,
     meeting::{self, Read, Transcript},
     migrate,
     minutes::{self, Minutes},
@@ -221,6 +221,7 @@ fn main() {
             speech_shown,
             transcription_saved,
             transcription_tested,
+            hearing_models,
             speech_installed,
             ollama_pull_offered,
             header,
@@ -239,6 +240,7 @@ fn main() {
             context_redo,
             confidential_set,
             transcript_redo,
+            transcript_corrected,
             transcript_asked,
             transcript_again,
             opened,
@@ -711,6 +713,36 @@ fn minutes_redo(
         }
     };
     write_minutes(&app, folder, None, chosen);
+    Ok(())
+}
+
+/// A line of a meeting's transcript corrected on the user's word (D62, ADR-0014): once complete,
+/// never while it is made or waits to be made again. The making's lock held while it is written:
+/// one writer at a time.
+#[tauri::command]
+fn transcript_corrected(shell: State<'_, Shell>, name: String, track: String, start: f64, text: String) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    let running = shell.transcription.lock().unwrap();
+    let hearing = shell.hearing.lock().unwrap().as_deref() == Some(folder.as_path());
+    let waits = shell.waiting.lock().unwrap().iter().any(|(queued, _)| *queued == folder);
+    if (running.is_some() && hearing) || waits {
+        return Err(format!("the transcript of {name} is being made"));
+    }
+    // Its minutes being written read the transcript before: a correction now would be older than
+    // their `made`, and never offered again (#528's verification).
+    if shell.writing_minutes.lock().unwrap().as_deref() == Some(folder.as_path()) {
+        return Err(format!("the minutes of {name} are being written"));
+    }
+    let when = chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
+    correction::correct(&folder.join("transcript.jsonl"), &track, start, &text, &when).map_err(|refused| match refused {
+        correction::Refused::NotComplete => format!("the transcript of {name} is not complete"),
+        correction::Refused::NoSuchLine => "no line of the transcript starts there".to_string(),
+        correction::Refused::Empty => "a line is not left empty".to_string(),
+        correction::Refused::File(why) => why,
+    })?;
+    drop(running);
+    // What was typed is the meeting's: never in the log.
+    tracing::info!("shell.transcript_corrected");
     Ok(())
 }
 
@@ -1321,6 +1353,8 @@ struct SettingsShown {
     /// host it is read again from on the user's gesture (D40).
     offered: Vec<Offered>,
     registry_host: String,
+    /// The services that hear, offered by name (D63).
+    hearing: Vec<providers::Hearing>,
     /// The language the interface speaks (D64).
     language: words::Language,
     developer: bool,
@@ -1371,6 +1405,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         transcription_agreed: settings.transcription_agreed.clone(),
         models,
         registry_host: registry::host(&registry_address()).to_owned(),
+        hearing: providers::hearing(),
         offered: offered()
             .iter()
             .enumerate()
@@ -1687,6 +1722,22 @@ async fn transcription_saved(
         None => None,
     };
     Ok(not_kept)
+}
+
+/// The transcription models a service that hears offers (D63): listed by the service where it
+/// lists them, else those it publishes. Nothing of a meeting is sent; no key is needed to list.
+#[tauri::command]
+async fn hearing_models(index: usize) -> Result<Vec<String>, String> {
+    let service = providers::hearing().into_iter().nth(index).ok_or("no such service")?;
+    let published = || service.models.iter().map(|model| model.to_string()).collect();
+    if !service.listed {
+        return Ok(published());
+    }
+    let address = service.address.clone();
+    let listed = tauri::async_runtime::spawn_blocking(move || providers::hearing_listed(&address))
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(listed.unwrap_or_else(published))
 }
 
 /// *Tester* for who hears: `wholeheard-transcription --test` sends a sound of its own to the service

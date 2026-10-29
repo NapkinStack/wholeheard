@@ -36,6 +36,8 @@ pub struct Segment {
     /// The voice within the track, when one was told.
     pub voice: Option<String>,
     pub text: String,
+    /// When a person corrected its text, as the line says it (D62): absent, as heard.
+    pub edited: Option<String>,
 }
 
 /// A file of the session, read: not there, there and read, or there and not of this version.
@@ -111,6 +113,7 @@ fn segment(value: &serde_json::Value) -> Option<Segment> {
         track,
         voice: text("voice"),
         text: said,
+        edited: text("edited"),
     })
 }
 
