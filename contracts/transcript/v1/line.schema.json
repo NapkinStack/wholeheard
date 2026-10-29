@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "A line of transcript.jsonl",
-  "description": "transcript/v1 — one JSON object a line. What a schema cannot say is on the contract's page: the order of the lines, that they are only ever added, that a segment ends after it starts.",
+  "description": "transcript/v1 — one JSON object a line. What a schema cannot say is on the contract's page: the order of the lines, that they are only ever added until the transcript is complete, that a segment ends after it starts.",
   "oneOf": [
     {
       "type": "object",
@@ -75,6 +75,11 @@
           "not": {
             "pattern": "[\\n\\r]"
           }
+        },
+        "edited": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the user corrected this segment's text, once the transcript was complete (ADR-0014). Absent: as the engine heard it."
         }
       },
       "required": [
