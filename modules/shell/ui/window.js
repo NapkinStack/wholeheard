@@ -943,7 +943,8 @@ function minutesCard(read, words, session, transcript) {
 // Qui · Quoi · Pour quand, who in its colour, by when in monospace, the cells named for assistive
 // technology alone; an item that does not split in three is shown as written, in its place.
 function actionRows(body, words) {
-  const titles = body.querySelectorAll(":scope > h2");
+  // Every second-level title, as the shell's reader counts them.
+  const titles = body.querySelectorAll("h2");
   if (titles.length < 2) return;
   let list = titles[1].nextElementSibling;
   while (list && list !== titles[2] && !["UL", "OL"].includes(list.tagName)) list = list.nextElementSibling;
@@ -961,7 +962,9 @@ function actionRows(body, words) {
     if (parts.length === 3 && parts.every((part) => part !== "")) {
       const [what, who, when] = parts;
       for (const [text, kind] of [[who, "who"], [what, "what"], [when, "when"]]) {
-        const cell = element("td", unsettled(text) ? `${kind} unsettled` : kind, text);
+        // Short, on one line; long, back to the line between words, never pushing the card wider.
+        const long = kind !== "what" && text.length > 18 ? " long" : "";
+        const cell = element("td", (unsettled(text) ? `${kind} unsettled` : kind) + long, text);
         row.append(cell);
       }
     } else {

@@ -1743,7 +1743,8 @@ def actions_rows(now: dt.datetime) -> None:
     (folder / "minutes.md").write_text(
         "---\ncontract: minutes/v1\nmade: 2026-10-28T15:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
         "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Envoyer le devis — Inès — vendredi\n- Réserver la salle — non précisé — non précisé\n"
-        "- Relancer le fournisseur — Paul\n- Rappeler **Jiří** — Marc — 2026-11-04\n\n## 3.\n\n- Rien\n")
+        "- Relancer le fournisseur — Paul\n- Rappeler **Jiří** — Marc — 2026-11-04\n"
+        "- Valider le budget — Alexandre, Inès, Paul et le comité scientifique — avant la réunion du comité de pilotage de novembre\n\n## 3.\n\n- Rien\n")
     rows = ("return [...document.querySelectorAll('#meeting .minutes table.actions tbody tr')].map(r =>"
             " [...r.cells].map(c => [c.className, c.textContent]))")
     with Window(meetings, "fr_FR.UTF-8", "reminder = false\n") as browser:
@@ -1755,10 +1756,12 @@ def actions_rows(now: dt.datetime) -> None:
               got == [[["who", "Inès"], ["what", "Envoyer le devis"], ["when", "vendredi"]],
                       [["who unsettled", "non précisé"], ["what", "Réserver la salle"], ["when unsettled", "non précisé"]],
                       [["written", "Relancer le fournisseur — Paul"]],
-                      [["who", "Marc"], ["what", "Rappeler Jiří"], ["when", "2026-11-04"]]], got)
+                      [["who", "Marc"], ["what", "Rappeler Jiří"], ["when", "2026-11-04"]],
+                      [["who long", "Alexandre, Inès, Paul et le comité scientifique"], ["what", "Valider le budget"],
+                       ["when long", "avant la réunion du comité de pilotage de novembre"]]], got)
         heads = browser.execute_script(
-            "const h = document.querySelector('#meeting table.actions thead'); const r = h.getBoundingClientRect();"
-            "return [[...h.querySelectorAll('th')].map(t => t.textContent), r.width <= 1 && r.height <= 1]")
+            "const th = [...document.querySelectorAll('#meeting table.actions thead th')];"
+            "return [th.map(t => t.textContent), th.every(t => { const r = t.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; })]")
         check("no visible headers: Qui, Quoi, Pour quand their names for assistive technology", heads == [["Qui", "Quoi", "Pour quand"], True], heads)
         looks = browser.execute_script(
             "const of = (v) => { const p = document.createElement('span'); p.style.color = `var(${v})`; document.querySelector('#meeting').append(p);"
@@ -1768,6 +1771,16 @@ def actions_rows(now: dt.datetime) -> None:
             " s('#meeting table.actions td.who.unsettled').color === of('--soft')]")
         check("who in its colour, by when in monospace, « non précisé » in the soft colour",
               looks[0] and "monospace" in looks[1] and looks[2], looks)
+        # Long names and dates come back to the line: nothing overflows the card, at 1100 nor at 640 px.
+        wide = "const b = document.querySelector('#meeting .minutes .body'); return [b.scrollWidth, b.clientWidth]"
+        held = browser.execute_script(wide)
+        browser.set_window_size(420, 800)
+        narrow = wait_for(browser, lambda b: b.execute_script("return innerWidth") <= 420, 5) and browser.execute_script(wide)
+        check("a long who or by when comes back to the line: the table never overflows the minutes, at 1100 nor 420 px",
+              held[0] <= held[1] and narrow and narrow[0] <= narrow[1], (held, narrow))
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: b.execute_script("return innerWidth") > 1000, 5)
+        time.sleep(0.5)
         browser.execute_script("document.querySelector('#meeting .minutes').scrollIntoView({block: 'start'})")
         time.sleep(0.3)
         shot(browser, "d46-actions-rows")
