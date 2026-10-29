@@ -292,6 +292,11 @@ pub struct Window {
     pub interrupted: &'static str,
     /// No session in the folder: the folder.
     pub none: &'static str,
+    /// The sidebar's search (D61): what its field says, and none of the meetings holding what is typed.
+    /// No meeting yet: what to do.
+    pub none_do: &'static str,
+    pub find_meetings: &'static str,
+    pub none_found: &'static str,
     /// One meeting's page.
     pub back: &'static str,
     pub open_folder: &'static str,
@@ -666,6 +671,9 @@ pub fn window(language: Language) -> Window {
             recording: "Recording now",
             interrupted: "Interrupted — never stopped",
             none: "No meeting in {} yet.",
+            none_do: "Start a recording: its button, its shortcut, or the tray’s icon.",
+            find_meetings: "Search the meetings",
+            none_found: "No meeting holds these words.",
             back: "Meetings",
             open_folder: "Open the folder",
             minutes_title: "Minutes",
@@ -1005,6 +1013,9 @@ pub fn window(language: Language) -> Window {
             recording: "Enregistrement en cours",
             interrupted: "Interrompu — jamais arrêté",
             none: "Aucune réunion dans {} pour l’instant.",
+            none_do: "Démarrez un enregistrement\u{a0}: son bouton, son raccourci, ou l’icône de la barre système.",
+            find_meetings: "Chercher dans les réunions",
+            none_found: "Aucune réunion ne contient ces mots.",
             back: "Réunions",
             open_folder: "Ouvrir le dossier",
             minutes_title: "Compte rendu",
