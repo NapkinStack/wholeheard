@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>D61 — la fenêtre en deux panneaux</title>
+<!-- The source of the images beside it, rendered at 1280 px by chromium-browser --headless;
+     the colours are ui/window.css's. ?dark draws the dark theme. The windows are drawn at their
+     size, then scaled to fit the board: the scale is in each section's title. -->
+<style>
+  :root {
+    --ground: #F2F4F7; --surface: #FFFFFF; --raised: #EEF1F5; --line: #D9DDE5;
+    --ink: #15171C; --soft: #4C5464; --accent: #2253CF; --ok: #16794A; --red: #C2352D;
+    --on-accent: #FFFFFF; --note: #7A5A00; --note-ground: #FFF6DB; --current: #E3EAFB;
+  }
+  :root.dark {
+    --ground: #15171C; --surface: #1E2129; --raised: #282C37; --line: #343946;
+    --ink: #EEF0F4; --soft: #AAB1BF; --accent: #8AB0FF; --ok: #63D49C; --red: #FF7A72;
+    --on-accent: #15171C; --note: #F2CC6B; --note-ground: #2E2A1E; --current: #26324D;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1280px; padding: 34px; background: var(--ground); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; }
+  section { margin-bottom: 34px; }
+  h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
+  .note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--note-ground); color: var(--note); font-size: 13px; line-height: 1.4; }
+  .note b { display: block; margin-bottom: 2px; }
+  .pair { display: flex; gap: 28px; align-items: flex-start; }
+
+  /* A window drawn at its size, then scaled: --w and --h its size, --s the scale. */
+  .frame { width: calc(var(--w) * var(--s)); height: calc(var(--h) * var(--s)); flex: none; }
+  .win { width: var(--w); height: var(--h); transform: scale(var(--s)); transform-origin: 0 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--ground); display: flex; box-shadow: 0 6px 24px rgba(0,0,0,.12); }
+
+  /* The sidebar: 280 px, its own surface, its foot pinned. */
+  .side { width: 280px; flex: none; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 12px; }
+  .side .top { display: flex; align-items: center; gap: 8px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; flex: 1; }
+  .logo { width: 24px; height: 24px; border-radius: 7px; background: var(--ink); }
+  .icon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: var(--soft); font-size: 17px; border: 1px solid transparent; }
+  .icon.boxed { border-color: var(--line); background: var(--raised); color: var(--ink); }
+  .record { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 15px; }
+  .record i { width: 10px; height: 10px; border-radius: 50%; background: var(--on-accent); }
+  .keys { text-align: center; font: 12px ui-monospace, monospace; color: var(--soft); margin-top: -6px; }
+  .search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); color: var(--soft); font-size: 14px; }
+  .week { font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); padding: 8px 8px 2px; }
+  .items { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow: hidden; }
+  .item { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; }
+  .item b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .meta { display: flex; align-items: center; gap: 6px; font: 12px ui-monospace, monospace; color: var(--soft); }
+  .item .meta .dots { margin-left: auto; display: flex; gap: 4px; font-family: system-ui, sans-serif; font-size: 11px; }
+  .item.current { background: var(--current); box-shadow: inset 3px 0 0 var(--accent); }
+  .glyph { padding: 0 5px; border-radius: 5px; background: var(--raised); }
+  .glyph.ok { color: var(--ok); }
+  .foot { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .space { font-size: 13px; color: var(--soft); display: flex; justify-content: space-between; }
+  .space b { color: var(--ink); }
+  .bar { height: 6px; border-radius: 3px; background: var(--raised); overflow: hidden; display: flex; }
+  .bar i { background: var(--accent); width: 72%; } .bar i + i { background: var(--ok); width: 3%; }
+  .link { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; font-weight: 600; font-size: 14px; }
+
+  /* The pane: as wide as the window leaves it. */
+  .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .head .title { flex: 1; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .head .title b { font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .head .title span { font: 13px ui-monospace, monospace; color: var(--soft); white-space: nowrap; }
+  .btn { padding: 8px 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); font-weight: 600; font-size: 14px; white-space: nowrap; }
+  .body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; flex: 1; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--raised); color: var(--soft); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .wave { height: 70px; background: linear-gradient(transparent 48%, var(--line) 48%, var(--line) 52%, transparent 52%); position: relative; }
+  .wave svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .player { display: flex; align-items: center; gap: 12px; font: 13px ui-monospace, monospace; color: var(--soft); }
+  .play { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-size: 13px; }
+  .settings-row { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--soft); }
+  .settings-row span b { color: var(--ink); font-weight: 600; }
+  .texts { display: grid; gap: 14px; align-items: start; }
+  .texts.side-by-side { grid-template-columns: repeat(2, minmax(0, 75ch)); }
+  .texts.stacked { grid-template-columns: minmax(0, 75ch); }
+  .label { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); display: flex; align-items: center; justify-content: space-between; }
+  .by { font: 12px ui-monospace, monospace; color: var(--soft); }
+  h4 { margin: 4px 0 0; font-size: 15px; }
+  p { margin: 0; }
+  .action { display: flex; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--raised); font-size: 14px; }
+  .action span { margin-left: auto; color: var(--accent); }
+  .tline { display: grid; grid-template-columns: 46px 1fr 20px; gap: 4px 10px; font-size: 14px; }
+  .tline time { font: 12px ui-monospace, monospace; color: var(--soft); padding-top: 2px; }
+  .tline .who { font-size: 12px; color: var(--accent); }
+  .tline .who.far { color: var(--ok); }
+  .tline .pen { color: var(--soft); font-size: 13px; }
+  .lines { display: flex; flex-direction: column; gap: 10px; }
+  .gone { opacity: 0; }
+
+  /* Settings in the pane: 720 px at most. */
+  .form { max-width: 720px; display: flex; flex-direction: column; gap: 14px; }
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 14px; padding: 4px 0; }
+  .select { padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--raised); min-width: 220px; font-size: 14px; }
+
+  /* The empty state. */
+  .empty { flex: 1; display: grid; place-items: center; text-align: center; color: var(--soft); }
+  .empty .card { align-items: center; max-width: 420px; padding: 28px; }
+  .empty b { color: var(--ink); font-size: 18px; }
+  .focus { outline: 3px solid var(--accent); outline-offset: 2px; }
+</style>
+<script>if (location.search.includes("dark")) document.documentElement.classList.add("dark");</script>
+</head>
+<body>
+<template id="sidebar">
+  <aside class="side">
+    <div class="top"><span class="brand"><span class="logo"></span>Wholeheard</span><span class="icon" title="Replier la barre latérale — Ctrl+B">⇤</span></div>
+    <div class="record"><i></i>Démarrer un enregistrement</div>
+    <div class="keys">Super + Alt + M</div>
+    <div class="search">⌕ Chercher dans les réunions</div>
+    <div class="items">
+      <div class="week">Cette semaine</div>
+      <div class="item current"><b>Aujourd’hui, 10:30</b><span class="meta">42 min<span class="dots"><span class="glyph ok">CR</span><span class="glyph ok">T</span></span></span></div>
+      <div class="item"><b>Hier, 14:05</b><span class="meta">1 h 12<span class="dots"><span class="glyph">🔒</span><span class="glyph ok">CR</span><span class="glyph ok">T</span></span></span></div>
+      <div class="item"><b>Lundi, 09:00</b><span class="meta">25 min<span class="dots"><span class="glyph ok">T</span></span></span></div>
+      <div class="week">Semaine dernière</div>
+      <div class="item"><b>ven. 23 oct., 16:00</b><span class="meta">58 min<span class="dots"><span class="glyph ok">CR</span><span class="glyph ok">T</span></span></span></div>
+      <div class="item"><b>mer. 21 oct., 11:15</b><span class="meta">35 min<span class="dots"><span class="glyph ok">CR</span><span class="glyph ok">T</span></span></span></div>
+      <div class="week">Plus tôt en octobre</div>
+      <div class="item"><b>jeu. 8 oct., 14:00</b><span class="meta">1 h 12<span class="dots"><span class="glyph ok">CR</span><span class="glyph ok">T</span></span></span></div>
+    </div>
+    <div class="foot">
+      <div class="space"><span><b>6,1 Go</b> · 14 réunions</span><span>Faire de la place</span></div>
+      <div class="bar"><i></i><i></i></div>
+      <div class="link">⚙ Réglages</div>
+    </div>
+  </aside>
+</template>
+
+<template id="meeting-head">
+  <div class="head">
+    <span class="title"><b>Aujourd’hui, 10:30</b><span>mer. 29 oct. 2026 · 42 min</span></span>
+    <span class="btn">Ouvrir le dossier</span>
+  </div>
+</template>
+
+<template id="meeting-top">
+  <div class="chips"><span class="chip">Compte rendu · en ligne</span><span class="chip">Transcript · sur cet ordinateur</span><span class="chip">Audio · 48 Mo</span></div>
+  <div class="card">
+    <div class="wave"><svg viewBox="0 0 100 70" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width=".6" points="0,30 6,18 12,26 18,14 24,28 30,20 36,16 42,30 48,22 54,12 60,26 66,20 72,30 78,16 84,24 90,18 96,28 100,22"/><polyline fill="none" stroke="var(--ok)" stroke-width=".6" points="0,40 6,52 12,44 18,56 24,42 30,50 36,54 42,40 48,48 54,58 60,44 66,50 72,40 78,54 84,46 90,52 96,42 100,48"/></svg></div>
+    <div class="player"><span class="play">❚❚</span>00:08:41 / 00:42:05<span style="margin-left:auto">1×</span></div>
+  </div>
+  <div class="settings-row"><span>Contexte : <b>Lancement, budget</b></span><span>🔓 Réunion confidentielle : <b>non</b></span><span>Langue parlée : <b>Celle des Réglages — détectée</b></span></div>
+</template>
+
+<template id="minutes">
+  <div class="card">
+    <div class="label">Compte rendu<span class="btn">Refaire…</span></div>
+    <span class="by">Écrit par Claude Sonnet, via openrouter.ai · mer. 29 oct. 11:14</span>
+    <h4>Points saillants</h4>
+    <p>L’ouverture aux clients est fixée au lundi 16 novembre, pour avoir le support au complet. Deux serveurs de test sont coupés.</p>
+    <h4>Actions</h4>
+    <div class="action">Mettre à jour le planning<span>Marc</span></div>
+    <div class="action">Couper deux serveurs de test<span>Julien</span></div>
+    <div class="action">Envoyer le budget révisé<span>Sophie</span></div>
+  </div>
+</template>
+
+<template id="transcript">
+  <div class="card">
+    <div class="label">Transcript<span class="btn">Refaire…</span></div>
+    <span class="by">Écrit par Whisper large v3 turbo, sur cet ordinateur</span>
+    <div class="lines">
+      <div class="tline"><time>00:01</time><span><span class="who">Ici · voix 1</span><br>Bonjour à tous, merci d’être là. On a trois sujets ce matin.</span><span class="pen">✎</span></div>
+      <div class="tline"><time>00:08</time><span><span class="who far">À distance · voix 1</span><br>Bonjour Claire. Je vous entends bien, on peut commencer.</span><span class="pen">✎</span></div>
+      <div class="tline"><time>00:15</time><span><span class="who">Ici · voix 1</span><br>Parfait. Marc, tu nous fais le point sur le calendrier ?</span><span class="pen">✎</span></div>
+      <div class="tline"><time>00:19</time><span><span class="who">Ici · voix 2</span><br>Oui. La version de test sera prête le 12 novembre.</span><span class="pen">✎</span></div>
+    </div>
+  </div>
+</template>
+
+<section>
+  <h2>1 · La fenêtre plein écran, 1920 × 1080 — dessinée à 0,6</h2>
+  <div class="frame" style="--w:1920px;--h:1080px;--s:.6"><div class="win" data-side>
+    <div class="pane" data-head="meeting-head"><div class="body" data-top><div class="texts side-by-side" data-texts></div></div></div>
+  </div></div>
+  <div class="note"><b>Propositions</b>À gauche, la barre latérale de 280 px (libadwaita : 25 %, entre 180 et 280) : « Démarrer un enregistrement » et son raccourci, la recherche, les réunions par semaine — leur titre, leur durée, ce qu’elles contiennent en pastilles toujours écrites (CR, T, le cadenas) —, et à son pied la place prise avec « Faire de la place », puis « Réglages ». La réunion choisie est marquée d’un fond et d’un trait, `aria-current`. À droite, le panneau prend toute la largeur qui reste : le compte rendu et le transcript côte à côte dès 1000 px de panneau, chacun 75 caractères au plus. Les onglets « Réunions » et « Réglages » de l’en-tête disparaissent, « ‹ Réunions » aussi. ⇤ replie la barre ; Ctrl+B (⌘B sur Mac) hors d’un champ de texte.</div>
+</section>
+
+<section>
+  <h2>2 · La barre repliée — 1920 × 1080, à 0,6</h2>
+  <div class="frame" style="--w:1920px;--h:1080px;--s:.6"><div class="win">
+    <div class="pane"><div class="head"><span class="icon boxed" title="Afficher la barre latérale — Ctrl+B">⇥</span><span class="title"><b>Aujourd’hui, 10:30</b><span>mer. 29 oct. 2026 · 42 min</span></span><span class="btn">Ouvrir le dossier</span></div><div class="body" data-top><div class="texts side-by-side" data-texts></div></div></div>
+  </div></div>
+  <div class="note"><b>Propositions</b>Repliée, la barre laisse la place au panneau ; ⇥, au début de l’en-tête, la ramène, comme Ctrl+B. Les Réglages gardent ce choix : la fenêtre se rouvre repliée ou non, comme elle a été laissée. Les deux textes ne grandissent pas au-delà de 75 caractères : la place en plus reste à leur droite.</div>
+</section>
+
+<section>
+  <h2>3 · Une fenêtre de 1100 px — le panneau sous 1000 px, l’un au-dessus de l’autre · Réglages dans le panneau — à 0,52</h2>
+  <div class="pair">
+    <div class="frame" style="--w:1100px;--h:1000px;--s:.52"><div class="win" data-side>
+      <div class="pane" data-head="meeting-head"><div class="body" data-top><div class="texts stacked" data-texts></div></div></div>
+    </div></div>
+    <div class="frame" style="--w:1100px;--h:1000px;--s:.52"><div class="win" data-side="settings">
+      <div class="pane"><div class="head"><span class="title"><b>Réglages</b></span></div>
+        <div class="body"><div class="form">
+          <div class="card"><div class="label">Transcript</div>
+            <div class="field">Fait par<span class="select">Whisper, sur cet ordinateur</span></div>
+            <div class="field">Langue des réunions<span class="select">Détectée par la transcription</span></div></div>
+          <div class="card"><div class="label">Compte rendu</div>
+            <div class="field">Écrit par<span class="select">OpenRouter</span></div>
+            <div class="field">Modèle<span class="select">anthropic/claude-sonnet-4.5</span></div>
+            <div class="field">Après l’arrêt<span class="select">Le transcript seulement</span></div></div>
+          <div class="card"><div class="label">Wholeheard</div>
+            <div class="field">Langue de l’application<span class="select">Celle du système — Français</span></div>
+            <div class="field">Garder l’audio<span class="select">Toujours</span></div></div>
+        </div></div></div>
+    </div></div>
+  </div>
+  <div class="note"><b>Propositions</b>Sous 1000 px de panneau, le compte rendu puis le transcript, l’un sous l’autre. Les Réglages, « Faire de la place » et les accords s’ouvrent dans le panneau, la barre restant là ; les Réglages font 720 px au plus, alignés à gauche du panneau. « Réglages » est alors marqué dans la barre, aucune réunion ne l’est.</div>
+</section>
+
+<section>
+  <h2>4 · Sous 840 px : un panneau à la fois, jusqu’à 420 × 400 — à taille réelle</h2>
+  <div class="pair">
+    <div class="frame" style="--w:420px;--h:400px;--s:1"><div class="win" data-side="narrow"></div></div>
+    <div class="frame" style="--w:420px;--h:400px;--s:1"><div class="win">
+      <div class="pane"><div class="head" style="padding:10px 14px"><span class="icon" title="Réunions">‹</span><span class="title"><b style="font-size:16px">Aujourd’hui, 10:30</b></span><span class="icon boxed">⋯</span></div>
+        <div class="body" style="padding:12px 14px;gap:10px">
+          <div class="chips"><span class="chip">Compte rendu</span><span class="chip">Transcript</span><span class="chip">Audio · 48 Mo</span></div>
+          <div class="card" style="padding:10px 12px"><div class="player"><span class="play">❚❚</span>00:08:41 / 00:42:05</div></div>
+          <div class="card" style="padding:10px 12px"><div class="label">Compte rendu</div><h4 style="font-size:14px">Points saillants</h4><p style="font-size:14px">L’ouverture aux clients est fixée au lundi 16 novembre…</p></div>
+        </div></div>
+    </div></div>
+  </div>
+  <div class="note"><b>Propositions</b>Sous 840 px de fenêtre, la convention des listes lues l’une après l’autre (Material 3, libadwaita) : la liste seule, puis la réunion avec « ‹ » pour revenir ; rien ne déborde sur le côté. « Ouvrir le dossier » passe dans ⋯. La petite fenêtre (D35) et l’assistant du premier démarrage (D58) ne changent pas.</div>
+</section>
+
+<section>
+  <h2>5 · Aucune réunion encore — 1280 × 800, à 0,6</h2>
+  <div class="pair">
+    <div class="frame" style="--w:1280px;--h:800px;--s:.6"><div class="win" data-side="empty">
+      <div class="pane"><div class="empty"><div class="card"><b>Aucune réunion pour l’instant</b><p>Démarrez un enregistrement, ou appuyez sur Super + Alt + M pendant un appel. Le transcript s’écrit tout seul à l’arrêt.</p><span class="record" style="padding:10px 16px"><i></i>Démarrer un enregistrement</span></div></div></div>
+    </div></div>
+  </div>
+  <div class="note"><b>Proposition</b>Sans réunion, le panneau dit quoi faire et offre l’enregistrement ; la barre garde la place prise et les Réglages.</div>
+</section>
+
+<script>
+  // Fill each window from the templates: one source for every board.
+  const take = id => document.getElementById(id).content.cloneNode(true);
+  for (const win of document.querySelectorAll("[data-side]")) {
+    const side = take("sidebar"), kind = win.dataset.side;
+    if (kind === "settings") {
+      side.querySelector(".item.current").classList.remove("current");
+      side.querySelector(".link").classList.add("item", "current");
+    }
+    if (kind === "empty") side.querySelectorAll(".items > *").forEach(n => n.remove()),
+      side.querySelector(".space").innerHTML = "<span><b>0 o</b> · aucune réunion</span><span></span>";
+    if (kind === "narrow") {
+      const aside = side.querySelector(".side");
+      aside.style.width = "100%"; aside.style.borderRight = "0";
+      aside.querySelector(".item.current").classList.remove("current");
+      aside.querySelector(".item").classList.add("focus");
+    }
+    win.prepend(side);
+  }
+  for (const pane of document.querySelectorAll("[data-head]")) pane.prepend(take(pane.dataset.head));
+  for (const body of document.querySelectorAll("[data-top]")) body.prepend(take("meeting-top"));
+  for (const texts of document.querySelectorAll("[data-texts]")) texts.append(take("minutes"), take("transcript"));
+</script>
+</body>
+</html>
