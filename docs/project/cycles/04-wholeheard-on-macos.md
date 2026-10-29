@@ -98,7 +98,7 @@ deliverables:
   - id: D60
     title: "A meeting said confidential is transcribed and summarised on this computer alone, whatever the settings say"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given `contracts/session-audio/v2` and v1, when their pages are changed — in a pull request of the contracts module alone, merged first —, then each says an optional file `confidential`, empty, written by the shell on the user's word, which only the shell reads: it asks the shell to make the meeting on this computer alone; the steps that follow need not read it"
       - "Given the window while recording, and a meeting's page, when the user turns on « Réunion confidentielle » — « rien ne quitte cet ordinateur » —, then the file is written, and turned off it is removed; the page and the list of meetings show it with a lock and its words"
@@ -145,7 +145,7 @@ deliverables:
   - id: D65
     title: "Each meeting may say the language it is spoken in"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given `contracts/session-audio/v2` and v1, when their pages are changed — in a pull request of the contracts module alone, merged first —, then each says an optional file `language`: one line, a language code of ISO 639-1, written by the shell on the user's word, which the shell reads to tell the transcription the language spoken"
       - "Given Settings, when the user chooses the language meetings are spoken in — « Détectée », or a language the chosen engine hears, French and English first; SpeechAnalyzer hears French and English, and detects none —, then it is the default of every meeting; « Détectée » is the default where the engine detects, as Whisper does today"
@@ -486,6 +486,23 @@ in one gesture: this one leaves nothing on the machine. The connected mode for f
 - The connected mode has not met a real service yet (#463): the stand-in service's count of requests
   is what holds "nothing is sent".
 
+**Accepted, 2026-10-29**, on the decider's words that day, « tu peux valider en autonomie ». Built by
+#493 (the contract, first), #498 and #499. What #498's sheet passed on reading alone, the ways a
+meeting is made again, was run by #543. Each criterion is held by a scenario of the sheets:
+
+| Criterion | Held by |
+|---|---|
+| 1. `session-audio` v2 and v1 say an optional empty `confidential`, read by the shell alone, changed first | #493 S1, S2 |
+| 2. « Réunion confidentielle » while recording and on a meeting's page; the file written, removed; a lock in the page and the list | #498 S1, S6 |
+| 3. Made here — after the stop, by *Réessayer*, by *Refaire…*, from the tray —: Whisper with the settings' model, Ollama's model for the minutes, nothing asked nor sent; the model missing or Ollama silent, said and offered | #498 S2, S4; #543 S1 (from the tray), S2 (*Réessayer*), S3 (the minutes from the tray, « Refaire avec ce contexte ») |
+| 4. Turned on while a service makes it, while its agreement is asked, after a service wrote: ended, made here, what left said | #498 S3 |
+| 5. The tests and the e2e: a stand-in service counting no request; turned off, the settings choose again | #498 S2, S5; #499 S1 |
+
+What no scenario runs: Apple's SpeechAnalyzer itself, which a confidential meeting keeps where it is
+chosen — the shell's unit tests hold that it is kept, a Mac's trial (#426) would run it; *Refaire…*
+with a model, Whisper's alone by design (D59); a real service (#463). Known, said in #498: a meeting
+turned confidential while the keyring is read says « parti » though nothing left.
+
 ### D61
 
 **Added on the decider's word, 2026-10-29** (« on le fait maintenant et je pense qu'on peut inclure dès à
@@ -599,6 +616,26 @@ mais de pouvoir choisir un réglage spécifique par meet ? ». What a meeting ma
 its context (D59), confidential (D60), *Refaire…* with another model; D60's answer of 2026-10-27 stands
 — no page of settings per meeting. The language spoken is the one more that changes the transcript:
 Whisper detects it today, a service and SpeechAnalyzer are told the app's.
+
+**Accepted, 2026-10-29**, on the decider's words that day, « tu peux valider en autonomie ». Built by
+#526 (the contracts, first) and #530. What an independent read of their sheets found left was
+fixed by #539 and #541: SpeechAnalyzer's languages said as it hears them. Each criterion is held
+by a scenario of the sheets:
+
+| Criterion | Held by |
+|---|---|
+| 1. `session-audio` v2 and v1 say an optional `language` file, ISO 639-1, changed first | #526 S1, S2 |
+| 2. Settings choose the meetings' language: « Détectée » where the engine detects, a language it hears; SpeechAnalyzer French and English, detecting none | #530 S1; #539 S1 and #541 S1 (SpeechAnalyzer played by a program: its two languages, the system's when none, a language it does not hear said as heard) |
+| 3. A meeting's page chooses its own; the file written, its transcript heard in it, after or by *Refaire…*; the page says the language asked or « détectée » | #530 S2, S3; #539 S1 (the page under SpeechAnalyzer) |
+| 4. The tests and the e2e: `--language en`, the default, *Refaire…* reading it again | #530 S2, S3, S4 |
+
+What no scenario runs: Apple's SpeechAnalyzer itself on a Mac (#426). A program stands for it; the
+language it is told for a meeting's own is held by the shell's unit tests (#530). The Settings'
+list under SpeechAnalyzer — Français, English and « Celle du système », no « Détectée » — is read
+only; AC checks a language it does not hear stays chosen there (#541). A meeting set to English told
+`--language en`: the shell's unit tests (`tests/transcription.rs`); the e2e runs a meeting's own
+`de` and the settings' `en`. The English wording « … hears the system's » is run by no e2e: AC runs
+in French.
 
 ## Dependency with a date
 
