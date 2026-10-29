@@ -2791,7 +2791,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
 
 /// Who hears now, as the settings name it — Apple's SpeechAnalyzer while this Mac offers it, a
 /// service once agreed to (D42, D43) —, and the service's key: what a transcript is made with.
-fn hearer_now(shell: &Shell, settings: &Settings, folder: &Path) -> (Hearer, Option<String>) {
+fn hearer_now(_shell: &Shell, settings: &Settings, folder: &Path) -> (Hearer, Option<String>) {
     // Apple's SpeechAnalyzer needs no model file: its own is on the Mac (D42). Chosen and no
     // longer offered here — an older macOS, the program gone —, Whisper hears, and it is logged.
     let language = Language::system().code();
@@ -2969,7 +2969,7 @@ fn offer(app: &AppHandle) {
 /// What Apple's SpeechAnalyzer offers on this Mac, in the interface's language (D42): asked of
 /// `wholeheard-speech` beside the shell, away from the window; none where it is not.
 #[tauri::command]
-async fn speech_shown(shell: State<'_, Shell>) -> Result<Option<speech::Status>, ()> {
+async fn speech_shown(_shell: State<'_, Shell>) -> Result<Option<speech::Status>, ()> {
     let language = Language::system().code();
     let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
     Ok(tauri::async_runtime::spawn_blocking(move || speech::status(&program, language))
