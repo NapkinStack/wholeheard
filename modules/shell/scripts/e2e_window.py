@@ -1731,6 +1731,46 @@ def minutes_copied(now: dt.datetime) -> None:
             wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').dataset.name") == folder.name
                      and b.find_elements(By.CSS_SELECTOR, "#meeting .minutes .none"), 10)
             check(f"a meeting {why} offers no copy", not browser.find_elements(By.ID, "copy-minutes"))
+def actions_rows(now: dt.datetime) -> None:
+    """AK. A meeting's actions as rows: Qui · Quoi · Pour quand (D46)."""
+    print("AK. the minutes' actions as rows — who in its colour, by when in monospace, an item that does not split shown as written (D46)")
+    meetings = WORK / "acting"
+    folder = meetings / "2026-10-28_14-00"
+    session(folder, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+    (folder / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n{"type":"complete","duration":1.0}\n')
+    (folder / "minutes.md").write_text(
+        "---\ncontract: minutes/v1\nmade: 2026-10-28T15:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
+        "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Envoyer le devis — Inès — vendredi\n- Réserver la salle — non précisé — non précisé\n"
+        "- Relancer le fournisseur — Paul\n- Rappeler **Jiří** — Marc — 2026-11-04\n\n## 3.\n\n- Rien\n")
+    rows = ("return [...document.querySelectorAll('#meeting .minutes table.actions tbody tr')].map(r =>"
+            " [...r.cells].map(c => [c.className, c.textContent]))")
+    with Window(meetings, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(1100, 800)
+        browser.execute_script(f"location.hash = '#/meeting/{folder.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#meeting .minutes table.actions"), 10)
+        got = browser.execute_script(rows)
+        check("each action one row of three cells, Qui · Quoi · Pour quand; one that does not split, as written, in its place",
+              got == [[["who", "Inès"], ["what", "Envoyer le devis"], ["when", "vendredi"]],
+                      [["who unsettled", "non précisé"], ["what", "Réserver la salle"], ["when unsettled", "non précisé"]],
+                      [["written", "Relancer le fournisseur — Paul"]],
+                      [["who", "Marc"], ["what", "Rappeler Jiří"], ["when", "2026-11-04"]]], got)
+        heads = browser.execute_script(
+            "const h = document.querySelector('#meeting table.actions thead'); const r = h.getBoundingClientRect();"
+            "return [[...h.querySelectorAll('th')].map(t => t.textContent), r.width <= 1 && r.height <= 1]")
+        check("no visible headers: Qui, Quoi, Pour quand their names for assistive technology", heads == [["Qui", "Quoi", "Pour quand"], True], heads)
+        looks = browser.execute_script(
+            "const of = (v) => { const p = document.createElement('span'); p.style.color = `var(${v})`; document.querySelector('#meeting').append(p);"
+            " const c = getComputedStyle(p).color; p.remove(); return c; };"
+            "const s = (q) => getComputedStyle(document.querySelector(q));"
+            "return [s('#meeting table.actions td.who:not(.unsettled)').color === of('--accent'), s('#meeting table.actions td.when').fontFamily,"
+            " s('#meeting table.actions td.who.unsettled').color === of('--soft')]")
+        check("who in its colour, by when in monospace, « non précisé » in the soft colour",
+              looks[0] and "monospace" in looks[1] and looks[2], looks)
+        browser.execute_script("document.querySelector('#meeting .minutes').scrollIntoView({block: 'start'})")
+        time.sleep(0.3)
+        shot(browser, "d46-actions-rows")
 
 
 def two_panes(now: dt.datetime) -> None:
@@ -2970,15 +3010,12 @@ def main() -> int:
         titles = [h.text for h in minutes.find_elements(By.CSS_SELECTOR, ".body h2")]
         check("the minutes' three sections, named by the page whatever the model titled them", titles == ["Points saillants", "Actions", "Points clés"], titles)
         items = [li.text for li in minutes.find_elements(By.CSS_SELECTOR, ".body li")]
+        actions = browser.execute_script("return [...document.querySelectorAll('#meeting .minutes table.actions tbody tr')].map(r => [...r.cells].map(c => c.textContent))")
         check(
-            "the minutes as written: each action, each key point",
-            items
-            == [
-                "Mettre à jour le planning — Marc — aujourd’hui",
-                "Couper deux serveurs de test — Julien — avant vendredi",
-                "Un serveur est gardé pour la démonstration du 20.",
-            ],
-            items,
+            "the minutes as written: each action a row, Qui · Quoi · Pour quand (D46), each key point",
+            actions == [["Marc", "Mettre à jour le planning", "aujourd’hui"], ["Julien", "Couper deux serveurs de test", "avant vendredi"]]
+            and items == ["Un serveur est gardé pour la démonstration du 20."],
+            (actions, items),
         )
         drawn = browser.execute_script(
             "const s = document.querySelector('#meeting .relief'); return [s.getAttribute('aria-label'),"
@@ -4263,6 +4300,7 @@ def main() -> int:
     app_language(now)
     confidential_every_way(now)
     minutes_copied(now)
+    actions_rows(now)
     return 1 if FAILED else 0
 
 

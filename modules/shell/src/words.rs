@@ -427,6 +427,10 @@ pub struct Window {
     /// A meeting's minutes, their three sections as the page names them (D11's second board),
     /// whatever titles the model wrote: `minutes/v1` holds them in this order.
     pub minutes_sections: [&'static str; 3],
+    /// The actions' three cells, named for assistive technology alone (D46), and what a meeting
+    /// left unsettled, as the summary writes it.
+    pub actions_cells: [&'static str; 3],
+    pub unsettled: &'static str,
     /// A model of this computer that holds the minutes' form, as Settings offer it ({}).
     pub model_recommended: &'static str,
     /// A meeting's player (D26): its button, both ways, and why a meeting has none.
@@ -794,6 +798,8 @@ pub fn window(language: Language) -> Window {
             ],
             program_said: "What the program said: {}",
             minutes_sections: ["Highlights", "Actions", "Key points"],
+            actions_cells: ["Who", "What", "By when"],
+            unsettled: "not specified",
             model_recommended: "{} — recommended",
             play: "Listen",
             pause: "Pause",
@@ -1150,6 +1156,8 @@ pub fn window(language: Language) -> Window {
             ],
             program_said: "Ce qu’a dit le programme\u{a0}: {}",
             minutes_sections: ["Points saillants", "Actions", "Points clés"],
+            actions_cells: ["Qui", "Quoi", "Pour quand"],
+            unsettled: "non précisé",
             model_recommended: "{} — recommandé",
             play: "Écouter",
             pause: "Pause",
