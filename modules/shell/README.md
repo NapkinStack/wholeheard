@@ -59,9 +59,15 @@ audio weighs, and above them what all the audio weighs against the transcripts a
 A session being recorded, or one left without its end, says so. It reads `session.json` of
 both forms (`contracts/session-audio`) and writes nothing; it speaks the system's language,
 follows its light or dark theme and font, in the colours of D11's boards, and reads the
-folder again whenever it comes forward. A meeting opens from the list: its minutes as written, with
+folder again whenever it comes forward. In two panes since D61 (its board,
+[`d61-the-window-in-two-panes`](../../docs/project/drawings/d61-the-window-in-two-panes/README.md)): the
+meetings in a sidebar of 280 px with the recording, a search over what each row says, the weights and
+*Réglages*; the meeting chosen — the last one at first, ↑ and ↓ on the list for the others — and Settings,
+freeing space and the agreements in the pane beside it, as wide as the window leaves it; under 840 px,
+one at a time, the pane with a way back. A meeting opens from the list: its minutes as written, with
 who wrote them and where; its transcript in the meeting's order, each line with its side and
-voice, searched over what was said; who spoke over the meeting; its folder, opened in the
+voice, searched over what was said — the two side by side once the pane is 1000 px wide, their text
+75 characters at most; who spoke over the meeting; its folder, opened in the
 system's file manager. *Réglages* sets what follows a recording, the transcription's model among
 those on this computer, the reminder and how long the audio is kept — each choice saved at once
 in the settings file; one Wholeheard could not read is said, and not written over. Audio kept

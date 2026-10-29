@@ -474,6 +474,30 @@ fn welcomed_is_false_until_written_and_kept_by_every_other_write() {
 }
 
 #[test]
+fn the_sidebar_is_open_until_folded_and_kept_folded_by_every_other_write() {
+    // D61: open by default; folded, written, and read again as it was left.
+    assert!(!Settings::default().folded);
+    assert!(!written("reminder = false\n").unwrap().folded);
+    assert!(written("folded = true\n").unwrap().folded);
+    assert!(written("folded = \"yes\"\n").is_err());
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "# mine\nreminder = false\n").unwrap();
+    let mut settings = read(&path).unwrap();
+    settings.folded = true;
+    write(&path, &settings).unwrap();
+    assert!(fs::read_to_string(&path).unwrap().contains("folded = true"));
+    settings.offer = false;
+    write(&path, &settings).unwrap();
+    let again = read(&path).unwrap();
+    assert!(again.folded && !again.offer);
+    assert!(fs::read_to_string(&path).unwrap().contains("# mine"));
+    settings.folded = false;
+    write(&path, &settings).unwrap();
+    assert!(!read(&path).unwrap().folded);
+}
+
+#[test]
 fn the_assistant_is_due_only_with_no_meeting_and_not_welcomed() {
     let folder = tempfile::tempdir().unwrap();
     let mut settings = Settings {
@@ -497,4 +521,33 @@ fn the_assistant_is_due_only_with_no_meeting_and_not_welcomed() {
     )
     .unwrap();
     assert!(!welcome_due(&settings));
+}
+
+#[test]
+fn the_meetings_language_is_a_code_of_iso_639_1_or_none_detected() {
+    // D65: none — the engine detects it — unless the file names a code.
+    assert_eq!(Settings::default().meeting_language, None);
+    assert_eq!(
+        written("meeting_language = \"en\"\n").unwrap().meeting_language.as_deref(),
+        Some("en")
+    );
+    for not in ["\"English\"", "\"EN\"", "\"zz\"", "\"\""] {
+        assert_eq!(
+            written(&format!("meeting_language = {not}\n")).unwrap().meeting_language,
+            None,
+            "{not}"
+        );
+    }
+    // Written as chosen, and read back.
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    let mut settings = Settings {
+        meeting_language: Some("de".into()),
+        ..Settings::default()
+    };
+    write(&path, &settings).unwrap();
+    assert_eq!(read(&path).unwrap().meeting_language.as_deref(), Some("de"));
+    settings.meeting_language = None;
+    write(&path, &settings).unwrap();
+    assert!(!fs::read_to_string(&path).unwrap().contains("meeting_language"));
 }

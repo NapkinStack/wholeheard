@@ -8,30 +8,44 @@
 <script src="window.js" defer></script>
 </head>
 <body>
-<header class="bar">
-  <div class="brand">
-    <svg aria-hidden="true" width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" class="mark"></rect><path d="M12 46 L26 20 L37 40 M33 32 L40 24 L52 46" fill="none" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" class="peaks"></path></svg>
-    <span>Wholeheard</span>
+<!-- The window in two panes (D61's board): the meetings in a sidebar, the one chosen beside them. -->
+<div id="frame" class="frame">
+<aside id="sidebar" class="sidebar">
+  <div class="side-top">
+    <div class="brand">
+      <svg aria-hidden="true" width="24" height="24" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" class="mark"></rect><path d="M12 46 L26 20 L37 40 M33 32 L40 24 L52 46" fill="none" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" class="peaks"></path></svg>
+      <span>Wholeheard</span>
+    </div>
+    <button type="button" id="fold" class="icon-button" aria-keyshortcuts="Control+B Meta+B">⇤</button>
   </div>
-  <nav id="sections"><a href="#/" id="meetings"></a><a href="#/settings" id="settings-link"></a></nav>
-  <div class="act"><button type="button" id="small-link" class="open" hidden></button><kbd id="header-keys" class="keys" hidden></kbd><button type="button" id="record" class="primary"><span class="dot" aria-hidden="true"></span><span id="record-said"></span></button></div>
-</header>
-<main id="list">
-  <section id="weight" class="card weight" aria-live="polite" hidden>
-    <div class="total"><strong id="total"></strong> <span id="taken"></span><a href="#/free" id="free-link" class="open"></a></div>
-    <div id="bar" class="split" role="img"><span id="bar-audio" class="audio"></span><span id="bar-text" class="text"></span></div>
-    <ul class="legend">
-      <li><span class="swatch audio" aria-hidden="true"></span><span id="audio-kept"></span></li>
-      <li><span class="swatch text" aria-hidden="true"></span><span id="text-kept"></span></li>
-    </ul>
-  </section>
-  <p id="none" class="none" hidden></p>
-  <div id="groups"></div>
-</main>
-<main id="meeting" hidden></main>
-<main id="settings" hidden></main>
-<main id="agree" hidden></main>
-<main id="free" hidden></main>
+  <div class="act"><button type="button" id="record" class="primary"><span class="dot" aria-hidden="true"></span><span id="record-said"></span></button><kbd id="header-keys" class="keys" hidden></kbd></div>
+  <input type="search" id="find" class="search" autocomplete="off" spellcheck="false">
+  <main id="list">
+    <p id="none-found" class="none" role="status" hidden></p>
+    <div id="groups"></div>
+  </main>
+  <div class="foot">
+    <section id="weight" class="weight" aria-live="polite" hidden>
+      <div class="total"><strong id="total"></strong> <span id="taken"></span><a href="#/free" id="free-link" class="open"></a></div>
+      <div id="bar" class="split" role="img"><span id="bar-audio" class="audio"></span><span id="bar-text" class="text"></span></div>
+      <ul class="legend">
+        <li><span class="swatch audio" aria-hidden="true"></span><span id="audio-kept"></span></li>
+        <li><span class="swatch text" aria-hidden="true"></span><span id="text-kept"></span></li>
+      </ul>
+    </section>
+    <nav id="sections"><a href="#/settings" id="settings-link"></a><button type="button" id="small-link" class="open" hidden></button></nav>
+  </div>
+</aside>
+<div id="pane" class="pane">
+  <button type="button" id="unfold" class="icon-button" aria-keyshortcuts="Control+B Meta+B">⇥</button>
+  <a href="#/" id="pane-back" class="back"></a>
+  <section id="empty" class="empty" hidden><div class="card"><p id="none" class="none"></p><p id="none-do" class="says"></p><button type="button" id="empty-record" class="primary"></button></div></section>
+  <main id="meeting" hidden></main>
+  <main id="settings" hidden></main>
+  <main id="agree" hidden></main>
+  <main id="free" hidden></main>
+</div>
+</div>
 <main id="small" hidden></main>
 <main id="welcome" hidden></main>
 </body>

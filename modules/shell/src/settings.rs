@@ -109,6 +109,9 @@ pub struct Settings {
     /// chosen yet.
     pub minutes_provider: Option<String>,
     pub minutes_model: Option<String>,
+    /// The language meetings are spoken in, unless one says its own (D65): a code of ISO 639-1;
+    /// none, the engine detects it.
+    pub meeting_language: Option<String>,
     /// The host the user agreed to send a meeting to, the first time minutes went to it; another
     /// host asks again. None: none yet.
     pub minutes_agreed: Option<String>,
@@ -126,6 +129,8 @@ pub struct Settings {
     pub window: Window,
     /// The first run's assistant was shown (D58): it opens by itself at one start only.
     pub welcomed: bool,
+    /// The full window's sidebar folded by the user (D61): opened again as it was left.
+    pub folded: bool,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -146,6 +151,7 @@ impl Default for Settings {
             transcription_agreed: None,
             minutes_provider: None,
             minutes_model: None,
+            meeting_language: None,
             minutes_agreed: None,
             language: Language::system(),
             keep_audio: KeepAudio::Always,
@@ -155,6 +161,7 @@ impl Default for Settings {
             window: Window::Small,
             log: Log::Info,
             welcomed: false,
+            folded: false,
         }
     }
 }
@@ -202,6 +209,7 @@ struct Written {
     transcription_agreed: Option<String>,
     minutes_provider: Option<String>,
     minutes_model: Option<String>,
+    meeting_language: Option<String>,
     minutes_agreed: Option<String>,
     keep_audio: Option<toml::Spanned<toml::Value>>,
     developer: Option<bool>,
@@ -210,6 +218,7 @@ struct Written {
     window: Option<Window>,
     log: Option<Log>,
     welcomed: Option<bool>,
+    folded: Option<bool>,
 }
 
 /// Reads the settings. No file is no choice made: the defaults. A file that cannot be read as
@@ -247,6 +256,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.autostart = written.autostart;
     settings.window = written.window.unwrap_or(settings.window);
     settings.welcomed = written.welcomed.unwrap_or(settings.welcomed);
+    settings.folded = written.folded.unwrap_or(settings.folded);
     settings.log = written.log.unwrap_or(settings.log);
     settings.engine = written.engine.unwrap_or(settings.engine);
     // The language: system's default when not set; user's choice when named.
@@ -259,6 +269,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     };
     settings.minutes_provider = written.minutes_provider.filter(|named| !named.trim().is_empty());
     settings.minutes_model = written.minutes_model.filter(|named| !named.trim().is_empty());
+    settings.meeting_language = written.meeting_language.as_deref().and_then(crate::spoken::code);
     settings.minutes_agreed = written.minutes_agreed.filter(|named| !named.trim().is_empty());
     settings.transcription_provider = written.transcription_provider.filter(|named| !named.trim().is_empty());
     settings.transcription_model = written.transcription_model.filter(|named| !named.trim().is_empty());
@@ -338,6 +349,9 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     if settings.welcomed != before.welcomed {
         set(&mut document, "welcomed", Value::from(settings.welcomed));
     }
+    if settings.folded != before.folded {
+        set(&mut document, "folded", Value::from(settings.folded));
+    }
     if settings.log != before.log {
         set(&mut document, "log", Value::from(settings.log.as_str()));
     }
@@ -384,6 +398,7 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     for (key, named, was) in [
         ("minutes_provider", &settings.minutes_provider, &before.minutes_provider),
         ("minutes_model", &settings.minutes_model, &before.minutes_model),
+        ("meeting_language", &settings.meeting_language, &before.meeting_language),
         ("minutes_agreed", &settings.minutes_agreed, &before.minutes_agreed),
         (
             "transcription_provider",
