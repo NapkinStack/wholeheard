@@ -88,7 +88,7 @@ deliverables:
   - id: D59
     title: "A meeting's context — what it is about, who takes part — written in Wholeheard, heard by its transcript and its minutes"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given a recording, when the window shows it — the small one, or the full one's live block —, then a field « De quoi parle la réunion ? Qui y participe ? », optional, holds up to 400 characters, said beside it, drawn first on a board of its own as D58's was; what is typed is kept as the meeting's `context.txt` (`contracts/session-audio/v2`, and v1 for a meeting of that form) — written whole, a file beside it then renamed, and only once the meeting's folder holds `session.json` —, so that the transcript and the minutes made after the stop read it, as they already do"
       - "Given a meeting's page, when it shows, then its context is shown and can be written or changed — not while its transcript or minutes are being made, nor while a transcript is left unfinished, said so —; changed after a transcript or minutes were made, the page offers « Refaire avec ce contexte », which sets the transcript and the minutes aside and makes them again with the engine and the provider the settings name, the ones set aside put back if the making fails, never mixed with a transcript of the old context"
@@ -108,7 +108,7 @@ deliverables:
   - id: D61
     title: "The window in two panes: the meetings in a sidebar the user can fold, the meeting chosen beside them, as wide as the window"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given the full window 840 CSS px wide or more, when it opens, then a sidebar on its left holds « Démarrer un enregistrement » with its shortcut, the search, the meetings by week — each its title, date, length and what it holds —, and at its foot the space they take with « Faire de la place », and « Réglages »; the pane beside it shows the last meeting, or what to do when there is none; a meeting clicked, or reached with ↑ and ↓ on the list, is shown there, the list kept where it was and the meeting shown marked `aria-current`; Settings, freeing space and the agreements open in that pane; the header's two tabs are gone"
       - "Given the sidebar, when the user folds it — its button, or Ctrl+B (⌘B on a Mac) outside a text field —, then the pane takes the whole width and a button brings the sidebar back; the settings keep it folded or not, and the window opens again as it was left"
@@ -117,7 +117,7 @@ deliverables:
   - id: D62
     title: "A line of a transcript corrected by whoever listens to it"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given `contracts/transcript/v1`, when its page and schema are changed — in a pull request of the contracts module alone, merged first (ADR-0014), `nstack compat` compliant —, then they say that once the transcript is complete, the shell, a second writer, may rewrite a segment's `text` on the user's word and set its optional `edited` to when it did, ISO 8601: the file replaced whole — written beside, then renamed —, its lines in the same order, nothing else changed; never before its `complete` line, never while the transcript is made again"
       - "Given a meeting's page with a complete transcript, when the user chooses to correct a line — its own pencil button, by the mouse or the keyboard; a click or Enter on the line still plays from it —, then the line becomes a field holding its text; Enter or leaving the field keeps what is typed — a line break pasted becomes a space, spaces at its ends are dropped —, Échap leaves it as it was, a line left empty is refused, said; kept, the file holds it whole — any script, emoji included —, the page shows it, marked « corrigé »"
@@ -453,6 +453,22 @@ D58 first, then D59, then D60, each before the colleagues' builds if it can.
 - The small window is full while recording: the field, and D60's switch, are drawn first.
 - Written during the recording: the transcript starts at the stop, by itself.
 
+**Accepted, 2026-10-29**, on the decider's words of 2026-10-29, « tu peux valider en autonomie » — built by #497; what its sheet left unrun found by an independent
+read of every sheet of D58–D65 and run by #537:
+
+| Criterion | Held by |
+|---|---|
+| 1. The field while recording, 400 characters said, `context.txt` written whole once `session.json` is there | #497 S1 (the small window); #537 S1 (the full window's page of the meeting being recorded — #497's named departure from the board's live block; a Cyrillic name and an emoji) |
+| 2. The page shows and changes it, closed while a making runs or a transcript is unfinished; « Refaire avec ce contexte » by the settings' engine and provider, what was set aside put back on a failure | #497 S2; #537 S3 (a service the settings name; the minutes failing, put back). A departure, #497's: the minutes failing after a new transcript, the earlier minutes stay beside it — the old context's minutes with the new transcript |
+| 3. 400 characters of Latin or Cyrillic taken whole, 210 tokens at most; another script said; never more than 400 | #497 S3 (the cut at 400, the script said). The 210 tokens: a measure of the framing, by #489's verifier (above), held by no row |
+| 4. The agreement says the context leaves; in private mode nothing of it leaves | #497 S4; #537 S2 |
+| 5. Keyboard, both themes, FR and EN, the count announced, nothing overflowing at 380 × 400, the e2e's stand-in recording | #497 S5; #537 S4 |
+
+What no scenario runs: the 210 tokens, measured once at the framing, and a context of 400 characters
+taken whole by a service; private mode with a service still stored in the settings (read: `Hearer::of`
+hears by Whisper once `engine` is Whisper); the minutes made again by a provider other than the one
+their header names; a real service, and SpeechAnalyzer — a program on this computer stands for them.
+
 ### D60
 
 **Added on the decider's word, 2026-10-27** (« integre tout »), on their question the same day,
@@ -496,6 +512,20 @@ choices.
 - Out of scope: a divider dragged to size the panes, a third pane, folders or labels — *Later*, if
   someone asks.
 
+**Accepted, 2026-10-29**, on the decider's words of 2026-10-29, « tu peux valider en autonomie », D61's board read by the decider that day (« pour la maquette ca me
+semble bien ») — built by #532 and #533; what their sheets left unrun run by #536:
+
+| Criterion | Held by |
+|---|---|
+| 1. The sidebar and the pane: the recording, the search, the meetings by week — each its title, date, length and what it holds —, the space and Réglages; the last meeting or what to do; ↑ ↓, `aria-current`; Settings, freeing space and the agreements in the pane | #532 S1, S2, S3, S7; #536 S3 (each row), S2 (the agreement in the pane) |
+| 2. Folded by its button or Ctrl+B outside a text field, brought back, kept by the settings | #533 S1, S2, S3 |
+| 3. As wide as the window; side by side from 1000 px of pane, 75ch; Settings 720 px; one pane at a time under 840 px, down to 420 × 400 | #532 S3, S4, S5 |
+| 4. The keyboard alone, both themes, FR and EN, the sidebar first, the focus always seen; the small window and the assistant as they were; screenshots | #532 S8; #536 S3 (English, the focus seen where it differs from the element at rest) |
+
+What no scenario runs: the keyboard and the focus in the dark theme — seen in its screenshots alone;
+⌘B on a Mac — the keydown reads `metaKey`, never pressed on one (#426);
+Ctrl+B on a Dvorak layout falls on the key that writes X (`event.code`, named in #533).
+
 ### D62
 
 **Added on the decider's word, 2026-10-29** (« je t'avais parlé de la possibilité de pouvoir modifier
@@ -512,6 +542,20 @@ offered again, never made again by themselves.
 - A correction waits for the transcript's making, as *Refaire…* does: one writer at a time.
 - Out of scope: who spoke corrected, lines joined or split, a correction kept through a transcript
   made again.
+
+**Accepted, 2026-10-29**, on the decider's words of 2026-10-29, « tu peux valider en autonomie » — built by #525 (the contract, ADR-0014) and #528; what their sheets
+left unrun run by #536, which fixed a pasted line break gluing two words:
+
+| Criterion | Held by |
+|---|---|
+| 1. `transcript/v1` changed first: the shell a second writer of `text` and `edited`, once complete, the file replaced whole | #525 S1–S3 |
+| 2. Its pencil, by the mouse or the keyboard; Enter or leaving keeps it, a pasted line break a space, the ends trimmed, Échap as it was, empty refused; any script, emoji included; « corrigé » | #528 S1, S2, S6; #536 S1 |
+| 3. Minutes older than a correction say so and offer « Refaire avec les corrections », through *Refaire…*'s gate, the agreement and a confidential meeting included; nothing without that click | #528 S3; #536 S2 |
+| 4. No line corrected while not complete or being made; *Refaire…* says the corrections will not be kept | #528 S4 |
+| 5. The tests and the e2e: the keyboard alone, valid against the schema, a correction refused while made, the minutes not made again until asked | #528 S1, S3, S4 |
+
+What no scenario runs: a real paste from the system's clipboard — the scenario dispatches the event;
+Ctrl+Z after a paste.
 
 ### D63
 
