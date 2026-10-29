@@ -230,8 +230,9 @@ def instances() -> list[int]:
     return found
 
 
-def tray_labels() -> list[str]:
-    """The words of the tray's menu of the Wholeheard under test, as the desktop reads them (D64)."""
+def tray_entries() -> tuple[str, str, list[tuple[int, str]]]:
+    """The tray's menu of the Wholeheard under test, as the desktop reads it: its bus, its path, and
+    each entry's number and words (D64)."""
     watcher = ["org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher"]
     listed = subprocess.run(["busctl", "--user", "get-property", *watcher, "RegisteredStatusNotifierItems"],
                             capture_output=True, text=True).stdout
@@ -243,20 +244,34 @@ def tray_labels() -> list[str]:
             continue
         layout = subprocess.run(["busctl", "--user", "--json=short", "call", bus, f"{path}/Menu", "com.canonical.dbusmenu",
                                  "GetLayout", "iias", "0", "--", "-1", "0"], capture_output=True, text=True).stdout
-        labels: list[str] = []
+        entries: list[tuple[int, str]] = []
 
         def walk(node) -> None:
             node = node["data"] if isinstance(node, dict) and "data" in node else node
-            _, props, children = node
+            number, props, children = node
             if "label" in props:
-                labels.append(props["label"]["data"])
+                entries.append((number, props["label"]["data"]))
             for child in children:
                 walk(child)
 
         walk(json.loads(layout)["data"][1])
-        return labels
-    return []
+        return bus, path, entries
+    return "", "", []
 
+
+def tray_labels() -> list[str]:
+    """The words of the tray's menu of the Wholeheard under test (D64)."""
+    return [label for _, label in tray_entries()[2]]
+
+
+def tray_click(words: str) -> bool:
+    """Clicks the tray's entry whose words begin so, as the desktop does (D60)."""
+    bus, path, entries = tray_entries()
+    number = next((n for n, label in entries if label.startswith(words)), None)
+    if number is None:
+        return False
+    return subprocess.run(["busctl", "--user", "call", bus, f"{path}/Menu", "com.canonical.dbusmenu", "Event", "isvu",
+                           str(number), "clicked", "s", "", "0"], capture_output=True).returncode == 0
 
 class Window:
     """Wholeheard with its window, for as long as the `with` lasts."""
@@ -1547,6 +1562,110 @@ echo '{{"available":true,"installed":true,"supported":true}}'
     finally:
         monitor.terminate()
         monitor.wait(timeout=10)
+
+
+def confidential_every_way(now: dt.datetime) -> None:
+    """AI. A meeting said confidential (D60), its transcript made again every way the criterion names
+    — from the tray, by Réessayer, by « Refaire avec ce contexte » — and its minutes from the tray:
+    Whisper and Ollama here, nothing asked of the services the settings name."""
+    print("AI. a confidential meeting made again from the tray, by Réessayer, by Refaire avec ce contexte: here alone (D60)")
+    counted = {"hear": 0, "write": 0}
+
+    class Service(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_POST(self):
+            counted[self.path.strip("/")] += 1
+            self.rfile.read(int(self.headers.get("content-length") or 0))
+            self.send_response(200)
+            self.send_header("content-length", "0")
+            self.end_headers()
+
+        def log_message(self, *_):
+            pass
+
+    class Ollama(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_GET(self):
+            body = json.dumps({"models": [{"name": "qwen3:8b"}]}).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    servers = [http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) for handler in (Service, Ollama)]
+    for server in servers:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+    standin, base = (f"http://127.0.0.1:{server.server_port}" for server in servers)
+    model = WORK / "every-way-model.bin"
+    model.write_bytes(b"\0" * 16)
+    named = (f'reminder = false\nmodel = "{model}"\n'
+             'engine = "service"\ntranscription_provider = "https://hears.example/v1"\ntranscription_model = "whisper-1"\n'
+             'transcription_agreed = "hears.example"\nminutes_provider = "https://writes.example/v1"\nminutes_model = "gpt-4.1-mini"\n'
+             'minutes_agreed = "writes.example"\n')
+    meetings = WORK / "every-way"
+    meeting = meetings / "2026-10-28_15-00"
+    session(meeting, now - dt.timedelta(hours=3), 1, {"local.wav": 1000})
+    (meeting / "confidential").write_bytes(b"")
+    (meeting / "context.txt").write_text("Budget.")
+    hearing, writing = WORK / "hearing-args", WORK / "summary-args"
+    heard_here = lambda: hearing.exists() and "--provider" not in hearing.read_text()
+
+    def header() -> dict:
+        try:
+            return json.loads((meeting / "transcript.jsonl").read_text().splitlines()[0])
+        except (FileNotFoundError, IndexError, ValueError):
+            return {}
+
+    window = Window(meetings, "fr_FR.UTF-8", named, ollama=base)
+    window.env.update(STANDIN=standin)
+    try:
+        with window as browser:
+            wait_for(browser, lambda b: tray_labels() != [], 10)
+            # From the tray: the last recording's transcript, the engine named a service.
+            hearing.unlink(missing_ok=True)
+            clicked = tray_click("Transcrire le dernier enregistrement")
+            made = wait_for(browser, lambda b: hearing.exists() and header().get("engine") == "whisper.cpp", 15)
+            check("from the tray: Whisper hears it here, the service named in the settings asked nothing",
+                  clicked and made and heard_here() and counted["hear"] == 0, (hearing.read_text() if hearing.exists() else "", counted))
+            # By Réessayer: a making that failed, asked again.
+            (WORK / "fail-hearing").touch()
+            hearing.unlink(missing_ok=True)
+            browser.execute_script("window.__TAURI__.core.invoke('context_redo', {name: arguments[0]})", meeting.name)
+            failed = wait_for(browser, lambda b: hearing.exists() and b.execute_script(
+                "return window.__TAURI__.core.invoke('makings').then(m => m.transcript === null && m.transcripts_waiting.length === 0)"), 15)
+            (WORK / "fail-hearing").unlink()
+            hearing.unlink(missing_ok=True)
+            browser.execute_script("window.__TAURI__.core.invoke('transcript_again', {name: arguments[0]})", meeting.name)
+            again = wait_for(browser, lambda b: hearing.exists(), 15)
+            check("by Réessayer: here again, nothing asked of the service", failed and again and heard_here() and counted["hear"] == 0,
+                  (hearing.read_text() if hearing.exists() else "", counted))
+            # From the tray: the last recording's minutes.
+            wait_for(browser, lambda b: b.execute_script(
+                "return window.__TAURI__.core.invoke('makings').then(m => m.minutes === null && m.minutes_waiting.length === 0)"), 15)
+            writing.unlink(missing_ok=True)
+            clicked = tray_click("Faire le compte rendu du dernier enregistrement")
+            written = wait_for(browser, lambda b: writing.exists(), 15)
+            check("its minutes from the tray: Ollama here, no agreement asked, nothing sent",
+                  clicked and written and f"--provider {base}/v1" in writing.read_text() and counted == {"hear": 0, "write": 0}
+                  and not browser.execute_script("return location.hash").startswith("#/agree"), (writing.read_text() if writing.exists() else "", counted))
+            # By « Refaire avec ce contexte »: the transcript and the minutes, here.
+            wait_for(browser, lambda b: b.execute_script(
+                "return window.__TAURI__.core.invoke('makings').then(m => m.transcript === null && m.minutes === null && m.minutes_waiting.length === 0)"), 15)
+            hearing.unlink(missing_ok=True)
+            writing.unlink(missing_ok=True)
+            browser.execute_script("window.__TAURI__.core.invoke('context_redo', {name: arguments[0]})", meeting.name)
+            redone = wait_for(browser, lambda b: hearing.exists() and writing.exists(), 20)
+            check("by Refaire avec ce contexte: Whisper and Ollama here, nothing asked of either service",
+                  redone and heard_here() and f"--provider {base}/v1" in writing.read_text() and counted == {"hear": 0, "write": 0},
+                  (hearing.read_text() if hearing.exists() else "", writing.read_text() if writing.exists() else "", counted))
+    finally:
+        for server in servers:
+            server.shutdown()
 
 
 def two_panes(now: dt.datetime) -> None:
@@ -4077,6 +4196,7 @@ def main() -> int:
     two_panes(now)
     sidebar_folded(now)
     app_language(now)
+    confidential_every_way(now)
     return 1 if FAILED else 0
 
 
