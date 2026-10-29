@@ -1576,6 +1576,10 @@ def two_panes(now: dt.datetime) -> None:
         check("the header's two tabs are gone", not browser.find_elements(By.ID, "meetings") and not browser.find_elements(By.CSS_SELECTOR, "header.bar"))
         check("the pane shows the last meeting, marked in the list", shown(browser) == names[-1]
               and current(browser) == [f"#/meeting/{names[-1]}"], (shown(browser), current(browser)))
+        said = browser.execute_script("return [...document.querySelectorAll('#groups .session')].map(r => ["
+                                      "r.querySelector('.day')?.textContent, r.querySelector('.length')?.textContent, r.querySelectorAll('.holds .chip').length])")
+        check("each meeting in the list says its title and date, its length and what it holds",
+              len(said) == len(names) and all(day and length == "30 min" and chips >= 1 for day, length, chips in said), said[:3])
         browser.execute_script("document.getElementById('list').scrollTop = 100000")
         scrolled = browser.execute_script("return document.getElementById('list').scrollTop")
         browser.find_elements(By.CSS_SELECTOR, "#groups .session")[-1].click()
@@ -1661,6 +1665,28 @@ def two_panes(now: dt.datetime) -> None:
         browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB)
         inside = browser.execute_script("return document.getElementById('sidebar').contains(document.activeElement)")
         check("the keyboard: the sidebar before the pane", inside, browser.execute_script("return document.activeElement.outerHTML.slice(0, 80)"))
+
+    # In English, gone through with the keyboard alone: the sidebar first, the focus always seen.
+    with Window(meetings, "en_GB.UTF-8") as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: shown(b) == names[-1] and b.find_elements(By.CSS_SELECTOR, ".transcript .lines li"), 10)
+        english = [browser.find_element(By.ID, i).text for i in ("record-said", "settings-link", "free-link")]
+        browser.execute_script("document.activeElement.blur()")
+        stops = []
+        for _ in range(45):
+            ActionChains(browser).send_keys(Keys.TAB).perform()
+            stops.append(browser.execute_script(
+                "const e = document.activeElement, seen = (n) => { const s = getComputedStyle(n);"
+                " return (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) || s.boxShadow !== 'none'; };"
+                "return [document.getElementById('sidebar').contains(e) ? 'side' : document.getElementById('pane').contains(e) ? 'pane' : 'other',"
+                " seen(e) || (e.closest('.choice') !== null && seen(e.closest('.choice'))), e.id || e.className || e.tagName]"))
+        places = [place for place, _, _ in stops]
+        unseen = [name for _, seen_, name in stops if not seen_]
+        # The pane's stops in one run: none of the sidebar's between them — past the last, the page starts again.
+        last = len(places) - 1 - places[::-1].index("pane") if "pane" in places else 0
+        check("in English, the keyboard reaches the sidebar first, then the whole pane", english == ["Start a recording", "Settings", "Free space"]
+              and places[0] == "side" and "pane" in places and set(places[places.index("pane"):last + 1]) == {"pane"}, (english, places))
+        check("the focus is always seen", unseen == [], unseen)
 
     empty = WORK / "panes-none"
     empty.mkdir()
@@ -1834,6 +1860,14 @@ def transcript_corrected(now: dt.datetime) -> None:
         browser.find_element(By.CSS_SELECTOR, "#meeting h1, #meeting .meeting-top").click()
         left = wait_for(browser, lambda b: "validé. en novembre" in (heard / "transcript.jsonl").read_text(), 3)
         check("leaving the field keeps what is typed", left, (heard / "transcript.jsonl").read_text().splitlines()[2:3])
+        # Pasted with its line break and spaces around: one line, its ends trimmed.
+        browser.find_elements(By.CSS_SELECTOR, "#meeting .lines .edit")[1].click()
+        wait_for(browser, lambda b: focused(b) == "correcting", 2)
+        browser.execute_script("const f = document.activeElement; f.select(); const d = new DataTransfer(); d.setData('text/plain', arguments[0]);"
+                               "f.dispatchEvent(new ClipboardEvent('paste', {clipboardData: d, bubbles: true, cancelable: true}))", "  Le budget de Jiri\nest validé.  ")
+        keys(browser, Keys.ENTER)
+        pasted = wait_for(browser, lambda b: '"text":"Le budget de Jiri est validé."' in (heard / "transcript.jsonl").read_text().replace('": "', '":"'), 3)
+        check("a line break pasted becomes a space, the spaces at its ends dropped", pasted, (heard / "transcript.jsonl").read_text().splitlines()[2:3])
         # Drawn again: the minutes, older than the correction, say so and offer to be made again.
         browser.execute_script("location.hash = '#/'")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
@@ -1893,6 +1927,73 @@ def transcript_corrected(now: dt.datetime) -> None:
             except FileNotFoundError:
                 return False
         wait_for(browser, lambda b: remade(), 10)
+
+
+def corrections_gated(now: dt.datetime) -> None:
+    """AG. « Refaire avec les corrections » through Refaire…'s own gate (D62): a service not agreed to
+    asks first, in the pane (D61); a meeting said confidential is made here (D60)."""
+    print("AG. the minutes made again with the corrections: the agreement asked in the pane, a confidential meeting made here (D62, D61)")
+    ollama = {"held": ["qwen3:8b"]}
+
+    class Ollama(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_GET(self):
+            body = json.dumps({"models": [{"name": name} for name in ollama["held"]]}).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Ollama)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    meetings = WORK / "gated"
+    minutes = ("---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: writes.example\nmodel: gpt-4.1-mini\ncontext: null\n---\n\n"
+               "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    folders = []
+    for name in ("2026-10-26_09-00", "2026-10-26_11-00"):
+        folder = meetings / name
+        session(folder, now - dt.timedelta(days=3), 0.1, {"local.wav": 1000})
+        (folder / "transcript.jsonl").write_text(
+            '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+            '{"type":"segment","speaker":"me","track":"local","voice":null,"start":0.4,"end":1.2,"text":"Le budget est validé.","edited":"2026-10-29T09:00:00+01:00"}\n'
+            '{"type":"complete","duration":1.0}\n')
+        (folder / "minutes.md").write_text(minutes)
+        folders.append(folder)
+    opened, secret = folders
+    (secret / "confidential").write_bytes(b"")
+    online = 'reminder = false\nminutes_provider = "https://writes.example/v1"\nminutes_model = "gpt-4.1-mini"\n'
+    front = lambda folder, key: next((line.split(": ", 1)[1] for line in (folder / "minutes.md").read_text().splitlines()
+                                      if line.startswith(f"{key}: ")), None)
+    args = WORK / "summary-args"
+    try:
+        with Window(meetings, "fr_FR.UTF-8", online, ollama=base) as browser:
+            browser.set_window_size(1100, 800)
+            args.unlink(missing_ok=True)
+            browser.execute_script(f"location.hash = '#/meeting/{opened.name}'")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "redo-corrections"), 10)
+            press(browser, "redo-corrections")
+            asked = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/agree/{opened.name}"
+                             and b.find_elements(By.ID, "agree-send"), 10)
+            check("a service not agreed to: « Refaire avec les corrections » asks first, as Refaire… does — nothing sent",
+                  asked and not args.exists() and (opened / "minutes.md").read_text() == minutes, browser.execute_script("return location.hash"))
+            check("the agreement opens in the pane, the sidebar kept beside it (D61)", browser.execute_script(
+                "return document.getElementById('pane').contains(document.getElementById('agree'))")
+                  and browser.find_element(By.ID, "agree").is_displayed() and browser.find_element(By.ID, "sidebar").is_displayed())
+            browser.execute_script(f"location.hash = '#/meeting/{secret.name}'")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "redo-corrections"), 10)
+            press(browser, "redo-corrections")
+            # Made by Ollama on this computer, its model named in the minutes (the played step names no provider then).
+            made = wait_for(browser, lambda b: front(secret, "model") == "qwen3:8b", 20)
+            check("a meeting said confidential: made here, by Ollama, no agreement asked",
+                  made and browser.execute_script("return location.hash") == f"#/meeting/{secret.name}"
+                  and args.exists() and f"--provider {base}/v1" in args.read_text(), (front(secret, "model"), args.read_text() if args.exists() else ""))
+    finally:
+        server.shutdown()
 
 
 def context_written(now: dt.datetime) -> None:
@@ -3851,6 +3952,7 @@ def main() -> int:
     confidential_kept(now)
     meeting_language(now)
     transcript_corrected(now)
+    corrections_gated(now)
     two_panes(now)
     sidebar_folded(now)
     app_language(now)

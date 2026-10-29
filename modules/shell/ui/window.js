@@ -1039,6 +1039,13 @@ function transcriptCard(read, words, session) {
         field.type = "text";
         field.value = text.textContent;
         field.setAttribute("aria-label", pencil.getAttribute("aria-label"));
+        // A line break pasted is a space: a field of one line would drop it, gluing two words.
+        field.addEventListener("paste", (event) => {
+          const pasted = event.clipboardData?.getData("text/plain");
+          if (!pasted || !/[\r\n]/.test(pasted)) return;
+          event.preventDefault();
+          field.setRangeText(pasted.replace(/[\r\n]+/g, " "), field.selectionStart, field.selectionEnd, "end");
+        });
         let done = false;
         const leave = (kept) => {
           done = true;
