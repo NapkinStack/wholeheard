@@ -3033,6 +3033,14 @@ def main() -> int:
         browser.find_element(By.TAG_NAME, "body").send_keys(Keys.SPACE)
         paused = wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('audio.track')].every(a => a.paused)"), 5)
         check("the space bar pauses", paused and browser.find_element(By.ID, "play").text == "Écouter", browser.find_element(By.ID, "play").text)
+        # Pause clicked with the mouse, held as a hand holds it: playing, the button's words are
+        # read ten times a second, and a press on words written again is no click in WebKitGTK.
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.SPACE)
+        wait_for(browser, playing, 5)
+        ActionChains(browser).move_to_element(browser.find_element(By.ID, "play")).click_and_hold().pause(0.3).release().perform()
+        paused = wait_for(browser, lambda b: not playing(b), 3)
+        check("Pause clicked with the mouse, held 0.3 s, pauses", paused and browser.find_element(By.ID, "play").text == "Écouter",
+              browser.find_element(By.ID, "play").text)
         # By the keyboard alone: the drawing is a slider, a line plays from it on Enter.
         drawing = browser.find_element(By.CSS_SELECTOR, ".drawing")
         slider = lambda b: b.find_element(By.CSS_SELECTOR, ".drawing").get_attribute("aria-valuenow")
