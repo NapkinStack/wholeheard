@@ -650,7 +650,26 @@ def service_named(now: dt.datetime) -> None:
         '{"type":"header","contract":"transcript/v1","engine":"api.groq.com","model":"whisper-large-v3","language":"fr","context":null}\n'
         '{"type":"segment","speaker":"me","track":"local","voice":null,"start":0.5,"end":1.5,"text":"Bonjour."}\n{"type":"complete","duration":2.0}\n'
     )
+    # OpenRouter's stand-in: it lists its transcription models, by what they do (D63).
+    listed = []
+
+    class Listing(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            listed.append(self.path)
+            body = json.dumps({"data": [{"id": "openai/whisper-large-v3-turbo"}, {"id": "vendor/scribe"}]}).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Listing)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    stand = f"http://127.0.0.1:{server.server_address[1]}/api/v1"
     window = Window(meetings, "fr_FR.UTF-8")
+    window.env.update(WHOLEHEARD_HEARING=stand)
     said = "return document.getElementById('transcription-said')?.innerText || ''"
     with window as browser:
         browser.find_element(By.ID, "settings-link").click()
@@ -697,6 +716,39 @@ def service_named(now: dt.datetime) -> None:
         browser.execute_script("location.hash = '#/settings'")
         note = wait_for(browser, lambda b: "reçoit le son de vos réunions" in b.find_element(By.ID, "settings").text, 5)
         check("Settings say a transcription service receives the meetings' sound", note and "L’audio ne quitte jamais" not in browser.find_element(By.ID, "settings").text)
+        # Offered by name, as the minutes' services are (D63).
+        offered = lambda b, id_: b.execute_script("return [...document.querySelectorAll(arguments[0])].map(o => [o.value, o.textContent])", f"#{id_} option")
+        names = [said_ for value, said_ in offered(browser, "model") if value.startswith("service:")]
+        check("the services that hear are offered by name, as the minutes' are: OpenRouter, OpenAI", names == ["OpenRouter", "OpenAI"], names)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:0")
+        models = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["openai/whisper-large-v3-turbo", "vendor/scribe", "Un autre modèle…"], 5)
+        check("OpenRouter chosen: its transcription models listed from it, its address filled and not asked",
+              models and listed == ["/api/v1/models?output_modalities=transcription"] and not browser.find_element(By.ID, "transcription-provider").is_displayed()
+              and not browser.find_element(By.ID, "transcription-model").is_displayed(), (offered(browser, "transcription-models"), listed))
+        Select(browser.find_element(By.ID, "transcription-models")).select_by_value("")
+        typed = wait_for(browser, lambda b: b.find_element(By.ID, "transcription-model").is_displayed()
+                         and b.execute_script("return document.activeElement.id") == "transcription-model", 3)
+        check("« Un autre modèle… »: a model typed by hand", typed)
+        Select(browser.find_element(By.ID, "transcription-models")).select_by_value("vendor/scribe")
+        browser.find_element(By.ID, "transcription-key").send_keys("sk-stand-in-not-a-key")
+        if not browser.find_element(By.ID, "transcription-agreed").is_selected():
+            browser.find_element(By.ID, "transcription-agreed").click()
+        press(browser, "transcription-save")
+        saved = wait_for(browser, lambda b: f'transcription_provider = "{stand}"' in window.file.read_text(), 5)
+        text = window.file.read_text()
+        check("saved: OpenRouter's address, the model chosen in its list, the key never in the settings",
+              saved and 'transcription_model = "vendor/scribe"' in text and "sk-stand-in" not in text, text)
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
+        browser.execute_script("location.hash = '#/settings'")
+        kept = wait_for(browser, lambda b: b.find_elements(By.ID, "model") and b.find_element(By.ID, "model").get_attribute("value") == "service:0"
+                        and b.find_element(By.ID, "transcription-models").get_attribute("value") == "vendor/scribe", 5)
+        check("drawn again: OpenRouter chosen, its model in its list", kept)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:1")
+        named = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["whisper-1", "Un autre modèle…"], 5)
+        check("OpenAI chosen: the model it publishes with segments, named in the repository — not its own list",
+              named and len(listed) == 2, (offered(browser, "transcription-models"), listed))
+    server.shutdown()
 
 
 def ollama_pulled(now: dt.datetime) -> None:

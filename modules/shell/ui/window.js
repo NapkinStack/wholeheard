@@ -1484,9 +1484,18 @@ function showSettings(shown, minutes, words) {
   // the user agreed to its host; a host on this computer needs no agreement.
   const groupService = element("optgroup");
   groupService.label = words.service_group;
+  // The services that hear, offered by name as the minutes' are (D63); any other, an address of the user's.
+  const presetOf = (text) => shown.hearing.findIndex((hearing) => hearing.address === text);
+  const preset = shown.engine === "service" ? presetOf(shown.transcription_provider) : -1;
+  shown.hearing.forEach((hearing, index) => {
+    const option = element("option", "", hearing.name);
+    option.value = `service:${index}`;
+    option.selected = preset === index;
+    groupService.append(option);
+  });
   const serviceOption = element("option", "", words.service_option);
   serviceOption.value = "service";
-  serviceOption.selected = shown.engine === "service";
+  serviceOption.selected = shown.engine === "service" && preset < 0;
   groupService.append(serviceOption);
   pick.append(groupService);
   const service = element("div", "fields");
@@ -1508,6 +1517,41 @@ function showSettings(shown, minutes, words) {
   const address = serviceField("transcription-provider", words.service_address, "url", shown.transcription_provider);
   const serviceModel = serviceField("transcription-model", words.service_model, "text", shown.transcription_model);
   const serviceKey = serviceField("transcription-key", words.service_key, "password", "");
+  // A service offered by name: its models to choose from, another typed (D63).
+  const serviceModels = element("select");
+  serviceModels.id = "transcription-models";
+  serviceModels.disabled = locked;
+  const modelsWrap = element("label", "field");
+  modelsWrap.htmlFor = serviceModels.id;
+  modelsWrap.append(element("span", "name", words.service_model), serviceModels);
+  serviceModel.parentElement.before(modelsWrap);
+  const showModel = () => {
+    const named = pick.value.startsWith("service:");
+    modelsWrap.hidden = !named;
+    serviceModel.parentElement.hidden = named && serviceModels.value !== "";
+    if (named && serviceModels.value !== "") serviceModel.value = serviceModels.value;
+  };
+  const offerModels = async (index) => {
+    const listed = await window.__TAURI__.core.invoke("hearing_models", { index }).catch(() => []);
+    // Another chosen meanwhile: its own list comes.
+    if (pick.value !== `service:${index}`) return;
+    const typed = serviceModel.value.trim();
+    serviceModels.replaceChildren(...listed.map((name) => {
+      const option = element("option", "", name);
+      option.value = name;
+      return option;
+    }));
+    const other = element("option", "", words.service_other_model);
+    other.value = "";
+    serviceModels.append(other);
+    serviceModels.value = listed.includes(typed) ? typed : typed ? "" : listed[0] ?? "";
+    showModel();
+  };
+  serviceModels.addEventListener("change", () => {
+    if (serviceModels.value === "") serviceModel.value = "";
+    showModel();
+    if (serviceModels.value === "") serviceModel.focus();
+  });
   const agree = element("label", "row");
   const agreeBox = element("input");
   agreeBox.type = "checkbox";
@@ -1521,6 +1565,18 @@ function showSettings(shown, minutes, words) {
   agreeBox.checked = !!shown.transcription_agreed && shown.transcription_agreed === hostOf(address.value);
   address.addEventListener("input", () => { sayAgree(); agreeBox.checked = false; });
   sayAgree();
+  // A service offered by name fills its address; one of the user's shows the field. The agreement
+  // ticked only for the host already agreed to.
+  const chooseService = () => {
+    const index = pick.value.startsWith("service:") ? Number(pick.value.split(":")[1]) : -1;
+    if (index >= 0) address.value = shown.hearing[index].address;
+    else if (presetOf(address.value) >= 0) address.value = preset < 0 ? shown.transcription_provider || "" : "";
+    address.parentElement.hidden = index >= 0;
+    agreeBox.checked = !!shown.transcription_agreed && shown.transcription_agreed === hostOf(address.value);
+    sayAgree();
+    if (index >= 0) offerModels(index);
+    showModel();
+  };
   agree.append(agreeBox, agreeSaid);
   const serviceSaid = element("p", "says");
   serviceSaid.id = "transcription-said";
@@ -1563,9 +1619,13 @@ function showSettings(shown, minutes, words) {
     testService.disabled = false;
   });
   service.append(agree, saveService, testService, serviceSaid);
+  if (pick.value.startsWith("service")) chooseService();
   pick.addEventListener("change", () => {
-    service.hidden = pick.value !== "service";
-    if (pick.value === "service") return address.focus();
+    service.hidden = !pick.value.startsWith("service");
+    if (pick.value.startsWith("service")) {
+      chooseService();
+      return (pick.value === "service" ? address : serviceModels).focus();
+    }
     if (pick.value !== "speechanalyzer") return save({ model: pick.value });
     if (appleHere) return save({ engine: "speechanalyzer" });
     // Not chosen until its model is on the Mac: the gesture comes first, never the download.
