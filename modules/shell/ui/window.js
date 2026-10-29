@@ -1535,7 +1535,9 @@ function showSettings(shown, minutes, words) {
     const listed = await window.__TAURI__.core.invoke("hearing_models", { index }).catch(() => []);
     // Another chosen meanwhile: its own list comes.
     if (pick.value !== `service:${index}`) return;
-    const typed = serviceModel.value.trim();
+    // The model saved for this service, if it is the one saved; another service starts from its list.
+    const typed = index === preset ? (shown.transcription_model ?? "").trim() : "";
+    serviceModel.value = typed;
     serviceModels.replaceChildren(...listed.map((name) => {
       const option = element("option", "", name);
       option.value = name;
