@@ -14,6 +14,7 @@ import http.server
 import json
 import math
 import os
+import re
 import shutil
 import signal
 import socket
@@ -1784,6 +1785,48 @@ def actions_rows(now: dt.datetime) -> None:
         browser.execute_script("document.querySelector('#meeting .minutes').scrollIntoView({block: 'start'})")
         time.sleep(0.3)
         shot(browser, "d46-actions-rows")
+
+
+def meeting_told_once(now: dt.datetime) -> None:
+    """AL. A meeting's notifications are fewer, and a click on one opens the meeting (D44)."""
+    print("AL. a window seen: no stop told, the transcript not told before its minutes; their notification's click opens the meeting (D44)")
+    meetings = WORK / "telling"
+    meetings.mkdir()
+    model = WORK / "telling-model.bin"
+    model.write_bytes(b"\0" * 16)
+    settings = (f'after = "minutes"\nreminder = false\nmodel = "{model}"\n'
+                'minutes_provider = "http://127.0.0.1:9/v1"\nminutes_model = "mistral"\n')
+    meeting = meetings / "2026-10-18_12-00"
+    notified, answered = WORK / "notified-telling", WORK / "answered-telling"
+    monitors = [subprocess.Popen(["dbus-monitor", "--session", rule], stdout=open(out, "w"), stderr=subprocess.DEVNULL)
+                for rule, out in (("interface='org.freedesktop.Notifications',member='Notify'", notified),
+                                  ("type='method_return',sender='org.freedesktop.Notifications'", answered))]
+    live = lambda b: "live" in (b.find_element(By.ID, "record").get_attribute("class") or "")
+    try:
+        time.sleep(0.5)
+        with Window(meetings, "fr_FR.UTF-8", settings) as browser:
+            browser.find_element(By.ID, "record").click()
+            wait_for(browser, lambda b: (meeting / "session.json").exists() and live(b), 10)
+            browser.find_element(By.ID, "record").click()
+            made = wait_for(browser, lambda b: "Compte rendu prêt" in notified.read_text(), 20)
+            told = notified.read_text()
+            check("a window seen: the stop is not told, nor the transcript before its minutes — their notification alone",
+                  made and "Enregistrement arrêté" not in told and "Transcription prête" not in told, told[-600:])
+            check("its words say the click opens it", "Cliquez pour l’ouvrir." in told, told[-400:])
+            # Away from the meeting, then the notification clicked as the desktop clicks it.
+            browser.execute_script("location.hash = '#/settings'")
+            wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed(), 5)
+            number = re.findall(r"^ +uint32 (\d+)", answered.read_text(), re.M)[-1]
+            subprocess.run(["gdbus", "emit", "--session", "--object-path", "/org/freedesktop/Notifications", "--signal",
+                            "org.freedesktop.Notifications.ActionInvoked", f"uint32 {number}", "'default'"], capture_output=True)
+            opened = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/meeting/{meeting.name}"
+                              and b.find_element(By.ID, "meeting").is_displayed(), 10)
+            check("clicked: the full window opens on that meeting's page, never the file manager", opened,
+                  browser.execute_script("return location.hash"))
+    finally:
+        for monitor in monitors:
+            monitor.terminate()
+            monitor.wait(timeout=10)
 
 
 def two_panes(now: dt.datetime) -> None:
@@ -4312,6 +4355,7 @@ def main() -> int:
     sidebar_folded(now)
     app_language(now)
     confidential_every_way(now)
+    meeting_told_once(now)
     minutes_copied(now)
     actions_rows(now)
     return 1 if FAILED else 0

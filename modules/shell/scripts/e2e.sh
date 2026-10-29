@@ -374,12 +374,15 @@ check is "$(tail -1 "$work/summarised")" "$meeting --provider https://openrouter
 check is "$(tail -1 "$work/summary-keys")" none
 check is "$(titles 'Compte rendu prêt')" 2
 click 6
-# Chained: a recording stopped, its transcript, then its minutes — no other gesture.
-start fr_FR.UTF-8 "reminder = false\nafter = \"minutes\"\nmodel = \"$work/model.bin\"\nminutes_provider = \"http://127.0.0.1:9/v1\"\nminutes_model = \"mistral\"" "$work/wholeheard-capture"
+# Chained: a recording stopped, its transcript, then its minutes — no other gesture. No window
+# seen: the reminder, the stop and the minutes ready, three notifications and no more (D44).
+reminded=$(titles 'Enregistrement en cours'); ended=$(titles 'Enregistrement arrêté'); heard=$(titles 'Transcription prête')
+start fr_FR.UTF-8 "after = \"minutes\"\nmodel = \"$work/model.bin\"\nminutes_provider = \"http://127.0.0.1:9/v1\"\nminutes_model = \"mistral\"" "$work/wholeheard-capture"
 click 3; click 3; sleep 4
 check test -s "$work/sessions/2026-10-13_14-05/minutes.md"
 check is "$(tail -1 "$work/summarised")" "$work/sessions/2026-10-13_14-05 --provider http://127.0.0.1:9/v1 --model mistral"
 check is "$(titles 'Compte rendu prêt')" 3
+check is "$(( $(titles 'Enregistrement en cours') - reminded ))/$(( $(titles 'Enregistrement arrêté') - ended ))/$(( $(titles 'Transcription prête') - heard ))" "1/1/0"
 click 6
 
 say "S. a call takes a microphone in another application: offered once, named; never while recording, nor with offers off (D30)"

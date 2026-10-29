@@ -2415,12 +2415,18 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
         if *shell.leaving.lock().unwrap() {
             return;
         }
+        let written = matches!(made, summarising::Made::Written(_));
         let said = match made {
             summarising::Made::Written(_) if kept_beside.is_some() => words::Minutes::ReadyKeptBeside(kept_beside.unwrap_or_default()),
             summarising::Made::Written(_) => words::Minutes::Ready,
             summarising::Made::Failed(_, cause) => words::Minutes::failed(cause, again),
         };
-        tell(&app, &words::minutes(&said, shell.language()));
+        // Ready, a click opens the meeting (D44); a failure is said as ever.
+        if written {
+            tell_opening(&app, &words::minutes(&said, shell.language()), folder.clone());
+        } else {
+            tell(&app, &words::minutes(&said, shell.language()));
+        }
     });
 }
 
@@ -2559,6 +2565,13 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
         let notice = match &event {
             // Ended before it had started: nothing was recorded, and that is the trouble.
             Said::Failed(why) if !started => Some(words::trouble(&Trouble::NoRecorder(why.clone()), shell.language())),
+            // A window of Wholeheard seen: the stop is there already, no notification says it (D44).
+            Said::Stopped(folder, _) if window_seen(app) => {
+                if shell.settings().after != settings::After::Nothing {
+                    stopped = Some(folder.clone());
+                }
+                None
+            }
             Said::Stopped(folder, _) if shell.settings().after != settings::After::Nothing => {
                 stopped = Some(folder.clone());
                 words::of(&event, shell.settings().reminder, shell.language()).map(|notice| Notice {
@@ -2910,10 +2923,12 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         let notice = words::made(&made, shell.language());
         match made {
             Made::Written(folder) => {
-                tell_opening(&app, &notice, folder.clone());
-                // The minutes follow, when the settings say so — as they are now.
+                // The minutes follow, when the settings say so — as they are now; then their
+                // notification alone says the meeting is made (D44).
                 if shell.reread().is_ok_and(|settings| settings.after == settings::After::Minutes) {
                     make_minutes(&app, folder);
+                } else {
+                    tell_opening(&app, &notice, folder.clone());
                 }
             }
             Made::Failed(_) => tell(&app, &notice),
@@ -3212,11 +3227,13 @@ fn transcribing(app: &AppHandle, now: bool) {
     });
 }
 
-/// Shows a notification whose click opens a folder. Under a Linux desktop the notification
-/// server says when it was clicked; elsewhere it is a notification alone, for now.
+/// Shows a notification whose click opens its meeting in the full window, on its page (D44).
+/// Under a Linux desktop the notification server says when it was clicked; elsewhere it is a
+/// notification alone, and its words promise no click.
 #[cfg(target_os = "linux")]
-fn tell_opening(_: &AppHandle, notice: &Notice, folder: PathBuf) {
+fn tell_opening(app: &AppHandle, notice: &Notice, folder: PathBuf) {
     let (title, body) = (notice.title.clone(), notice.body.clone());
+    let app = app.clone();
     std::thread::spawn(move || {
         let shown = notify_rust::Notification::new()
             .appname("Wholeheard")
@@ -3227,11 +3244,12 @@ fn tell_opening(_: &AppHandle, notice: &Notice, folder: PathBuf) {
         if let Ok(shown) = shown {
             shown.wait_for_action(|action| {
                 if action == "default" {
-                    // Waited for, so that nothing of it is left in the system's table of programs.
-                    let _ = std::process::Command::new("xdg-open")
-                        .arg(&folder)
-                        .spawn()
-                        .and_then(|mut opened| opened.wait());
+                    let page = format!(
+                        "#/meeting/{}",
+                        address_part(&folder.file_name().unwrap_or_default().to_string_lossy())
+                    );
+                    let opened = app.clone();
+                    let _ = app.run_on_main_thread(move || open_window_at(&opened, &page));
                 }
             });
         }
@@ -3241,6 +3259,27 @@ fn tell_opening(_: &AppHandle, notice: &Notice, folder: PathBuf) {
 #[cfg(not(target_os = "linux"))]
 fn tell_opening(app: &AppHandle, notice: &Notice, _: PathBuf) {
     tell(app, notice);
+}
+
+/// A meeting's name as the window's address holds it, as `encodeURIComponent` writes it.
+#[cfg(target_os = "linux")]
+fn address_part(name: &str) -> String {
+    name.bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
+}
+
+/// Whether a window of Wholeheard is seen: shown and not minimized, as the toolkit says (D44).
+fn window_seen(app: &AppHandle) -> bool {
+    ["main", "small"]
+        .iter()
+        .filter_map(|label| app.get_webview_window(label))
+        .any(|window| window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false))
 }
 
 /// Quits Wholeheard. A recording in progress is stopped first, as the user would stop it: its

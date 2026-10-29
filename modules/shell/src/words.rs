@@ -51,6 +51,10 @@ impl Language {
     }
 }
 
+/// Whether the desktop says a notification was clicked, so that a click opens the meeting: under
+/// Linux, its notification server does; elsewhere a notification promises no click (D44).
+const CLICKED: bool = cfg!(target_os = "linux");
+
 /// A notification: a title that says it all at a glance, and one or two sentences.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notice {
@@ -1566,8 +1570,23 @@ pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
 pub fn made(made: &Made, language: Language) -> Notice {
     use Language::{English, French};
     let (title, body) = match (made, language) {
-        (Made::Written(_), English) => ("Transcript ready", "Click to open the session’s folder."),
-        (Made::Written(_), French) => ("Transcription prête", "Cliquez pour ouvrir le dossier de la session."),
+        // A click opens the meeting in Wholeheard where the desktop says it was clicked (D44).
+        (Made::Written(_), English) => (
+            "Transcript ready",
+            if CLICKED {
+                "Click to open it."
+            } else {
+                "It is in Wholeheard’s window."
+            },
+        ),
+        (Made::Written(_), French) => (
+            "Transcription prête",
+            if CLICKED {
+                "Cliquez pour l’ouvrir."
+            } else {
+                "Elle est dans la fenêtre de Wholeheard."
+            },
+        ),
         (Made::Failed(_), English) => (
             "The transcript was not made",
             "The recording is untouched. “Transcribe the last recording” in Wholeheard’s menu tries again from where it stopped.",
@@ -1621,7 +1640,12 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
     let (title, body) = match (said, language) {
         (Minutes::Ready, English) => (
             "Minutes ready",
-            "They are in Wholeheard’s window, beside the transcript.".to_string(),
+            if CLICKED {
+                "Click to open it."
+            } else {
+                "They are in Wholeheard’s window, beside the transcript."
+            }
+            .to_string(),
         ),
         (Minutes::ReadyKeptBeside(name), English) => (
             "Minutes ready",
@@ -1633,7 +1657,12 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         ),
         (Minutes::Ready, French) => (
             "Compte rendu prêt",
-            "Il est dans la fenêtre de Wholeheard, à côté du transcript.".to_string(),
+            if CLICKED {
+                "Cliquez pour l’ouvrir."
+            } else {
+                "Il est dans la fenêtre de Wholeheard, à côté du transcript."
+            }
+            .to_string(),
         ),
         // Its cause named, the cause's gesture; else the menu's entry, which tries again.
         (Minutes::Failed(Some(cause)), English) => (
