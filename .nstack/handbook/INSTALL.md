@@ -213,7 +213,7 @@ repository — **the identity your agents work under** (`.nstack/handbook/07-gov
 - [ ] Its private key stored outside any repository: the workstation's secret store, or
       the CI's secrets
 - [ ] The agent's session reaches no human credential
-- [ ] On `approval: agent`, one App per contributor's agent: an App never approves what it pushed
+- [ ] On `approval: agent`, one App per agent: an App never approves what it pushed
 
 Rather than click through these pages, print the calls that close the distance and run them
 yourself — the command reads the repository, writes nothing, and never plans to lower a

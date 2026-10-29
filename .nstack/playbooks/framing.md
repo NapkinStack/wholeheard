@@ -146,7 +146,9 @@ from then on the plan check refuses an accepted charter over a form left as it c
 - **An urgent fix** outside the cycle — an incident, a production defect — goes in a pull
   request with the `out-of-cycle` label and the line `Out of cycle: <reason>`.
 - **A deliverable** moves `proposed` → `ready` (testable acceptance criteria, set by the
-  framer, confirmed when the decider accepts the cycle) → `in-progress` → `accepted`: its
+  framer, confirmed when the decider accepts the cycle) → `in-progress` — its hold says so the
+  moment it is claimed; the cycle file follows in the plan's own pull requests, never in a
+  delivery's — → `accepted`: its
   test sheet run and its pull request approved, or the decider's word quoted where approval is
   waived (§3) — or, for a spike outside the code, its result
   approved by the decider: a decision record when it binds the project (*Decisions* below),
