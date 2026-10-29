@@ -1849,11 +1849,17 @@ function showSettings(shown, minutes, words) {
     option.value = value;
     spokenPick.append(option);
   };
-  // SpeechAnalyzer hears French and English and detects none: those two, or Wholeheard's own.
+  // SpeechAnalyzer hears French and English and detects none: those two, or the system's (D64).
   const apple = shown.engine === "speechanalyzer";
+  const heard = shown.languages.filter(([code]) => !apple || code === "fr" || code === "en");
   spokenAdd("", apple ? words.language_as_system : words.language_detected);
-  for (const [code, said] of shown.languages) if (!apple || code === "fr" || code === "en") spokenAdd(code, said);
-  if (shown.meeting_language && !shown.languages.some(([code]) => code === shown.meeting_language)) spokenAdd(shown.meeting_language, shown.meeting_language);
+  for (const [code, said] of heard) spokenAdd(code, said);
+  // One it does not hear, chosen while Whisper heard: kept, said as heard (D65).
+  const spokenChosen = shown.meeting_language;
+  const spokenName = shown.languages.find(([code]) => code === spokenChosen)?.[1] ?? spokenChosen;
+  if (spokenChosen && !heard.some(([code]) => code === spokenChosen)) {
+    spokenAdd(spokenChosen, apple ? fill(words.language_heard_as, spokenName, words.language_as_system.toLowerCase()) : spokenName);
+  }
   spokenPick.value = shown.meeting_language ?? "";
   spokenPick.addEventListener("change", () => save({ meeting_language: spokenPick.value }));
   spokenRow.append(spokenLabel, spokenPick);
