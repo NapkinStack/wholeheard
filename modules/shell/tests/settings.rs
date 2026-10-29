@@ -2,7 +2,10 @@
 
 use std::{fs, path::Path};
 
-use wholeheard_shell::settings::{After, Engine, KeepAudio, Log, Settings, Window, file, read, welcome_due, whisper_models, write};
+use wholeheard_shell::{
+    settings::{After, Engine, KeepAudio, Log, Settings, Window, file, read, welcome_due, whisper_models, write},
+    words::Language,
+};
 
 fn written(text: &str) -> Result<Settings, String> {
     let folder = tempfile::tempdir().unwrap();
@@ -550,4 +553,36 @@ fn the_meetings_language_is_a_code_of_iso_639_1_or_none_detected() {
     settings.meeting_language = None;
     write(&path, &settings).unwrap();
     assert!(!fs::read_to_string(&path).unwrap().contains("meeting_language"));
+}
+
+#[test]
+fn the_app_speaks_the_system_s_language_until_one_is_chosen_and_keeps_the_one_chosen() {
+    // D64: none written, the system's; French or English chosen, written as its code and read again.
+    assert_eq!(Settings::default().language, None);
+    assert_eq!(written("language = \"fr\"\n").unwrap().language, Some(Language::French));
+    assert_eq!(written("language = \" EN \"\n").unwrap().language, Some(Language::English));
+    // A language it does not speak, written by hand: the system's, and the line left as it was.
+    assert_eq!(written("language = \"de\"\n").unwrap().language, None);
+    assert!(written("language = 3\n").is_err());
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "# mine\nreminder = false\n").unwrap();
+    let mut settings = read(&path).unwrap();
+    settings.language = Some(Language::English);
+    write(&path, &settings).unwrap();
+    assert!(fs::read_to_string(&path).unwrap().contains("language = \"en\""));
+    settings.offer = false;
+    write(&path, &settings).unwrap();
+    let again = read(&path).unwrap();
+    assert!(again.language == Some(Language::English) && !again.offer);
+    // The system's again: the key gone, never the system's language of that day pinned.
+    settings.language = None;
+    write(&path, &settings).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(!text.contains("language") && text.contains("# mine"), "{text}");
+    fs::write(&path, "language = \"de\"\n").unwrap();
+    let mut by_hand = read(&path).unwrap();
+    by_hand.offer = false;
+    write(&path, &by_hand).unwrap();
+    assert!(fs::read_to_string(&path).unwrap().contains("language = \"de\""));
 }

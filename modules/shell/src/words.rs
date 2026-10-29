@@ -8,7 +8,8 @@ use crate::{
     transcription::Made,
 };
 
-/// A language the shell speaks. The interface follows the system's; any other is English.
+/// A language the shell speaks. The interface follows the system's, unless the user chose one (D64);
+/// any other is English.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Language {
     English,
@@ -23,6 +24,16 @@ impl Language {
             Self::French
         } else {
             Self::English
+        }
+    }
+
+    /// The one a code names, as the settings write it — `fr`, `en` —; none for a language it does
+    /// not speak.
+    pub fn named(code: &str) -> Option<Self> {
+        match code.trim().to_ascii_lowercase().as_str() {
+            "fr" => Some(Self::French),
+            "en" => Some(Self::English),
+            _ => None,
         }
     }
 
@@ -627,7 +638,11 @@ pub struct Window {
     pub meetings_language: &'static str,
     pub language_not_saved: &'static str,
     pub language_detected_short: &'static str,
-    pub language_as_app: &'static str,
+    /// SpeechAnalyzer's language when the settings name none: the system's, never the app's (D64).
+    pub language_as_system: &'static str,
+    /// The language Wholeheard speaks (D64): its row in Settings, and the system's, its default.
+    pub app_language: [&'static str; 2],
+    pub app_language_system: &'static str,
     /// A transcript's line corrected by whoever listens (D62).
     pub correct_line: &'static str,
     pub corrected: &'static str,
@@ -978,7 +993,12 @@ pub fn window(language: Language) -> Window {
             meetings_language: "Language of the meetings",
             language_not_saved: "The language was not saved: {}",
             language_detected_short: "detected",
-            language_as_app: "Wholeheard’s own",
+            language_as_system: "The system’s",
+            app_language: [
+                "Language of Wholeheard",
+                "Its window, its menu and its notifications; what the system draws itself keeps the system’s.",
+            ],
+            app_language_system: "The system’s language",
             correct_line: "Correct the line at {}",
             corrected: "corrected",
             correction_empty: "A line is not left empty: Escape leaves it as it was.",
@@ -1328,7 +1348,12 @@ pub fn window(language: Language) -> Window {
             meetings_language: "Langue des réunions",
             language_not_saved: "La langue n’a pas été enregistrée\u{a0}: {}",
             language_detected_short: "détectée",
-            language_as_app: "Celle de Wholeheard",
+            language_as_system: "Celle du système",
+            app_language: [
+                "Langue de Wholeheard",
+                "Sa fenêtre, son menu et ses notifications\u{202f}; ce que le système dessine lui-même garde la sienne.",
+            ],
+            app_language_system: "Langue du système",
             correct_line: "Corriger la ligne de {}",
             corrected: "corrigé",
             correction_empty: "Une ligne ne reste pas vide\u{a0}: Échap la laisse comme elle était.",

@@ -1840,7 +1840,7 @@ function showSettings(shown, minutes, words) {
   };
   // SpeechAnalyzer hears French and English and detects none: those two, or Wholeheard's own.
   const apple = shown.engine === "speechanalyzer";
-  spokenAdd("", apple ? words.language_as_app : words.language_detected);
+  spokenAdd("", apple ? words.language_as_system : words.language_detected);
   for (const [code, said] of shown.languages) if (!apple || code === "fr" || code === "en") spokenAdd(code, said);
   if (shown.meeting_language && !shown.languages.some(([code]) => code === shown.meeting_language)) spokenAdd(shown.meeting_language, shown.meeting_language);
   spokenPick.value = shown.meeting_language ?? "";
@@ -2041,7 +2041,27 @@ function showSettings(shown, minutes, words) {
     );
     keys.append(open);
   }
-  more.append(remind, offer, start, keys, where, keep);
+  // The language Wholeheard speaks (D64): the system's by default, each other named in its own.
+  const speaks = element("div", "row");
+  const speaksSaid = element("label", "said");
+  speaksSaid.htmlFor = "app-language";
+  speaksSaid.append(element("span", "name", words.app_language[0]), element("span", "says", words.app_language[1]));
+  const speaksPick = element("select");
+  speaksPick.id = "app-language";
+  speaksPick.disabled = locked;
+  for (const [value, text] of [["", words.app_language_system], ...shown.languages.filter(([code]) => code === "fr" || code === "en")]) {
+    const option = element("option", "", text);
+    option.value = value;
+    speaksPick.append(option);
+  }
+  speaksPick.value = shown.language ?? "";
+  speaksPick.addEventListener("change", () => {
+    // Drawn again in the language chosen: the choice keeps the focus.
+    focusLanguage = true;
+    save({ language: speaksPick.value });
+  });
+  speaks.append(speaksSaid, speaksPick);
+  more.append(speaks, remind, offer, start, keys, where, keep);
   parts.push(more);
 
   // The transcription model's state: there and ready; else said, and offered, by paintModel.
@@ -2108,6 +2128,10 @@ function showSettings(shown, minutes, words) {
   }
   parts.push(advanced);
   page.replaceChildren(...parts);
+  if (focusLanguage) {
+    focusLanguage = false;
+    document.getElementById("app-language")?.focus();
+  }
   // From the assistant's « Choisir mon service »: the minutes' choice, in view and focused.
   if (focusMinutes) {
     focusMinutes = false;
@@ -2549,6 +2573,8 @@ function showFree(listing, busy, words) {
 // the current setting chosen, and nothing saved before the last screen's confirmation.
 // Settings open at the minutes once, after « Choisir mon service ».
 let focusMinutes = false;
+// The language just chosen in Settings (D64): focused again once the page is drawn in it.
+let focusLanguage = false;
 
 async function showWelcome(again, words) {
   const page = document.getElementById("welcome");
