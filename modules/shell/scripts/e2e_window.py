@@ -79,6 +79,7 @@ SUMMARY.chmod(0o755)
 HEARING = WORK / "wholeheard-transcription"
 HEARING.write_text(
     """#!/bin/sh
+printf '%s\\n' "$*" > "$(dirname "$0")/hearing-args"
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
 engine=whisper.cpp
 model=$(basename "$3" .bin)
@@ -1303,6 +1304,60 @@ def first_run(now: dt.datetime) -> None:
         monitor.wait(timeout=10)
         for server in servers:
             server.shutdown()
+
+
+def meeting_language(now: dt.datetime) -> None:
+    """AC. The language meetings are spoken in, and each meeting's own (D65)."""
+    print("AC. the meetings' language in Settings, a meeting's own on its page, told to the transcription (D65)")
+    meetings = WORK / "speaking"
+    heard = meetings / "2026-10-27_14-00"
+    session(heard, now - dt.timedelta(days=1), 0.1, {"local.wav": 1000})
+    model = WORK / "speaking-model.bin"
+    model.write_bytes(b"\0" * 16)
+    window = Window(meetings, "fr_FR.UTF-8", f'reminder = false\nmodel = "{model}"\n')
+    args = WORK / "hearing-args"
+    told = lambda: args.read_text() if args.exists() else ""
+    with window as browser:
+        press(browser, "settings-link")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meetings-language"), 10)
+        offered = [o.text for o in Select(browser.find_element(By.ID, "meetings-language")).options]
+        label = browser.execute_script("return document.querySelector('label[for=meetings-language]')?.textContent")
+        check("Settings offer the meetings' language, detected by default, French and English first, labelled",
+              offered[:3] == ["Détectée par la transcription", "Français", "English"] and label == "Langue des réunions"
+              and Select(browser.find_element(By.ID, "meetings-language")).first_selected_option.text == "Détectée par la transcription", (offered, label))
+        Select(browser.find_element(By.ID, "meetings-language")).select_by_value("en")
+        saved = wait_for(browser, lambda b: 'meeting_language = "en"' in window.file.read_text(), 5)
+        check("chosen, it is the settings' default", saved, window.file.read_text())
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
+        own = Select(browser.find_element(By.ID, "meeting-language"))
+        check("a meeting's page offers its own language, the settings' by default",
+              own.first_selected_option.text == "Celle des Réglages" and not (heard / "language").exists())
+        own.select_by_value("de")
+        written = wait_for(browser, lambda b: (heard / "language").exists() and (heard / "language").read_text() == "de\n", 5)
+        check("chosen on its page, the meeting's language file holds its code alone", written)
+        args.unlink(missing_ok=True)
+        press(browser, "make-transcript")
+        made = wait_for(browser, lambda b: (heard / "transcript.jsonl").exists() and "--language" in told(), 15)
+        check("its transcript is heard in the meeting's own language", made and "--language de" in told(), told())
+        Select(browser.find_element(By.ID, "meeting-language")).select_by_value("")
+        removed = wait_for(browser, lambda b: not (heard / "language").exists(), 5)
+        check("« Celle des Réglages »: the file removed", removed)
+        args.unlink(missing_ok=True)
+        browser.execute_script("window.__TAURI__.core.invoke('transcript_redo', {name: arguments[0], model: arguments[1]})", heard.name, str(model))
+        again = wait_for(browser, lambda b: "--language" in told(), 15)
+        check("made again with none of its own: heard in the settings' language", again and "--language en" in told(), told())
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meetings-language"), 10)
+        Select(browser.find_element(By.ID, "meetings-language")).select_by_value("")
+        wait_for(browser, lambda b: "meeting_language" not in window.file.read_text(), 5)
+        args.unlink(missing_ok=True)
+        browser.execute_script("window.__TAURI__.core.invoke('transcript_redo', {name: arguments[0], model: arguments[1]})", heard.name, str(model))
+        detected = wait_for(browser, lambda b: told() != "", 15)
+        check("« Détectée »: no language told, the engine detects it", detected and "--language" not in told() and "meeting_language" not in window.file.read_text(), (told(), window.file.read_text()))
+        refused = browser.execute_script(
+            "return window.__TAURI__.core.invoke('language_set', {name: arguments[0], language: 'Deutsch'}).then(() => 'kept', (why) => String(why))", heard.name)
+        check("a text that is not a code is refused, nothing written", refused != "kept" and not (heard / "language").exists(), refused)
 
 
 def context_written(now: dt.datetime) -> None:
@@ -3248,6 +3303,7 @@ def main() -> int:
     first_run(now)
     context_written(now)
     confidential_kept(now)
+    meeting_language(now)
     return 1 if FAILED else 0
 
 
