@@ -105,6 +105,52 @@ deliverables:
       - "Given a meeting marked confidential, when its transcript or minutes are made — after the stop, by *Réessayer*, by *Refaire…*, from the tray —, then the transcript is made by Apple's SpeechAnalyzer where it is chosen already, else by Whisper with the model the settings name, and the minutes by Ollama with the model the settings name for it when they name Ollama's, else the recommended one, else the first Ollama holds; no agreement is asked and nothing is sent; the Whisper model missing, it is said and offered as Settings offer it; Ollama not answering or holding no model, the minutes wait, said, its model offered as today"
       - "Given a meeting turned confidential while a service is making it, or while its agreement is asked, or after a service made its minutes, when it is turned on, then the making that sends is ended and made again on this computer, the agreement no longer asked, and the page says what had already left, to which host"
       - "Given the shell's tests and the window's e2e, when they run, then a confidential meeting with a service named in the settings makes no request to it — a stand-in service that counts its requests counts none —, and turning it off lets the settings choose again"
+  - id: D61
+    title: "The window in two panes: the meetings in a sidebar the user can fold, the meeting chosen beside them, as wide as the window"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given D61's board (`docs/project/drawings/d61-the-window-in-two-panes/`), when the decider accepts it — before a line of the window changes —, then what it shows becomes these criteria's picture, as D58's board was"
+      - "Given the full window 840 px wide or more, when it opens, then a sidebar on its left holds « Démarrer un enregistrement » with its shortcut, the search, the meetings by week — each its title, date, length and what it holds —, and at its foot the space they take with « Faire de la place », and « Réglages »; the pane beside it shows the last meeting, or what to do when there is none; a meeting clicked, or reached with ↑ and ↓, is shown there and the list stays where it was; Settings, freeing space and the agreements open in that pane; the header's two tabs are gone"
+      - "Given the sidebar, when the user folds it — its button, or Ctrl+B —, then the pane takes the whole width and a button brings the sidebar back; the window opens again as it was left, folded or not"
+      - "Given any width, when the window is widened, then the pane widens with it — no width of its own beyond the window's —, a meeting's minutes and transcript side by side, each text 75 characters wide at most, Settings 720 px at most; narrower than 840 px, one pane at a time — the list, then the meeting with a way back — down to 420 × 400, nothing overflowing sideways"
+      - "Given the window gone through with the keyboard alone, in either theme, in French and in English, then the sidebar comes before the pane, the meeting shown is said current, the focus is always seen; the small window (D35) and the first run's assistant (D58) are as they were; the window's e2e goes through each criterion, its other scenarios brought current, screenshots of both themes at 1920 and 420 px in the sheet"
+  - id: D62
+    title: "A line of a transcript corrected by whoever listens to it"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given `contracts/transcript/v1`, when its page is changed — in a pull request of the contracts module alone, merged first (ADR-0014) —, then it says that once the transcript is complete, the shell may rewrite a segment's `text` on the user's word, and mark it `edited`: the file replaced whole — written beside, then renamed —, its lines in the same order, nothing else changed; never before its `complete` line, never while it is made again"
+      - "Given a meeting's page with a complete transcript, when the user chooses to correct a line — its pencil, or Enter on the line —, then the line becomes a field holding its text, the audio placed at its start as a click on it places it today; Enter or leaving the field keeps what is typed, Échap leaves it as it was, a line emptied is refused, said; kept, the file holds it whole — any script, emoji included —, the page shows it, marked « corrigé »"
+      - "Given a transcript corrected after its minutes were written, when the meeting's page shows them, then it says the transcript was corrected since, and offers « Refaire avec les corrections » — the minutes made again from the corrected transcript, through the same gate as *Refaire…*, the agreement and a confidential meeting included; nothing is made nor sent without that click"
+      - "Given a transcript not complete, being made, or made again, when its page shows it, then no line can be corrected; *Refaire…* of a corrected transcript says, before it starts, that its corrections will not be kept"
+      - "Given the shell's tests and the window's e2e, when they run, then a line is corrected with the keyboard alone, the file read after it is valid against `line.schema.json` and differs from the one before by that line alone, a correction asked while the transcript is made is refused, and the minutes are not made again until asked"
+  - id: D63
+    title: "A service that hears is chosen as the minutes' is: from a list, its transcription models offered"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given Settings, when the user chooses who hears online, then the services offered for the minutes that hear too — OpenRouter, Groq, OpenAI — are offered by name, as they are for the minutes, and « Un service que je choisis » keeps an address of their own"
+      - "Given a service chosen, when its key is given, then its transcription models are offered to choose from — read from the service where it lists them by what they do (OpenRouter: `models?output_modalities=transcription`), else the ones it publishes, named in the repository —, a model typed by hand still possible; its key kept in the system's keyring as the minutes' is"
+      - "Given a service and a model chosen, when the user tests it or a meeting is transcribed, then it is as D43 says — a sound of the test's own, the host agreed first —, with the service's own address"
+      - "Given the shell's tests and the window's e2e, when they run, then a stand-in service listing its models is offered, chosen and tested, and its key never written in the settings"
+  - id: D64
+    title: "Wholeheard speaks the language the user chooses, the system's by default"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given Settings, when the user chooses the language — « Langue du système », Français, English —, then the window, the tray's menu and the notifications speak it from then on, with no restart; the system's is the default, as today"
+      - "Given a language chosen, when Wholeheard starts again, then it speaks the one chosen, whatever the system's"
+      - "Given the shell's tests and the window's e2e, when they run, then a window started in French and set to English speaks English at once and after a restart, and set back to the system's speaks French again"
+  - id: D65
+    title: "Each meeting may say the language it is spoken in"
+    module: shell
+    state: ready
+    acceptance:
+      - "Given `contracts/session-audio/v2` and v1, when their pages are changed — in a pull request of the contracts module alone, merged first —, then each says an optional file `language`, a language code written by the shell on the user's word, which the shell reads to tell the transcription the language spoken"
+      - "Given Settings, when the user chooses the language meetings are spoken in — « Détectée », or one of Whisper's languages, French and English first —, then it is the default of every meeting; « Détectée » is the default, as Whisper does today"
+      - "Given a meeting — while recording, or on its page —, when the user chooses its language, then the file is written, and its transcript, made after or by *Refaire…*, is heard in that language by Whisper, SpeechAnalyzer or a service alike; the meeting's page says the language it was heard in"
+      - "Given the shell's tests and the window's e2e, when they run, then a meeting set to English is transcribed with `--language en`, one left as it is with the default, and *Refaire…* reads its language again"
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -423,6 +469,68 @@ in one gesture: this one leaves nothing on the machine. The connected mode for f
   service is the user's own choice.
 - The connected mode has not met a real service yet (#463): the stand-in service's count of requests
   is what holds "nothing is sent".
+
+### D61
+
+**Added on the decider's word, 2026-10-29** (« on le fait maintenant et je pense qu'on peut inclure dès à
+présent la barre latérale repliable »), after their remark the same day — on a large screen the window's
+frame stays narrow, « est-ce que ce n'est pas possible qu'il s'élargisse avec la fenêtre » — and their
+question, « une seule page pour le listing des meetings (barre latérale fixe) et au clic on affiche le
+meeting sélectionné ». The end date does not move: what is not accepted by then goes to the closure's
+choices.
+
+- The field's convention for a list read item after item: list and detail side by side at 840 dp and
+  more, one at a time below — Material 3's
+  [canonical layouts](https://developer.android.com/develop/adaptive-apps/guides/canonical-layouts);
+  GNOME's own, a sidebar of 25 % between 180 and 280 sp folded into pages on a narrow window —
+  [libadwaita](https://gnome.pages.gitlab.gnome.org/libadwaita/doc/1.8/adaptive-layouts.html); a sidebar
+  the user can hide — Apple's [sidebars](https://developer.apple.com/design/human-interface-guidelines/sidebars.md).
+  Today's window is D11's hub and spokes: the list, then a page per meeting with a way back.
+- No width beyond the window's, the text alone kept readable: a line longer than 75 characters or so
+  is lost by the eye; D11's 1040 px, 860 px for Settings, were a frame, not a reading width.
+- Drawn first, as D58 was: D11's boards stay the record of what was accepted then.
+- Out of scope: a divider dragged to size the panes, a third pane, folders or labels — *Later*, if
+  someone asks.
+
+### D62
+
+**Added on the decider's word, 2026-10-29** (« je t'avais parlé de la possibilité de pouvoir modifier
+chaque ligne de transcript, si un humain écoute et relit il peut corriger ce qui a été mal transcrit »),
+and their choices the same day: the line rewritten in the transcript, not kept beside it; the minutes
+offered again, never made again by themselves.
+
+- `transcript/v1` says today « it never rewrites or removes a line … never this one edited »: a
+  contract's change, [ADR-0014](../../adr/0014-a-transcript-line-corrected-in-place-once-complete.md),
+  its page changed first and alone (expand, `.nstack/handbook/03-contracts.md`). The summary reads the
+  file as it is: the corrected text reaches the minutes made again with no change of its own.
+- Only once complete: while a transcript is written, its readers rely on its lines only growing.
+- The audio is already placed at a line's start by a click on it (ADR-0009): listen, then correct.
+- Out of scope: who spoke corrected, lines joined or split, a correction kept through a transcript
+  made again.
+
+### D63
+
+**Added on the decider's word, 2026-10-29**, after their remark the same day (« je pensais pouvoir
+sélectionner un modèle via OpenRouter comme c'est le cas pour le minutes … le "a service I name" ne
+semble pas fonctionner »). The step hears through OpenRouter as it is: `wholeheard-transcription --test
+--provider https://openrouter.ai/api/v1 --model openai/whisper-large-v3` ended well that day, a model
+that is none refused (HTTP 400). What was missing is the choice: three empty fields where the minutes
+offer services by name. OpenRouter lists its transcription models
+([its documentation](https://openrouter.ai/docs/guides/overview/multimodal/stt)).
+
+### D64
+
+**Added on the decider's word, 2026-10-29**, after their question the same day (« je ne vois pas
+comment je peux changer de langue dans l'app »): the words follow the system's language alone today.
+
+### D65
+
+**Added on the decider's word, 2026-10-29**, on the framer's proposal the same day after their
+question « est-ce qu'on a bien pris en compte le fait d'avoir un réglage par défaut commun au meet
+mais de pouvoir choisir un réglage spécifique par meet ? ». What a meeting may say of its own already:
+its context (D59), confidential (D60), *Refaire…* with another model; D60's answer of 2026-10-27 stands
+— no page of settings per meeting. The language spoken is the one more that changes the transcript:
+Whisper detects it today, a service and SpeechAnalyzer are told the app's.
 
 ## Dependency with a date
 
