@@ -108,7 +108,7 @@ deliverables:
   - id: D61
     title: "The window in two panes: the meetings in a sidebar the user can fold, the meeting chosen beside them, as wide as the window"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given the full window 840 CSS px wide or more, when it opens, then a sidebar on its left holds « Démarrer un enregistrement » with its shortcut, the search, the meetings by week — each its title, date, length and what it holds —, and at its foot the space they take with « Faire de la place », and « Réglages »; the pane beside it shows the last meeting, or what to do when there is none; a meeting clicked, or reached with ↑ and ↓ on the list, is shown there, the list kept where it was and the meeting shown marked `aria-current`; Settings, freeing space and the agreements open in that pane; the header's two tabs are gone"
       - "Given the sidebar, when the user folds it — its button, or Ctrl+B (⌘B on a Mac) outside a text field —, then the pane takes the whole width and a button brings the sidebar back; the settings keep it folded or not, and the window opens again as it was left"
@@ -117,7 +117,7 @@ deliverables:
   - id: D62
     title: "A line of a transcript corrected by whoever listens to it"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given `contracts/transcript/v1`, when its page and schema are changed — in a pull request of the contracts module alone, merged first (ADR-0014), `nstack compat` compliant —, then they say that once the transcript is complete, the shell, a second writer, may rewrite a segment's `text` on the user's word and set its optional `edited` to when it did, ISO 8601: the file replaced whole — written beside, then renamed —, its lines in the same order, nothing else changed; never before its `complete` line, never while the transcript is made again"
       - "Given a meeting's page with a complete transcript, when the user chooses to correct a line — its own pencil button, by the mouse or the keyboard; a click or Enter on the line still plays from it —, then the line becomes a field holding its text; Enter or leaving the field keeps what is typed — a line break pasted becomes a space, spaces at its ends are dropped —, Échap leaves it as it was, a line left empty is refused, said; kept, the file holds it whole — any script, emoji included —, the page shows it, marked « corrigé »"
@@ -136,7 +136,7 @@ deliverables:
   - id: D64
     title: "Wholeheard speaks the language the user chooses, the system's by default"
     module: shell
-    state: ready
+    state: accepted
     acceptance:
       - "Given Settings, when the user chooses the language — « Langue du système », Français, English —, then the window, the small window, the assistant, the tray's menu and the notifications speak it from then on, with no restart; what the system draws itself — the folder picker, the keyring's prompt, a Mac's application menu, the desktop's launcher — stays in the system's; the system's is the default, as today"
       - "Given a language chosen, when Wholeheard starts again, then it speaks the one chosen, whatever the system's"
@@ -145,7 +145,7 @@ deliverables:
   - id: D65
     title: "Each meeting may say the language it is spoken in"
     module: shell
-    state: ready
+    state: in-progress
     acceptance:
       - "Given `contracts/session-audio/v2` and v1, when their pages are changed — in a pull request of the contracts module alone, merged first —, then each says an optional file `language`: one line, a language code of ISO 639-1, written by the shell on the user's word, which the shell reads to tell the transcription the language spoken"
       - "Given Settings, when the user chooses the language meetings are spoken in — « Détectée », or a language the chosen engine hears, French and English first; SpeechAnalyzer hears French and English, and detects none —, then it is the default of every meeting; « Détectée » is the default where the engine detects, as Whisper does today"
@@ -531,6 +531,21 @@ built — gives D43 nothing to place, and is not offered.
 comment je peux changer de langue dans l'app »): the words follow the system's language alone today
 (`modules/shell/src/words.rs`), and that language is also the one a service and SpeechAnalyzer are
 told a meeting is spoken in — the app's language and a meeting's are two settings from now on.
+
+**Accepted, 2026-10-29**, on the decider's words that day, « tu peux valider en autonomie » — built
+by #534, which took over #529 (dime-hermes, paused) on their word « est ce que tu peux analyser et
+traiter a sa place »; each criterion held by a scenario of #534's sheet, verified by wh-verify-d64:
+
+| Criterion | Held by |
+|---|---|
+| 1. Chosen in Settings — « Langue du système », Français, English —, spoken at once by the window, the small window, the assistant, the tray's menu and the notifications; the system's by default | #534 S1 (scenario AF; the tray's download entry, scenario T) |
+| 2. Started again, the one chosen, whatever the system's | #534 S2 |
+| 3. The language a meeting is heard in unchanged: SpeechAnalyzer and a service told the meetings' language, the system's otherwise | #534 S3 (SpeechAnalyzer played by a program, a service on this computer) |
+| 4. The shell's tests and the window's e2e: French, English at once and after a restart, the system's again, a service told the same | #534 S4 |
+
+What no scenario runs: that what the system draws itself — the folder picker, the keyring's
+prompt, a Mac's application menu, the desktop's launcher — stays in the system's (the shell sets no
+language on any of them, read in #534); Apple's SpeechAnalyzer itself, on a Mac.
 
 ### D65
 
