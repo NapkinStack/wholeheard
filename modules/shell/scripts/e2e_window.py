@@ -2340,7 +2340,7 @@ def main() -> int:
         changed(lambda: browser.find_element(By.ID, "developer").click())
         # When an application takes the microphone (D30, board 4): offer to record by default;
         # nothing chosen here, then the offer again, each written.
-        offer_on = Select(browser.find_element(By.ID, "offer")).first_selected_option.get_attribute("value") == "offer"
+        offer_on = read(browser, lambda b: Select(b.find_element(By.ID, "offer")).first_selected_option.get_attribute("value")) == "offer"
         changed(lambda: Select(browser.find_element(By.ID, "offer")).select_by_value("nothing"))
         offer_off = "offer = false" in window.file.read_text()
         changed(lambda: Select(browser.find_element(By.ID, "offer")).select_by_value("offer"))
@@ -2350,16 +2350,16 @@ def main() -> int:
         # off, then turned off by the desktop's tools, then on again, each read from the entry.
         entry = window.file.parent.parent / "autostart" / "dev.wholeheard.Wholeheard.desktop"
         switch = lambda: browser.find_element(By.ID, "autostart")
-        start_on = switch().is_selected() and entry.is_file() and "Exec=wholeheard\n" in entry.read_text()
+        start_on = read(browser, lambda b: switch().is_selected()) and entry.is_file() and "Exec=wholeheard\n" in entry.read_text()
         changed(lambda: switch().click())
-        start_off = not switch().is_selected() and not entry.exists() and "autostart = false" in window.file.read_text()
+        start_off = not read(browser, lambda b: switch().is_selected()) and not entry.exists() and "autostart = false" in window.file.read_text()
         entry.write_text("[Desktop Entry]\nType=Application\nExec=wholeheard\nX-GNOME-Autostart-enabled=false\n")
         browser.execute_script("location.hash = '#/'")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
         to_settings()
-        tools_off = not switch().is_selected()
+        tools_off = not read(browser, lambda b: switch().is_selected())
         changed(lambda: switch().click())
-        start_again = switch().is_selected() and "TryExec=wholeheard\n" in entry.read_text() and "autostart = true" in window.file.read_text()
+        start_again = read(browser, lambda b: switch().is_selected()) and "TryExec=wholeheard\n" in entry.read_text() and "autostart = true" in window.file.read_text()
         check("the session starts Wholeheard from its first start; turned off here or by the desktop's tools, on again",
               start_on and start_off and tools_off and start_again, (start_on, start_off, tools_off, start_again))
         text = window.file.read_text()
