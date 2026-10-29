@@ -459,12 +459,13 @@ read of every sheet of D58–D65 and run by #537:
 | Criterion | Held by |
 |---|---|
 | 1. The field while recording, 400 characters said, `context.txt` written whole once `session.json` is there | #497 S1 (the small window); #537 S1 (the full window's page of the meeting being recorded — #497's named departure from the board's live block; a Cyrillic name and an emoji) |
-| 2. The page shows and changes it, closed while a making runs or a transcript is unfinished; « Refaire avec ce contexte » by the settings' engine and provider, what was set aside put back on a failure | #497 S2; #537 S3 (a service the settings name; the minutes failing, put back) |
-| 3. 400 characters of Latin or Cyrillic taken whole, 210 tokens at most; another script said; never more than 400 | #497 S3 (the cut at 400, the script said); the tokens measured with Whisper's own tokenizer by #489's verifier (above), not taken again |
+| 2. The page shows and changes it, closed while a making runs or a transcript is unfinished; « Refaire avec ce contexte » by the settings' engine and provider, what was set aside put back on a failure | #497 S2; #537 S3 (a service the settings name; the minutes failing, put back). A departure, #497's: the minutes failing after a new transcript, the earlier minutes stay beside it — the old context's minutes with the new transcript |
+| 3. 400 characters of Latin or Cyrillic taken whole, 210 tokens at most; another script said; never more than 400 | #497 S3 (the cut at 400, the script said). The 210 tokens: a measure of the framing, by #489's verifier (above), held by no row |
 | 4. The agreement says the context leaves; in private mode nothing of it leaves | #497 S4; #537 S2 |
 | 5. Keyboard, both themes, FR and EN, the count announced, nothing overflowing at 380 × 400, the e2e's stand-in recording | #497 S5; #537 S4 |
 
-What no scenario runs: private mode with a service still stored in the settings (read: `Hearer::of`
+What no scenario runs: the 210 tokens, measured once at the framing, and a context of 400 characters
+taken whole by a service; private mode with a service still stored in the settings (read: `Hearer::of`
 hears by Whisper once `engine` is Whisper); the minutes made again by a provider other than the one
 their header names; a real service, and SpeechAnalyzer — a program on this computer stands for them.
 
@@ -521,7 +522,8 @@ semble bien ») — built by #532 and #533; what their sheets left unrun run by 
 | 3. As wide as the window; side by side from 1000 px of pane, 75ch; Settings 720 px; one pane at a time under 840 px, down to 420 × 400 | #532 S3, S4, S5 |
 | 4. The keyboard alone, both themes, FR and EN, the sidebar first, the focus always seen; the small window and the assistant as they were; screenshots | #532 S8; #536 S3 (English, the focus seen where it differs from the element at rest) |
 
-What no scenario runs: ⌘B on a Mac — the keydown reads `metaKey`, never pressed on one (#426);
+What no scenario runs: the keyboard and the focus in the dark theme — seen in its screenshots alone;
+⌘B on a Mac — the keydown reads `metaKey`, never pressed on one (#426);
 Ctrl+B on a Dvorak layout falls on the key that writes X (`event.code`, named in #533).
 
 ### D62
