@@ -385,7 +385,11 @@ body.small-window .frame { display: none; }
 .foot nav a[aria-current="page"] { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); }
 .pane { flex: 1; min-width: 0; container: pane / inline-size; }
 .pane > .back { display: none; }
-.empty { padding: 28px 24px; display: flex; flex-direction: column; gap: 6px; }
+.empty { padding: 28px 24px; }
+.empty .card { max-width: 480px; padding: 22px 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.empty .none { margin: 0; color: var(--ink); font-weight: 600; }
+.empty .says { margin: 0; }
+.empty .primary { min-height: 40px; padding: 0 16px; }
 /* Too low for the list to hold between the gesture and the foot: the sidebar scrolls with the page. */
 @media (max-width: 839px), (max-height: 559px) {
   .sidebar { position: static; height: auto; min-height: 100vh; }
@@ -394,6 +398,9 @@ body.small-window .frame { display: none; }
 @media (max-width: 839px) {
   .sidebar { width: 100%; border-right: 0; }
   body[data-at="list"] .pane, body[data-at="page"] .sidebar { display: none; }
+  body.no-meeting .frame { flex-direction: column; align-items: stretch; }
+  body.no-meeting .sidebar { min-height: 0; }
+  body.no-meeting[data-at="list"] .pane { display: block; }
   .pane > .back { display: inline-block; margin: 8px 0 0 16px; }
   .pane > main { padding: 12px 16px 40px; }
 }

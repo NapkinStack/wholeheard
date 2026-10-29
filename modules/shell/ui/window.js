@@ -522,6 +522,8 @@ function show({ words, folder, sessions, shapes, recording, shortcut }) {
   weight.hidden = sessions.length === 0;
   document.getElementById("none").textContent = fill(words.none, folder);
   document.getElementById("none-do").textContent = words.none_do;
+  document.getElementById("empty-record").textContent = words.record_start;
+  document.getElementById("empty-record").hidden = recording;
 
   const audio = sessions.reduce((sum, s) => sum + s.audio, 0);
   const text = sessions.reduce((sum, s) => sum + s.text, 0);
@@ -2803,7 +2805,9 @@ async function refresh() {
     try {
       agreement = await window.__TAURI__.core.invoke("agreement_shown", { name: decodeURIComponent(agreeing[1]) });
     } catch {
+      // No hashchange follows a replaced address: the list's address is drawn here (D61).
       history.replaceState(null, "", "#/");
+      return refresh();
     }
   }
   let opened = null;
@@ -2824,10 +2828,13 @@ async function refresh() {
       player?.stop();
       player = null;
       history.replaceState(null, "", "#/");
+      return refresh();
     }
   }
   if (mine !== drawing) return;
   document.getElementById("empty").hidden = !listed || listing.sessions.length > 0;
+  // No meeting yet: under 840 px, the sidebar and what to do, one under the other.
+  document.body.classList.toggle("no-meeting", listing.sessions.length === 0);
   document.getElementById("agree").hidden = agreement === null;
   // Shown or emptied: never a question left hidden under another page.
   if (agreement) showAgreement(decodeURIComponent(agreeing[1]), agreement, words);
@@ -2876,6 +2883,8 @@ document.getElementById("groups").addEventListener("keydown", (event) => {
   next.focus();
   location.hash = next.getAttribute("href");
 });
+// The empty pane's own gesture (D61's board 5): the sidebar's, offered where the eye is.
+document.getElementById("empty-record").addEventListener("click", () => document.getElementById("record").click());
 document.getElementById("record").addEventListener("click", async () => {
   await window.__TAURI__.core.invoke("record");
   // The recording says it started, or stopped, a moment later: then the header follows.

@@ -1458,13 +1458,18 @@ def two_panes(now: dt.datetime) -> None:
         check("the pane as wide as the window leaves it, no width of its own", abs(pane[2] - width) <= 1 and abs(pane[0] - 280) <= 1, (pane, width))
         reading = browser.execute_script(
             "const t = document.querySelector('.minutes .body'); if (!t) return [0, 0, document.querySelector('.minutes').outerHTML.slice(0, 400)];"
-            "return [t.getBoundingClientRect().width, document.querySelector('.minutes').getBoundingClientRect().width, getComputedStyle(t).maxWidth]")
+            "return [t.getBoundingClientRect().width, document.querySelector('.minutes').getBoundingClientRect().width, getComputedStyle(t).maxWidth,"
+            " getComputedStyle(document.querySelector('.transcript .lines')).maxWidth]")
         # 75ch, as WebKit computes it: in pixels, the width of 75 zeros of the text's font.
         zeros = browser.execute_script(
             "const s = document.createElement('span'); s.textContent = '0'.repeat(75); document.querySelector('.minutes .body').append(s);"
             "s.style.whiteSpace = 'nowrap'; const w = s.getBoundingClientRect().width; s.remove(); return w")
         check("their text 75 characters at most, inside a wider card",
-              reading[2].endswith("px") and abs(float(reading[2][:-2]) - zeros) <= 1 and reading[0] <= zeros + 1 and reading[0] < reading[1] - 60, (reading, zeros))
+              reading[2].endswith("px") and abs(float(reading[2][:-2]) - zeros) <= 1 and reading[0] <= zeros + 1 and reading[0] < reading[1] - 60
+              and reading[3] == reading[2], (reading, zeros))
+        # Seen as a person sees it: the list at its top, the pointer away from it.
+        browser.execute_script("document.getElementById('list').scrollTop = 0")
+        ActionChains(browser).move_to_element(browser.find_element(By.CSS_SELECTOR, "#meeting .drawn")).perform()
         seen(browser, "d61-1920-light")
         seen(browser, "d61-1920-dark")
         browser.set_window_size(420, 400)
@@ -1506,8 +1511,14 @@ def two_panes(now: dt.datetime) -> None:
     empty.mkdir()
     with Window(empty, "en_US.UTF-8") as browser:
         said = wait_for(browser, lambda b: b.find_element(By.ID, "none").is_displayed(), 10)
-        check("no meeting yet: the pane says what to do", said and browser.execute_script(
-            "return document.getElementById('pane').contains(document.getElementById('none'))"), browser.find_element(By.ID, "none").text)
+        check("no meeting yet: the pane says what to do, and offers the recording", said and browser.execute_script(
+            "return document.getElementById('pane').contains(document.getElementById('none'))")
+              and browser.find_element(By.ID, "none-do").text == "Start a recording: its button, its shortcut, or the tray’s icon."
+              and browser.find_element(By.ID, "empty-record").text == "Start a recording", browser.find_element(By.ID, "none").text)
+        browser.set_window_size(420, 400)
+        narrow = wait_for(browser, lambda b: b.find_element(By.ID, "sidebar").is_displayed() and b.find_element(By.ID, "none").is_displayed(), 5)
+        check("under 840 px too: the sidebar, then what to do", narrow and not browser.execute_script(
+            "return document.documentElement.scrollWidth > window.innerWidth"))
 
 
 def transcript_corrected(now: dt.datetime) -> None:
@@ -2423,8 +2434,9 @@ def main() -> int:
 
         browser.execute_script("location.hash = '#/meeting/' + encodeURIComponent('gone')")
         listed = wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/")
-        check("a meeting that is not there goes back to the list",
-              listed and browser.execute_script("return document.getElementById('meeting').dataset.name") != "gone")
+        drawn = wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').dataset.name") == "m", 5)
+        check("a meeting that is not there goes back to the list, the last meeting beside it (D61)", listed and drawn,
+              browser.execute_script("return document.getElementById('meeting').dataset.name"))
 
     print("K. the settings: each choice saved at once, the user's file kept")
     models = WORK / "data" / "wholeheard" / "models"
@@ -3562,7 +3574,8 @@ def main() -> int:
         browser.execute_script("location.hash = '#/settings'")
         wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed(), 10)
         browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
+        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed()
+                 and b.execute_script("return document.getElementById('meeting').dataset.name") == "2026-10-19_10-00", 10)
         browser.execute_script("document.getElementById('play').click(); document.getElementById('play').click()")
         time.sleep(1)
         check("a play paused at once is no failure", not browser.find_element(By.ID, "not-played").text and not playing(browser))
@@ -3578,7 +3591,8 @@ def main() -> int:
         browser.execute_script("location.hash = '#/'")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
         browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
+        wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed()
+                 and b.execute_script("return document.getElementById('meeting').dataset.name") == "2026-10-19_10-00", 10)
         press(browser, "play")
         wait_for(browser, lambda b: at(b) > 0.3, 5)
         heard = played_to(window)
