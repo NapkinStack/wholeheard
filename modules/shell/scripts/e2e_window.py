@@ -1488,6 +1488,12 @@ echo '{{"available":true,"installed":true,"supported":true}}'
                 pass  # the small window goes with the click
             browser.switch_to.window(main)
             wait_for(browser, lambda b: len(b.window_handles) == 1, 5)
+            # The assistant, opened again from Settings (D58): its questions in the language chosen.
+            browser.execute_script("location.hash = '#/welcome/again'")
+            asking = "return document.getElementById('welcome-heading')?.textContent"
+            asked_in = wait_for(browser, lambda b: b.execute_script(asking) == "Do your meetings discuss confidential matters?", 5)
+            check("the assistant speaks it", asked_in, browser.execute_script(asking))
+            browser.execute_script("location.hash = '#/'")
         # A service hears from now on, one on this computer: agreed, no key (D43).
         window.file.write_text(window.file.read_text().replace('engine = "speechanalyzer"', 'engine = "service"')
                                + 'transcription_provider = "http://127.0.0.1:9/v1"\ntranscription_model = "hears"\n')
