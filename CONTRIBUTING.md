@@ -25,7 +25,7 @@ Once per person, before a first deliverable. Each step says where it is said in 
    the repository is a person's act: yours where you may, else the decider's on your
    request; its key stays outside any repository. Each session your agent runs has a name — any
    opaque label, `alice-d30` — that goes on its commits (`Agent-Session:`) and its holds (`--session`).
-   Where the project answers `approval: agent`, each contributor's agent needs an identity of its
+   Where the project answers `approval: agent`, each agent needs an identity of its
    own (step 6).
 4. **Check the workstation**: `nstack doctor` — the engine, the hooks, the project's version. The
    forge's settings stay *not verified* without a token that may read them: that part is the
@@ -34,7 +34,7 @@ Once per person, before a first deliverable. Each step says where it is said in 
    *Before you start*.
 6. **Know who approves your changes**: the module's owner, a human — or, where the project
    answers `approval: agent`, for a `prototype` or `standard` module, a human or another
-   contributor's agent, which then needs an identity of its own: an identity never approves what
+   agent — yours or a colleague's — under an identity of its own: an identity never approves what
    it pushed. Everything else waits for a human code owner (`.nstack/handbook/07-governance.md` §7).
 7. **When the method gets in your way** — a message that misleads, a check that misjudges, a
    page that contradicts a command — say it, never work around it: an issue here when it is the
