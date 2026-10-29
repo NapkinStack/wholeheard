@@ -15,6 +15,7 @@ import json
 import math
 import os
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -292,6 +293,13 @@ class Window:
         finally:
             self.driver_process.terminate()
             self.driver_process.wait(timeout=10)
+            # A session that never answered leaves the Wholeheard under test behind: ended, or it takes
+            # the next start's arguments and the next session never opens (#510). Only this binary's.
+            for pid in instances():
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
 
 
 # The run's own output, made by e2e.sh: the window's sound goes there, never to the speakers.
