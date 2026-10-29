@@ -9,6 +9,7 @@ name = "wholeheard"
 path = "src/main.rs"
 
 [dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 dirs = "6"
 keyring-core = "1.0.1"
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }

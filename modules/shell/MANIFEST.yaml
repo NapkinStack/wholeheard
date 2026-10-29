@@ -76,6 +76,10 @@ data:
 # Significant external dependencies.
 # Each one declares its exit strategy (.nstack/handbook/06-decisions.md §3).
 dependencies:
+  - name: chrono
+    purpose: When a person corrected a transcript's line, written with its offset as the minutes' made is (D62)
+    adr: docs/adr/0014-a-transcript-line-corrected-in-place-once-complete.md
+    exit_strategy: One call in transcript_corrected, src/main.rs; any clock that formats RFC 3339 replaces it.
   - name: serde_json
     purpose: Reads the lines a step's program prints, and the logs' lines a meeting's diagnostic gathers
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
