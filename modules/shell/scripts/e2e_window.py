@@ -3600,6 +3600,7 @@ def main() -> int:
         check("its sound goes to the run's own output, never the speakers", bool(QUIET) and heard == {QUIET}, heard)
         # The list beside it, the meeting still shown, plays on (D61); the list alone, under 840 px, stops it.
         browser.set_window_size(420, 400)
+        wait_for(browser, lambda b: b.execute_script("return matchMedia('(max-width: 839px)').matches"), 5)
         browser.execute_script("location.hash = '#/'")
         stopped = wait_for(browser, lambda b: not b.execute_script("return document.querySelectorAll('audio.track').length"), 10)
         check("the list shown alone, nothing plays", stopped)
