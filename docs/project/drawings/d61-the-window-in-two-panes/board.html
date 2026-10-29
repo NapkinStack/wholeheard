@@ -74,8 +74,10 @@
   .settings-row { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--soft); }
   .settings-row span b { color: var(--ink); font-weight: 600; }
   .texts { display: grid; gap: 14px; align-items: start; }
-  .texts.side-by-side { grid-template-columns: repeat(2, minmax(0, 75ch)); }
-  .texts.stacked { grid-template-columns: minmax(0, 75ch); }
+  .texts.side-by-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .texts.stacked { grid-template-columns: minmax(0, 1fr); }
+  /* The cards as wide as the audio's, together; their text kept readable, 75 characters at most. */
+  .texts .card > :not(.label) { max-width: 75ch; }
   .label { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); display: flex; align-items: center; justify-content: space-between; }
   .by { font: 12px ui-monospace, monospace; color: var(--soft); }
   h4 { margin: 4px 0 0; font-size: 15px; }
@@ -176,7 +178,7 @@
   <div class="frame" style="--w:1920px;--h:1080px;--s:.6"><div class="win" data-side>
     <div class="pane" data-head="meeting-head"><div class="body" data-top><div class="texts side-by-side" data-texts></div></div></div>
   </div></div>
-  <div class="note"><b>Propositions</b>À gauche, la barre latérale de 280 px (libadwaita : 25 %, entre 180 et 280) : « Démarrer un enregistrement » et son raccourci, la recherche, les réunions par semaine — leur titre, leur durée, ce qu’elles contiennent en pastilles toujours écrites (CR, T, le cadenas) —, et à son pied la place prise avec « Faire de la place », puis « Réglages ». La réunion choisie est marquée d’un fond et d’un trait, `aria-current`. À droite, le panneau prend toute la largeur qui reste : le compte rendu et le transcript côte à côte dès 1000 px de panneau, chacun 75 caractères au plus. Les onglets « Réunions » et « Réglages » de l’en-tête disparaissent, « ‹ Réunions » aussi. ⇤ replie la barre ; Ctrl+B (⌘B sur Mac) hors d’un champ de texte.</div>
+  <div class="note"><b>Propositions</b>À gauche, la barre latérale de 280 px (libadwaita : 25 %, entre 180 et 280) : « Démarrer un enregistrement » et son raccourci, la recherche, les réunions par semaine — leur titre, leur durée, ce qu’elles contiennent en pastilles toujours écrites (CR, T, le cadenas) —, et à son pied la place prise avec « Faire de la place », puis « Réglages ». La réunion choisie est marquée d’un fond et d’un trait, `aria-current`. À droite, le panneau prend toute la largeur qui reste : le compte rendu et le transcript côte à côte dès 1000 px de panneau, à eux deux aussi larges que l’audio au-dessus ; leur texte va à la ligne à 75 caractères au plus, « Refaire… » reste au bord de la carte. Les onglets « Réunions » et « Réglages » de l’en-tête disparaissent, « ‹ Réunions » aussi. ⇤ replie la barre ; Ctrl+B (⌘B sur Mac) hors d’un champ de texte.</div>
 </section>
 
 <section>
@@ -184,7 +186,7 @@
   <div class="frame" style="--w:1920px;--h:1080px;--s:.6"><div class="win">
     <div class="pane"><div class="head"><span class="icon boxed" title="Afficher la barre latérale — Ctrl+B">⇥</span><span class="title"><b>Aujourd’hui, 10:30</b><span>mer. 29 oct. 2026 · 42 min</span></span><span class="btn">Ouvrir le dossier</span></div><div class="body" data-top><div class="texts side-by-side" data-texts></div></div></div>
   </div></div>
-  <div class="note"><b>Propositions</b>Repliée, la barre laisse la place au panneau ; ⇥, au début de l’en-tête, la ramène, comme Ctrl+B. Les Réglages gardent ce choix : la fenêtre se rouvre repliée ou non, comme elle a été laissée. Les deux textes ne grandissent pas au-delà de 75 caractères : la place en plus reste à leur droite.</div>
+  <div class="note"><b>Propositions</b>Repliée, la barre laisse la place au panneau ; ⇥, au début de l’en-tête, la ramène, comme Ctrl+B. Les Réglages gardent ce choix : la fenêtre se rouvre repliée ou non, comme elle a été laissée. Les deux cartes s’élargissent avec l’audio ; leur texte, lui, ne dépasse pas 75 caractères par ligne.</div>
 </section>
 
 <section>
@@ -209,7 +211,7 @@
         </div></div></div>
     </div></div>
   </div>
-  <div class="note"><b>Propositions</b>Sous 1000 px de panneau, le compte rendu puis le transcript, l’un sous l’autre. Les Réglages, « Faire de la place » et les accords s’ouvrent dans le panneau, la barre restant là ; les Réglages font 720 px au plus, alignés à gauche du panneau. « Réglages » est alors marqué dans la barre, aucune réunion ne l’est.</div>
+  <div class="note"><b>Propositions</b>Sous 1000 px de panneau, le compte rendu puis le transcript, l’un sous l’autre, chacun de la largeur de l’audio. Les Réglages, « Faire de la place » et les accords s’ouvrent dans le panneau, la barre restant là ; les Réglages font 720 px au plus, alignés à gauche du panneau. « Réglages » est alors marqué dans la barre, aucune réunion ne l’est.</div>
 </section>
 
 <section>
