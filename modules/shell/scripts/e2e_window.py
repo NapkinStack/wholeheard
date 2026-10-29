@@ -503,6 +503,8 @@ def models_listed(now: dt.datetime) -> None:
         wait_for(browser, lambda b: b.execute_script("return document.getElementById('model-fetch')?.disabled === false"), 15)
         browser.find_element(By.ID, "settings-link").click()
         wait_for(browser, lambda b: b.execute_script(small_row) and "Télécharger" in b.execute_script(small_row))
+        # Clickable once the fetch before it has let go — greyed until then, a click on it is none.
+        wait_for(browser, lambda b: b.execute_script("return document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button')?.disabled === false"), 10)
         browser.execute_script("document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button').click()")
         far = wait_for(browser, lambda b: "%" in b.execute_script(small_row), 5)
         check("being downloaded, how far is said on its row", far, browser.execute_script(small_row))
@@ -2131,9 +2133,16 @@ def main() -> int:
         ready = browser.find_element(By.ID, "model-state").text
         check("the transcription model's state is said at the page's end", "Prêt" in ready and "sans réseau" in ready, ready)
         # Each change is saved, then the page is drawn again: the next acts on the new one.
+        # The page drawn again under the driver — the window coming back to the front draws it anew,
+        # the desktop being in use —: the gesture made again on the new one.
         def changed(act):
-            before = browser.find_element(By.ID, "reminder")
-            act()
+            for _ in range(5):
+                before = browser.find_element(By.ID, "reminder")
+                try:
+                    act()
+                    break
+                except StaleElementReferenceException:
+                    time.sleep(0.2)
             WebDriverWait(browser, 5).until(staleness_of(before))
 
         # Back to Settings from another page: its last drawing stays in the hidden page until the
@@ -2213,7 +2222,7 @@ def main() -> int:
         typed = browser.find_element(By.ID, "keep-other")
         changed(lambda: (typed.send_keys("45"), typed.send_keys(Keys.ENTER)))
         kept = window.file.read_text()
-        offered = [o.text for o in browser.find_elements(By.CSS_SELECTOR, "#keep option")]
+        offered = read(browser, lambda b: [o.text for o in b.find_elements(By.CSS_SELECTOR, "#keep option")])
         check("any number of days can be typed, and is offered after", "keep_audio = 45" in kept and "45 jours" in offered, (kept, offered))
         choose(browser, "keep", "other")
         typed_days = browser.find_element(By.ID, "keep-other")
@@ -3161,6 +3170,14 @@ def main() -> int:
         browser.find_element(By.TAG_NAME, "body").send_keys(Keys.SPACE)
         paused = wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('audio.track')].every(a => a.paused)"), 5)
         check("the space bar pauses", paused and browser.find_element(By.ID, "play").text == "Écouter", browser.find_element(By.ID, "play").text)
+        # Pause clicked with the mouse, held as a hand holds it: playing, the button's words are
+        # read ten times a second, and a press on words written again is no click in WebKitGTK.
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.SPACE)
+        wait_for(browser, playing, 5)
+        ActionChains(browser).move_to_element(browser.find_element(By.ID, "play")).click_and_hold().pause(0.3).release().perform()
+        paused = wait_for(browser, lambda b: not playing(b), 3)
+        check("Pause clicked with the mouse, held 0.3 s, pauses", paused and browser.find_element(By.ID, "play").text == "Écouter",
+              browser.find_element(By.ID, "play").text)
         # By the keyboard alone: the drawing is a slider, a line plays from it on Enter.
         drawing = browser.find_element(By.CSS_SELECTOR, ".drawing")
         slider = lambda b: b.find_element(By.CSS_SELECTOR, ".drawing").get_attribute("aria-valuenow")

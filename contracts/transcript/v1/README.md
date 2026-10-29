@@ -24,18 +24,19 @@ dashed: a consumer that is planned, and reads nothing yet.
 
 **For a machine**: [`line.schema.json`](./line.schema.json) says what a line is — and is what
 the project's comparator judges a change to this version by (ADR-0005). The order of the
-lines, that they are only ever added, and that a segment ends after it starts, are said here
-and nowhere else.
+lines, that they are only ever added while the transcript is made, and that a segment ends after
+it starts, are said here and nowhere else.
 
 ## What it carries
 
 `transcript.jsonl` in the session's folder: UTF-8, one JSON object per line, each line ended
-by a line feed. Lines are only ever added. Every line has a `type`.
+by a line feed. Lines are only ever added while it is made; once complete, a person's correction
+may rewrite a segment's `text` (below). Every line has a `type`.
 
 | `type` | When | Fields |
 |---|---|---|
 | `header` | First line, once | `contract`: `transcript/v1` · `engine` and `model`: what transcribed · `language`: the language asked for, or `null` when detected · `context`: the text the engine received, or `null` |
-| `segment` | Each stretch of speech | `speaker`: `me` or `others` · `track`: the track it was heard on, `local` for `me`, `remote` for `others` · `voice`: which voice within the track, `null` until voices are told apart · `start` and `end`: seconds from the session's `started`, to the hundredth · `text`: what was said, one line · `edited`, optional: when a person corrected `text`, ISO 8601 |
+| `segment` | Each stretch of speech | `speaker`: `me` or `others` · `track`: the track it was heard on, `local` for `me`, `remote` for `others` · `voice`: which voice within the track, `null` until voices are told apart · `start` and `end`: seconds from the session's `started`, to the hundredth · `text`: what was said, one line · `edited`, optional: when a person corrected `text`, RFC 3339 with its offset |
 | `covered` | After each span is done | `speaker` · `until`: seconds; every segment of that speaker that starts before `until` is in the file |
 | `complete` | Last line, once | `duration`: seconds of audio transcribed |
 

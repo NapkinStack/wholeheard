@@ -1132,7 +1132,10 @@ function playerBar(session, listened, total, words, drawing) {
   // The slider runs to the sound's end, once known: it may outlast the session's recorded length.
   const span = () => Math.max(total, shown.audio.duration || 0);
   const paint = (time) => {
-    toggle.textContent = shown.playing() ? words.pause : words.play;
+    // Written only when it changes: playing, this runs ten times a second, and a press on words
+    // written again under the pointer is no click in WebKitGTK.
+    const said = shown.playing() ? words.pause : words.play;
+    if (toggle.textContent !== said) toggle.textContent = said;
     at.textContent = clock(time);
     head.style.left = `${Math.min(100, (time / total) * 100)}%`;
     drawing.setAttribute("aria-valuemax", String(Number(span().toFixed(1))));
