@@ -296,6 +296,9 @@ pub struct Window {
     /// No meeting yet: what to do.
     pub none_do: &'static str,
     pub find_meetings: &'static str,
+    /// The sidebar folded and brought back (D61): each button's name; the shortcut is added beside.
+    pub fold: &'static str,
+    pub unfold: &'static str,
     pub none_found: &'static str,
     /// One meeting's page.
     pub back: &'static str,
@@ -673,6 +676,8 @@ pub fn window(language: Language) -> Window {
             none: "No meeting in {} yet.",
             none_do: "Start a recording: its button, its shortcut, or the tray’s icon.",
             find_meetings: "Search the meetings",
+            fold: "Fold the sidebar",
+            unfold: "Show the sidebar",
             none_found: "No meeting holds these words.",
             back: "Meetings",
             open_folder: "Open the folder",
@@ -1015,6 +1020,8 @@ pub fn window(language: Language) -> Window {
             none: "Aucune réunion dans {} pour l’instant.",
             none_do: "Démarrez un enregistrement\u{a0}: son bouton, son raccourci, ou l’icône de la barre système.",
             find_meetings: "Chercher dans les réunions",
+            fold: "Replier la barre latérale",
+            unfold: "Afficher la barre latérale",
             none_found: "Aucune réunion ne contient ces mots.",
             back: "Réunions",
             open_folder: "Ouvrir le dossier",

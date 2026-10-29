@@ -17,6 +17,7 @@
       <span>Wholeheard</span>
     </div>
     <button type="button" id="small-link" class="open" hidden></button>
+    <button type="button" id="fold" class="icon-button" aria-keyshortcuts="Control+B Meta+B">⇤</button>
   </div>
   <div class="act"><button type="button" id="record" class="primary"><span class="dot" aria-hidden="true"></span><span id="record-said"></span></button><kbd id="header-keys" class="keys" hidden></kbd></div>
   <input type="search" id="find" class="search" autocomplete="off" spellcheck="false">
@@ -37,6 +38,7 @@
   </div>
 </aside>
 <div id="pane" class="pane">
+  <button type="button" id="unfold" class="icon-button" aria-keyshortcuts="Control+B Meta+B">⇥</button>
   <a href="#/" id="pane-back" class="back"></a>
   <section id="empty" class="empty" hidden><div class="card"><p id="none" class="none"></p><p id="none-do" class="says"></p><button type="button" id="empty-record" class="primary"></button></div></section>
   <main id="meeting" hidden></main>

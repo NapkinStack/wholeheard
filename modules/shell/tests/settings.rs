@@ -474,6 +474,30 @@ fn welcomed_is_false_until_written_and_kept_by_every_other_write() {
 }
 
 #[test]
+fn the_sidebar_is_open_until_folded_and_kept_folded_by_every_other_write() {
+    // D61: open by default; folded, written, and read again as it was left.
+    assert!(!Settings::default().folded);
+    assert!(!written("reminder = false\n").unwrap().folded);
+    assert!(written("folded = true\n").unwrap().folded);
+    assert!(written("folded = \"yes\"\n").is_err());
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("settings.toml");
+    fs::write(&path, "# mine\nreminder = false\n").unwrap();
+    let mut settings = read(&path).unwrap();
+    settings.folded = true;
+    write(&path, &settings).unwrap();
+    assert!(fs::read_to_string(&path).unwrap().contains("folded = true"));
+    settings.offer = false;
+    write(&path, &settings).unwrap();
+    let again = read(&path).unwrap();
+    assert!(again.folded && !again.offer);
+    assert!(fs::read_to_string(&path).unwrap().contains("# mine"));
+    settings.folded = false;
+    write(&path, &settings).unwrap();
+    assert!(!read(&path).unwrap().folded);
+}
+
+#[test]
 fn the_assistant_is_due_only_with_no_meeting_and_not_welcomed() {
     let folder = tempfile::tempdir().unwrap();
     let mut settings = Settings {

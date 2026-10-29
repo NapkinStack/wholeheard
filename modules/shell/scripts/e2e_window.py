@@ -1521,6 +1521,58 @@ def two_panes(now: dt.datetime) -> None:
             "return document.documentElement.scrollWidth > window.innerWidth"))
 
 
+def sidebar_folded(now: dt.datetime) -> None:
+    """AE. The sidebar folded by the user, and brought back; the window opened again as it was left (D61)."""
+    print("AE. the sidebar folded by its button or Ctrl+B outside a text field, kept by the settings (D61)")
+    meetings = WORK / "folding"
+    for day in range(3):
+        session(meetings / f"2026-10-2{day}_10-00", now - dt.timedelta(days=3 - day), 20, {"local.wav": 1000})
+    shown = lambda b, id_: b.find_element(By.ID, id_).is_displayed()
+    focused = lambda b: b.execute_script("return document.activeElement.id")
+    ctrl_b = lambda b: ActionChains(b).key_down(Keys.CONTROL).send_keys("b").key_up(Keys.CONTROL).perform()
+    window = Window(meetings, "fr_FR.UTF-8", "reminder = false\n")
+    with window as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: shown(b, "meeting"), 10)
+        fold = browser.find_element(By.ID, "fold")
+        check("the sidebar's button to fold it, named with its shortcut", shown(browser, "fold") and not shown(browser, "unfold")
+              and fold.get_attribute("aria-label") == "Replier la barre latérale" and fold.get_attribute("title") == "Replier la barre latérale (Ctrl+B)",
+              (fold.get_attribute("aria-label"), fold.get_attribute("title")))
+        press(browser, "fold")
+        folded = wait_for(browser, lambda b: not shown(b, "sidebar"), 5)
+        pane = browser.execute_script("const r = document.getElementById('pane').getBoundingClientRect(); return [r.left, r.right, window.innerWidth]")
+        check("folded: the pane takes the whole width", folded and pane[0] == 0 and abs(pane[1] - pane[2]) <= 1, pane)
+        check("a button brings it back, the focus on it", shown(browser, "unfold") and focused(browser) == "unfold", focused(browser))
+        saved = wait_for(browser, lambda b: "folded = true" in window.file.read_text(), 5)
+        check("the settings keep it folded", saved, window.file.read_text())
+        press(browser, "unfold")
+        back = wait_for(browser, lambda b: shown(b, "sidebar") and not shown(b, "unfold"), 5)
+        check("brought back by its button, the focus on the one that folds it", back and focused(browser) == "fold", focused(browser))
+        check("and the settings keep it open", wait_for(browser, lambda b: "folded = false" in window.file.read_text(), 5), window.file.read_text())
+        browser.execute_script("document.activeElement.blur()")
+        ctrl_b(browser)
+        check("Ctrl+B outside a text field folds it", wait_for(browser, lambda b: not shown(b, "sidebar"), 5))
+        ctrl_b(browser)
+        check("Ctrl+B again brings it back", wait_for(browser, lambda b: shown(b, "sidebar"), 5))
+        browser.find_element(By.ID, "find").click()
+        ctrl_b(browser)
+        time.sleep(0.5)
+        check("Ctrl+B in a text field leaves it as it is", shown(browser, "sidebar"))
+        browser.execute_script("document.activeElement.blur()")
+        ctrl_b(browser)
+        wait_for(browser, lambda b: "folded = true" in window.file.read_text(), 5)
+        browser.set_window_size(420, 400)
+        browser.execute_script("location.hash = '#/'")
+        narrow = wait_for(browser, lambda b: shown(b, "sidebar") and not shown(b, "pane"), 5)
+        check("under 840 px, folded or not, the list is shown alone, with no button to fold it",
+              narrow and not shown(browser, "fold") and not shown(browser, "unfold"))
+    again = Window(meetings, "fr_FR.UTF-8", "reminder = false\nfolded = true\n")
+    with again as browser:
+        browser.set_window_size(1100, 800)
+        opened = wait_for(browser, lambda b: shown(b, "meeting") and not shown(b, "sidebar") and shown(b, "unfold"), 10)
+        check("the window opens again as it was left: folded", opened)
+
+
 def transcript_corrected(now: dt.datetime) -> None:
     """AB. A line of a transcript corrected by whoever listens to it (D62, ADR-0014)."""
     print("AB. a transcript's line corrected by whoever listens, the minutes offered again (D62)")
@@ -3645,6 +3697,7 @@ def main() -> int:
     meeting_language(now)
     transcript_corrected(now)
     two_panes(now)
+    sidebar_folded(now)
     return 1 if FAILED else 0
 
 
