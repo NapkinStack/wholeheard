@@ -1,6 +1,6 @@
 ---
 goal: "On a Mac, the colleague opens Wholeheard from one app the forge made, and records a real call with it — both sides, nothing added to the Mac"
-status: accepted          # proposed | accepted | closed | stopped — the decider accepts
+status: closed            # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 1         # the time the decider WANTS to spend, not an estimate
 start: 2026-10-26         # YYYY-MM-DD
 end: 2026-11-02           # start + appetite: the first day the cycle is over — the circuit breaker
@@ -8,7 +8,7 @@ deliverables:
   - id: D38
     title: "On a Mac, Wholeheard opens from one app the forge made, its four programs inside it"
     module: install
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a run of the macOS workflow on main, or one started by hand, when it ends, then it leaves one artifact, Wholeheard-<version>-macos-arm64.zip, holding Wholeheard.app: wholeheard and the three programs side by side in Contents/MacOS, and an Info.plist naming the application, its version, and the sentences macOS shows when it asks for the microphone and for the sound the Mac plays; the bundle signed ad hoc, `codesign --verify --deep --strict` passing on it"
       - "Given that zip on the colleague's Mac — an Apple chip, macOS later than 14.6 — when they open the app as macOS lets an unsigned one open (System Settings → Privacy & Security → Open Anyway), then Wholeheard's icon is in the menu bar and its window opens from it, with nothing installed before it and no terminal"
@@ -16,14 +16,14 @@ deliverables:
   - id: D39
     title: "Spike — does a real call recorded on a Mac hold both sides, with nothing added to the Mac?"
     module: capture
-    state: ready
+    state: deferred
     acceptance:
       - "Given D38's app on the colleague's Mac, when they record a real call of at least five minutes with it, then the cycle records, for each track — local, the microphone; remote, what the Mac plays: whether it holds the call's speech, its sample rate and channels, its gaps of zeros, and what macOS asked before it recorded"
       - "Given that record, when it is read against the threshold — both tracks hold the call's speech, as the colleague hears it at the start, the middle and the end of each, and capture's code holds no line added for macOS —, then ADR-0002's criterion is met for macOS; below it, what was missing — a permission, a device, the system's interface — is recorded for the next framing. A refuted result is a delivered one"
   - id: D27
     title: "Wholeheard installs on Ubuntu from one package, its programs built on the system they ship to"
     module: install
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given Ubuntu 24.04, when a user installs Wholeheard from one package file (`sudo apt install ./wholeheard_<version>_amd64.deb`), then Wholeheard is in the applications menu and starts in the tray with nothing built and no variable set, and removing it leaves the user's meetings and settings"
       - "Given a release for a system — Fedora or Ubuntu —, when the programs are built, then they are built in a container of that system, so that no package depends on the machine that made it"
@@ -40,7 +40,7 @@ deliverables:
   - id: D41
     title: "On Linux, a call heard on an output other than the system's default is recorded there"
     module: capture
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a call — an application other than capture holding a microphone — whose sound plays on an output other than the system's default, when it is recorded, then the remote track holds what the call plays, and capture says `device` with that output's name"
       - "Given the call's sound moved to another output while recording, or back to the default, when it moves, then the remote track follows it within two seconds and the move is kept in `session.json` with when"
@@ -50,7 +50,7 @@ deliverables:
   - id: D42
     title: "On a Mac with macOS 26, Apple's SpeechAnalyzer hears a meeting, chosen in Settings"
     module: transcription
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a session and Apple's model of the system's language — French or English — on a Mac with macOS 26, when it is transcribed with `--engine speechanalyzer`, then `transcript/v1` is written by the step as ever — each segment on its track with its times —, its header naming the engine SpeechAnalyzer, and no line of `src/step.rs` changed to add it"
       - "Given the macOS workflow, when it runs, then it builds `wholeheard-speech` beside the other programs and transcribes back the words of a French sentence `say` speaks; where the runner offers no SpeechTranscriber or no French voice, the step says it was not run, and this criterion is met on the colleague's Mac instead"
@@ -70,7 +70,7 @@ deliverables:
   - id: D53
     title: "On Windows, Wholeheard opens from one zip the forge made — and does a call recorded there hold both sides?"
     module: install
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a run of the Windows workflow on main, or one started by hand, when it ends, then each program's tests pass on GitHub's Windows runner, and it leaves one artifact, Wholeheard-<version>-windows-x64.zip, holding wholeheard.exe and the three programs side by side, kept 7 days as the Mac's"
       - "Given that zip on the colleague's Windows 11, when they unpack it and open wholeheard.exe — past SmartScreen's warning on an unsigned program —, then Wholeheard's icon is in the notification area and its window opens from it, with nothing installed before it and no terminal"
@@ -78,7 +78,7 @@ deliverables:
   - id: D58
     title: "At the first start, one or two questions set Wholeheard up, said plainly"
     module: shell
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a start where the setting `welcomed` is not true and the folder of meetings holds none, when Wholeheard starts — with `--window` or not, on Linux, macOS and Windows —, then the full window opens on the assistant of D58's board (`docs/project/drawings/d58-the-first-run/`) and `welcomed` is written true at once, so that it opens by itself once only — a start with the session included, the one departure from D35's « started again with the session, nothing does », once —; a start with a meeting already there, or with `welcomed` true, never shows it, and closing it midway changes nothing else"
       - "Given the first screen, nothing chosen in advance, when the user answers « Oui, souvent » or « Je ne sais pas », goes on with none, or chooses « Passer », then the setting is private: the transcription on this computer — Whisper with the model the settings name, or Apple's SpeechAnalyzer where it is chosen already — and the minutes by Ollama on this computer, its model the settings name or the recommended one; given « Rarement ou jamais » and « Un service en ligne », then the last screen's « Choisir mon service » opens Settings at the minutes, where the service, its model and key are chosen and tested as ever, its host agreed before the first sending as ever"
@@ -127,7 +127,7 @@ deliverables:
   - id: D63
     title: "A service that hears is chosen as the minutes' is: from a list, its transcription models offered"
     module: shell
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given Settings, when the user chooses who hears online, then the services the minutes offer that publish OpenAI's `audio/transcriptions` — OpenRouter, OpenAI, and Mistral if it does — are offered by name, their address filled in as the minutes' are, and « Un service que je choisis » keeps an address of their own"
       - "Given a service chosen, when Settings show it, then its transcription models are offered to choose from — OpenRouter's read from its public list, `models?output_modalities=transcription`, asked with no key and nothing of a meeting; the others' that give segments and their times named in the repository —, a model typed by hand still possible, and *Tester* says whether the one chosen gives segment times, the list not saying it; its key kept in the system's keyring as the minutes' is"
@@ -151,6 +151,8 @@ deliverables:
       - "Given Settings, when the user chooses the language meetings are spoken in — « Détectée », or a language the chosen engine hears, French and English first; SpeechAnalyzer hears French and English, and detects none —, then it is the default of every meeting; « Détectée » is the default where the engine detects, as Whisper does today"
       - "Given a meeting's page, before or after its transcript, when the user chooses its language, then the file is written, and its transcript, made after or by *Refaire…*, is heard in that language by Whisper, SpeechAnalyzer or a service alike; the page says the language asked, or « détectée »"
       - "Given the shell's tests and the window's e2e, when they run, then a meeting set to English is transcribed with `--language en`, one left as it is with the default, and *Refaire…* reads its language again"
+outcome: shipped
+ended_on: 2026-10-29
 ---
 
 # Cycle 04 — Wholeheard on macOS
@@ -710,6 +712,48 @@ in French.
 
 ## Closure
 
-<Written at the end.>
+**Closed on 2026-10-29, shipped**: 8 deliverables of 16 accepted, four days before the end date.
+The decider closed it early, on their word that day, « cadre oui mais il faut commencer … il nous faut continuer le projet et le terminer, les dates sont des estimations », so that cycle 05 starts. The eight
+left wait on people — the colleagues' trials on a Mac, on Windows and on Ubuntu, and the decider's
+own of a real service — and move to cycle 05, built and verified, as D27 moved here from cycle 03.
 
-**Documents brought current:** <at the closure>
+```mermaid
+flowchart LR
+    A["Accepted:<br/>Settings' list of models (D40) · who hears (D43)<br/>a meeting's context (D59) · confidential (D60)<br/>two panes (D61) · a line corrected (D62)<br/>the app's language (D64) · a meeting's (D65)"]:::done
+    B["Built, waiting on a trial:<br/>the Mac's app, call, SpeechAnalyzer (D38, D39, D42)<br/>Windows' zip (D53) · Ubuntu's deb (D27)<br/>a call on another output (D41) · the first run (D58)<br/>a service by name (D63)"]:::open
+    A --> C["Cycle 05:<br/>the best day to day"]:::next
+    B --> C
+    classDef done fill:#065f46,color:#fff
+    classDef open fill:#374151,color:#fff
+    classDef next fill:#1e3a8a,color:#fff
+```
+
+**Legend** — green: accepted · grey: built, its trial still to come — moved · blue: where the next
+framing starts.
+
+**The goal is not reached yet.** The colleague has not opened the forge's app on their Mac nor
+recorded a call with it (D38, D39). Both are built: the app and its zip on every run of `main`
+(#426 points to 8d8008a's, kept until 2026-11-05). Beyond the goal, on the decider's word as the
+cycle went: Windows' zip (D53), who hears chosen as the minutes' (D43, D63), the first run's two
+questions (D58), and the six deliverables of 2026-10-27 and 2026-10-29 (D59–D62, D64, D65), each
+accepted on its sheets once an independent read of them found what was left, and that was built.
+
+**Success criteria**: none moved. The charter's second and third wait on the colleagues' trials.
+
+**Decisions anchored to this cycle**, read at its closure:
+
+| Record | Its criterion | Read |
+|---|---|---|
+| ADR-0011, the other side recorded where the call plays | By 2026-11-02, the decider's call of #436 recorded again holds the other side; capture's e2e holds it | Not yet read: the call was not recorded again. It moves with D41 to cycle 05. Still *Proposed* |
+| ADR-0012, SpeechAnalyzer through a program of its own | D42's last criterion | Not yet read: no Mac has run it. It moves with D42. Still *Proposed* |
+| ADR-0014, a transcript's line corrected in place | Read by the minutes made again and by a text editor, before 2026-12-31 | Its date not reached; D62's sheet holds the first half (#528, #536). Still *Proposed* |
+| PDR-0004, Windows through the Microsoft Store | By 2027-06-30 | Its date not reached |
+
+**Defects open**: [#494](https://github.com/NapkinStack/wholeheard/issues/494), a recording started
+during a call that cut it on Bluetooth, needs the decider's AirPods for a test call.
+
+**Where the next framing starts**: [cycle 05](05-best-of-its-kind-to-use.md), accepted the same day.
+
+**Documents brought current:** each module's page in the pull request that changed it (#532 the
+shell's window, #534 its language); the cycle's sections at each acceptance (#535, #538, #542, #544,
+#546); the front page and the module map unchanged — no module was added.
