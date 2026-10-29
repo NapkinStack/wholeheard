@@ -1689,7 +1689,7 @@ def two_panes(now: dt.datetime) -> None:
         unseen = [name for _, seen_, name in stops if not seen_]
         # The pane's stops in one run: none of the sidebar's between them — past the last, the page starts again.
         last = len(places) - 1 - places[::-1].index("pane") if "pane" in places else 0
-        check("in English, the keyboard reaches the sidebar first, then the whole pane", english == ["Start a recording", "Settings", "Free space"]
+        check("in English, the keyboard reaches the sidebar first, then the pane's stops in one run", english == ["Start a recording", "Settings", "Free space"]
               and places[0] == "side" and "pane" in places and set(places[places.index("pane"):last + 1]) == {"pane"} and "other" not in places,
               (english, places))
         check("the focus is always seen", unseen == [], unseen)
@@ -2245,6 +2245,92 @@ def context_written(now: dt.datetime) -> None:
         check("in English, a meeting's page offers Redo with this context", changed
               and browser.find_element(By.ID, "context-redo").text == "Redo with this context", browser.find_element(By.ID, "context-redo").text)
         seen(browser, "d59-4-page-changed-dark")
+
+
+def context_gaps(now: dt.datetime) -> None:
+    """AH. What D59's criteria said and O did not run: the full window's page of the meeting being
+    recorded, a Cyrillic name and an emoji typed, nothing of it leaving in private mode, « Refaire
+    avec ce contexte » by the engine the settings name, the minutes set aside put back when they
+    fail, nothing overflowing sideways at 380 × 400."""
+    print("AH. a meeting's context: on the page being recorded, kept here in private mode, made again by the settings' engine (D59)")
+    keys = lambda browser, *sent: ActionChains(browser).send_keys(*sent).perform()
+    model = WORK / "context-gaps-model.bin"
+    model.write_bytes(b"\0" * 16)
+    here = f'after = "minutes"\nreminder = false\nmodel = "{model}"\nminutes_provider = "http://127.0.0.1:9/v1"\nminutes_model = "mistral"\n'
+    hearing, writing = WORK / "hearing-args", WORK / "summary-args"
+    meetings = WORK / "context-gaps"
+    meetings.mkdir()
+    meeting = meetings / "2026-10-18_12-00"
+    typed = "Иван Петров и Ольга 🙂"
+    hearing.unlink(missing_ok=True)
+    writing.unlink(missing_ok=True)
+    with Window(meetings, "fr_FR.UTF-8", here) as browser:
+        live = lambda b: "live" in (b.find_element(By.ID, "record").get_attribute("class") or "")
+        browser.find_element(By.ID, "record").click()
+        wait_for(browser, lambda b: (meeting / "session.json").exists() and live(b), 10)
+        browser.execute_script(f"location.hash = '#/meeting/{meeting.name}'")
+        open_ = wait_for(browser, lambda b: b.find_elements(By.ID, "context-text")
+                         and b.find_element(By.ID, "context-text").get_attribute("readonly") is None, 10)
+        browser.find_element(By.ID, "context-text").click()
+        keys(browser, typed)
+        kept = wait_for(browser, lambda b: (meeting / "context.txt").exists() and (meeting / "context.txt").read_text() == typed, 3)
+        check("the full window's page of the meeting being recorded offers its context: a Cyrillic name and an emoji kept whole",
+              open_ and kept, (meeting / "context.txt").read_text() if (meeting / "context.txt").exists() else None)
+        browser.find_element(By.ID, "record").click()
+        stopped = wait_for(browser, lambda b: "stopped" in (meeting / "session.json").read_text() and not live(b), 10)
+        made = wait_for(browser, lambda b: (meeting / "minutes.md").exists() and writing.exists(), 20)
+        header = json.loads((meeting / "transcript.jsonl").read_text().splitlines()[0]) if (meeting / "transcript.jsonl").exists() else {}
+        check("in private mode the context goes to Whisper and Ollama on this computer alone",
+              made and header.get("context") == typed and "--provider" not in hearing.read_text()
+              and "--provider http://127.0.0.1:9/v1" in writing.read_text(),
+              (stopped, sorted(p.name for p in meeting.iterdir()), hearing.read_text() if hearing.exists() else "", writing.read_text() if writing.exists() else ""))
+        if not made:
+            return
+    # A service the settings name hears from now on: « Refaire avec ce contexte » by it, the minutes failing.
+    (meeting / "local.wav").write_bytes(b"\0" * 1000)
+    service = here + 'engine = "service"\ntranscription_provider = "http://127.0.0.1:9/v1"\ntranscription_model = "hears"\n'
+    with Window(meetings, "fr_FR.UTF-8", service) as browser:
+        browser.execute_script(f"location.hash = '#/meeting/{meeting.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "context-text"), 10)
+        minutes = (meeting / "minutes.md").read_text()
+        browser.find_element(By.ID, "context-text").send_keys(Keys.END, " Et Lena.")
+        wait_for(browser, lambda b: b.find_element(By.ID, "context-changed").is_displayed(), 3)
+        hearing.unlink(missing_ok=True)
+        writing.unlink(missing_ok=True)
+        (WORK / "fail-minutes").touch()
+        try:
+            press(browser, "context-redo")
+            def context_heard() -> object:
+                """The context the transcript's header names — none while it is set aside and made again."""
+                try:
+                    return json.loads((meeting / "transcript.jsonl").read_text().splitlines()[0]).get("context")
+                except (FileNotFoundError, IndexError, ValueError):
+                    return None
+
+            heard = wait_for(browser, lambda b: hearing.exists() and context_heard() == typed + " Et Lena.", 15)
+            # Asked of the step, which fails: then nothing is being written, and nothing left set aside.
+            failed = wait_for(browser, lambda b: writing.exists() and b.execute_script(
+                "return window.__TAURI__.core.invoke('makings').then(m => m.minutes === null && m.minutes_waiting.length === 0)") and not list(meeting.glob("minutes-before-*")), 15)
+        finally:
+            (WORK / "fail-minutes").unlink()
+        check("« Refaire avec ce contexte » hears by the engine the settings name: the service",
+              heard and "--provider http://127.0.0.1:9/v1" in hearing.read_text() and "--model hears" in hearing.read_text(), hearing.read_text() if hearing.exists() else "")
+        check("its minutes failing, the ones set aside are put back", failed and (meeting / "minutes.md").read_text() == minutes,
+              sorted(p.name for p in meeting.iterdir()))
+    # The small window at 380 × 400, the field open and full of a long name: nothing sideways.
+    small = WORK / "context-gaps-small"
+    small.mkdir()
+    with Window(small, "fr_FR.UTF-8", here, small=True) as browser:
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-record"), 10)
+        browser.find_element(By.ID, "small-record").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        browser.find_element(By.ID, "small-context-toggle").click()
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-context").is_displayed(), 2)
+        browser.find_element(By.ID, "small-context").send_keys("Константинопольская-Переяславская " * 3)
+        time.sleep(0.5)
+        wide = browser.execute_script("const e = document.scrollingElement; return [e.scrollWidth, e.clientWidth, innerWidth, innerHeight]")
+        check("at 380 × 400, the field open and a long name typed, nothing overflows sideways", wide[0] <= wide[1] and wide[2:] == [380, 400], wide)
+        stop_from_small(browser)
 
 
 def confidential_kept(now: dt.datetime) -> None:
@@ -3960,6 +4046,7 @@ def main() -> int:
     meeting_language(now)
     transcript_corrected(now)
     corrections_gated(now)
+    context_gaps(now)
     two_panes(now)
     sidebar_folded(now)
     app_language(now)
