@@ -613,8 +613,12 @@ by a scenario of the sheets:
 | 4. The tests and the e2e: `--language en`, the default, *Refaire…* reading it again | #530 S2, S3, S4 |
 
 What no scenario runs: Apple's SpeechAnalyzer itself on a Mac (#426). A program stands for it; the
-language it is told for a meeting's own is held by the shell's unit tests (#530). The English
-wording « … hears the system's » is run by no e2e: AC runs in French.
+language it is told for a meeting's own is held by the shell's unit tests (#530). The Settings'
+list under SpeechAnalyzer — Français, English and « Celle du système », no « Détectée » — is read
+only; AC checks a language it does not hear stays chosen there (#541). A meeting set to English told
+`--language en`: the shell's unit tests (`tests/transcription.rs`); the e2e runs a meeting's own
+`de` and the settings' `en`. The English wording « … hears the system's » is run by no e2e: AC runs
+in French.
 
 ## Dependency with a date
 
