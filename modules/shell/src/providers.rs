@@ -30,6 +30,61 @@ pub const ONLINE: [Online; 3] = [
     },
 ];
 
+/// A service that hears, offered by name as the minutes' are (D63): its address, and the
+/// transcription models it publishes where it does not list them by what they do.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Hearing {
+    pub name: &'static str,
+    pub address: String,
+    /// It lists its transcription models itself (`models?output_modalities=transcription`).
+    pub listed: bool,
+    pub models: &'static [&'static str],
+}
+
+/// The minutes' services that answer OpenAI's `audio/transcriptions` with segments and their
+/// times, as the step asks them (`verbose_json`). Mistral asks for a field of its own to give
+/// them: not offered. OpenRouter's address, for whoever tries Wholeheard, as
+/// `WHOLEHEARD_HEARING` says.
+pub fn hearing() -> Vec<Hearing> {
+    let openrouter = std::env::var("WHOLEHEARD_HEARING").unwrap_or_else(|_| ONLINE[0].address.to_string());
+    vec![
+        Hearing {
+            name: ONLINE[0].name,
+            address: openrouter,
+            listed: true,
+            models: &["openai/whisper-large-v3-turbo", "openai/whisper-large-v3"],
+        },
+        Hearing {
+            name: ONLINE[1].name,
+            address: ONLINE[1].address.to_string(),
+            listed: false,
+            // `gpt-4o-transcribe` and its smaller one answer without segments.
+            models: &["whisper-1"],
+        },
+    ]
+}
+
+/// The transcription models a service lists by what they do, by name — none when it does not
+/// answer in time, or answers with no list: the ones it publishes are offered then.
+pub fn hearing_listed(address: &str) -> Option<Vec<String>> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(5)))
+        .build()
+        .into();
+    let asked = format!("{}/models?output_modalities=transcription", address.trim_end_matches('/'));
+    let text = agent.get(asked).call().ok()?.body_mut().read_to_string().ok()?;
+    let listed: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let names: Vec<String> = listed
+        .get("data")?
+        .as_array()?
+        .iter()
+        .filter_map(|model| model.get("id").and_then(serde_json::Value::as_str).map(str::to_string))
+        // A name the step would refuse is not offered.
+        .filter(|name| !name.trim().is_empty() && !name.chars().any(char::is_control))
+        .collect();
+    (!names.is_empty()).then_some(names)
+}
+
 /// The local model recommended for the minutes: tried on real meetings, it holds `minutes/v1`'s
 /// form, where Mistral 7B and models for code do not (#261). Offered first when Ollama holds it.
 pub const RECOMMENDED: &str = "qwen3:8b";

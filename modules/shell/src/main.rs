@@ -221,6 +221,7 @@ fn main() {
             speech_shown,
             transcription_saved,
             transcription_tested,
+            hearing_models,
             speech_installed,
             ollama_pull_offered,
             header,
@@ -1345,6 +1346,8 @@ struct SettingsShown {
     /// host it is read again from on the user's gesture (D40).
     offered: Vec<Offered>,
     registry_host: String,
+    /// The services that hear, offered by name (D63).
+    hearing: Vec<providers::Hearing>,
     developer: bool,
     log: Log,
     unreadable: Option<String>,
@@ -1393,6 +1396,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         transcription_agreed: settings.transcription_agreed.clone(),
         models,
         registry_host: registry::host(&registry_address()).to_owned(),
+        hearing: providers::hearing(),
         offered: offered()
             .iter()
             .enumerate()
@@ -1703,6 +1707,22 @@ async fn transcription_saved(
         None => None,
     };
     Ok(not_kept)
+}
+
+/// The transcription models a service that hears offers (D63): listed by the service where it
+/// lists them, else those it publishes. Nothing of a meeting is sent; no key is needed to list.
+#[tauri::command]
+async fn hearing_models(index: usize) -> Result<Vec<String>, String> {
+    let service = providers::hearing().into_iter().nth(index).ok_or("no such service")?;
+    let published = || service.models.iter().map(|model| model.to_string()).collect();
+    if !service.listed {
+        return Ok(published());
+    }
+    let address = service.address.clone();
+    let listed = tauri::async_runtime::spawn_blocking(move || providers::hearing_listed(&address))
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(listed.unwrap_or_else(published))
 }
 
 /// *Tester* for who hears: `wholeheard-transcription --test` sends a sound of its own to the service

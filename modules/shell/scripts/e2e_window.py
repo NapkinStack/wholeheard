@@ -15,6 +15,7 @@ import json
 import math
 import os
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -292,6 +293,13 @@ class Window:
         finally:
             self.driver_process.terminate()
             self.driver_process.wait(timeout=10)
+            # A session that never answered leaves the Wholeheard under test behind: ended, or it takes
+            # the next start's arguments and the next session never opens (#510). Only this binary's.
+            for pid in instances():
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
 
 
 # The run's own output, made by e2e.sh: the window's sound goes there, never to the speakers.
@@ -395,6 +403,10 @@ def model_offered(now: dt.datetime) -> None:
         label = browser.find_element(By.ID, "model-fetch").text if offered else ""
         check("Settings offer the missing model, with its size and host", offered and label == f"Télécharger le modèle (300 ko, {host})", label)
         check("nothing is fetched before the click", asked == [], asked)
+        # Coming back to the window draws it anew, by design: the window's focus waited for first —
+        # the desktop being in use, it may come late (#510).
+        wait_for(browser, lambda b: b.execute_script("return document.hasFocus()"), 5)
+        time.sleep(0.5)
         button = browser.find_element(By.ID, "model-fetch")
         time.sleep(3.5)
         check("in Settings too, the offer is not drawn again while nothing changes", not staleness_of(button)(browser))
@@ -652,7 +664,26 @@ def service_named(now: dt.datetime) -> None:
         '{"type":"header","contract":"transcript/v1","engine":"api.groq.com","model":"whisper-large-v3","language":"fr","context":null}\n'
         '{"type":"segment","speaker":"me","track":"local","voice":null,"start":0.5,"end":1.5,"text":"Bonjour."}\n{"type":"complete","duration":2.0}\n'
     )
+    # OpenRouter's stand-in: it lists its transcription models, by what they do (D63).
+    listed = []
+
+    class Listing(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            listed.append(self.path)
+            body = json.dumps({"data": [{"id": "openai/whisper-large-v3-turbo"}, {"id": "vendor/scribe"}]}).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Listing)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    stand = f"http://127.0.0.1:{server.server_address[1]}/api/v1"
     window = Window(meetings, "fr_FR.UTF-8")
+    window.env.update(WHOLEHEARD_HEARING=stand)
     said = "return document.getElementById('transcription-said')?.innerText || ''"
     with window as browser:
         browser.find_element(By.ID, "settings-link").click()
@@ -699,6 +730,42 @@ def service_named(now: dt.datetime) -> None:
         browser.execute_script("location.hash = '#/settings'")
         note = wait_for(browser, lambda b: "reçoit le son de vos réunions" in b.find_element(By.ID, "settings").text, 5)
         check("Settings say a transcription service receives the meetings' sound", note and "L’audio ne quitte jamais" not in browser.find_element(By.ID, "settings").text)
+        # Offered by name, as the minutes' services are (D63).
+        offered = lambda b, id_: b.execute_script("return [...document.querySelectorAll(arguments[0])].map(o => [o.value, o.textContent])", f"#{id_} option")
+        names = [said_ for value, said_ in offered(browser, "model") if value.startswith("service:")]
+        check("the services that hear are offered by name, as the minutes' are: OpenRouter, OpenAI", names == ["OpenRouter", "OpenAI"], names)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:0")
+        models = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["openai/whisper-large-v3-turbo", "vendor/scribe", "Un autre modèle…"], 5)
+        check("OpenRouter chosen: its transcription models listed from it, its address filled and not asked",
+              models and listed == ["/api/v1/models?output_modalities=transcription"] and not browser.find_element(By.ID, "transcription-provider").is_displayed()
+              and not browser.find_element(By.ID, "transcription-model").is_displayed(), (offered(browser, "transcription-models"), listed))
+        Select(browser.find_element(By.ID, "transcription-models")).select_by_value("")
+        typed = wait_for(browser, lambda b: b.find_element(By.ID, "transcription-model").is_displayed()
+                         and b.execute_script("return document.activeElement.id") == "transcription-model", 3)
+        check("« Un autre modèle… »: a model typed by hand", typed)
+        Select(browser.find_element(By.ID, "transcription-models")).select_by_value("vendor/scribe")
+        browser.find_element(By.ID, "transcription-key").send_keys("sk-stand-in-not-a-key")
+        if not browser.find_element(By.ID, "transcription-agreed").is_selected():
+            browser.find_element(By.ID, "transcription-agreed").click()
+        press(browser, "transcription-save")
+        saved = wait_for(browser, lambda b: f'transcription_provider = "{stand}"' in window.file.read_text(), 5)
+        text = window.file.read_text()
+        check("saved: OpenRouter's address, the model chosen in its list, the key never in the settings",
+              saved and 'transcription_model = "vendor/scribe"' in text and "sk-stand-in" not in text, text)
+        press(browser, "transcription-test")
+        tested = wait_for(browser, lambda b: b.execute_script(said) and "Enregistré" not in b.execute_script(said), 10)
+        check("Tester, on the service chosen from the list, says in one sentence what it answered", tested, browser.execute_script(said))
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
+        browser.execute_script("location.hash = '#/settings'")
+        kept = wait_for(browser, lambda b: b.find_elements(By.ID, "model") and b.find_element(By.ID, "model").get_attribute("value") == "service:0"
+                        and b.find_element(By.ID, "transcription-models").get_attribute("value") == "vendor/scribe", 5)
+        check("drawn again: OpenRouter chosen, its model in its list", kept)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:1")
+        named = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["whisper-1", "Un autre modèle…"], 5)
+        check("OpenAI chosen: the model it publishes with segments, named in the repository — not its own list",
+              named and len(listed) == 2, (offered(browser, "transcription-models"), listed))
+    server.shutdown()
 
 
 def ollama_pulled(now: dt.datetime) -> None:
@@ -885,7 +952,9 @@ def first_run(now: dt.datetime) -> None:
         skip = browser.execute_script(focused)
         check("Tab reaches the answers, then Passer", first.startswith("INPUT:private") and skip == "BUTTON:welcome-skip:", (first, skip))
         # Drawn once the window has the system's focus: waited for, the desktop being in use (#510).
-        ring = wait_for(browser, lambda b: b.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0"), 3)
+        # Asked for, then waited for: another window of the desktop may hold the system's focus.
+        browser.switch_to.window(browser.current_window_handle)
+        ring = wait_for(browser, lambda b: b.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0"), 10)
         check("the focus is seen", ring)
         keys(browser, Keys.ENTER)
         listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed() and b.find_element(By.CSS_SELECTOR, "header.bar").is_displayed(), 10)
@@ -2148,7 +2217,7 @@ def main() -> int:
         checked = browser.execute_script("return document.querySelector('input[name=after]:checked').value")
         check("out of the box, the transcript follows", checked == "transcript", checked)
         names = [o.text.split(" — ")[0] for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
-        check("the models on this computer are offered, by the names people say", names == ["Whisper large v3 turbo", "Whisper small", "Un service que je choisis"], names)
+        check("the models on this computer are offered, by the names people say", names == ["Whisper large v3 turbo", "Whisper small", "OpenRouter", "OpenAI", "Un service que je choisis"], names)
         ready = browser.find_element(By.ID, "model-state").text
         check("the transcription model's state is said at the page's end", "Prêt" in ready and "sans réseau" in ready, ready)
         # Each change is saved, then the page is drawn again: the next acts on the new one.
@@ -3044,7 +3113,9 @@ def main() -> int:
         browser.switch_to.window(main)
         opened = wait_for(browser, lambda b: b.execute_script("return location.hash").startswith("#/meeting/") and len(b.window_handles) == 1, 5)
         check("its last meeting opens in the full window, in place of the small one", opened, (browser.execute_script("return location.hash"), browser.window_handles))
-        browser.find_element(By.ID, "small-link").click()
+        # Clicked by the page itself: the driver's click, a window having just gone, was left unanswered
+        # for a minute twice on a desktop in use — the windows' count below is what is checked.
+        browser.execute_script("document.getElementById('small-link').click()")
         wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
         browser.switch_to.window([h for h in browser.window_handles if h != main][0])
         wait_for(browser, lambda b: b.find_elements(By.ID, "small-all"), 5)
