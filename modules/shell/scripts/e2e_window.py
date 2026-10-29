@@ -1402,6 +1402,19 @@ def meeting_language(now: dt.datetime) -> None:
         wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
         said = Select(browser.find_element(By.ID, "meeting-language")).first_selected_option.text
         check("the settings detecting it, the page says « détectée »", said == "Celle des Réglages — détectée", said)
+    # SpeechAnalyzer hears (a program in its place, as X has it): it detects none, and hears French
+    # and English alone — the system's when nothing names another (D64).
+    program = WORK / "speaking-speech"
+    program.write_text("#!/bin/sh\necho '{\"available\":true,\"installed\":true,\"supported\":true}'\n")
+    program.chmod(0o755)
+    window = Window(meetings, "fr_FR.UTF-8", f'reminder = false\nmodel = "{model}"\nengine = "speechanalyzer"\nmeeting_language = "de"\n')
+    window.env.update(WHOLEHEARD_SPEECH=str(program))
+    with window as browser:
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
+        offered = [o.text for o in Select(browser.find_element(By.ID, "meeting-language")).options]
+        check("SpeechAnalyzer hearing: the page says the system's language, never « détectée », and offers French and English alone",
+              offered == ["Celle des Réglages — Français", "Français", "English"], offered)
 
 
 def app_language(now: dt.datetime) -> None:

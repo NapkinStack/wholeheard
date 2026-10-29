@@ -931,6 +931,10 @@ struct Opened {
     languages: Vec<(&'static str, &'static str)>,
     /// The settings' language for meetings, none: detected — what « as in Settings » means.
     meeting_language: Option<String>,
+    /// SpeechAnalyzer hears (D42): it detects none, and hears French and English alone — the
+    /// system's language when neither the meeting nor the settings name one (D64, D65).
+    apple: bool,
+    system_language: &'static str,
 }
 
 #[tauri::command]
@@ -952,6 +956,8 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
         language: spoken::read(&folder),
         languages: spoken::OFFERED.to_vec(),
         meeting_language: shell.settings().meeting_language,
+        apple: shell.settings().engine == Engine::SpeechAnalyzer,
+        system_language: shell.system.code(),
     })
 }
 
