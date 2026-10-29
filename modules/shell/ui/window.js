@@ -1579,8 +1579,13 @@ function showSettings(shown, minutes, words) {
     address.parentElement.hidden = index >= 0;
     agreeBox.checked = !!shown.transcription_agreed && shown.transcription_agreed === hostOf(address.value);
     sayAgree();
-    if (index >= 0) offerModels(index);
-    showModel();
+    if (index < 0) return showModel();
+    // Its list coming: nothing of another service's shown meanwhile, the list said when it comes.
+    serviceModels.replaceChildren();
+    serviceModel.value = index === preset ? shown.transcription_model ?? "" : "";
+    modelsWrap.hidden = false;
+    serviceModel.parentElement.hidden = true;
+    offerModels(index);
   };
   agree.append(agreeBox, agreeSaid);
   const serviceSaid = element("p", "says");

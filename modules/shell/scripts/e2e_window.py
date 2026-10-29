@@ -752,6 +752,9 @@ def service_named(now: dt.datetime) -> None:
         text = window.file.read_text()
         check("saved: OpenRouter's address, the model chosen in its list, the key never in the settings",
               saved and 'transcription_model = "vendor/scribe"' in text and "sk-stand-in" not in text, text)
+        press(browser, "transcription-test")
+        tested = wait_for(browser, lambda b: b.execute_script(said) and "Enregistré" not in b.execute_script(said), 10)
+        check("Tester, on the service chosen from the list, says in one sentence what it answered", tested, browser.execute_script(said))
         browser.execute_script("location.hash = '#/'")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
         browser.execute_script("location.hash = '#/settings'")
