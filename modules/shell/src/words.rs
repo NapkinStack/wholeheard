@@ -368,6 +368,8 @@ pub struct Window {
     /// sent to its host, the gestures, and what they say.
     pub service_group: &'static str,
     pub service_option: &'static str,
+    /// A model the service's list does not hold, typed (D63).
+    pub service_other_model: &'static str,
     pub service_address: &'static str,
     pub service_model: &'static str,
     pub service_key: &'static str,
@@ -703,6 +705,7 @@ pub fn window(language: Language) -> Window {
             speech_failed: "Apple's model was not downloaded. Try again later; Whisper still hears.",
             service_group: "A service",
             service_option: "A service I name",
+            service_other_model: "Another model…",
             service_address: "Its address",
             service_model: "Its model",
             service_key: "Its key, if it asks for one",
@@ -1030,6 +1033,7 @@ pub fn window(language: Language) -> Window {
             speech_failed: "Le modèle d’Apple n’a pas été téléchargé. Réessayez plus tard\u{202f}; Whisper reste disponible.",
             service_group: "Un service",
             service_option: "Un service que je choisis",
+            service_other_model: "Un autre modèle…",
             service_address: "Son adresse",
             service_model: "Son modèle",
             service_key: "Sa clé, s’il en demande une",
