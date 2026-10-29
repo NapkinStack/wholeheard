@@ -90,6 +90,8 @@ fn a_text_kept_is_one_line_its_ends_trimmed() {
     assert_eq!(tidy("\n \t"), None);
 }
 
+// Unix's: a read-only file is replaced by a rename there, never on Windows.
+#[cfg(unix)]
 #[test]
 fn a_correction_replaces_the_file_whole_even_one_that_cannot_be_written_in_place() {
     // Read-only, the file cannot be written in place; written beside and renamed over, it is
