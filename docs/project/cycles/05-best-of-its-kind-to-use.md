@@ -362,10 +362,34 @@ And for this cycle:
   recommendation 2): what Granola, which deletes the audio, cannot do.
 - Naming the other side by hand, once, everywhere; meeting types as contexts (market review 7, 8).
 - A notification's click on a Mac.
-- A meeting renamed by hand.
+- A meeting renamed by hand — the decider's [#504](https://github.com/NapkinStack/wholeheard/issues/504), a title given while recording or on its page.
 - The rest of the UX review's ranked list: the full window's empty state and a caught `listed`
   failure (3.7), *Démarrer*'s instant feedback (3.3), *Refaire…*'s *Annuler* (4.4), playback
   speed (4.7), search highlighted (4.6), the tray's repair entries (6.3, departs from D34's board).
+
+## Read again after cycle 04
+
+*(framer, 2026-10-29)* Cycle 04 built D58–D65 since this page was written: the first run's two
+questions, a meeting's context and « Réunion confidentielle », the window in two panes, a line
+corrected, a service that hears chosen by name, the app's language, each meeting's language. Read
+against them, deliverable by deliverable:
+
+| Deliverable | What cycle 04 changed for it | The framer's proposal |
+|---|---|---|
+| D44 | A meeting opens in the pane beside the list (D61): `#/meeting/<name>` still names it; the notifications speak the language chosen (D64) | Unchanged |
+| D45 | « Refaire avec les corrections » sits beside *Refaire…* when a line was corrected (D62) | « Copier le compte rendu » beside both; unchanged otherwise |
+| D46 | The minutes and the transcript side by side from 1000 px of pane (D61) | Unchanged: the rows read in the minutes' column |
+| D47 | Settings choose the app's language (D64): « a French user » is one whose Wholeheard speaks French. The step's own English sentences still reach a French page — *Tester*'s refusal « … gives no times: choose another model » (#545), a service's refusal, Ollama's | Criterion 3 holds them already (« a command that hands the page a text of its own »); they are named in its sheet |
+| D48 | [#504](https://github.com/NapkinStack/wholeheard/issues/504) (the decider, 2026-10-28) asks for a title given by the user too, written while recording or on the page | D48 kept as it is, the minutes' title; the user's own title stays in *Later* (« a meeting renamed by hand »), #504 linked there — or brought in, the decider's choice (below) |
+| D49, D50 | The small window is full while recording (D59's section): the meters, the context's disclosure and its field, D60's switch, all inside 380 × 400 | Drawn first, on a board of their own, as D58's and D61's were: the checks, their sentences and the reminder's line placed with the context and the switch, or the size changed — the board read by the decider before they are built |
+| D54 | The Windows zip waits on the colleague's trial (D53, [#482](https://github.com/NapkinStack/wholeheard/issues/482)) | A dependency: D54's fourth criterion — a call recorded from the package — needs D53's colleague and their Windows 11 |
+| D55, D56, D57 | Nothing | Unchanged |
+
+Also found, outside the cycle: [#494](https://github.com/NapkinStack/wholeheard/issues/494), a recording
+started during a call cut it — the AirPods' Bluetooth transport failing as capture opened its
+streams. It is a defect, not a deliverable: fixed out of cycle once it can be reproduced. It needs the
+decider's AirPods and a test call. Nothing on this machine without them reproduces a Bluetooth
+transport.
 
 ## Open questions
 
@@ -396,6 +420,13 @@ And for this cycle:
 - **The title or the cheap fix** (D48): the framer's proposal is the title; the cheap fix is S.
 - **The announcement's sentence** (D50): the framer's, above, for the decider to adopt or amend.
 - **The live check on every recording** (D49), rather than the first only.
+- **D49's and D50's board** (*Read again after cycle 04*): drawn first, the decider reading it before
+  they are built, or built straight into the small window as it is? The framer's default: the board
+  first — the window is full since D59 and D60, and two deliverables of cycle 04 were drawn first
+  for less.
+- **#504, a title given by the user** (*Read again after cycle 04*): in this cycle beside D48, or in
+  *Later*? The framer's default: *Later* — D48 already names every meeting that has minutes, and
+  the appetite is the open question above.
 
 ## Closure
 
