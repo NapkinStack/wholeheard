@@ -7,7 +7,7 @@
   their choice the same day: « Réécrire la ligne ». Accepting it is the decider's.
 - **Date**: 2026-10-29
 - **Decision makers**: the decider, `@napkinstack-admin`
-- **Scope**: contract `transcript/v1`; module `shell` writes the correction, `summary` reads it unchanged
+- **Scope**: contract `transcript/v1`, provided by `transcription`; module `shell` becomes its second writer — a boundary crossed, said here and on the contract's page —; `summary` reads it unchanged
 - **Reversibility**: easy — the field and the sentence removed, corrected files stay valid transcripts
 
 ---
@@ -16,7 +16,7 @@
 flowchart LR
     T["transcription<br/>appends lines"]:::mod -->|"until complete"| J["transcript.jsonl"]:::file
     U["The user, listening<br/>on the meeting's page"]:::user --> S["shell"]:::mod
-    S -->|"once complete: the file written beside,<br/>renamed over it — one segment's text, edited: true"| J
+    S -->|"once complete: the file written beside,<br/>renamed over it — one segment's text, edited: when"| J
     J --> M["summary<br/>minutes made again, on the user's click"]:::mod
     classDef mod fill:#065f46,color:#fff
     classDef user fill:#1e3a8a,color:#fff
@@ -55,7 +55,7 @@ Fireflies, no source read again here)*; event-sourced records keep corrections a
 
 | Reference | What it does | Applicable here? |
 |---|---|---|
-| Otter, Descript, Fireflies | The transcript's text edited where it is read; what was heard is not kept beside it | Yes: the gesture, the text replaced |
+| Otter, Descript, Fireflies — the framer's reading of their products, no page cited | The transcript's text edited where it is read; what was heard is not kept beside it | Yes: the gesture, the text replaced |
 | Append-only logs, event sourcing | A correction is a new entry; the record is never rewritten | Proposed to the decider, refused: two places to read the text, an editor showing the old one |
 
 ---
@@ -64,7 +64,9 @@ Fireflies, no source read again here)*; event-sourced records keep corrections a
 
 ### Option 1 — The line rewritten in place, once complete (chosen by the decider)
 - Description: the shell replaces the file whole — written beside, renamed over it —, one segment's
-  `text` changed and `edited: true` added, every other line as it was, in the same order.
+  `text` changed and `edited` set to when, ISO 8601, every other line as it was, in the same order;
+  never while the transcript is made or made again — the shell holds one making at a time, and a
+  correction waits for it as *Refaire…* does.
 - Advantages: one file, read as before by the summary, a text editor and a copy; nothing for the
   readers but an optional field they may ignore.
 - Drawbacks: what the engine heard is lost; the file no longer only grows once complete.
@@ -87,16 +89,22 @@ Fireflies, no source read again here)*; event-sourced records keep corrections a
 
 Option 1, the decider's choice of 2026-10-29: one file, the text where every reader already reads it.
 The rule readers rely on is kept where it matters — while the transcript is written: no correction
-before its `complete` line, none while it is made again. `edited: true` lets the page say « corrigé »
-and the bench leave such a transcript out of its counts.
+before its `complete` line, none while it is made again. `edited`, a time, lets the page say « corrigé »
+and compare it with the minutes' `made`: corrected since, the minutes are offered again.
+
+**The readers, read on 2026-10-29 by #516's challenge**: the summary reads the file once, whole; the
+shell's page reads it at each drawing; the transcription's resume reads it only before `complete`; the
+bench (`platform`) reads transcripts of its own folders, never a user's. None relies on lines only
+growing once `complete` is there: one pull request of the contracts module, additive — `edited` optional,
+its type checked by `nstack compat` before it is said so —, no v2.
 
 ---
 
 ## Success criterion
 
 > We will consider this was the right call if **a transcript corrected on the meeting's page is read
-> by the minutes made again, by a copy of the folder and by the bench without a change to the summary
-> or the bench's reader** before **2026-12-31**.
+> by the minutes made again and by a copy of the folder opened in a text editor, with no change to the
+> summary** before **2026-12-31**.
 
 What we do if it is not: supersede with option 2.
 
@@ -109,8 +117,8 @@ What we do if it is not: supersede with option 2.
 **Negative and accepted debt:** what the engine heard on a corrected line is gone; a transcript made
 again does not keep the corrections — said before it starts.
 
-**Impacts on other modules or contracts:** `transcript/v1` — a sentence and an optional field, its
-pull request alone and first; `summary` and the bench unchanged.
+**Impacts on other modules or contracts:** `transcript/v1` — a sentence, a second writer named and an
+optional field, its pull request alone and first; `summary` and the bench unchanged.
 
 **Rule to automate:** the shell's tests read a corrected file against `line.schema.json` and compare it
 line by line with the one before: one line differs, by `text` and `edited`.
