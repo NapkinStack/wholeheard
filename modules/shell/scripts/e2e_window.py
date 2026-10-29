@@ -395,6 +395,10 @@ def model_offered(now: dt.datetime) -> None:
         label = browser.find_element(By.ID, "model-fetch").text if offered else ""
         check("Settings offer the missing model, with its size and host", offered and label == f"Télécharger le modèle (300 ko, {host})", label)
         check("nothing is fetched before the click", asked == [], asked)
+        # Coming back to the window draws it anew, by design: the window's focus waited for first —
+        # the desktop being in use, it may come late (#510).
+        wait_for(browser, lambda b: b.execute_script("return document.hasFocus()"), 5)
+        time.sleep(0.5)
         button = browser.find_element(By.ID, "model-fetch")
         time.sleep(3.5)
         check("in Settings too, the offer is not drawn again while nothing changes", not staleness_of(button)(browser))
@@ -2051,7 +2055,7 @@ def main() -> int:
         checked = browser.execute_script("return document.querySelector('input[name=after]:checked').value")
         check("out of the box, the transcript follows", checked == "transcript", checked)
         names = [o.text.split(" — ")[0] for o in browser.find_elements(By.CSS_SELECTOR, "#model option")]
-        check("the models on this computer are offered, by the names people say", names == ["Whisper large v3 turbo", "Whisper small", "Un service que je choisis"], names)
+        check("the models on this computer are offered, by the names people say", names == ["Whisper large v3 turbo", "Whisper small", "OpenRouter", "OpenAI", "Un service que je choisis"], names)
         ready = browser.find_element(By.ID, "model-state").text
         check("the transcription model's state is said at the page's end", "Prêt" in ready and "sans réseau" in ready, ready)
         # Each change is saved, then the page is drawn again: the next acts on the new one.
