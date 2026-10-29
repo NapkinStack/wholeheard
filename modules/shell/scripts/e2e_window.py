@@ -1684,6 +1684,55 @@ def confidential_every_way(now: dt.datetime) -> None:
             server.shutdown()
 
 
+def minutes_copied(now: dt.datetime) -> None:
+    """AJ. A meeting's minutes copied in one click, ready to paste where the user writes (D45)."""
+    print("AJ. the minutes copied in one click: their Markdown, titled as the page names them, « Copié » said in place (D45)")
+    meetings = WORK / "copying"
+    written, none_, broken = (meetings / name for name in ("2026-10-28_09-00", "2026-10-28_10-00", "2026-10-28_11-00"))
+    for folder in (written, none_, broken):
+        session(folder, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+        (folder / "transcript.jsonl").write_text(
+            '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+            '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n{"type":"complete","duration":1.0}\n')
+    (written / "minutes.md").write_text(
+        "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
+        "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Envoyer le devis — Inès — vendredi\n\n## 3.\n\n- Rien\n")
+    (broken / "minutes.md").write_text("pas un compte rendu\n")
+    expected = ("## Points saillants\n\nLe budget est validé.\n\n## Actions\n\n- Envoyer le devis — Inès — vendredi\n\n"
+                "## Points clés\n\n- Rien\n")
+    # The clipboard stood in: what the page writes is kept on the page, never the user's own clipboard.
+    stand_in = ("window.__copied = []; const refuse = arguments[0];"
+                "Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: (text) =>"
+                " refuse ? Promise.reject(new Error('refused')) : (window.__copied.push(text), Promise.resolve())}})")
+    status = "return document.getElementById('minutes-copied')?.textContent ?? null"
+    with Window(meetings, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.execute_script(f"location.hash = '#/meeting/{written.name}'")
+        offered = wait_for(browser, lambda b: b.find_elements(By.ID, "copy-minutes"), 10)
+        beside = browser.execute_script(
+            "const c = document.getElementById('copy-minutes'), r = document.getElementById('redo-minutes');"
+            "return c && r && c.parentElement === r.parentElement && c.nextElementSibling === r")
+        check("a meeting with minutes offers « Copier le compte rendu », beside Refaire…",
+              offered and beside and browser.find_element(By.ID, "copy-minutes").text == "Copier le compte rendu", beside)
+        browser.execute_script(stand_in, False)
+        press(browser, "copy-minutes")
+        said = wait_for(browser, lambda b: b.execute_script(status) == "Copié", 3)
+        copied = browser.execute_script("return window.__copied")
+        check("clicked: their Markdown copied, without the front matter, titled as the page names them; « Copié » said in place",
+              said and copied == [expected] and browser.find_element(By.ID, "minutes-copied").get_attribute("role") == "status", copied)
+        gone = wait_for(browser, lambda b: b.execute_script(status) == "", 4)
+        check("« Copié » said for a moment", gone, browser.execute_script(status))
+        browser.execute_script(stand_in, True)
+        press(browser, "copy-minutes")
+        refused = wait_for(browser, lambda b: b.execute_script(status) == "Le compte rendu n’a pas pu être copié.", 3)
+        check("the clipboard refused: one sentence says so, the minutes as they were",
+              refused and browser.find_elements(By.CSS_SELECTOR, "#meeting .minutes .body h2"), browser.execute_script(status))
+        for folder, why in ((none_, "without minutes"), (broken, "with minutes that do not read")):
+            browser.execute_script(f"location.hash = '#/meeting/{folder.name}'")
+            wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').dataset.name") == folder.name
+                     and b.find_elements(By.CSS_SELECTOR, "#meeting .minutes .none"), 10)
+            check(f"a meeting {why} offers no copy", not browser.find_elements(By.ID, "copy-minutes"))
+
+
 def two_panes(now: dt.datetime) -> None:
     """AD. The window in two panes: the meetings in a sidebar, the one chosen beside them (D61)."""
     print("AD. the window in two panes: the sidebar, the meeting chosen beside it, as wide as the window (D61)")
@@ -4213,6 +4262,7 @@ def main() -> int:
     sidebar_folded(now)
     app_language(now)
     confidential_every_way(now)
+    minutes_copied(now)
     return 1 if FAILED else 0
 
 
