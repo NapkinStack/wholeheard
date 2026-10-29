@@ -285,7 +285,7 @@ class Window:
             self.driver_process.wait(timeout=10)
             raise SystemExit("tauri-driver did not answer")
         # Whichever window opened: the small one at rest, or the full one's sections named.
-        wait_for(self.browser, lambda b: b.find_elements(By.ID, "small-record") or b.execute_script("return document.getElementById('meetings').textContent !== ''"))
+        wait_for(self.browser, lambda b: b.find_elements(By.ID, "small-record") or b.execute_script("return document.getElementById('settings-link').textContent !== ''"))
         return self.browser
 
     def __exit__(self, *_) -> None:
@@ -426,7 +426,7 @@ def model_offered(now: dt.datetime) -> None:
         fetched.unlink()
         browser.execute_script("location.hash = '#/meeting/2026-10-25_10-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "make-transcript"))
-        browser.find_element(By.ID, "make-transcript").click()
+        press(browser, "make-transcript")
         waits = "return document.getElementById('transcript-state')?.innerText || ''"
         offered = wait_for(browser, lambda b: "En attente du modèle Whisper" in b.execute_script(waits) and b.find_elements(By.CSS_SELECTOR, "#transcript-state #model-fetch"))
         check("a meeting waiting for the model offers it on its page", offered, browser.execute_script(waits))
@@ -933,7 +933,7 @@ def first_run(now: dt.datetime) -> None:
         check("nothing is chosen for the user", browser.execute_script(picked) == "", browser.execute_script(picked))
         check("each answer is a radio of one group, named by the question",
               browser.execute_script("const g = document.querySelector('#welcome [role=radiogroup]'); return !!g && !!g.getAttribute('aria-labelledby') && g.querySelectorAll('input[type=radio][name=private]').length === 3"))
-        check("no header of the meetings while it is answered", not browser.find_element(By.CSS_SELECTOR, "header.bar").is_displayed())
+        check("no sidebar of the meetings while it is answered", not browser.find_element(By.ID, "sidebar").is_displayed())
         marked = wait_for(browser, lambda b: "welcomed = true" in window.file.read_text(), 5)
         check("welcomed is written as soon as it is shown, nothing else", marked and "minutes_provider" not in window.file.read_text(), window.file.read_text())
         browser.set_window_size(420, 400)
@@ -958,7 +958,7 @@ def first_run(now: dt.datetime) -> None:
         ring = wait_for(browser, lambda b: b.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0"), 10)
         check("the focus is seen", ring)
         keys(browser, Keys.ENTER)
-        listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed() and b.find_element(By.CSS_SELECTOR, "header.bar").is_displayed(), 10)
+        listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed() and b.find_element(By.ID, "sidebar").is_displayed(), 10)
         text = window.file.read_text()
         check("Passer: the minutes by Ollama on this computer, the meetings opened",
               listed and 'minutes_provider = "http://127.0.0.1:9/v1"' in text and 'minutes_model = "qwen3:8b"' in text, text)
@@ -1242,7 +1242,7 @@ def first_run(now: dt.datetime) -> None:
                 # What is told after the click: each notice is seen twice on the bus, sent and relayed.
                 mark = len(notified.read_text())
                 press(browser, "welcome-go")
-                away = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed() and asked == ["refused", "cut", "whole"][:round_ + 1], 5)
+                away = wait_for(browser, lambda b: b.execute_script("return location.hash") in ("#/", "") and b.find_element(By.ID, "list").is_displayed() and asked == ["refused", "cut", "whole"][:round_ + 1], 5)
                 check(f"{way}: the click fetches it, the window at the meetings while it comes",
                       away and not fetched.exists() and "Le modèle" not in notified.read_text()[mark:], (asked, notified.read_text()[mark:]))
                 if way != "whole":
@@ -1365,6 +1365,149 @@ def meeting_language(now: dt.datetime) -> None:
         wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
         said = Select(browser.find_element(By.ID, "meeting-language")).first_selected_option.text
         check("the settings detecting it, the page says « détectée »", said == "Celle des Réglages — détectée", said)
+
+
+def two_panes(now: dt.datetime) -> None:
+    """AD. The window in two panes: the meetings in a sidebar, the one chosen beside them (D61)."""
+    print("AD. the window in two panes: the sidebar, the meeting chosen beside it, as wide as the window (D61)")
+    meetings = WORK / "panes"
+    names = [f"2026-10-{day:02d}_10-00" for day in range(10, 24)]
+    for index, name in enumerate(names):
+        session(meetings / name, now - dt.timedelta(days=len(names) - index), 30, {"local.wav": 1000})
+    newest = meetings / names[-1]
+    lines = [
+        {"type": "header", "contract": "transcript/v1", "engine": "whisper.cpp", "model": "ggml-large-v3-turbo-q8_0", "language": "fr", "context": None},
+        *({"type": "segment", "speaker": "me", "track": "local", "voice": None, "start": 2.0 * i, "end": 2.0 * i + 1.5,
+           "text": "Une phrase assez longue pour aller à la ligne dans une colonne de lecture, ni plus ni moins."} for i in range(1, 6)),
+        {"type": "complete", "duration": 1800.0},
+    ]
+    (newest / "transcript.jsonl").write_text("".join(json.dumps(line, ensure_ascii=False) + "\n" for line in lines))
+    (newest / "minutes.md").write_text(
+        "---\ncontract: minutes/v1\nmade: 2026-10-23T11:00:00+02:00\nprovider: openrouter.ai\nmodel: claude-sonnet\ncontext: null\n---\n\n"
+        "## 1.\n\n" + "Un compte rendu assez long pour que son texte aille à la ligne bien avant le bord de sa carte. " * 6 + "\n\n"
+        "## 2.\n\n- Mettre à jour le planning — Marc — aujourd’hui\n\n## 3.\n\n- Un serveur est gardé pour la démonstration.\n"
+    )
+    css = (Path(__file__).parent.parent / "ui" / "window.css").read_text()
+    light = css[css.index(":root {") + len(":root {"):css.index("}", css.index(":root {"))].replace("\n", " ").strip()
+    box = lambda b, selector: b.execute_script(
+        "const e = document.querySelector(arguments[0]); if (!e || !e.offsetParent && getComputedStyle(e).position !== 'fixed') return null;"
+        "const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom];", selector)
+    current = lambda b: b.execute_script("return [...document.querySelectorAll('#groups [aria-current=page]')].map(a => a.getAttribute('href'))")
+    shown = lambda b: b.execute_script("const m = document.getElementById('meeting'); return m.hidden ? null : m.dataset.name")
+    sideways = lambda b: b.execute_script("return document.documentElement.scrollWidth > window.innerWidth")
+
+    def seen(browser, name: str) -> None:
+        """A screenshot in the theme its name says: the light one put on the page over a dark desktop."""
+        forced = "light" in name and browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
+        if forced:
+            browser.execute_script("document.documentElement.style.cssText = arguments[0] + '; color-scheme: light'", light)
+        time.sleep(0.3)
+        shot(browser, name)
+        if forced:
+            browser.execute_script("document.documentElement.style.cssText = ''")
+
+    with Window(meetings, "fr_FR.UTF-8") as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: shown(b) == names[-1], 10)
+        side, pane = box(browser, "#sidebar"), box(browser, "#pane")
+        check("840 px and more: the sidebar on the left, 280 px, the pane beside it",
+              side is not None and pane is not None and abs(side[2] - side[0] - 280) <= 1 and side[2] <= pane[0] + 1, (side, pane))
+        order = [box(browser, s) for s in ("#record", "#find", "#groups", "#weight", "#settings-link")]
+        check("the sidebar holds, top to bottom: the recording, the search, the meetings, the space they take, Réglages",
+              None not in order and all(order[i][1] < order[i + 1][1] for i in range(4))
+              and all(side[0] <= o[0] and o[2] <= side[2] + 1 for o in order), order)
+        check("« Faire de la place » beside the space they take", browser.find_element(By.ID, "free-link").is_displayed()
+              and box(browser, "#free-link")[1] >= box(browser, "#weight")[1] - 1)
+        check("the header's two tabs are gone", not browser.find_elements(By.ID, "meetings") and not browser.find_elements(By.CSS_SELECTOR, "header.bar"))
+        check("the pane shows the last meeting, marked in the list", shown(browser) == names[-1]
+              and current(browser) == [f"#/meeting/{names[-1]}"], (shown(browser), current(browser)))
+        browser.execute_script("document.getElementById('list').scrollTop = 100000")
+        scrolled = browser.execute_script("return document.getElementById('list').scrollTop")
+        browser.find_elements(By.CSS_SELECTOR, "#groups .session")[-1].click()
+        came = wait_for(browser, lambda b: shown(b) == names[0], 10)
+        kept = browser.execute_script("return document.getElementById('list').scrollTop")
+        check("a meeting clicked is shown in the pane, the list kept where it was", came and scrolled > 0 and abs(kept - scrolled) <= 1, (shown(browser), scrolled, kept))
+        check("the meeting shown alone marked `aria-current`", current(browser) == [f"#/meeting/{names[0]}"], current(browser))
+        browser.find_elements(By.CSS_SELECTOR, "#groups .session")[-1].send_keys(Keys.ARROW_UP)
+        moved = wait_for(browser, lambda b: shown(b) == names[1], 10)
+        focus = browser.execute_script("return document.activeElement.getAttribute('href')")
+        check("↑ on the list shows the meeting above, the focus on its row", moved and focus == f"#/meeting/{names[1]}", (shown(browser), focus))
+        browser.find_element(By.CSS_SELECTOR, f"#groups a[href='#/meeting/{names[1]}']").send_keys(Keys.ARROW_DOWN)
+        back = wait_for(browser, lambda b: shown(b) == names[0], 10)
+        check("↓ the one below", back and browser.execute_script("return document.activeElement.getAttribute('href')") == f"#/meeting/{names[0]}")
+        press(browser, "settings-link")
+        opened = wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed(), 10)
+        width = box(browser, "#settings")
+        check("Réglages open in the pane, the sidebar kept, 720 px at most, marked in its place of the list",
+              opened and browser.find_element(By.ID, "sidebar").is_displayed() and width and width[2] - width[0] <= 720.5
+              and browser.find_element(By.ID, "settings-link").get_attribute("aria-current") == "page" and current(browser) == [],
+              (width, current(browser)))
+        press(browser, "free-link")
+        freeing = wait_for(browser, lambda b: b.find_element(By.ID, "free").is_displayed(), 10)
+        check("freeing space opens in the pane, the sidebar kept", freeing and browser.find_element(By.ID, "sidebar").is_displayed())
+        browser.execute_script(f"location.hash = '#/meeting/{names[-1]}'")
+        wait_for(browser, lambda b: shown(b) == names[-1] and b.find_elements(By.CSS_SELECTOR, ".transcript .lines li"), 10)
+        minutes, transcript, drawn = box(browser, ".minutes"), box(browser, ".transcript"), box(browser, "#meeting .drawn")
+        check("under 1000 px of pane: the minutes, then the transcript below", minutes and transcript and transcript[1] >= minutes[3], (minutes, transcript))
+        browser.set_window_size(1920, 1080)
+        wide = wait_for(browser, lambda b: (box(b, ".transcript") or [0, -1])[1] == (box(b, ".minutes") or [0, -2])[1], 5)
+        minutes, transcript, drawn, pane = box(browser, ".minutes"), box(browser, ".transcript"), box(browser, "#meeting .drawn"), box(browser, "#pane")
+        check("1000 px and more of pane: the minutes and the transcript side by side, together as wide as the audio",
+              wide and abs(minutes[0] - drawn[0]) <= 1 and abs(transcript[2] - drawn[2]) <= 1, (minutes, transcript, drawn))
+        width = browser.execute_script("return window.innerWidth")
+        check("the pane as wide as the window leaves it, no width of its own", abs(pane[2] - width) <= 1 and abs(pane[0] - 280) <= 1, (pane, width))
+        reading = browser.execute_script(
+            "const t = document.querySelector('.minutes .body'); if (!t) return [0, 0, document.querySelector('.minutes').outerHTML.slice(0, 400)];"
+            "return [t.getBoundingClientRect().width, document.querySelector('.minutes').getBoundingClientRect().width, getComputedStyle(t).maxWidth]")
+        # 75ch, as WebKit computes it: in pixels, the width of 75 zeros of the text's font.
+        zeros = browser.execute_script(
+            "const s = document.createElement('span'); s.textContent = '0'.repeat(75); document.querySelector('.minutes .body').append(s);"
+            "s.style.whiteSpace = 'nowrap'; const w = s.getBoundingClientRect().width; s.remove(); return w")
+        check("their text 75 characters at most, inside a wider card",
+              reading[2].endswith("px") and abs(float(reading[2][:-2]) - zeros) <= 1 and reading[0] <= zeros + 1 and reading[0] < reading[1] - 60, (reading, zeros))
+        seen(browser, "d61-1920-light")
+        seen(browser, "d61-1920-dark")
+        browser.set_window_size(420, 400)
+        browser.execute_script("location.hash = '#/'")
+        alone = wait_for(browser, lambda b: b.find_element(By.ID, "sidebar").is_displayed() and not b.find_element(By.ID, "pane").is_displayed(), 10)
+        check("under 840 px: the list alone, nothing overflowing sideways", alone and not sideways(browser))
+        seen(browser, "d61-420-list-light")
+        seen(browser, "d61-420-list-dark")
+        browser.find_elements(By.CSS_SELECTOR, "#groups .session")[0].click()
+        page = wait_for(browser, lambda b: b.find_element(By.ID, "pane").is_displayed() and not b.find_element(By.ID, "sidebar").is_displayed(), 10)
+        check("then the meeting alone, with a way back, nothing overflowing sideways",
+              page and browser.find_element(By.CSS_SELECTOR, "#pane .back").is_displayed() and not sideways(browser))
+        seen(browser, "d61-420-meeting-light")
+        seen(browser, "d61-420-meeting-dark")
+        browser.find_element(By.CSS_SELECTOR, "#pane .back").click()
+        again = wait_for(browser, lambda b: b.find_element(By.ID, "sidebar").is_displayed() and not b.find_element(By.ID, "pane").is_displayed(), 10)
+        check("the way back is the list again", again)
+        browser.set_window_size(1100, 800)
+        find = browser.find_element(By.ID, "find")
+        find.send_keys("zzz")
+        nothing = wait_for(browser, lambda b: not [r for r in b.find_elements(By.CSS_SELECTOR, "#groups .session") if r.is_displayed()]
+                           and b.find_element(By.ID, "none-found").is_displayed(), 5)
+        check("the search: a word no meeting holds, none shown, said", nothing, browser.find_element(By.ID, "none-found").text)
+        find.send_keys(Keys.CONTROL, "a")
+        find.send_keys(Keys.BACKSPACE)
+        oldest = browser.find_elements(By.CSS_SELECTOR, "#groups .session .day")[-1].get_attribute("textContent")
+        find.send_keys(oldest)
+        one = wait_for(browser, lambda b: [r.get_attribute("href") for r in b.find_elements(By.CSS_SELECTOR, "#groups .session") if r.is_displayed()]
+                       == [b.find_elements(By.CSS_SELECTOR, "#groups .session")[-1].get_attribute("href")], 5)
+        check("a word one holds, that one alone", one and not browser.find_element(By.ID, "none-found").is_displayed())
+        find.send_keys(Keys.CONTROL, "a")
+        find.send_keys(Keys.BACKSPACE)
+        browser.execute_script("document.activeElement.blur()")
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB)
+        inside = browser.execute_script("return document.getElementById('sidebar').contains(document.activeElement)")
+        check("the keyboard: the sidebar before the pane", inside, browser.execute_script("return document.activeElement.outerHTML.slice(0, 80)"))
+
+    empty = WORK / "panes-none"
+    empty.mkdir()
+    with Window(empty, "en_US.UTF-8") as browser:
+        said = wait_for(browser, lambda b: b.find_element(By.ID, "none").is_displayed(), 10)
+        check("no meeting yet: the pane says what to do", said and browser.execute_script(
+            "return document.getElementById('pane').contains(document.getElementById('none'))"), browser.find_element(By.ID, "none").text)
 
 
 def transcript_corrected(now: dt.datetime) -> None:
@@ -2106,7 +2249,7 @@ def main() -> int:
 
     print("H. the window, in French: the meetings by week, what each holds and weighs")
     with Window(sessions, "fr_FR.UTF-8") as browser:
-        check("the section is named in French", browser.find_element(By.ID, "meetings").text == "Réunions")
+        check("the sidebar is named in French", browser.find_element(By.ID, "sidebar").get_attribute("aria-label") == "Réunions")
         lang = browser.execute_script("return document.documentElement.lang")
         check("the page says it is in French", lang == "fr", lang)
         sections = browser.find_element(By.TAG_NAME, "nav").get_attribute("aria-label")
@@ -2145,7 +2288,7 @@ def main() -> int:
         # Every action from the keyboard: the first stop of Tab is the section's link.
         browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.id")
-        check("Tab reaches the window's first action", focused == "meetings", focused)
+        check("Tab reaches the window's first action, in the sidebar: the small window's (D35, D61)", focused == "small-link", focused)
         # A session recorded meanwhile is shown when the window comes forward again.
         session(sessions / "d", now - dt.timedelta(minutes=5), 3, {"local.wav": 1000, "remote.wav": 1000})
         browser.execute_script("window.dispatchEvent(new Event('focus'))")
@@ -2176,21 +2319,26 @@ def main() -> int:
         json.dumps(lines[0]) + "\n" + json.dumps({"type": "segment", "speaker": "me", "track": "local", "voice": None, "start": 1.0, "end": 2.0, "text": "Une autre réunion."}) + "\n"
     )
     with Window(meetings, "fr_FR.UTF-8") as browser:
-        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB, Keys.TAB, Keys.TAB)
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB)
         focused = browser.execute_script("return document.activeElement.id")
-        check("Tab reaches the header's gesture after the two sections and the small window's (D35)", focused == "record", focused)
+        check("Tab reaches the sidebar's gesture after the small window's (D35, D61)", focused == "record", focused)
         browser.find_element(By.ID, "record").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.id")
-        check("then freeing space, beside the weights", focused == "free-link", focused)
-        browser.find_element(By.ID, "free-link").send_keys(Keys.TAB)
+        check("then the search of the meetings", focused == "find", focused)
+        browser.find_element(By.ID, "find").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.className")
         check("then the first meeting", "session" in focused, focused)
+        browser.execute_script("document.querySelector('#groups li:last-child .session').focus()")
+        browser.switch_to.active_element.send_keys(Keys.TAB)
+        focused = browser.execute_script("return document.activeElement.id")
+        check("after the meetings, freeing space, beside the weights", focused == "free-link", focused)
         drawn = browser.execute_script("return [...document.querySelectorAll('#groups .session')].map(s => s.querySelector('.relief.small:not(.quiet) .said') !== null)")
         check("a meeting whose transcript reads shows who spoke, small, beside it", True in drawn, drawn)
         shot(browser, "1-sessions-drawn")
         browser.find_elements(By.CSS_SELECTOR, ".session")[0].click()
         shown = wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".lines li"))
-        check("a click on a meeting opens it", shown and not browser.find_element(By.ID, "list").is_displayed())
+        check("a click on a meeting opens it, marked in the list (D61)", shown
+              and browser.find_elements(By.CSS_SELECTOR, ".session")[0].get_attribute("aria-current") == "page")
         heard_here = [p.text for p in browser.find_elements(By.CSS_SELECTOR, "#meeting .made .maker")]
         check("a meeting heard here says so, by the model's name", heard_here == ["Écrit par Whisper large v3 turbo, sur cet ordinateur"], heard_here)
         shot(browser, "2-session")
@@ -2262,9 +2410,6 @@ def main() -> int:
         none = [p.text for p in browser.find_elements(By.CSS_SELECTOR, ".transcript .none") if p.is_displayed()]
         check("a search looks at what was said, not at who or when", none == ["Rien de ce qui a été dit ne correspond."], none)
         check("the folder can be opened from the meeting", browser.find_element(By.CSS_SELECTOR, "#meeting .meeting-top .open").text == "Ouvrir le dossier")
-        browser.find_element(By.CSS_SELECTOR, ".back").click()
-        back = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed())
-        check("the way back is the list", back and not browser.find_element(By.ID, "meeting").is_displayed())
         browser.find_elements(By.CSS_SELECTOR, ".session")[1].click()
         wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed() and b.find_elements(By.CSS_SELECTOR, ".minutes .none"))
         kept = browser.execute_script("return document.getElementById('search') && document.getElementById('search').value")
@@ -2277,8 +2422,9 @@ def main() -> int:
         check("a transcript without its end says it is being written", being == ["En cours d’écriture — ce qui est là est vrai quand même."], being)
 
         browser.execute_script("location.hash = '#/meeting/' + encodeURIComponent('gone')")
-        listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed())
-        check("a meeting that is not there goes back to the list", listed and not browser.find_element(By.ID, "meeting").is_displayed())
+        listed = wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/")
+        check("a meeting that is not there goes back to the list",
+              listed and browser.execute_script("return document.getElementById('meeting').dataset.name") != "gone")
 
     print("K. the settings: each choice saved at once, the user's file kept")
     models = WORK / "data" / "wholeheard" / "models"
@@ -2435,7 +2581,7 @@ def main() -> int:
         changed(lambda: typed(folder, "Wholeheard"))
         said = not_saved()
         check("a folder that is not a whole path is said, and nothing changes", said.startswith("Le réglage n’a pas été enregistré") and window.file.read_text() == text, said)
-        browser.find_element(By.ID, "meetings").click()
+        browser.execute_script("location.hash = '#/'")
         listed = wait_for(browser, lambda b: str(elsewhere) in b.find_element(By.ID, "none").text, 5)
         check("the list reads the folder chosen", listed, browser.find_element(By.ID, "none").text)
         browser.find_element(By.ID, "settings-link").click()
@@ -2725,8 +2871,8 @@ def main() -> int:
         waits = wait_for(browser, lambda b: "En attente de son tour — 1 avant" in state(b), 3)
         check("one asked while another is written waits its turn, said on its page", waits, state(browser))
         browser.execute_script("location.hash = '#/'")
-        wait_for(browser, lambda b: len([c for c in b.find_elements(By.CSS_SELECTOR, ".chip.making") if c.is_displayed()]) == 2, 3)
-        rowed = sorted(c.text for c in browser.find_elements(By.CSS_SELECTOR, ".chip.making") if c.is_displayed())
+        wait_for(browser, lambda b: len([c for c in b.find_elements(By.CSS_SELECTOR, "#groups .chip.making") if c.is_displayed()]) == 2, 3)
+        rowed = sorted(c.text for c in browser.find_elements(By.CSS_SELECTOR, "#groups .chip.making") if c.is_displayed())
         check("the list says it too, on each meeting's row", rowed == ["Compte rendu…", "En attente"], rowed)
         # While its minutes are written, the meeting is busy: shown, never offered to be freed.
         browser.execute_script("location.hash = '#/free'")
@@ -2777,7 +2923,7 @@ def main() -> int:
             (makings(), state(browser), (WORK / "summary-args").read_text()),
         )
         browser.execute_script("location.hash = '#/'")
-        chip_ = wait_for(browser, lambda b: "Votre accord" in [c.text for c in b.find_elements(By.CSS_SELECTOR, ".chip.making") if c.is_displayed()], 3)
+        chip_ = wait_for(browser, lambda b: "Votre accord" in [c.text for c in b.find_elements(By.CSS_SELECTOR, "#groups .chip.making") if c.is_displayed()], 3)
         check("the list says it, on the meeting's row", chip_)
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-agree"), 5)
@@ -3148,7 +3294,7 @@ def main() -> int:
         full = wait_for(browser, lambda b: len(b.window_handles) == 1 and b.window_handles != [small], 5)
         check("Toute la fenêtre replaces the small one: one window", full, browser.window_handles)
         browser.switch_to.window(browser.window_handles[0])
-        wait_for(browser, lambda b: b.execute_script("return document.getElementById('meetings').textContent !== ''"))
+        wait_for(browser, lambda b: b.execute_script("return document.getElementById('settings-link').textContent !== ''"))
         check("the full window left is the one kept in the settings", 'window = "full"' in window.file.read_text(), window.file.read_text())
         back = browser.find_element(By.ID, "small-link")
         check("at rest too, the full window offers the small one", back.is_displayed() and back.text == "Petite fenêtre", back.text)
@@ -3215,7 +3361,7 @@ def main() -> int:
     with Window(empty, "en_GB.UTF-8") as browser:
         said = browser.find_element(By.ID, "none").text
         check("an empty folder is said, with its path", said == f"No meeting in {empty} yet.", said)
-        check("the section is named in English", browser.find_element(By.ID, "meetings").text == "Meetings")
+        check("the sidebar is named in English", browser.find_element(By.ID, "sidebar").get_attribute("aria-label") == "Meetings")
         lang = browser.execute_script("return document.documentElement.lang")
         check("the page says it is in English", lang == "en", lang)
         sections = browser.find_element(By.TAG_NAME, "nav").get_attribute("aria-label")
@@ -3413,8 +3559,8 @@ def main() -> int:
         anew = wait_for(browser, lambda b: 0 < at(b) < 1.4, 5)
         check("played again, it starts over", anew, at(browser))
         # Paused at once, the sound not yet loaded: no failure is said.
-        browser.execute_script("location.hash = '#/'")
-        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed(), 10)
         browser.execute_script("location.hash = '#/meeting/2026-10-19_10-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "play") and b.find_element(By.ID, "meeting").is_displayed(), 10)
         browser.execute_script("document.getElementById('play').click(); document.getElementById('play').click()")
@@ -3437,9 +3583,12 @@ def main() -> int:
         wait_for(browser, lambda b: at(b) > 0.3, 5)
         heard = played_to(window)
         check("its sound goes to the run's own output, never the speakers", bool(QUIET) and heard == {QUIET}, heard)
+        # The list beside it, the meeting still shown, plays on (D61); the list alone, under 840 px, stops it.
+        browser.set_window_size(420, 400)
         browser.execute_script("location.hash = '#/'")
         stopped = wait_for(browser, lambda b: not b.execute_script("return document.querySelectorAll('audio.track').length"), 10)
-        check("the list shown, nothing plays", stopped)
+        check("the list shown alone, nothing plays", stopped)
+        browser.set_window_size(1100, 800)
         # Its sound refused by the server — its track gone since the page was drawn, then a part of
         # it asked for that the player had not read: said, never silence.
         browser.execute_script("location.hash = '#/meeting/2026-10-19_06-00'")
@@ -3479,6 +3628,7 @@ def main() -> int:
     confidential_kept(now)
     meeting_language(now)
     transcript_corrected(now)
+    two_panes(now)
     return 1 if FAILED else 0
 
 

@@ -488,7 +488,10 @@ function row(session, shape, words) {
   const drawn = element("span", "shape");
   const none = new Array(24).fill(0);
   drawn.append(shapeOf(shape ?? [none, none], !shape));
-  link.append(drawn, when, holdings(session, words), element("span", "chevron", "›"));
+  // In the sidebar (D61): the title and its relief on a line, what it holds below.
+  const line = element("div", "line");
+  line.append(when, drawn);
+  link.append(line, holdings(session, words));
   item.append(link);
   return item;
 }
@@ -506,14 +509,19 @@ function show({ words, folder, sessions, shapes, recording, shortcut }) {
   const keys = document.getElementById("header-keys");
   keys.textContent = shortcut ?? "";
   keys.hidden = !shortcut;
-  document.getElementById("meetings").textContent = words.meetings;
+  document.getElementById("sidebar").setAttribute("aria-label", words.meetings);
   document.getElementById("sections").setAttribute("aria-label", words.sections);
   document.getElementById("settings-link").textContent = words.settings;
-  const none = document.getElementById("none");
+  document.getElementById("pane-back").textContent = `‹ ${words.back}`;
+  const find = document.getElementById("find");
+  find.placeholder = words.find_meetings;
+  find.setAttribute("aria-label", words.find_meetings);
+  find.hidden = sessions.length === 0;
+  document.getElementById("none-found").textContent = words.none_found;
   const weight = document.getElementById("weight");
-  none.hidden = sessions.length > 0;
   weight.hidden = sessions.length === 0;
-  none.textContent = fill(words.none, folder);
+  document.getElementById("none").textContent = fill(words.none, folder);
+  document.getElementById("none-do").textContent = words.none_do;
 
   const audio = sessions.reduce((sum, s) => sum + s.audio, 0);
   const text = sessions.reduce((sum, s) => sum + s.text, 0);
@@ -530,6 +538,8 @@ function show({ words, folder, sessions, shapes, recording, shortcut }) {
 
   const now = new Date();
   const groups = document.getElementById("groups");
+  // Drawn anew at each reading: the row that held the focus holds it again.
+  const focused = document.activeElement?.closest?.("#groups .session")?.getAttribute("href");
   groups.replaceChildren();
   let current = null;
   for (const [index, session] of sessions.entries()) {
@@ -546,6 +556,25 @@ function show({ words, folder, sessions, shapes, recording, shortcut }) {
     }
     current.list.append(row(session, shapes[index], words));
   }
+  if (focused) groups.querySelector(`.session[href="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
+  sought();
+}
+
+// The sidebar's search (D61): the meetings whose row holds what is typed, the others hidden.
+function sought() {
+  // Accents and case aside, as the transcript's own search reads.
+  const typed = folded(document.getElementById("find").value.trim());
+  let any = false;
+  for (const section of document.querySelectorAll("#groups .group")) {
+    let some = false;
+    for (const item of section.querySelectorAll("li")) {
+      item.hidden = typed !== "" && !folded(item.textContent).includes(typed);
+      some ||= !item.hidden;
+    }
+    section.hidden = !some;
+    any ||= some;
+  }
+  document.getElementById("none-found").hidden = any || typed === "";
 }
 
 const element = (tag, className, text) => {
@@ -1222,8 +1251,6 @@ document.addEventListener("keydown", (event) => {
 function showMeeting({ session, transcript, minutes, developer, listen: listened, context, confidential, language, languages, meeting_language }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
-  const back = element("a", "back", `‹ ${words.back}`);
-  back.href = "#/";
   const open = element("button", "open", words.open_folder);
   open.type = "button";
   open.addEventListener("click", () => window.__TAURI__.core.invoke("open_folder", { name: nameOf(session) }));
@@ -1249,7 +1276,8 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
     actions.append(copied, copy);
   }
   actions.append(open);
-  top.append(back, actions);
+  // The way back is the pane's, under 840 px alone (D61).
+  top.append(actions);
   const title = element("section", "meeting-title");
   const named = element("div", "named");
   named.append(element("h1", "", heading(session, words)));
@@ -2412,9 +2440,7 @@ function showFree(listing, busy, words) {
     for (const name of [...ticked]) if (!free.some((s) => nameOf(s) === name)) ticked.delete(name);
     // As the board heads it: the way back, and the page's name.
     const top = element("div", "page-top");
-    const back = element("a", "back", `‹ ${words.back}`);
-    back.href = "#/";
-    top.append(back, element("h1", "", words.free));
+    top.append(element("h1", "", words.free));
     const parts = [top, element("p", "eyebrow", words.free_what)];
     const ways = element("div", "ways");
     ways.setAttribute("role", "radiogroup");
@@ -2535,7 +2561,7 @@ async function showWelcome(again, words) {
     const made = element("section", "card welcome");
     made.id = id;
     const top = element("div", "welcome-top");
-    top.append(document.querySelector("header.bar .brand").cloneNode(true));
+    top.append(document.querySelector("#sidebar .brand").cloneNode(true));
     made.append(top);
     return [made, top];
   };
@@ -2714,6 +2740,10 @@ let notSaved = null;
 // The latest drawing asked for: one begun before it, its answers come later, draws nothing.
 let drawing = 0;
 
+// Under 840 px, one pane at a time (D61): the list's address is the list alone.
+const narrow = matchMedia("(max-width: 839px)");
+narrow.addEventListener("change", () => refresh());
+
 async function refresh() {
   const mine = ++drawing;
   // The small window is its own: it draws its view once, and asks for nothing else.
@@ -2723,7 +2753,7 @@ async function refresh() {
       words = listing.words;
       document.documentElement.lang = words.locale;
       document.getElementById("small").hidden = false;
-      for (const other of ["list", "meeting", "settings", "agree", "free"]) document.getElementById(other).hidden = true;
+      document.getElementById("frame").hidden = true;
       showSmall(words);
     }
     return;
@@ -2733,19 +2763,24 @@ async function refresh() {
   words = listing.words;
   show(listing);
   const wanted = location.hash.match(/^#\/meeting\/(.+)$/);
-  // Another page, or another meeting: what was played stops.
-  if (player && player.name !== (wanted && decodeURIComponent(wanted[1]))) {
+  // The list's address: the pane shows the last meeting beside it (D61); under 840 px, the list alone.
+  const listed = location.hash === "" || location.hash === "#/";
+  document.body.dataset.at = listed ? "list" : "page";
+  const beside = listed && !narrow.matches && listing.sessions.length > 0;
+  const name = wanted ? decodeURIComponent(wanted[1]) : beside ? nameOf(listing.sessions[0]) : null;
+  // Another page, or another meeting: what was played stops — and the list alone under 840 px.
+  if (player && player.name !== name) {
     player.stop();
     player = null;
   }
   const settings = location.hash === "#/settings";
   // The first run's assistant, alone in the window: no header, no other page (D58).
   const welcoming = /^#\/welcome(\/again)?$/.test(location.hash);
-  document.querySelector("header.bar").hidden = welcoming;
+  document.getElementById("frame").hidden = welcoming;
   const welcome = document.getElementById("welcome");
   welcome.hidden = !welcoming;
   if (welcoming) {
-    for (const other of ["list", "meeting", "settings", "agree", "free"]) document.getElementById(other).hidden = true;
+    for (const other of ["meeting", "settings", "agree", "free"]) document.getElementById(other).hidden = true;
     // Drawn once while it is shown: the page read again meanwhile — a model come, a fetch ended —
     // never takes the answers from under the user.
     if (welcome.dataset.shown === location.hash) return;
@@ -2774,16 +2809,16 @@ async function refresh() {
   let opened = null;
   let seen = makings;
   // Settings too: their models' states are drawn with the page, not at the next reading (D37).
-  if (wanted || settings) {
+  if (name || settings) {
     // What is being made, read before the meeting: the counts its page keeps are never ahead of
     // what it shows, never behind what was made before it was read — drawn again only for what
     // was made since.
     seen = await window.__TAURI__.core.invoke("makings").catch(() => makings);
   }
-  if (wanted) {
+  if (name) {
     // A meeting no longer there, or a name that is none, goes back to the list.
     try {
-      opened = await window.__TAURI__.core.invoke("opened", { name: decodeURIComponent(wanted[1]) });
+      opened = await window.__TAURI__.core.invoke("opened", { name });
     } catch {
       // Gone while it played: it stops with its page.
       player?.stop();
@@ -2792,15 +2827,25 @@ async function refresh() {
     }
   }
   if (mine !== drawing) return;
-  document.getElementById("list").hidden = opened !== null || settings || agreement !== null || freeing;
+  document.getElementById("empty").hidden = !listed || listing.sessions.length > 0;
   document.getElementById("agree").hidden = agreement === null;
   // Shown or emptied: never a question left hidden under another page.
   if (agreement) showAgreement(decodeURIComponent(agreeing[1]), agreement, words);
   else document.getElementById("agree").replaceChildren();
   document.getElementById("meeting").hidden = opened === null;
+  // Not shown, not kept: a page hidden under another is never found in its place.
+  if (opened === null) {
+    document.getElementById("meeting").replaceChildren();
+    delete document.getElementById("meeting").dataset.name;
+  }
   document.getElementById("settings").hidden = !settings;
-  document.getElementById("meetings").setAttribute("aria-current", settings || agreement ? "false" : "page");
   document.getElementById("settings-link").setAttribute("aria-current", settings ? "page" : "false");
+  // The meeting shown, marked in the list.
+  const shownAt = opened ? `#/meeting/${encodeURIComponent(name)}` : null;
+  for (const link of document.querySelectorAll("#groups .session")) {
+    if (link.getAttribute("href") === shownAt) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
   // Drawn with what was read before it, never with a newer reading taken meanwhile.
   if (opened) {
     makings = seen;
@@ -2819,6 +2864,18 @@ async function refresh() {
 }
 
 document.getElementById("small-link").addEventListener("click", () => window.__TAURI__.core.invoke("small_window"));
+document.getElementById("find").addEventListener("input", sought);
+// ↑ and ↓ on the list: the meeting above or below shown in the pane, the focus on its row (D61).
+document.getElementById("groups").addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  const rows = [...document.querySelectorAll("#groups li:not([hidden]) .session")];
+  const at = rows.indexOf(event.target.closest(".session"));
+  const next = rows[at + (event.key === "ArrowDown" ? 1 : -1)];
+  if (at < 0 || !next) return;
+  event.preventDefault();
+  next.focus();
+  location.hash = next.getAttribute("href");
+});
 document.getElementById("record").addEventListener("click", async () => {
   await window.__TAURI__.core.invoke("record");
   // The recording says it started, or stopped, a moment later: then the header follows.
