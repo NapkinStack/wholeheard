@@ -640,6 +640,8 @@ pub struct Window {
     pub language_detected_short: &'static str,
     /// SpeechAnalyzer's language when the settings name none: the system's, never the app's (D64).
     pub language_as_system: &'static str,
+    /// A meeting's own language SpeechAnalyzer does not hear: the one it hears in, said (D65).
+    pub language_heard_as: &'static str,
     /// The language Wholeheard speaks (D64): its row in Settings, and the system's, its default.
     pub app_language: [&'static str; 2],
     pub app_language_system: &'static str,
@@ -994,6 +996,7 @@ pub fn window(language: Language) -> Window {
             language_not_saved: "The language was not saved: {}",
             language_detected_short: "detected",
             language_as_system: "The system’s",
+            language_heard_as: "{} — SpeechAnalyzer hears {}",
             app_language: [
                 "Language of Wholeheard",
                 "Its window, its menu and its notifications; what the system draws itself keeps the system’s.",
@@ -1349,6 +1352,7 @@ pub fn window(language: Language) -> Window {
             language_not_saved: "La langue n’a pas été enregistrée\u{a0}: {}",
             language_detected_short: "détectée",
             language_as_system: "Celle du système",
+            language_heard_as: "{} — SpeechAnalyzer entend {}",
             app_language: [
                 "Langue de Wholeheard",
                 "Sa fenêtre, son menu et ses notifications\u{202f}; ce que le système dessine lui-même garde la sienne.",
