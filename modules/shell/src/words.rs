@@ -427,6 +427,10 @@ pub struct Window {
     /// A meeting's minutes, their three sections as the page names them (D11's second board),
     /// whatever titles the model wrote: `minutes/v1` holds them in this order.
     pub minutes_sections: [&'static str; 3],
+    /// The actions' three cells, named for assistive technology alone (D46), and what a meeting
+    /// left unsettled, as the summary writes it.
+    pub actions_cells: [&'static str; 3],
+    pub unsettled: &'static str,
     /// A model of this computer that holds the minutes' form, as Settings offer it ({}).
     pub model_recommended: &'static str,
     /// A meeting's player (D26): its button, both ways, and why a meeting has none.
@@ -652,6 +656,10 @@ pub struct Window {
     pub correction_failed: &'static str,
     pub corrected_since: &'static str,
     pub redo_corrections: &'static str,
+    /// The minutes copied in one click, said in place (D45).
+    pub copy_minutes: &'static str,
+    pub minutes_copied: &'static str,
+    pub minutes_not_copied: &'static str,
     pub redo_loses_corrections: &'static str,
     pub context_not_saved: &'static str,
     /// A meeting said confidential (D60): the switch's name and its words; the list's word beside
@@ -790,6 +798,8 @@ pub fn window(language: Language) -> Window {
             ],
             program_said: "What the program said: {}",
             minutes_sections: ["Highlights", "Actions", "Key points"],
+            actions_cells: ["Who", "What", "By when"],
+            unsettled: "not specified",
             model_recommended: "{} — recommended",
             play: "Listen",
             pause: "Pause",
@@ -1008,6 +1018,9 @@ pub fn window(language: Language) -> Window {
             correction_failed: "The correction was not saved: {}",
             corrected_since: "The transcript was corrected after these minutes were written.",
             redo_corrections: "Redo with the corrections",
+            copy_minutes: "Copy the minutes",
+            minutes_copied: "Copied",
+            minutes_not_copied: "The minutes could not be copied.",
             redo_loses_corrections: "Your corrections to this transcript will not be kept.",
             context_not_saved: "The context could not be saved.",
             confidential_name: "Confidential meeting",
@@ -1143,6 +1156,8 @@ pub fn window(language: Language) -> Window {
             ],
             program_said: "Ce qu’a dit le programme\u{a0}: {}",
             minutes_sections: ["Points saillants", "Actions", "Points clés"],
+            actions_cells: ["Qui", "Quoi", "Pour quand"],
+            unsettled: "non précisé",
             model_recommended: "{} — recommandé",
             play: "Écouter",
             pause: "Pause",
@@ -1364,6 +1379,9 @@ pub fn window(language: Language) -> Window {
             correction_failed: "La correction n’a pas été enregistrée\u{a0}: {}",
             corrected_since: "Le transcript a été corrigé après ce compte rendu.",
             redo_corrections: "Refaire avec les corrections",
+            copy_minutes: "Copier le compte rendu",
+            minutes_copied: "Copié",
+            minutes_not_copied: "Le compte rendu n’a pas pu être copié.",
             redo_loses_corrections: "Vos corrections de ce transcript ne seront pas gardées.",
             context_not_saved: "Le contexte n’a pas pu être enregistré.",
             confidential_name: "Réunion confidentielle",

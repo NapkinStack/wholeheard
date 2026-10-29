@@ -885,7 +885,27 @@ function minutesCard(read, words, session, transcript) {
     const choices = await window.__TAURI__.core.invoke("minutes_shown");
     redo.replaceWith(redoPanel(choices, session, words, redo));
   });
-  top.append(redo);
+  // Copied in one click, as written, to paste where the user writes (D45): said in place, a moment.
+  const copy = element("button", "open", words.copy_minutes);
+  copy.type = "button";
+  copy.id = "copy-minutes";
+  const copied = element("span", "says copied");
+  copied.id = "minutes-copied";
+  copied.setAttribute("role", "status");
+  let said = 0;
+  copy.addEventListener("click", async () => {
+    const mine = ++said;
+    try {
+      await navigator.clipboard.writeText(read.markdown);
+      copied.textContent = words.minutes_copied;
+      setTimeout(() => mine === said && (copied.textContent = ""), 2000);
+    } catch {
+      copied.textContent = words.minutes_not_copied;
+    }
+  });
+  const actions = element("span", "minutes-actions");
+  actions.append(copied, copy, redo);
+  top.append(actions);
   const made = read.made && dayOf({ instant: Date.parse(read.made) / 1000 || null });
   // As the board says it: the day of the week, no year, and the model as people say it.
   const day = { weekday: "short", day: "numeric", month: "short" };
@@ -914,8 +934,49 @@ function minutesCard(read, words, session, transcript) {
   // The minutes as written, rendered by the shell: raw HTML in them is text there, a link its words.
   const body = element("div", "body");
   body.innerHTML = read.body;
+  actionRows(body, words);
   card.append(body);
   return card;
+}
+
+// The minutes' actions as rows (D46): « what — who — by when », as `minutes/v1` writes them, shown
+// Qui · Quoi · Pour quand, who in its colour, by when in monospace, the cells named for assistive
+// technology alone; an item that does not split in three is shown as written, in its place.
+function actionRows(body, words) {
+  // Every second-level title, as the shell's reader counts them.
+  const titles = body.querySelectorAll("h2");
+  if (titles.length < 2) return;
+  let list = titles[1].nextElementSibling;
+  while (list && list !== titles[2] && !["UL", "OL"].includes(list.tagName)) list = list.nextElementSibling;
+  if (!list || list === titles[2]) return;
+  const table = element("table", "actions");
+  const head = element("thead");
+  const named = element("tr");
+  for (const cell of words.actions_cells) named.append(element("th", "", cell));
+  head.append(named);
+  const rows = element("tbody");
+  const unsettled = (text) => [words.unsettled, "non précisé", "not specified"].includes(text.toLowerCase());
+  for (const item of list.children) {
+    const parts = item.querySelector("ul, ol") ? [] : item.textContent.trim().split(" — ").map((part) => part.trim());
+    const row = element("tr");
+    if (parts.length === 3 && parts.every((part) => part !== "")) {
+      const [what, who, when] = parts;
+      for (const [text, kind] of [[who, "who"], [what, "what"], [when, "when"]]) {
+        // Short, on one line; long, back to the line between words, never pushing the card wider.
+        const long = kind !== "what" && text.length > 18 ? " long" : "";
+        const cell = element("td", (unsettled(text) ? `${kind} unsettled` : kind) + long, text);
+        row.append(cell);
+      }
+    } else {
+      const cell = element("td", "written");
+      cell.colSpan = 3;
+      cell.append(...item.childNodes);
+      row.append(cell);
+    }
+    rows.append(row);
+  }
+  table.append(head, rows);
+  list.replaceWith(table);
 }
 
 const folded = (text) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();

@@ -180,3 +180,27 @@ fn the_three_sections_are_named_by_the_page_whatever_titles_the_model_wrote() {
         assert!(minutes.body.contains("Pré-réserver les salles"), "{}", minutes.body);
     }
 }
+
+#[test]
+fn the_minutes_copied_are_their_markdown_without_the_front_matter_titled_as_the_page_names_them() {
+    // D45: what a click puts on the clipboard — the body as written, its three titles the page's.
+    let Read::Present(minutes) = read(
+        &MINUTES
+            .replace("## Points forts", "## 1.")
+            .replace("## Points clés", "## 3. Ce qui compte"),
+    ) else {
+        panic!("not read")
+    };
+    assert_eq!(
+        minutes.markdown,
+        "## Points saillants\n\nLa date de l'événement est fixée au jeudi 3 juin,\navec le 10 en seconde date.\n\n## Actions\n\n\
+         - Contacter les trois intervenants et le comité scientifique — Alexandre — 26 avril\n- Pré-réserver les salles — non précisé — non précisé\n\n\
+         ## Points clés\n\n- Réponse des intervenants attendue pour le 26 avril ; un plan B reste à trouver.\n"
+    );
+    assert!(!minutes.markdown.contains("contract:") && !minutes.markdown.contains("---"));
+    // What it holds as HTML stays its text: it is pasted as the model wrote it.
+    let Read::Present(raw) = read(&MINUTES.replace("avec le 10", "avec <b>le 10</b>")) else {
+        panic!("not read")
+    };
+    assert!(raw.markdown.contains("avec <b>le 10</b> en seconde date."));
+}

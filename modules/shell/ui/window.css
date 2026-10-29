@@ -84,6 +84,9 @@ main { padding: 28px 24px 56px; display: flex; flex-direction: column; gap: 26px
 .label { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--soft); }
 .maker, .note { margin: 0; color: var(--soft); font-size: 13px; }
 .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.minutes-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.minutes-actions:has(> .redo) { flex-basis: 100%; }
+.minutes-actions > .redo { flex-basis: 100%; }
 .top > .redo { flex-basis: 100%; }
 .lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .lines li { display: flex; gap: 12px; align-items: baseline; }
@@ -95,6 +98,15 @@ main { padding: 28px 24px 56px; display: flex; flex-direction: column; gap: 26px
 .minutes .body h2 { margin: 12px 0 6px; font-size: 17px; }
 .minutes .body p { margin: 0 0 8px; }
 .minutes .body ul, .minutes .body ol { margin: 0 0 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.minutes .body table.actions { width: 100%; margin: 0 0 8px; border-collapse: collapse; }
+.minutes .body table.actions th { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.minutes .body table.actions td { padding: 6px 16px 6px 0; vertical-align: baseline; border-top: 1px solid var(--line); }
+.minutes .body table.actions tr:first-child td { border-top: 0; }
+.minutes .body table.actions .who { width: 1%; color: var(--accent); font-weight: 600; white-space: nowrap; }
+.minutes .body table.actions .when { width: 1%; font: 13px ui-monospace, monospace; white-space: nowrap; padding-right: 0; text-align: right; }
+/* A long name or date comes back to the line, between words, in a column of its own width. */
+.minutes .body table.actions .long { min-width: 14ch; white-space: normal; overflow-wrap: break-word; }
+.minutes .body table.actions .unsettled { color: var(--soft); font-weight: 400; }
 /* The settings (D11's fourth board): cards, each titled inside; a step per model, on a raised ground. */
 #settings { max-width: 720px; }
 #settings .group { margin: 0; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--line); }
