@@ -381,7 +381,8 @@ function paintMakings() {
   for (const pencil of document.querySelectorAll("#meeting .lines .edit")) {
     if (pencil.parentElement.querySelector(".correcting")) continue;
     const kind = transcriptState(pencil.dataset.name)?.kind;
-    pencil.hidden = kind !== undefined && kind !== "failed";
+    // Nor while its minutes are written: they read the transcript before (#528's verification).
+    pencil.hidden = (kind !== undefined && kind !== "failed") || minutesState(pencil.dataset.name)?.kind === "making";
   }
   const transcript = document.getElementById("transcript-state");
   if (transcript) {

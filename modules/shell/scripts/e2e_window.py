@@ -1402,6 +1402,13 @@ def transcript_corrected(now: dt.datetime) -> None:
         invalid = [str(error.message) for kept_line in after for error in validator.iter_errors(json.loads(kept_line))]
         check("the file corrected is valid against transcript/v1's schema, its `edited` a date-time", invalid == [], invalid)
         shown = browser.find_element(By.CSS_SELECTOR, "#meeting .lines li").text
+        # Left by the pointer — a click elsewhere —: what is typed is kept, as Enter keeps it.
+        browser.find_elements(By.CSS_SELECTOR, "#meeting .lines .edit")[1].click()
+        wait_for(browser, lambda b: focused(b) == "correcting", 2)
+        keys(browser, Keys.END, " en novembre")
+        browser.find_element(By.CSS_SELECTOR, "#meeting h1, #meeting .meeting-top").click()
+        left = wait_for(browser, lambda b: "validé. en novembre" in (heard / "transcript.jsonl").read_text(), 3)
+        check("leaving the field keeps what is typed", left, (heard / "transcript.jsonl").read_text().splitlines()[2:3])
         check("the page shows it, marked « corrigé », the focus back on its pencil",
               "Bonjour à toutes" in shown and "corrigé" in shown and browser.execute_script("return document.activeElement.classList.contains('edit')"), shown)
         # Drawn again: the minutes, older than the correction, say so and offer to be made again.
@@ -1423,7 +1430,20 @@ def transcript_corrected(now: dt.datetime) -> None:
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
         browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-corrections"), 10)
-        press(browser, "redo-corrections")
+        # While they are written, no line is corrected: they read the transcript before.
+        (WORK / "slow-minutes").touch()
+        try:
+            press(browser, "redo-corrections")
+            writing = wait_for(browser, lambda b: b.execute_script(
+                "return window.__TAURI__.core.invoke('makings').then(m => m.minutes?.name === arguments[0])", heard.name), 5)
+            asked = browser.execute_script(
+                "return window.__TAURI__.core.invoke('transcript_corrected', {name: arguments[0], track: 'remote', start: 1.5, text: 'x'}).then(() => 'kept', (why) => String(why))",
+                heard.name)
+            hidden = wait_for(browser, lambda b: b.execute_script(pencils) == 0, 3)
+            check("while the minutes are written, no line is corrected: refused, its pencils hidden",
+                  writing and "being written" in asked and hidden and "Le budget de Jiri" in (heard / "transcript.jsonl").read_text(), (writing, asked))
+        finally:
+            (WORK / "slow-minutes").unlink()
         remade = wait_for(browser, lambda b: (heard / "minutes.md").read_text() != minutes, 10)
         check("« Refaire avec les corrections »: the minutes made again by whoever the settings name, from the corrected transcript",
               remade and "model: mistral" in (heard / "minutes.md").read_text(), (heard / "minutes.md").read_text()[:200])

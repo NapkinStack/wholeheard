@@ -89,3 +89,18 @@ fn a_text_kept_is_one_line_its_ends_trimmed() {
     assert_eq!(tidy(" a\r\nb\nc\rd "), Some("a b c d".to_string()));
     assert_eq!(tidy("\n \t"), None);
 }
+
+#[test]
+fn a_correction_replaces_the_file_whole_even_one_that_cannot_be_written_in_place() {
+    // Read-only, the file cannot be written in place; written beside and renamed over, it is
+    // replaced all the same — a reader never sees half of it.
+    use std::os::unix::fs::PermissionsExt;
+    let dir = folder("beside");
+    let file = dir.join("transcript.jsonl");
+    fs::write(&file, HEARD).unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o444)).unwrap();
+    correct(&file, "local", 0.4, "Bonjour à toutes.", "2026-10-29T10:00:00+01:00").unwrap();
+    assert!(fs::read_to_string(&file).unwrap().contains("Bonjour à toutes."));
+    assert!(!dir.join("transcript.jsonl.part").exists());
+    fs::remove_dir_all(dir).unwrap();
+}

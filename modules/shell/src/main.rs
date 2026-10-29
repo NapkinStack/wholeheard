@@ -726,6 +726,11 @@ fn transcript_corrected(shell: State<'_, Shell>, name: String, track: String, st
     if (running.is_some() && hearing) || waits {
         return Err(format!("the transcript of {name} is being made"));
     }
+    // Its minutes being written read the transcript before: a correction now would be older than
+    // their `made`, and never offered again (#528's verification).
+    if shell.writing_minutes.lock().unwrap().as_deref() == Some(folder.as_path()) {
+        return Err(format!("the minutes of {name} are being written"));
+    }
     let when = chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
     correction::correct(&folder.join("transcript.jsonl"), &track, start, &text, &when).map_err(|refused| match refused {
         correction::Refused::NotComplete => format!("the transcript of {name} is not complete"),
