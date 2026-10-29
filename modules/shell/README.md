@@ -57,7 +57,7 @@ once by `wholeheard --window` — and never without a gesture: the meetings in t
 folder by week, newest first, each with its day, its length, what it holds and what its
 audio weighs, and above them what all the audio weighs against the transcripts and minutes.
 A session being recorded, or one left without its end, says so. It reads `session.json` of
-both forms (`contracts/session-audio`) and writes nothing; it speaks the system's language,
+both forms (`contracts/session-audio`) and writes nothing; it speaks the language chosen in Settings, the system's by default (D64),
 follows its light or dark theme and font, in the colours of D11's boards, and reads the
 folder again whenever it comes forward. In two panes since D61 (its board,
 [`d61-the-window-in-two-panes`](../../docs/project/drawings/d61-the-window-in-two-panes/README.md)): the

@@ -230,6 +230,34 @@ def instances() -> list[int]:
     return found
 
 
+def tray_labels() -> list[str]:
+    """The words of the tray's menu of the Wholeheard under test, as the desktop reads them (D64)."""
+    watcher = ["org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher"]
+    listed = subprocess.run(["busctl", "--user", "get-property", *watcher, "RegisteredStatusNotifierItems"],
+                            capture_output=True, text=True).stdout
+    ours = set(instances())
+    for item in (word.strip('"') for word in listed.split() if "@" in word and "wholeheard" in word):
+        bus, path = item.split("@", 1)
+        status = subprocess.run(["busctl", "--user", "status", bus], capture_output=True, text=True).stdout
+        if not any(line == f"PID={pid}" for pid in ours for line in status.splitlines()):
+            continue
+        layout = subprocess.run(["busctl", "--user", "--json=short", "call", bus, f"{path}/Menu", "com.canonical.dbusmenu",
+                                 "GetLayout", "iias", "0", "--", "-1", "0"], capture_output=True, text=True).stdout
+        labels: list[str] = []
+
+        def walk(node) -> None:
+            node = node["data"] if isinstance(node, dict) and "data" in node else node
+            _, props, children = node
+            if "label" in props:
+                labels.append(props["label"]["data"])
+            for child in children:
+                walk(child)
+
+        walk(json.loads(layout)["data"][1])
+        return labels
+    return []
+
+
 class Window:
     """Wholeheard with its window, for as long as the `with` lasts."""
 
@@ -1365,6 +1393,94 @@ def meeting_language(now: dt.datetime) -> None:
         wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
         said = Select(browser.find_element(By.ID, "meeting-language")).first_selected_option.text
         check("the settings detecting it, the page says « détectée »", said == "Celle des Réglages — détectée", said)
+
+
+def app_language(now: dt.datetime) -> None:
+    """AF. The language Wholeheard speaks, chosen in Settings, the system's by default (D64)."""
+    print("AF. the app's language chosen in Settings: spoken at once and after a restart, never the meetings' (D64)")
+    meetings = WORK / "speaking-app"
+    heard = meetings / "2026-10-28_09-00"
+    session(heard, now - dt.timedelta(days=1), 0.1, {"local.wav": 1000})
+    model = WORK / "speaking-app-model.bin"
+    model.write_bytes(b"\0" * 16)
+    window = Window(meetings, "fr_FR.UTF-8", f'reminder = false\nmodel = "{model}"\n')
+    args = WORK / "hearing-args"
+    told = lambda: args.read_text() if args.exists() else ""
+    french = ["Ouvrir Wholeheard", "Démarrer l’enregistrement", "Transcrire le dernier enregistrement",
+              "Faire le compte rendu du dernier enregistrement", "Quitter Wholeheard"]
+    english = ["Open Wholeheard", "Start recording", "Transcribe the last recording", "Write the minutes of the last recording", "Quit Wholeheard"]
+    sections = lambda b: b.execute_script("return [document.getElementById('settings-link').textContent, document.documentElement.lang]")
+    redo = lambda b: b.execute_script("window.__TAURI__.core.invoke('transcript_redo', {name: arguments[0], model: arguments[1]})", heard.name, str(model))
+    notified = WORK / "notified-language"
+    monitor = subprocess.Popen(["dbus-monitor", "--session", "interface='org.freedesktop.Notifications',member='Notify'"],
+                               stdout=open(notified, "w"), stderr=subprocess.DEVNULL)
+    try:
+        with window as browser:
+            menu = wait_for(browser, lambda b: tray_labels() == french, 10)
+            check("started in French, the system's: the window and the tray's menu speak it",
+                  menu and sections(browser) == ["Réglages", "fr"], (tray_labels(), sections(browser)))
+            press(browser, "settings-link")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "app-language"), 10)
+            pick = Select(browser.find_element(By.ID, "app-language"))
+            label = browser.execute_script("return document.querySelector('label[for=app-language] .name')?.textContent")
+            check("Settings offer the language, the system's by default, each other in its own",
+                  [o.text for o in pick.options] == ["Langue du système", "Français", "English"]
+                  and pick.first_selected_option.get_attribute("value") == "" and label == "Langue de Wholeheard",
+                  ([o.text for o in pick.options], label))
+            args.unlink(missing_ok=True)
+            redo(browser)
+            wait_for(browser, lambda b: told() != "", 15)
+            before = told()
+            wait_for(browser, lambda b: "Transcription prête" in notified.read_text(), 10)
+            choose(browser, "app-language", "en")
+            saved = wait_for(browser, lambda b: 'language = "en"' in window.file.read_text(), 5)
+            spoken = wait_for(browser, lambda b: sections(b) == ["Settings", "en"], 5)
+            label = browser.execute_script("return document.querySelector('label[for=app-language] .name')?.textContent")
+            check("English chosen: written, and the window speaks it at once — the choice keeps the focus",
+                  saved and spoken and label == "Language of Wholeheard"
+                  and browser.execute_script("return document.activeElement.id") == "app-language",
+                  (window.file.read_text(), sections(browser), label))
+            check("the tray's menu speaks it at once, with no restart", wait_for(browser, lambda b: tray_labels() == english, 5), tray_labels())
+            mark = len(notified.read_text())
+            args.unlink(missing_ok=True)
+            redo(browser)
+            wait_for(browser, lambda b: told() != "", 15)
+            ready = wait_for(browser, lambda b: "Transcript ready" in notified.read_text()[mark:], 10)
+            check("a notification speaks it", ready and "Transcription prête" not in notified.read_text()[mark:], notified.read_text()[mark:][-300:])
+            check("the meeting is heard as before: the app's language is never the one it is heard in",
+                  before != "" and told() == before and "--language" not in told(), (before, told()))
+            main = browser.current_window_handle
+            browser.execute_script("document.getElementById('small-link').click()")
+            wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
+            browser.switch_to.window([h for h in browser.window_handles if h != main][0])
+            wait_for(browser, lambda b: b.find_elements(By.ID, "small-record"), 5)
+            small = [browser.find_element(By.ID, "small-record").text, browser.execute_script("return document.documentElement.lang")]
+            check("the small window speaks it", small == ["Start a recording", "en"], small)
+            try:
+                browser.find_element(By.ID, "small-full").click()
+            except NoSuchWindowException:
+                pass  # the small window goes with the click
+            browser.switch_to.window(main)
+            wait_for(browser, lambda b: len(b.window_handles) == 1, 5)
+        with window as browser:
+            menu = wait_for(browser, lambda b: tray_labels() == english, 10)
+            check("started again, the system still French: it speaks the one chosen", menu and sections(browser) == ["Settings", "en"],
+                  (tray_labels(), sections(browser)))
+            press(browser, "settings-link")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "app-language"), 10)
+            kept = Select(browser.find_element(By.ID, "app-language")).first_selected_option.text
+            check("Settings say the one chosen", kept == "English", kept)
+            choose(browser, "app-language", "")
+            back = wait_for(browser, lambda b: "language" not in window.file.read_text() and sections(b) == ["Réglages", "fr"], 5)
+            menu = wait_for(browser, lambda b: tray_labels() == french, 5)
+            check("the system's again: the key gone, French at once in the window and the menu", back and menu,
+                  (window.file.read_text(), sections(browser), tray_labels()))
+            refused = browser.execute_script(
+                "return window.__TAURI__.core.invoke('settings_saved', {change: {language: 'de'}}).then(() => 'kept', (why) => String(why))")
+            check("a language it does not speak is refused, nothing written", refused != "kept" and "language" not in window.file.read_text(), refused)
+    finally:
+        monitor.terminate()
+        monitor.wait(timeout=10)
 
 
 def two_panes(now: dt.datetime) -> None:
@@ -3698,6 +3814,7 @@ def main() -> int:
     transcript_corrected(now)
     two_panes(now)
     sidebar_folded(now)
+    app_language(now)
     return 1 if FAILED else 0
 
 

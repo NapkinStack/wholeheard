@@ -57,7 +57,9 @@ struct Shell {
     saving: Mutex<()>,
     /// Why the system's keyring could not be opened, when it could not.
     keyring: Mutex<Option<String>>,
-    language: Language,
+    /// The system's language, read at start: the interface's unless the user chose one (D64), and
+    /// the one SpeechAnalyzer hears in when a meeting names none — never the interface's.
+    system: Language,
     /// The recording in progress, when there is one.
     recording: Mutex<Option<Recording>>,
     /// The folder it records into, once it has said so.
@@ -79,6 +81,9 @@ struct Shell {
     shortcut: Mutex<Option<String>>,
     /// The menu's entry that has the minutes of the last recording written.
     minutes: MenuItem<Wry>,
+    /// The menu's entries that open the window and quit: their words follow the language (D64).
+    open: MenuItem<Wry>,
+    quit: MenuItem<Wry>,
     /// A transcript made again: where it goes back, and where it was set aside — taken by the
     /// run's end, or by Wholeheard quitting, whichever comes first.
     redoing: Mutex<Option<(PathBuf, PathBuf)>>,
@@ -157,6 +162,11 @@ impl Shell {
     /// What the user chose, as it stands now.
     fn settings(&self) -> Settings {
         self.settings.lock().unwrap().clone()
+    }
+
+    /// The language Wholeheard speaks now: the one the user chose, or the system's (D64).
+    fn language(&self) -> Language {
+        self.settings.lock().unwrap().language.unwrap_or(self.system)
     }
 
     /// Reads the settings file again — the user may have changed it by hand — and holds what it
@@ -261,17 +271,16 @@ fn main() {
             page_failed
         ])
         .setup(|app| {
-            let language = Language::system();
-            let labels = words::menu(language);
+            let system = Language::system();
             // Summit became Wholeheard (D28): what the user held under the old name, carried over
             // once, before anything is read; a failure leaves everything where it was, and says so.
             let carried = migrate::Places::here().map(|places| migrate::carry_over(&places));
             match &carried {
-                Some(Ok(carried)) if carried.settings || carried.data => tell(app.handle(), &words::carried_over(language)),
+                Some(Ok(carried)) if carried.settings || carried.data => tell(app.handle(), &words::carried_over(system)),
                 Some(Err(error)) => {
                     eprintln!("wholeheard: Summit's folders could not all be carried over: {error}");
                     tracing::error!(detail = %error, "shell.carry_failed");
-                    tell(app.handle(), &words::carry_failed(language));
+                    tell(app.handle(), &words::carry_failed(system));
                 }
                 _ => {}
             }
@@ -288,6 +297,9 @@ fn main() {
             let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
             // The first run (D58): never set up, nothing recorded — the assistant, once.
             let welcome = read.as_ref().is_ok_and(settings::welcome_due);
+            // Spoken from its first word in the language the user chose, else the system's (D64).
+            let language = read.as_ref().ok().and_then(|settings| settings.language).unwrap_or(system);
+            let labels = words::menu(language);
             let toggle = MenuItem::with_id(app, "toggle", labels.start, true, None::<&str>)?;
             let again = MenuItem::with_id(app, "transcribe", labels.transcribe, true, None::<&str>)?;
             let minutes = MenuItem::with_id(app, "minutes", labels.minutes, true, None::<&str>)?;
@@ -310,7 +322,7 @@ fn main() {
                         }
                         match transcription::latest(&shell.settings().sessions) {
                             Some(last) => transcribe(app, last),
-                            None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
+                            None => tell(app, &words::trouble(&Trouble::NoSession, shell.language())),
                         }
                     }
                     "minutes" => {
@@ -321,7 +333,7 @@ fn main() {
                         }
                         match transcription::latest(&shell.settings().sessions) {
                             Some(last) => make_minutes(app, last),
-                            None => tell(app, &words::trouble(&Trouble::NoSession, shell.language)),
+                            None => tell(app, &words::trouble(&Trouble::NoSession, shell.language())),
                         }
                     }
                     "download" => fetch(app, 0),
@@ -333,7 +345,7 @@ fn main() {
                 settings: Mutex::new(read.clone().unwrap_or_default()),
                 saving: Mutex::new(()),
                 keyring: Mutex::new(None),
-                language,
+                system,
                 recording: Mutex::new(None),
                 recorded: Mutex::new(None),
                 toggle,
@@ -344,6 +356,8 @@ fn main() {
                 transcription: Mutex::new(None),
                 shortcut: Mutex::new(None),
                 minutes: minutes.clone(),
+                open: open.clone(),
+                quit: quit.clone(),
                 minuting: Mutex::new(None),
                 shapes: Mutex::new(HashMap::new()),
                 meter: Mutex::new((None, [0.0, 0.0])),
@@ -431,7 +445,7 @@ fn offers(_: &AppHandle) {}
 
 #[cfg(target_os = "linux")]
 fn offer_recording(app: &AppHandle, application: String) {
-    let (notice, [record, later, never]) = words::offer(&application, app.state::<Shell>().language);
+    let (notice, [record, later, never]) = words::offer(&application, app.state::<Shell>().language());
     let app = app.clone();
     // Logged without the application: what it was is the notification's alone.
     tracing::info!("shell.offer_made");
@@ -645,7 +659,7 @@ async fn listed(app: AppHandle) -> Result<Listing, String> {
             .collect();
         drop(kept);
         Listing {
-            words: words::window(shell.language),
+            words: words::window(shell.language()),
             folder: shell.settings().sessions.clone(),
             sessions,
             shapes,
@@ -820,7 +834,7 @@ fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(),
     if gone.is_empty() {
         return Ok(());
     }
-    trash::delete_all(&gone).map_err(|error| refusal_said(&error, shell.language))
+    trash::delete_all(&gone).map_err(|error| refusal_said(&error, shell.language()))
 }
 
 /// A trash's refusal, in the user's words (as the audio's expiry says it).
@@ -930,7 +944,7 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
     Ok(Opened {
         session,
         transcript: meeting::transcript(&folder),
-        minutes: minutes::minutes(&folder, words::window(shell.language).minutes_sections),
+        minutes: minutes::minutes(&folder, words::window(shell.language()).minutes_sections),
         developer: shell.settings().developer,
         listen: playable(&shell, &folder),
         context: context_of(&shell, &folder),
@@ -963,7 +977,7 @@ fn confidential_of(shell: &Shell, folder: &Path) -> ConfidentialShown {
     let mut left = shell.left.lock().unwrap().get(folder).cloned().unwrap_or_default();
     let read = confidential::left(
         &meeting::transcript(folder),
-        &minutes::minutes(folder, words::window(shell.language).minutes_sections),
+        &minutes::minutes(folder, words::window(shell.language()).minutes_sections),
     );
     for said in read {
         confidential::add(&mut left, said.what, &said.host);
@@ -990,7 +1004,7 @@ fn confidential_set(app: AppHandle, shell: State<'_, Shell>, name: String, on: b
     }
     let mut left = confidential::left(
         &meeting::transcript(&folder),
-        &minutes::minutes(&folder, words::window(shell.language).minutes_sections),
+        &minutes::minutes(&folder, words::window(shell.language()).minutes_sections),
     );
     // The transcript a service is making: ended, made again here first in line.
     let running = shell.transcription.lock().unwrap();
@@ -1030,7 +1044,7 @@ fn confidential_set(app: AppHandle, shell: State<'_, Shell>, name: String, on: b
     let awaiting = shell.awaiting.lock().unwrap().iter().any(|(aside, _)| *aside == folder);
     let queued = shell.minutes_waiting.lock().unwrap().iter().any(|queued| queued.folder == folder);
     let by_service = matches!(
-        minutes::minutes(&folder, words::window(shell.language).minutes_sections),
+        minutes::minutes(&folder, words::window(shell.language()).minutes_sections),
         Read::Present(minutes) if minutes.provider.as_deref().is_some_and(|provider| provider != "local")
     );
     if awaiting {
@@ -1054,7 +1068,7 @@ struct ContextShown {
 fn context_of(shell: &Shell, folder: &Path) -> ContextShown {
     let text = context::read(folder);
     let transcript = meeting::transcript(folder);
-    let minutes = minutes::minutes(folder, words::window(shell.language).minutes_sections);
+    let minutes = minutes::minutes(folder, words::window(shell.language()).minutes_sections);
     ContextShown {
         changed: context::changed(text.as_deref(), &transcript, &minutes),
         text: text.unwrap_or_default(),
@@ -1378,6 +1392,8 @@ struct SettingsShown {
     /// The language meetings are spoken in, none: detected; and those offered first (D65).
     meeting_language: Option<String>,
     languages: Vec<(&'static str, &'static str)>,
+    /// The language Wholeheard speaks, chosen by the user (D64): `fr`, `en`; none, the system's.
+    language: Option<&'static str>,
     developer: bool,
     log: Log,
     unreadable: Option<String>,
@@ -1436,10 +1452,11 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
                 file: model::file(&listed.published),
                 bytes: published_at(index).bytes,
                 host: published_at(index).host,
-                good: listed.good.map(|good| words::offered_good(shell.language, good)),
+                good: listed.good.map(|good| words::offered_good(shell.language(), good)),
                 here: models_folder().join(model::file(&listed.published)).is_file(),
             })
             .collect(),
+        language: settings.language.map(Language::code),
         developer: settings.developer,
         log: settings.log,
         unreadable,
@@ -1464,6 +1481,8 @@ struct Change {
     meeting_language: Option<String>,
     /// The sidebar folded or not (D61).
     folded: Option<bool>,
+    /// The language Wholeheard speaks (D64): `fr`, `en`, or empty for the system's.
+    language: Option<String>,
 }
 
 /// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
@@ -1516,6 +1535,13 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
     if let Some(folded) = change.folded {
         settings.folded = folded;
     }
+    let spoken = settings.language;
+    if let Some(language) = change.language {
+        settings.language = match language.trim() {
+            "" => None,
+            code => Some(Language::named(code).ok_or_else(|| format!("{code} is no language Wholeheard speaks"))?),
+        };
+    }
     // The same bounds as the file's: a value read refuses is never written.
     if let Some(KeepAudio::Days(days)) = change.keep_audio
         && !(1..=36_500).contains(&days)
@@ -1537,7 +1563,12 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
     }
     let file = settings::file().ok_or("this system names no folder for settings")?;
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
+    let relabelled = settings.language != spoken;
     *shell.settings.lock().unwrap() = settings;
+    // Another language, spoken at once: the tray's menu; the window draws itself again (D64).
+    if relabelled {
+        relabel(&app);
+    }
     // Meetings that waited for the default Whisper model are heard now by SpeechAnalyzer (D42).
     if apple {
         transcribe_next(&app);
@@ -1570,7 +1601,7 @@ fn expire(app: &AppHandle, refused: &mut Option<Refusal>) {
     let said_already = matches!((outcome, *refused), (Err(why), Some(said)) if why == said);
     *refused = outcome.err();
     if !said_already {
-        tell(app, &words::audio_trashed(shell.language, &outcome));
+        tell(app, &words::audio_trashed(shell.language(), &outcome));
     }
 }
 
@@ -2027,7 +2058,7 @@ fn makings(shell: State<'_, Shell>) -> Makings {
         let failed = failures.iter().map(|(folder, (why, _))| (named(folder), said(why))).collect();
         let causes = failures
             .iter()
-            .filter_map(|(folder, (_, cause))| Some((named(folder), words::cause((*cause)?, shell.language).to_string())))
+            .filter_map(|(folder, (_, cause))| Some((named(folder), words::cause((*cause)?, shell.language()).to_string())))
             .collect();
         (failed, causes)
     };
@@ -2185,7 +2216,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
         Ok(settings) => settings,
         Err(why) => {
             refused(why.clone());
-            return tell(app, &words::trouble(&Trouble::Settings(why), shell.language));
+            return tell(app, &words::trouble(&Trouble::Settings(why), shell.language()));
         }
     };
     let named = settings.minutes_provider.clone().zip(settings.minutes_model.clone());
@@ -2213,7 +2244,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                 let said = words::Minutes::OllamaWaits {
                     silent: wait == Wait::Silent,
                 };
-                return tell(app, &words::minutes(&said, shell.language));
+                return tell(app, &words::minutes(&said, shell.language()));
             }
         }
     } else {
@@ -2226,19 +2257,19 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
             if from_line {
                 return;
             }
-            tell(app, &words::minutes(&words::Minutes::Unchosen, shell.language));
+            tell(app, &words::minutes(&words::Minutes::Unchosen, shell.language()));
             return open_window_at(app, "#/settings");
         }
     };
     if !matches!(meeting::transcript(&folder), meeting::Read::Present(transcript) if transcript.complete) {
         refused("this meeting has no whole transcript".into());
-        return tell(app, &words::minutes(&words::Minutes::NoTranscript, shell.language));
+        return tell(app, &words::minutes(&words::Minutes::NoTranscript, shell.language()));
     }
     let Some(host) = providers::host(&provider) else {
         let why = format!("{provider} is no provider's address");
         tracing::warn!(detail = %why, "shell.minutes_refused");
         refused(why);
-        return tell(app, &words::minutes(&words::Minutes::NoProvider(provider), shell.language));
+        return tell(app, &words::minutes(&words::Minutes::NoProvider(provider), shell.language()));
     };
     if agreed_now != Some(host.as_str()) && !providers::local(&provider) && settings.minutes_agreed.as_deref() != Some(host.as_str()) {
         let mut awaiting = shell.awaiting.lock().unwrap();
@@ -2255,7 +2286,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
         if from_line {
             return;
         }
-        tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language));
+        tell(app, &words::minutes(&words::Minutes::Waiting(host), shell.language()));
         let name = folder
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -2293,10 +2324,8 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                 let why = format!("the minutes there could not be set aside ({error}): nothing was made");
                 tracing::error!(detail = %why, "shell.minutes_failed");
                 minutes_ended(&app, &folder, Some((why, Some(summarising::Cause::Unwritable))));
-                return tell(
-                    &app,
-                    &words::minutes(&words::Minutes::failed(Some(summarising::Cause::Unwritable), again), shell.language),
-                );
+                let failed = words::Minutes::failed(Some(summarising::Cause::Unwritable), again);
+                return tell(&app, &words::minutes(&failed, shell.language()));
             }
         };
         // Said confidential since it was asked: nothing is sent — ended here, made again here (D60).
@@ -2333,7 +2362,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
                     let _ = std::fs::remove_file(previous);
                 }
                 minutes_ended(&app, &folder, Some((error.to_string(), None)));
-                return tell(&app, &words::minutes(&words::Minutes::failed(None, again), shell.language));
+                return tell(&app, &words::minutes(&words::Minutes::failed(None, again), shell.language()));
             }
         };
         let made = events
@@ -2385,7 +2414,7 @@ fn write_minutes_from(app: &AppHandle, folder: PathBuf, agreed_now: Option<&str>
             summarising::Made::Written(_) => words::Minutes::Ready,
             summarising::Made::Failed(_, cause) => words::Minutes::failed(cause, again),
         };
-        tell(&app, &words::minutes(&said, shell.language));
+        tell(&app, &words::minutes(&said, shell.language()));
     });
 }
 
@@ -2394,7 +2423,7 @@ fn minuting(app: &AppHandle, now: bool) {
     let app = app.clone();
     let _ = app.clone().run_on_main_thread(move || {
         let shell = app.state::<Shell>();
-        let labels = words::menu(shell.language);
+        let labels = words::menu(shell.language());
         let _ = shell.minutes.set_text(if now { labels.minuting } else { labels.minutes });
         let _ = shell.minutes.set_enabled(!now);
     });
@@ -2423,7 +2452,7 @@ fn show(app: &AppHandle, shown: Shown) {
     let app = app.clone();
     let _ = app.clone().run_on_main_thread(move || {
         let shell = app.state::<Shell>();
-        let labels = words::menu(shell.language);
+        let labels = words::menu(shell.language());
         let (label, enabled, icon, tooltip) = match shown {
             Shown::Idle => (labels.start, true, &include_bytes!("../icons/tray.png")[..], "Wholeheard"),
             Shown::Recording => (
@@ -2488,7 +2517,7 @@ fn toggle_recording(app: &AppHandle) {
         tracing::error!(detail = %error, "shell.sessions_refused");
         return tell(
             app,
-            &words::trouble(&Trouble::NoFolder(sessions.display().to_string()), shell.language),
+            &words::trouble(&Trouble::NoFolder(sessions.display().to_string()), shell.language()),
         );
     }
     let started = Recording::start(&program("wholeheard-capture", "WHOLEHEARD_CAPTURE"), &sessions);
@@ -2499,7 +2528,7 @@ fn toggle_recording(app: &AppHandle) {
             let app = app.clone();
             std::thread::spawn(move || listen(&app, &said));
         }
-        Err(error) => tell(app, &words::trouble(&Trouble::NoRecorder(error.to_string()), shell.language)),
+        Err(error) => tell(app, &words::trouble(&Trouble::NoRecorder(error.to_string()), shell.language())),
     }
 }
 
@@ -2523,15 +2552,15 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
         }
         let notice = match &event {
             // Ended before it had started: nothing was recorded, and that is the trouble.
-            Said::Failed(why) if !started => Some(words::trouble(&Trouble::NoRecorder(why.clone()), shell.language)),
+            Said::Failed(why) if !started => Some(words::trouble(&Trouble::NoRecorder(why.clone()), shell.language())),
             Said::Stopped(folder, _) if shell.settings().after != settings::After::Nothing => {
                 stopped = Some(folder.clone());
-                words::of(&event, shell.settings().reminder, shell.language).map(|notice| Notice {
-                    body: format!("{} {}", notice.body, words::follows(shell.language)),
+                words::of(&event, shell.settings().reminder, shell.language()).map(|notice| Notice {
+                    body: format!("{} {}", notice.body, words::follows(shell.language())),
                     ..notice
                 })
             }
-            _ => sides.told(&event, shell.settings().reminder, shell.language),
+            _ => sides.told(&event, shell.settings().reminder, shell.language()),
         };
         if let Some(notice) = notice {
             tell(app, &notice);
@@ -2746,9 +2775,9 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
         if here {
             return transcribe_next(&app);
         }
-        tell(&app, &words::made(&made, shell.language));
+        tell(&app, &words::made(&made, shell.language()));
         if let Some((name, not_put_back)) = kept_beside {
-            tell(&app, &words::transcript_kept_beside(shell.language, &name, not_put_back));
+            tell(&app, &words::transcript_kept_beside(shell.language(), &name, not_put_back));
         }
         // The minutes made again from the new transcript, by whoever the settings name now: the
         // ones there stay until the new ones are whole (`write_minutes_from`).
@@ -2770,7 +2799,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
 fn hearer_now(shell: &Shell, settings: &Settings, folder: &Path) -> (Hearer, Option<String>) {
     // Apple's SpeechAnalyzer needs no model file: its own is on the Mac (D42). Chosen and no
     // longer offered here — an older macOS, the program gone —, Whisper hears, and it is logged.
-    let language = shell.language.code();
+    let language = shell.system.code();
     let apple_ready = || {
         let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
         speech::status(&program, language).is_some_and(|status| status.offered && status.installed)
@@ -2830,7 +2859,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
                 .lock()
                 .unwrap()
                 .insert(folder, format!("{} is no model on this computer", model.display()));
-            tell(app, &words::trouble(&trouble, shell.language));
+            tell(app, &words::trouble(&trouble, shell.language()));
         }
         return;
     }
@@ -2847,7 +2876,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         Ok(started) => started,
         Err(error) => {
             shell.transcripts_failed.lock().unwrap().insert(folder, error.to_string());
-            tell(app, &words::trouble(&Trouble::NoTranscriber(error.to_string()), shell.language));
+            tell(app, &words::trouble(&Trouble::NoTranscriber(error.to_string()), shell.language()));
             return;
         }
     };
@@ -2872,7 +2901,7 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         if here {
             return transcribe_next(&app);
         }
-        let notice = words::made(&made, shell.language);
+        let notice = words::made(&made, shell.language());
         match made {
             Made::Written(folder) => {
                 tell_opening(&app, &notice, folder.clone());
@@ -2924,11 +2953,11 @@ fn offer(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let wanted = published();
     let size = model::size(wanted.bytes);
-    tell(app, &words::model_needed(shell.language, &size, wanted.host));
+    tell(app, &words::model_needed(shell.language(), &size, wanted.host));
     let app = app.clone();
     let _ = app.clone().run_on_main_thread(move || {
         let shell = app.state::<Shell>();
-        let _ = shell.download.set_text(words::download(shell.language, &size, wanted.host));
+        let _ = shell.download.set_text(words::download(shell.language(), &size, wanted.host));
         let _ = shell.download.set_enabled(true);
         if !shell
             .menu
@@ -2942,11 +2971,11 @@ fn offer(app: &AppHandle) {
     });
 }
 
-/// What Apple's SpeechAnalyzer offers on this Mac, in the interface's language (D42): asked of
+/// What Apple's SpeechAnalyzer offers on this Mac, in the system's language (D42, D64): asked of
 /// `wholeheard-speech` beside the shell, away from the window; none where it is not.
 #[tauri::command]
 async fn speech_shown(shell: State<'_, Shell>) -> Result<Option<speech::Status>, ()> {
-    let language = shell.language.code();
+    let language = shell.system.code();
     let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
     Ok(tauri::async_runtime::spawn_blocking(move || speech::status(&program, language))
         .await
@@ -2954,7 +2983,7 @@ async fn speech_shown(shell: State<'_, Shell>) -> Result<Option<speech::Status>,
         .flatten())
 }
 
-/// Apple's model of the interface's language, fetched by macOS from Apple on the user's click (D42);
+/// Apple's model of the system's language (D64), fetched by macOS from Apple on the user's click (D42);
 /// then SpeechAnalyzer is who hears. A refusal is logged with what the program said, and said
 /// on the page in a sentence of its own.
 #[tauri::command]
@@ -2964,7 +2993,7 @@ async fn speech_installed(shell: State<'_, Shell>) -> Result<(), ()> {
     if INSTALLING.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return Err(());
     }
-    let language = shell.language.code();
+    let language = shell.system.code();
     let program = program("wholeheard-speech", "WHOLEHEARD_SPEECH");
     tracing::info!(language, "shell.speech_install");
     let installed = tauri::async_runtime::spawn_blocking(move || speech::install(&program, language)).await;
@@ -3020,7 +3049,7 @@ fn pull(app: &AppHandle) {
     if std::mem::replace(&mut *shell.fetching.lock().unwrap(), true) {
         return;
     }
-    let language = shell.language;
+    let language = shell.language();
     *shell.fetched.lock().unwrap() = Some((providers::RECOMMENDED.to_owned(), 0, 0));
     let waiting = |app: &AppHandle, enabled: bool| {
         let app = app.clone();
@@ -3076,7 +3105,7 @@ fn fetch(app: &AppHandle, index: usize) {
     // The list read once: its address and the file it is kept as are one model's, whatever is
     // read again meanwhile.
     let listed = offered().get(index).map_or(model::DEFAULT, |listed| listed.published);
-    let (wanted, language) = (published_named(index).unwrap_or(listed), shell.language);
+    let (wanted, language) = (published_named(index).unwrap_or(listed), shell.language());
     let file = model::file(&listed);
     let to = models_folder().join(file);
     // The tray's entry is the default model's: it says how far that one is, and waits while
@@ -3136,12 +3165,34 @@ fn fetch(app: &AppHandle, index: usize) {
     });
 }
 
+/// The tray's menu in the language spoken now (D64): each entry's words, as it stands.
+fn relabel(app: &AppHandle) {
+    let shell = app.state::<Shell>();
+    let shown = match (shell.recording.lock().unwrap().is_some(), *shell.stopping.lock().unwrap()) {
+        (false, _) => Shown::Idle,
+        (true, false) => Shown::Recording,
+        (true, true) => Shown::Stopping,
+    };
+    let hearing = shell.transcription.lock().unwrap().is_some();
+    let writing = shell.writing_minutes.lock().unwrap().is_some();
+    show(app, shown);
+    transcribing(app, hearing);
+    minuting(app, writing);
+    let app = app.clone();
+    let _ = app.clone().run_on_main_thread(move || {
+        let shell = app.state::<Shell>();
+        let labels = words::menu(shell.language());
+        let _ = shell.open.set_text(labels.open);
+        let _ = shell.quit.set_text(labels.quit);
+    });
+}
+
 /// The menu's transcript entry: its words, and whether it answers.
 fn transcribing(app: &AppHandle, now: bool) {
     let app = app.clone();
     let _ = app.clone().run_on_main_thread(move || {
         let shell = app.state::<Shell>();
-        let labels = words::menu(shell.language);
+        let labels = words::menu(shell.language());
         let _ = shell.transcribe.set_text(if now { labels.transcribing } else { labels.transcribe });
         let _ = shell.transcribe.set_enabled(!now && shell.recording.lock().unwrap().is_none());
     });
@@ -3220,7 +3271,7 @@ fn shortcut(app: &AppHandle) {
             // this runtime may not do.
             let app = handle.clone();
             let _ = handle.run_on_main_thread(move || {
-                let language = app.state::<Shell>().language;
+                let language = app.state::<Shell>().language();
                 tell(&app, &words::trouble(&Trouble::Shortcut(why), language));
             });
         }
@@ -3241,7 +3292,7 @@ async fn bound(app: &AppHandle) -> Result<(), String> {
     ashpd::register_host_app(id).await.map_err(said)?;
     let shortcuts = GlobalShortcuts::new().await.map_err(said)?;
     let session = shortcuts.create_session(Default::default()).await.map_err(said)?;
-    let labels = words::menu(app.state::<Shell>().language);
+    let labels = words::menu(app.state::<Shell>().language());
     let wanted = NewShortcut::new("record", format!("{} / {}", labels.start, labels.stop)).preferred_trigger("LOGO+ALT+m");
     let bound = shortcuts
         .bind_shortcuts(&session, &[wanted], None, Default::default())

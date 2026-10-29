@@ -10,6 +10,8 @@ use std::{
 
 use serde::Deserialize;
 
+use crate::words::Language;
+
 /// What follows a recording once it is stopped, without another gesture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -128,6 +130,8 @@ pub struct Settings {
     pub welcomed: bool,
     /// The full window's sidebar folded by the user (D61): opened again as it was left.
     pub folded: bool,
+    /// The language Wholeheard speaks, chosen by the user (D64); none, the system's.
+    pub language: Option<Language>,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -158,6 +162,7 @@ impl Default for Settings {
             log: Log::Info,
             welcomed: false,
             folded: false,
+            language: None,
         }
     }
 }
@@ -217,6 +222,7 @@ struct Written {
     log: Option<Log>,
     welcomed: Option<bool>,
     folded: Option<bool>,
+    language: Option<String>,
 }
 
 /// Reads the settings. No file is no choice made: the defaults. A file that cannot be read as
@@ -255,6 +261,8 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.window = written.window.unwrap_or(settings.window);
     settings.welcomed = written.welcomed.unwrap_or(settings.welcomed);
     settings.folded = written.folded.unwrap_or(settings.folded);
+    // One it does not speak, written by hand: the system's.
+    settings.language = written.language.as_deref().and_then(Language::named);
     settings.log = written.log.unwrap_or(settings.log);
     settings.engine = written.engine.unwrap_or(settings.engine);
     settings.after = match (written.after, written.transcript) {
@@ -346,6 +354,14 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     }
     if settings.folded != before.folded {
         set(&mut document, "folded", Value::from(settings.folded));
+    }
+    if settings.language != before.language {
+        match settings.language {
+            Some(language) => set(&mut document, "language", Value::from(language.code())),
+            None => {
+                document.remove("language");
+            }
+        }
     }
     if settings.log != before.log {
         set(&mut document, "log", Value::from(settings.log.as_str()));
