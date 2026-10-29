@@ -1265,7 +1265,9 @@ def transcript_corrected(now: dt.datetime) -> None:
     unfinished = meetings / "2026-10-27_11-00"
     session(unfinished, now - dt.timedelta(days=1), 0.1, {"local.wav": 1000})
     (unfinished / "transcript.jsonl").write_text(before.replace('{"type":"complete","duration":3.0}\n', ""))
-    settings = 'reminder = false\nminutes_provider = "http://127.0.0.1:9/v1"\nminutes_model = "mistral"\n'
+    model = WORK / "correcting-model.bin"
+    model.write_bytes(b"\0" * 16)
+    settings = f'reminder = false\nmodel = "{model}"\nminutes_provider = "http://127.0.0.1:9/v1"\nminutes_model = "mistral"\n'
     window = Window(meetings, "fr_FR.UTF-8", settings)
     pencils = "return [...document.querySelectorAll('#meeting .lines .edit')].filter(p => !p.hidden).length"
     with window as browser:
@@ -1340,6 +1342,24 @@ def transcript_corrected(now: dt.datetime) -> None:
         remade = wait_for(browser, lambda b: (heard / "minutes.md").read_text() != minutes, 10)
         check("« Refaire avec les corrections »: the minutes made again by whoever the settings name, from the corrected transcript",
               remade and "model: mistral" in (heard / "minutes.md").read_text(), (heard / "minutes.md").read_text()[:200])
+        # Asked while the transcript is made again: refused — one writer at a time.
+        (WORK / "slow-hearing").touch()
+        try:
+            browser.execute_script("window.__TAURI__.core.invoke('context_redo', {name: arguments[0]})", heard.name)
+            time.sleep(1)
+            refused = browser.execute_script(
+                "return window.__TAURI__.core.invoke('transcript_corrected', {name: arguments[0], track: 'local', start: 0.4, text: 'x'}).then(() => 'kept', (why) => String(why))",
+                heard.name)
+        finally:
+            (WORK / "slow-hearing").unlink()
+        check("a correction asked while the transcript is made again is refused", "being made" in refused, refused)
+        # Its end waited for: the transcript set aside meanwhile, then the new one in its place.
+        def remade() -> bool:
+            try:
+                return "Refait avec" in (heard / "transcript.jsonl").read_text()
+            except FileNotFoundError:
+                return False
+        wait_for(browser, lambda b: remade(), 10)
 
 
 def context_written(now: dt.datetime) -> None:
