@@ -1241,6 +1241,14 @@ def transcript_corrected(now: dt.datetime) -> None:
     print("AB. a transcript's line corrected by whoever listens, the minutes offered again (D62)")
     keys = lambda browser, *sent: ActionChains(browser).send_keys(*sent).perform()
     focused = lambda b: b.execute_script("return document.activeElement.id || document.activeElement.className")
+
+    def when(text) -> dt.datetime:
+        """A time as the file says it, or long ago when it says none, or none that reads."""
+        try:
+            return dt.datetime.fromisoformat(text)
+        except (TypeError, ValueError):
+            return dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+
     meetings = WORK / "correcting"
     heard = meetings / "2026-10-27_09-00"
     session(heard, now - dt.timedelta(days=1), 0.1, {})
@@ -1315,7 +1323,7 @@ def transcript_corrected(now: dt.datetime) -> None:
         line = json.loads(after[1]) if len(after) > 1 else {}
         check("Enter keeps it: the file differs by that line alone, its text as typed — any script —, edited when",
               kept and len(after) == 4 and changed == [1] and line.get("text") == "Bonjour à toutes, on commence — Γιώργος 🙂"
-              and dt.datetime.fromisoformat(line.get("edited", "1970-01-01T00:00:00+00:00")) > now - dt.timedelta(minutes=30)
+              and when(line.get("edited")) > now - dt.timedelta(minutes=30)
               and {k: v for k, v in line.items() if k not in ("text", "edited")} == {k: v for k, v in json.loads(before.splitlines()[1]).items() if k != "text"},
               after)
         # Against the contract's own schema, its formats checked: `edited` a date-time.
@@ -1353,8 +1361,13 @@ def transcript_corrected(now: dt.datetime) -> None:
         # Asked while the transcript is made again: refused — one writer at a time.
         (WORK / "slow-hearing").touch()
         try:
-            browser.execute_script("window.__TAURI__.core.invoke('context_redo', {name: arguments[0]})", heard.name)
-            time.sleep(1)
+            # Refused while the minutes asked just before are still made: asked again until taken.
+            wait_for(browser, lambda b: b.execute_script(
+                "return window.__TAURI__.core.invoke('context_redo', {name: arguments[0]}).then(() => true, () => false)", heard.name), 10)
+            # Made, or in line to be: what the shell says it is making.
+            wait_for(browser, lambda b: b.execute_script(
+                "return window.__TAURI__.core.invoke('makings').then(m => m.transcript?.name === arguments[0] || m.transcripts_waiting.includes(arguments[0]))",
+                heard.name), 5)
             refused = browser.execute_script(
                 "return window.__TAURI__.core.invoke('transcript_corrected', {name: arguments[0], track: 'local', start: 0.4, text: 'x'}).then(() => 'kept', (why) => String(why))",
                 heard.name)
