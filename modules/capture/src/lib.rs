@@ -27,6 +27,14 @@ pub const SILENCE: f32 = 0.001;
 /// The sources, as what the program says names them: the microphone, then what the machine plays.
 pub const SOURCES: [&str; 2] = ["me", "others"];
 
+/// Fail-safe: macOS mic/audio permission denied => zero-length tracks (not a code failure).
+/// Check System Settings › Privacy & Security › Microphone / Audio Recording first.
+pub fn macos_permission_guard() -> bool {
+    // Placeholder: real check requires TCC / AVAudioSession authorization query.
+    // For D39 spike: verify manually; code never bypasses security.
+    true
+}
+
 /// What the program says while it records (`contracts/recording/v1`): one line of its output
 /// each. Both forms of a session say the same lines, and say them only through these.
 pub enum Event<'a> {
