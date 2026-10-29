@@ -885,7 +885,27 @@ function minutesCard(read, words, session, transcript) {
     const choices = await window.__TAURI__.core.invoke("minutes_shown");
     redo.replaceWith(redoPanel(choices, session, words, redo));
   });
-  top.append(redo);
+  // Copied in one click, as written, to paste where the user writes (D45): said in place, a moment.
+  const copy = element("button", "open", words.copy_minutes);
+  copy.type = "button";
+  copy.id = "copy-minutes";
+  const copied = element("span", "says copied");
+  copied.id = "minutes-copied";
+  copied.setAttribute("role", "status");
+  let said = 0;
+  copy.addEventListener("click", async () => {
+    const mine = ++said;
+    try {
+      await navigator.clipboard.writeText(read.markdown);
+      copied.textContent = words.minutes_copied;
+      setTimeout(() => mine === said && (copied.textContent = ""), 2000);
+    } catch {
+      copied.textContent = words.minutes_not_copied;
+    }
+  });
+  const actions = element("span", "minutes-actions");
+  actions.append(copied, copy, redo);
+  top.append(actions);
   const made = read.made && dayOf({ instant: Date.parse(read.made) / 1000 || null });
   // As the board says it: the day of the week, no year, and the model as people say it.
   const day = { weekday: "short", day: "numeric", month: "short" };

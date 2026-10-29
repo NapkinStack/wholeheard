@@ -21,6 +21,9 @@ pub struct Minutes {
     /// body holds as HTML is shown as text, and a link as its words: a page shows the minutes, it
     /// is never driven by them.
     pub body: String,
+    /// The body as written, without the front matter, its three titles the page's: what « Copier
+    /// le compte rendu » puts on the clipboard, to paste where the user writes (D45).
+    pub markdown: String,
 }
 
 /// The minutes of a session's folder, their three sections named as the page names them.
@@ -111,11 +114,32 @@ fn parse_minutes(text: &str, sections: [&str; 3]) -> Option<Minutes> {
     });
     let mut html = String::new();
     pulldown_cmark::html::push_html(&mut html, shown);
+    // Each title's line said as the page names it; every other byte as the model wrote it.
+    let mut markdown = String::new();
+    let mut kept = 0;
+    let titled = Parser::new(body).into_offset_iter().filter_map(|(event, range)| {
+        matches!(
+            event,
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H2,
+                ..
+            })
+        )
+        .then_some(range)
+    });
+    for (name, range) in sections.iter().zip(titled) {
+        markdown.push_str(&body[kept..range.start]);
+        markdown.push_str(&format!("## {name}\n"));
+        kept = range.end;
+    }
+    markdown.push_str(&body[kept..]);
+    let markdown = format!("{}\n", markdown.trim());
     Some(Minutes {
         made: field("made"),
         provider: field("provider"),
         model: field("model"),
         context: field("context"),
         body: html,
+        markdown,
     })
 }
