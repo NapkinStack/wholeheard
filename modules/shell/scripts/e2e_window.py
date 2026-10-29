@@ -952,7 +952,9 @@ def first_run(now: dt.datetime) -> None:
         skip = browser.execute_script(focused)
         check("Tab reaches the answers, then Passer", first.startswith("INPUT:private") and skip == "BUTTON:welcome-skip:", (first, skip))
         # Drawn once the window has the system's focus: waited for, the desktop being in use (#510).
-        ring = wait_for(browser, lambda b: b.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0"), 3)
+        # Asked for, then waited for: another window of the desktop may hold the system's focus.
+        browser.switch_to.window(browser.current_window_handle)
+        ring = wait_for(browser, lambda b: b.execute_script("const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0"), 10)
         check("the focus is seen", ring)
         keys(browser, Keys.ENTER)
         listed = wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed() and b.find_element(By.CSS_SELECTOR, "header.bar").is_displayed(), 10)
