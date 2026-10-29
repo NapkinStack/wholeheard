@@ -8,6 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::words::Language;
 use serde::Deserialize;
 
 /// What follows a recording once it is stopped, without another gesture.
@@ -101,6 +102,8 @@ pub struct Settings {
     pub transcription_provider: Option<String>,
     pub transcription_model: Option<String>,
     pub transcription_agreed: Option<String>,
+    /// The language the interface speaks: the system's by default, the user's choice when made (D64).
+    pub language: Language,
     /// Who writes the minutes: a provider's address, as `wholeheard-summary` takes it — Ollama on this
     /// computer is `http://localhost:11434/v1` —, and the model's name as it knows it. None: not
     /// chosen yet.
@@ -144,6 +147,7 @@ impl Default for Settings {
             minutes_provider: None,
             minutes_model: None,
             minutes_agreed: None,
+            language: Language::system(),
             keep_audio: KeepAudio::Always,
             developer: false,
             offer: true,
@@ -190,11 +194,9 @@ pub fn file() -> Option<PathBuf> {
 struct Written {
     reminder: Option<bool>,
     sessions: Option<toml::Spanned<PathBuf>>,
-    /// Before `after`: `false` was "nothing follows".
-    transcript: Option<bool>,
-    after: Option<After>,
     model: Option<toml::Spanned<PathBuf>>,
     engine: Option<Engine>,
+    language: Option<String>,
     transcription_provider: Option<String>,
     transcription_model: Option<String>,
     transcription_agreed: Option<String>,
@@ -247,10 +249,13 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.welcomed = written.welcomed.unwrap_or(settings.welcomed);
     settings.log = written.log.unwrap_or(settings.log);
     settings.engine = written.engine.unwrap_or(settings.engine);
-    settings.after = match (written.after, written.transcript) {
-        (Some(after), _) => after,
-        (None, Some(false)) => After::Nothing,
-        (None, _) => settings.after,
+    // The language: system's default when not set; user's choice when named.
+    settings.language = match written.language.as_deref() {
+        Some("fr" | "french" | "français") => Language::French,
+        Some("en" | "english") => Language::English,
+        Some("system" | "systeme" | "système") => Language::system(),
+        Some(_) => Language::system(), // unknown value falls to system's
+        None => Language::system(),
     };
     settings.minutes_provider = written.minutes_provider.filter(|named| !named.trim().is_empty());
     settings.minutes_model = written.minutes_model.filter(|named| !named.trim().is_empty());

@@ -258,7 +258,9 @@ fn main() {
             page_failed
         ])
         .setup(|app| {
-            let language = Language::system();
+            let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
+            let settings = read.unwrap_or_else(|_| Settings::default());
+            let language = settings.language;
             let labels = words::menu(language);
             // Summit became Wholeheard (D28): what the user held under the old name, carried over
             // once, before anything is read; a failure leaves everything where it was, and says so.
@@ -1319,6 +1321,8 @@ struct SettingsShown {
     /// host it is read again from on the user's gesture (D40).
     offered: Vec<Offered>,
     registry_host: String,
+    /// The language the interface speaks (D64).
+    language: words::Language,
     developer: bool,
     log: Log,
     unreadable: Option<String>,
@@ -1380,6 +1384,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
             .collect(),
         developer: settings.developer,
         log: settings.log,
+        language: settings.language,
         unreadable,
     }
 }
@@ -1396,6 +1401,8 @@ struct Change {
     model: Option<PathBuf>,
     /// Apple's SpeechAnalyzer, or Whisper again (D42); a model chosen is Whisper's.
     engine: Option<Engine>,
+    /// The language the interface speaks (D64).
+    language: Option<words::Language>,
     developer: Option<bool>,
     log: Option<Log>,
 }
@@ -1459,6 +1466,9 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
     }
     if let Some(engine) = change.engine {
         settings.engine = engine;
+    }
+    if let Some(language) = change.language {
+        settings.language = language;
     }
     let file = settings::file().ok_or("this system names no folder for settings")?;
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
