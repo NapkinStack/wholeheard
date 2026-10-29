@@ -2061,7 +2061,7 @@ def confidential_kept(now: dt.datetime) -> None:
         check("the list shows the meeting with a lock and its word", chips == [["Confidentielle", True]], chips)
         seen(browser, "d60-4-list-light")
         browser.execute_script(f"location.hash = '#/meeting/{meeting.name}'")
-        # The last meeting, drawn beside the list already, is drawn again at its own address (D61).
+        # The last meeting, drawn beside the list already: its page may be drawn again under the driver.
         shown = wait_for(browser, lambda b: b.find_elements(By.ID, "confidential-switch"), 10)
         check("its page says it, the switch on, the lock among what it holds, nothing said to have left",
               shown and read(browser, lambda b: switch(b, "confidential-switch").is_selected()

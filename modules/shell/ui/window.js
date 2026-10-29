@@ -2746,7 +2746,11 @@ let drawing = 0;
 const narrow = matchMedia("(max-width: 839px)");
 narrow.addEventListener("change", () => refresh());
 
-async function refresh() {
+// What the meeting's page was drawn from, to know whether it changed since.
+let drawnMeeting = null;
+
+// `again`: the list's address drawn once more after a page gone — never more than once.
+async function refresh(again = false) {
   const mine = ++drawing;
   // The small window is its own: it draws its view once, and asks for nothing else.
   if (location.hash === "#/small") {
@@ -2807,7 +2811,7 @@ async function refresh() {
     } catch {
       // No hashchange follows a replaced address: the list's address is drawn here (D61).
       history.replaceState(null, "", "#/");
-      return refresh();
+      if (!again) return refresh(true);
     }
   }
   let opened = null;
@@ -2828,7 +2832,7 @@ async function refresh() {
       player?.stop();
       player = null;
       history.replaceState(null, "", "#/");
-      return refresh();
+      if (!again) return refresh(true);
     }
   }
   if (mine !== drawing) return;
@@ -2854,14 +2858,17 @@ async function refresh() {
     else link.removeAttribute("aria-current");
   }
   // Drawn with what was read before it, never with a newer reading taken meanwhile.
-  // The meeting shown beside the list, then reached at its own address — its row clicked —: the
-  // same page, not drawn again under the user (D61). Any other reading draws it anew.
+  // The meeting shown beside the list, then reached at its own address — its row clicked, or
+  // the small window's *Lire* —, read again and unchanged: the same page, not drawn again under
+  // the user (D61). Anything changed meanwhile, or any other reading, draws it anew.
   const page = document.getElementById("meeting");
   const address = listed ? "#/" : location.hash;
-  const kept = opened && page.dataset.name === name && page.dataset.at === "#/" && address !== "#/";
+  const fresh = opened ? JSON.stringify(opened) : null;
+  const kept = opened && page.dataset.name === name && page.dataset.at === "#/" && address !== "#/" && fresh === drawnMeeting;
   if (opened && !kept) {
     makings = seen;
     showMeeting(opened, words);
+    drawnMeeting = fresh;
   }
   if (opened) page.dataset.at = address;
   else delete page.dataset.at;
