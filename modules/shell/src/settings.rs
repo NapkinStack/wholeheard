@@ -102,8 +102,8 @@ pub struct Settings {
     pub transcription_provider: Option<String>,
     pub transcription_model: Option<String>,
     pub transcription_agreed: Option<String>,
-    /// The language the interface speaks: the system's by default, the user's choice when made (D64).
-    pub language: Language,
+    /// The interface's language: the user's choice (Some) or the system's (None) (D64).
+    pub language: Option<Language>,
     /// Who writes the minutes: a provider's address, as `wholeheard-summary` takes it — Ollama on this
     /// computer is `http://localhost:11434/v1` —, and the model's name as it knows it. None: not
     /// chosen yet.
@@ -153,7 +153,7 @@ impl Default for Settings {
             minutes_model: None,
             meeting_language: None,
             minutes_agreed: None,
-            language: Language::system(),
+            language: None,
             keep_audio: KeepAudio::Always,
             developer: false,
             offer: true,
@@ -200,6 +200,9 @@ pub fn file() -> Option<PathBuf> {
 #[derive(Deserialize)]
 struct Written {
     reminder: Option<bool>,
+    /// Before `after`: `false` was "nothing follows".
+    transcript: Option<bool>,
+    after: Option<After>,
     sessions: Option<toml::Spanned<PathBuf>>,
     model: Option<toml::Spanned<PathBuf>>,
     engine: Option<Engine>,
@@ -259,13 +262,15 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.folded = written.folded.unwrap_or(settings.folded);
     settings.log = written.log.unwrap_or(settings.log);
     settings.engine = written.engine.unwrap_or(settings.engine);
-    // The language: system's default when not set; user's choice when named.
-    let lang_val = written.language.as_deref().unwrap_or("");
-    settings.language = match lang_val {
-        l if l.to_lowercase().starts_with("fr") => Language::French,
-        l if l.to_lowercase().starts_with("en") => Language::English,
-        "system" | "systeme" | "système" => Language::system(),
-        _ => Language::system(),
+    settings.after = match (written.after, written.transcript) {
+        (Some(after), _) => after,
+        (None, Some(false)) => After::Nothing,
+        (None, _) => settings.after,
+    };
+    settings.language = match written.language.as_deref().unwrap_or("").trim() {
+        "fr" => Some(Language::French),
+        "en" => Some(Language::English),
+        _ => None,
     };
     settings.minutes_provider = written.minutes_provider.filter(|named| !named.trim().is_empty());
     settings.minutes_model = written.minutes_model.filter(|named| !named.trim().is_empty());
@@ -376,14 +381,13 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
         set(&mut document, "engine", Value::from(settings.engine.as_str()));
     }
     if settings.language != before.language {
-        set(
-            &mut document,
-            "language",
-            Value::from(match settings.language {
-                Language::English => "en",
-                Language::French => "fr",
-            }),
-        );
+        match settings.language {
+            Some(Language::French) => document["language"] = Item::Value(Value::from("fr")),
+            Some(Language::English) => document["language"] = Item::Value(Value::from("en")),
+            None => {
+                document.remove("language");
+            }
+        }
     }
     if settings.keep_audio != before.keep_audio {
         set(

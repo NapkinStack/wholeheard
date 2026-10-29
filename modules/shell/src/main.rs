@@ -263,7 +263,7 @@ fn main() {
         .setup(|app| {
             let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
             let settings = read.unwrap_or_else(|_| Settings::default());
-            let language = settings.language;
+            let language = settings.language.unwrap_or_else(Language::system);
             let labels = words::menu(language);
             // Summit became Wholeheard (D28): what the user held under the old name, carried over
             // once, before anything is read; a failure leaves everything where it was, and says so.
@@ -1446,7 +1446,10 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
             .collect(),
         developer: settings.developer,
         log: settings.log,
-        language: settings.language,
+        language: settings.language.as_ref().map(|l| match l {
+            Language::French => "fr",
+            Language::English => "en",
+        }.to_string()),
         unreadable,
     }
 }
@@ -1463,8 +1466,8 @@ struct Change {
     model: Option<PathBuf>,
     /// Apple's SpeechAnalyzer, or Whisper again (D42); a model chosen is Whisper's.
     engine: Option<Engine>,
-    /// The language the interface speaks (D64).
-    language: Option<words::Language>,
+    /// The language the interface speaks (D64): \"fr\", \"en\", or \"system\".
+    language: Option<String>,
     developer: Option<bool>,
     log: Option<Log>,
     /// The language meetings are spoken in (D65): a code, or empty for « detected ».
@@ -1543,7 +1546,15 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
         settings.engine = engine;
     }
     if let Some(language) = change.language {
-        settings.language = language;
+        settings.language = if language == "system" {
+            None
+        } else if language == "fr" {
+            Some(Language::French)
+        } else if language == "en" {
+            Some(Language::English)
+        } else {
+            None
+        };
     }
     let file = settings::file().ok_or("this system names no folder for settings")?;
     settings::write(&file, &settings).map_err(|error| error.to_string())?;
