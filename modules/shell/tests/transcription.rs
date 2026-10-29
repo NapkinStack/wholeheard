@@ -19,12 +19,23 @@ fn made_by(folder: &Path, script: &str, hearer: &Hearer) -> (Transcription, std:
 
 /// The same, a service's key handed to the program (D43).
 fn made_with(folder: &Path, script: &str, hearer: &Hearer, key: Option<&str>) -> (Transcription, std::sync::mpsc::Receiver<Made>) {
+    made_spoken(folder, script, hearer, key, None)
+}
+
+/// The same, the meeting's language told (D65).
+fn made_spoken(
+    folder: &Path,
+    script: &str,
+    hearer: &Hearer,
+    key: Option<&str>,
+    spoken: Option<&str>,
+) -> (Transcription, std::sync::mpsc::Receiver<Made>) {
     static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
     let _held = ONE_AT_A_TIME.lock().unwrap();
     let path = folder.join("wholeheard-transcription");
     fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    Transcription::start_with(&path, &folder.join("session"), hearer, key).unwrap()
+    Transcription::start_with(&path, &folder.join("session"), hearer, key, spoken).unwrap()
 }
 
 fn end(made: &std::sync::mpsc::Receiver<Made>) -> Made {
@@ -277,4 +288,33 @@ fn a_service_is_saved_only_once_its_host_elsewhere_is_agreed_to() {
     assert_eq!(service_named("https://api.groq.com/openai/v1", " ", true), Err(Refused::Model));
     // One host may write the minutes and hear with two keys: never one account.
     assert_ne!(key_account("api.groq.com"), "api.groq.com");
+}
+
+#[test]
+fn the_meetings_language_is_told_to_each_engine_speechanalyzer_only_in_the_two_it_hears() {
+    let folder = tempfile::tempdir().unwrap();
+    let session = folder.path().join("session");
+    fs::create_dir(&session).unwrap();
+    // The arguments as the program got them, then a transcript, so that it ends well.
+    let script = r#"printf '%s ' "$@" > "$1/args"; echo '{}' > "$1/transcript.jsonl""#;
+    let args = || fs::read_to_string(session.join("args")).unwrap();
+    let model = Hearer::Model(Path::new("/models/ggml.bin").to_path_buf());
+    let service = Hearer::Service {
+        provider: "https://hears.example/v1".into(),
+        model: "whisper-1".into(),
+        language: "fr".into(),
+    };
+    let apple = Hearer::SpeechAnalyzer { language: "fr".into() };
+    for (hearer, spoken, wanted) in [
+        (&model, None, "--model /models/ggml.bin "),
+        (&model, Some("en"), "--model /models/ggml.bin --language en "),
+        (&service, None, "--language fr "),
+        (&service, Some("de"), "--language de "),
+        (&apple, Some("en"), "--language en "),
+        (&apple, Some("de"), "--language fr "),
+    ] {
+        let (_, said) = made_spoken(folder.path(), script, hearer, None, spoken);
+        assert_eq!(end(&said), Made::Written(session.clone()));
+        assert!(args().ends_with(wanted), "{hearer:?} {spoken:?}: {}", args());
+    }
 }

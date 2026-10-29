@@ -22,6 +22,7 @@ pub mod registry;
 pub mod sessions;
 pub mod settings;
 pub mod speech;
+pub mod spoken;
 pub mod summarising;
 pub mod transcription;
 pub mod words;
