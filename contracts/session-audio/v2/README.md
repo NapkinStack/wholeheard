@@ -46,6 +46,7 @@ and nowhere else.
 | `clock.jsonl` | `capture`, while recording | Where each track's samples are on the session's clock |
 | `context.txt` | The user, at any time; optional | A few lines of plain text, UTF-8, handed to the steps that follow |
 | `confidential` | The shell, on the user's word; optional | Nothing: an empty file. Present, it asks that the meeting be transcribed and summarised on this computer alone. Only the shell reads it, and chooses who transcribes and who writes accordingly; the steps that follow need not read it |
+| `language` | The shell, on the user's word; optional | One line, UTF-8: the language the meeting is spoken in, a code of ISO 639-1 — `fr`, `en`. Absent, the language is detected or the settings' default is used. Only the shell reads it, and tells the transcription the language spoken; the steps that follow need not read it |
 | `derived/` | Consumers; optional | Whatever they make from the tracks. Not described here: nothing in it is a source |
 
 **`session.json`**, UTF-8:
