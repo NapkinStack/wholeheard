@@ -250,12 +250,12 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.log = written.log.unwrap_or(settings.log);
     settings.engine = written.engine.unwrap_or(settings.engine);
     // The language: system's default when not set; user's choice when named.
-    settings.language = match written.language.as_deref() {
-        Some("fr" | "french" | "français") => Language::French,
-        Some("en" | "english") => Language::English,
-        Some("system" | "systeme" | "système") => Language::system(),
-        Some(_) => Language::system(), // unknown value falls to system's
-        None => Language::system(),
+    let lang_val = written.language.as_deref().unwrap_or("");
+    settings.language = match lang_val {
+        l if l.to_lowercase().starts_with("fr") => Language::French,
+        l if l.to_lowercase().starts_with("en") => Language::English,
+        "system" | "systeme" | "système" => Language::system(),
+        _ => Language::system(),
     };
     settings.minutes_provider = written.minutes_provider.filter(|named| !named.trim().is_empty());
     settings.minutes_model = written.minutes_model.filter(|named| !named.trim().is_empty());
@@ -360,6 +360,16 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     }
     if settings.engine != before.engine {
         set(&mut document, "engine", Value::from(settings.engine.as_str()));
+    }
+    if settings.language != before.language {
+        set(
+            &mut document,
+            "language",
+            Value::from(match settings.language {
+                Language::English => "en",
+                Language::French => "fr",
+            }),
+        );
     }
     if settings.keep_audio != before.keep_audio {
         set(

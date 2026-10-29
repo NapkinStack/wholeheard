@@ -44,14 +44,20 @@ fn s4_language_persisted_and_shown() {
     let folder = tempfile::tempdir().unwrap();
     let path = folder.path().join("settings.toml");
     let mut settings = Settings::default();
-    settings.language = Language::French;
+    // Pick a language different from system so we actually test persistence.
+    let (expected_lang, expected_code) = if Language::system() == Language::French {
+        (Language::English, "en")
+    } else {
+        (Language::French, "fr")
+    };
+    settings.language = expected_lang;
     write(&path, &settings).unwrap();
     let content = fs::read_to_string(&path).unwrap();
     assert!(
-        content.contains("language = \"fr\"") || content.contains("language = 'fr'"),
+        content.contains(&format!("language = \"{}\"", expected_code)) || content.contains(&format!("language = '{}'", expected_code)),
         "language not written: {content}"
     );
-    assert_eq!(read(&path).unwrap().language, Language::French);
+    assert_eq!(read(&path).unwrap().language, expected_lang);
     // Settings shown carries it (direct read from struct).
     assert_eq!(Settings::default().language, words::Language::system());
 }
