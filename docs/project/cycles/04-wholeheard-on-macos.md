@@ -117,7 +117,7 @@ deliverables:
   - id: D62
     title: "A line of a transcript corrected by whoever listens to it"
     module: shell
-    state: in-progress
+    state: ready
     acceptance:
       - "Given `contracts/transcript/v1`, when its page and schema are changed — in a pull request of the contracts module alone, merged first (ADR-0014), `nstack compat` compliant —, then they say that once the transcript is complete, the shell, a second writer, may rewrite a segment's `text` on the user's word and set its optional `edited` to when it did, ISO 8601: the file replaced whole — written beside, then renamed —, its lines in the same order, nothing else changed; never before its `complete` line, never while the transcript is made again"
       - "Given a meeting's page with a complete transcript, when the user chooses to correct a line — its own pencil button, by the mouse or the keyboard; a click or Enter on the line still plays from it —, then the line becomes a field holding its text; Enter or leaving the field keeps what is typed — a line break pasted becomes a space, spaces at its ends are dropped —, Échap leaves it as it was, a line left empty is refused, said; kept, the file holds it whole — any script, emoji included —, the page shows it, marked « corrigé »"
