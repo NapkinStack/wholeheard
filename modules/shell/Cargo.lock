@@ -5190,6 +5190,7 @@ dependencies = [
  "apple-native-keyring-store",
  "ashpd",
  "bytes",
+ "chrono",
  "dirs 6.0.0",
  "futures-util",
  "getrandom 0.3.4",

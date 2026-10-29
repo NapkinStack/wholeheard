@@ -1234,6 +1234,114 @@ def first_run(now: dt.datetime) -> None:
             server.shutdown()
 
 
+def transcript_corrected(now: dt.datetime) -> None:
+    """AB. A line of a transcript corrected by whoever listens to it (D62, ADR-0014)."""
+    print("AB. a transcript's line corrected by whoever listens, the minutes offered again (D62)")
+    keys = lambda browser, *sent: ActionChains(browser).send_keys(*sent).perform()
+    focused = lambda b: b.execute_script("return document.activeElement.id || document.activeElement.className")
+    meetings = WORK / "correcting"
+    heard = meetings / "2026-10-27_09-00"
+    session(heard, now - dt.timedelta(days=1), 0.1, {})
+    record = json.loads((heard / "session.json").read_text())
+    record["tracks"] = {"local": {"device": "Mic"}}
+    (heard / "session.json").write_text(json.dumps(record))
+    with wave.open(str(heard / "local.wav"), "wb") as made:
+        made.setnchannels(1)
+        made.setsampwidth(2)
+        made.setframerate(48000)
+        made.writeframes(bytes(2 * 48000 * 3))
+    (heard / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n')
+    before = (
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","voice":null,"start":0.4,"end":1.2,"text":"Bonjour à tous, on commence."}\n'
+        '{"type":"segment","speaker":"others","track":"remote","voice":null,"start":1.5,"end":2.5,"text":"Le budget de Jiri est validé."}\n'
+        '{"type":"complete","duration":3.0}\n'
+    )
+    (heard / "transcript.jsonl").write_text(before)
+    minutes = ("---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
+               "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    (heard / "minutes.md").write_text(minutes)
+    # Not complete: nothing to correct yet.
+    unfinished = meetings / "2026-10-27_11-00"
+    session(unfinished, now - dt.timedelta(days=1), 0.1, {"local.wav": 1000})
+    (unfinished / "transcript.jsonl").write_text(before.replace('{"type":"complete","duration":3.0}\n', ""))
+    settings = 'reminder = false\nminutes_provider = "http://127.0.0.1:9/v1"\nminutes_model = "mistral"\n'
+    window = Window(meetings, "fr_FR.UTF-8", settings)
+    pencils = "return [...document.querySelectorAll('#meeting .lines .edit')].filter(p => !p.hidden).length"
+    with window as browser:
+        browser.execute_script(f"location.hash = '#/meeting/{unfinished.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#meeting .lines li"), 10)
+        refused = browser.execute_script(
+            "return window.__TAURI__.core.invoke('transcript_corrected', {name: arguments[0], track: 'local', start: 0.4, text: 'x'}).then(() => 'kept', (why) => String(why))",
+            unfinished.name)
+        check("a transcript not complete offers no line to correct, and a correction asked is refused, the file as it was",
+              browser.execute_script(pencils) == 0 and "not complete" in refused and (unfinished / "transcript.jsonl").read_text() == before.replace('{"type":"complete","duration":3.0}\n', ""),
+              (browser.execute_script(pencils), refused))
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#meeting .lines .edit"), 10)
+        check("complete, each line has its pencil, named by the line's time", browser.execute_script(pencils) == 2
+              and browser.find_elements(By.CSS_SELECTOR, "#meeting .lines .edit")[1].get_attribute("aria-label") == "Corriger la ligne de 00:01")
+        check("before any correction, the minutes say nothing of one", not browser.find_elements(By.ID, "corrected-since"))
+        # By the keyboard alone: Tab from the first line reaches its pencil; Enter opens the field.
+        first = browser.find_element(By.CSS_SELECTOR, "#meeting .lines li")
+        browser.execute_script("arguments[0].focus()", first)
+        keys(browser, Keys.TAB)
+        on_pencil = browser.execute_script("return document.activeElement.classList.contains('edit')")
+        keys(browser, Keys.ENTER)
+        field = wait_for(browser, lambda b: focused(b) == "correcting", 2)
+        check("Tab from a line reaches its pencil, Enter opens the line as a field, focused, holding its text",
+              on_pencil and field and browser.execute_script("return document.activeElement.value") == "Bonjour à tous, on commence.")
+        # Escape: as it was.
+        keys(browser, Keys.END, " encore", Keys.ESCAPE)
+        back = wait_for(browser, lambda b: b.execute_script("return document.activeElement.classList.contains('edit')"), 2)
+        check("Escape leaves the line as it was, the focus back on its pencil, the file untouched",
+              back and (heard / "transcript.jsonl").read_text() == before
+              and browser.find_element(By.CSS_SELECTOR, "#meeting .lines .text").text == "Bonjour à tous, on commence.")
+        # Emptied: refused, said.
+        keys(browser, Keys.ENTER)
+        wait_for(browser, lambda b: focused(b) == "correcting", 2)
+        browser.execute_script("document.activeElement.select()")
+        keys(browser, Keys.DELETE, Keys.ENTER)
+        said = wait_for(browser, lambda b: "ne reste pas vide" in b.find_element(By.ID, "correction-said").text, 2)
+        check("a line left empty is refused, said, the field kept", said and focused(browser) == "correcting" and (heard / "transcript.jsonl").read_text() == before)
+        keys(browser, "Bonjour à toutes, on commence — Γιώργος 🙂", Keys.ENTER)
+        kept = wait_for(browser, lambda b: "toutes" in (heard / "transcript.jsonl").read_text(), 3)
+        after = (heard / "transcript.jsonl").read_text().splitlines()
+        changed = [i for i, (a, b) in enumerate(zip(before.splitlines(), after)) if a != b]
+        line = json.loads(after[1]) if len(after) > 1 else {}
+        check("Enter keeps it: the file differs by that line alone, its text as typed — any script —, edited when",
+              kept and len(after) == 4 and changed == [1] and line.get("text") == "Bonjour à toutes, on commence — Γιώργος 🙂"
+              and dt.datetime.fromisoformat(line.get("edited", "1970-01-01T00:00:00+00:00")) > now - dt.timedelta(minutes=30)
+              and {k: v for k, v in line.items() if k not in ("text", "edited")} == {k: v for k, v in json.loads(before.splitlines()[1]).items() if k != "text"},
+              after)
+        shown = browser.find_element(By.CSS_SELECTOR, "#meeting .lines li").text
+        check("the page shows it, marked « corrigé », the focus back on its pencil",
+              "Bonjour à toutes" in shown and "corrigé" in shown and browser.execute_script("return document.activeElement.classList.contains('edit')"), shown)
+        # Drawn again: the minutes, older than the correction, say so and offer to be made again.
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        offered = wait_for(browser, lambda b: b.find_elements(By.ID, "corrected-since"), 10)
+        check("the minutes written before it say the transcript was corrected since, and offer « Refaire avec les corrections »",
+              offered and "corrigé après ce compte rendu" in browser.find_element(By.ID, "corrected-since").text
+              and browser.find_element(By.ID, "redo-corrections").text == "Refaire avec les corrections")
+        time.sleep(2)
+        check("nothing is made again without that click", (heard / "minutes.md").read_text() == minutes)
+        # Refaire… of a corrected transcript says its corrections will not be kept.
+        press(browser, "redo-transcript")
+        warned = wait_for(browser, lambda b: b.find_elements(By.ID, "redo-loses-corrections"), 5)
+        check("Refaire… of a corrected transcript says, before it starts, that its corrections will not be kept",
+              warned and "ne seront pas gardées" in browser.find_element(By.ID, "redo-loses-corrections").text)
+        browser.execute_script(f"location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-corrections"), 10)
+        press(browser, "redo-corrections")
+        remade = wait_for(browser, lambda b: (heard / "minutes.md").read_text() != minutes, 10)
+        check("« Refaire avec les corrections »: the minutes made again by whoever the settings name, from the corrected transcript",
+              remade and "model: mistral" in (heard / "minutes.md").read_text(), (heard / "minutes.md").read_text()[:200])
+
+
 def context_written(now: dt.datetime) -> None:
     """O. A meeting's context (D59): written during a recording, by the keyboard, heard by the
     transcript and the minutes; changed after, made again with it; the field closed meanwhile."""
@@ -3160,6 +3268,7 @@ def main() -> int:
     first_run(now)
     context_written(now)
     confidential_kept(now)
+    transcript_corrected(now)
     return 1 if FAILED else 0
 
 

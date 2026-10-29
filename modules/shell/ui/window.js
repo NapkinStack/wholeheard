@@ -377,6 +377,12 @@ function paintMakings() {
       offer: "make-minutes", again: "minutes-again", ask: "minutes_again", making: words.minutes_making, not_made: words.minutes_not_made,
     });
   }
+  // No line corrected while the transcript is made or waits to be (D62): its pencils hidden.
+  for (const pencil of document.querySelectorAll("#meeting .lines .edit")) {
+    if (pencil.parentElement.querySelector(".correcting")) continue;
+    const kind = transcriptState(pencil.dataset.name)?.kind;
+    pencil.hidden = kind !== undefined && kind !== "failed";
+  }
   const transcript = document.getElementById("transcript-state");
   if (transcript) {
     paintState(transcript, transcriptState(transcript.dataset.name), {
@@ -722,7 +728,7 @@ function redoPanel(choices, session, words, button) {
   return panel;
 }
 
-function redoTranscriptPanel(shown, session, words, button) {
+function redoTranscriptPanel(shown, session, words, button, corrected) {
   const panel = element("section", "redo");
   panel.id = "redo-transcript-panel";
   panel.append(element("h3", "", words.redo_transcript_title), element("p", "says", words.redo_with));
@@ -757,7 +763,14 @@ function redoTranscriptPanel(shown, session, words, button) {
       go.replaceWith(element("p", "note warn", fill(words.not_saved, why)));
     }
   });
-  panel.append(list, element("p", "says", words.redo_transcript_note), go);
+  panel.append(list, element("p", "says", words.redo_transcript_note));
+  // Made again, the transcript is another file: a person's corrections are not in it (ADR-0014).
+  if (corrected) {
+    const lost = element("p", "note warn", words.redo_loses_corrections);
+    lost.id = "redo-loses-corrections";
+    panel.append(lost);
+  }
+  panel.append(go);
   return panel;
 }
 
@@ -801,6 +814,22 @@ function minutesCard(read, words, session, transcript) {
   if (read.provider) maker += fill(words.written_via, read.provider);
   if (made) maker += ` · ${new Intl.DateTimeFormat(words.locale, day).format(made)} ${words.at} ${new Intl.DateTimeFormat(words.locale, hour).format(made)}`;
   card.append(element("p", "maker", maker));
+  // The transcript corrected after they were written (D62): said, and made again only on a click.
+  const corrected = transcript.state === "present" ? Math.max(0, ...transcript.segments.map((segment) => Date.parse(segment.edited ?? "") || 0)) : 0;
+  if (corrected > (Date.parse(read.made ?? "") || 0)) {
+    const since = element("div", "corrected-since");
+    since.id = "corrected-since";
+    const again = element("button", "open", words.redo_corrections);
+    again.type = "button";
+    again.id = "redo-corrections";
+    again.addEventListener("click", async () => {
+      again.disabled = true;
+      await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: null, model: null }).catch(() => {});
+      readMakings();
+    });
+    since.append(element("p", "note", words.corrected_since), again);
+    card.append(since);
+  }
   // The minutes as written, rendered by the shell: raw HTML in them is text there, a link its words.
   const body = element("div", "body");
   body.innerHTML = read.body;
@@ -813,7 +842,13 @@ const folded = (text) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCas
 // The one line of a transcript in the order of Tab: this one, the others reached by the arrows.
 function roam(lines, line) {
   if (!line || line.tabIndex === -1 && !line.hasAttribute("role")) return;
-  for (const other of lines.children) if (other.hasAttribute("role")) other.tabIndex = other === line ? 0 : -1;
+  for (const other of lines.children) {
+    if (!other.hasAttribute("role")) continue;
+    other.tabIndex = other === line ? 0 : -1;
+    // Its pencil follows it in the order of Tab: one line, one pencil reached by Tab (D62).
+    const pencil = other.querySelector(".edit");
+    if (pencil) pencil.tabIndex = other.tabIndex;
+  }
 }
 
 function transcriptCard(read, words, session) {
@@ -849,7 +884,7 @@ function transcriptCard(read, words, session) {
   redo.id = "redo-transcript";
   redo.addEventListener("click", async () => {
     const shown = await window.__TAURI__.core.invoke("settings_shown");
-    redo.replaceWith(redoTranscriptPanel(shown, session, words, redo));
+    redo.replaceWith(redoTranscriptPanel(shown, session, words, redo, read.segments.some((segment) => segment.edited)));
   });
   // Beside who heard it, as board 2 has it: the head keeps its search whole.
   const heard = element("div", "made");
@@ -865,6 +900,11 @@ function transcriptCard(read, words, session) {
   if (!read.complete) card.append(element("p", "note", words.being_made));
   if (read.unread > 0) card.append(element("p", "note", fill(words.unread, read.unread)));
   const lines = element("ol", "lines");
+  // What a correction met, said where a screen reader hears it.
+  const said_ = element("p", "says");
+  said_.id = "correction-said";
+  said_.setAttribute("role", "status");
+  card.append(said_);
   for (const segment of read.segments) {
     const line = element("li");
     line.dataset.track = segment.track;
@@ -901,8 +941,71 @@ function transcriptCard(read, words, session) {
     const side = segment.track === "local" ? words.here : words.remote;
     const who = segment.voice === null ? side : `${side} · ${fill(words.voice, segment.voice)}`;
     const said = element("div", "said");
-    said.append(element("span", `who ${segment.track}`, who), element("span", "text", segment.text));
+    const text = element("span", "text", segment.text);
+    said.append(element("span", `who ${segment.track}`, who), text);
+    if (segment.edited) said.append(element("span", "edited", words.corrected));
     line.append(element("span", "at", clock(segment.start)), said);
+    // Corrected by whoever listens, once complete (D62): the line becomes a field; Enter or leaving
+    // it keeps what is typed, Escape leaves it as it was.
+    if (read.complete) {
+      const pencil = element("button", "edit", "✎");
+      pencil.type = "button";
+      pencil.dataset.name = nameOf(session);
+      pencil.setAttribute("aria-label", fill(words.correct_line, clock(segment.start)));
+      pencil.title = pencil.getAttribute("aria-label");
+      pencil.tabIndex = line.hasAttribute("role") ? line.tabIndex : 0;
+      // Its own keys: Enter on it opens the field, never plays the line it sits in.
+      pencil.addEventListener("keydown", (event) => event.stopPropagation());
+      pencil.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const field = element("input", "correcting");
+        field.type = "text";
+        field.value = text.textContent;
+        field.setAttribute("aria-label", pencil.getAttribute("aria-label"));
+        let done = false;
+        const leave = (kept) => {
+          done = true;
+          if (kept !== null) text.textContent = kept;
+          field.replaceWith(text);
+          pencil.hidden = false;
+        };
+        const keep = async () => {
+          if (done) return;
+          if (field.value === text.textContent) return leave(null);
+          if (field.value.replace(/[\r\n]+/g, " ").trim() === "") {
+            said_.textContent = words.correction_empty;
+            return field.focus();
+          }
+          done = true;
+          try {
+            await window.__TAURI__.core.invoke("transcript_corrected", { name: nameOf(session), track: segment.track, start: segment.start, text: field.value });
+            said_.textContent = "";
+            if (!said.querySelector(".edited")) said.append(element("span", "edited", words.corrected));
+            leave(field.value.replace(/[\r\n]+/g, " ").trim());
+          } catch (why) {
+            said_.textContent = fill(words.correction_failed, why);
+            leave(null);
+          }
+        };
+        for (const kind of ["click", "keydown"]) field.addEventListener(kind, (event) => event.stopPropagation());
+        field.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            keep().then(() => pencil.focus());
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            said_.textContent = "";
+            leave(null);
+            pencil.focus();
+          }
+        });
+        field.addEventListener("blur", () => keep());
+        text.replaceWith(field);
+        pencil.hidden = true;
+        field.focus();
+      });
+      line.append(pencil);
+    }
     lines.append(line);
   }
   const nothing = element("p", "none", words.no_match);
