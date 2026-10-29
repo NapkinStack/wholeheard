@@ -79,6 +79,7 @@ SUMMARY.chmod(0o755)
 HEARING = WORK / "wholeheard-transcription"
 HEARING.write_text(
     """#!/bin/sh
+printf '%s\\n' "$*" > "$(dirname "$0")/hearing-args"
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
 engine=whisper.cpp
 model=$(basename "$3" .bin)
@@ -1305,6 +1306,67 @@ def first_run(now: dt.datetime) -> None:
             server.shutdown()
 
 
+def meeting_language(now: dt.datetime) -> None:
+    """AC. The language meetings are spoken in, and each meeting's own (D65)."""
+    print("AC. the meetings' language in Settings, a meeting's own on its page, told to the transcription (D65)")
+    meetings = WORK / "speaking"
+    heard = meetings / "2026-10-27_14-00"
+    session(heard, now - dt.timedelta(days=1), 0.1, {"local.wav": 1000})
+    model = WORK / "speaking-model.bin"
+    model.write_bytes(b"\0" * 16)
+    window = Window(meetings, "fr_FR.UTF-8", f'reminder = false\nmodel = "{model}"\n')
+    args = WORK / "hearing-args"
+    told = lambda: args.read_text() if args.exists() else ""
+    with window as browser:
+        press(browser, "settings-link")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meetings-language"), 10)
+        offered = [o.text for o in Select(browser.find_element(By.ID, "meetings-language")).options]
+        label = browser.execute_script("return document.querySelector('label[for=meetings-language]')?.textContent")
+        check("Settings offer the meetings' language, detected by default, French and English first, labelled",
+              offered[:3] == ["Détectée par la transcription", "Français", "English"] and label == "Langue des réunions"
+              and Select(browser.find_element(By.ID, "meetings-language")).first_selected_option.text == "Détectée par la transcription", (offered, label))
+        choose(browser, "meetings-language", "en")
+        saved = wait_for(browser, lambda b: 'meeting_language = "en"' in window.file.read_text(), 5)
+        check("chosen, it is the settings' default", saved, window.file.read_text())
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
+        own = Select(browser.find_element(By.ID, "meeting-language"))
+        check("a meeting's page offers its own language, the settings' by default — the language they name said",
+              own.first_selected_option.text == "Celle des Réglages — English" and not (heard / "language").exists(), own.first_selected_option.text)
+        choose(browser, "meeting-language", "de")
+        written = wait_for(browser, lambda b: (heard / "language").exists() and (heard / "language").read_text() == "de\n", 5)
+        check("chosen on its page, the meeting's language file holds its code alone", written)
+        args.unlink(missing_ok=True)
+        press(browser, "make-transcript")
+        made = wait_for(browser, lambda b: (heard / "transcript.jsonl").exists() and "--language" in told(), 15)
+        check("its transcript is heard in the meeting's own language", made and "--language de" in told(), told())
+        choose(browser, "meeting-language", "")
+        removed = wait_for(browser, lambda b: not (heard / "language").exists(), 5)
+        check("« Celle des Réglages »: the file removed", removed)
+        args.unlink(missing_ok=True)
+        browser.execute_script("window.__TAURI__.core.invoke('transcript_redo', {name: arguments[0], model: arguments[1]})", heard.name, str(model))
+        again = wait_for(browser, lambda b: "--language" in told(), 15)
+        check("made again with none of its own: heard in the settings' language", again and "--language en" in told(), told())
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meetings-language"), 10)
+        choose(browser, "meetings-language", "")
+        wait_for(browser, lambda b: "meeting_language" not in window.file.read_text(), 5)
+        args.unlink(missing_ok=True)
+        browser.execute_script("window.__TAURI__.core.invoke('transcript_redo', {name: arguments[0], model: arguments[1]})", heard.name, str(model))
+        detected = wait_for(browser, lambda b: told() != "", 15)
+        check("« Détectée »: no language told, the engine detects it", detected and "--language" not in told() and "meeting_language" not in window.file.read_text(), (told(), window.file.read_text()))
+        refused = [browser.execute_script(
+            "return window.__TAURI__.core.invoke('language_set', {name: arguments[0], language: arguments[1]}).then(() => 'kept', (why) => String(why))", heard.name, text)
+            for text in ("Deutsch", "zz")]
+        check("a text that is not a code of ISO 639-1 is refused, nothing written", "kept" not in refused and not (heard / "language").exists(), refused)
+        browser.execute_script(f"location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
+        said = Select(browser.find_element(By.ID, "meeting-language")).first_selected_option.text
+        check("the settings detecting it, the page says « détectée »", said == "Celle des Réglages — détectée", said)
+
+
 def transcript_corrected(now: dt.datetime) -> None:
     """AB. A line of a transcript corrected by whoever listens to it (D62, ADR-0014)."""
     print("AB. a transcript's line corrected by whoever listens, the minutes offered again (D62)")
@@ -2278,7 +2340,7 @@ def main() -> int:
         changed(lambda: browser.find_element(By.ID, "developer").click())
         # When an application takes the microphone (D30, board 4): offer to record by default;
         # nothing chosen here, then the offer again, each written.
-        offer_on = Select(browser.find_element(By.ID, "offer")).first_selected_option.get_attribute("value") == "offer"
+        offer_on = read(browser, lambda b: Select(b.find_element(By.ID, "offer")).first_selected_option.get_attribute("value")) == "offer"
         changed(lambda: Select(browser.find_element(By.ID, "offer")).select_by_value("nothing"))
         offer_off = "offer = false" in window.file.read_text()
         changed(lambda: Select(browser.find_element(By.ID, "offer")).select_by_value("offer"))
@@ -2288,16 +2350,16 @@ def main() -> int:
         # off, then turned off by the desktop's tools, then on again, each read from the entry.
         entry = window.file.parent.parent / "autostart" / "dev.wholeheard.Wholeheard.desktop"
         switch = lambda: browser.find_element(By.ID, "autostart")
-        start_on = switch().is_selected() and entry.is_file() and "Exec=wholeheard\n" in entry.read_text()
+        start_on = read(browser, lambda b: switch().is_selected()) and entry.is_file() and "Exec=wholeheard\n" in entry.read_text()
         changed(lambda: switch().click())
-        start_off = not switch().is_selected() and not entry.exists() and "autostart = false" in window.file.read_text()
+        start_off = not read(browser, lambda b: switch().is_selected()) and not entry.exists() and "autostart = false" in window.file.read_text()
         entry.write_text("[Desktop Entry]\nType=Application\nExec=wholeheard\nX-GNOME-Autostart-enabled=false\n")
         browser.execute_script("location.hash = '#/'")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 10)
         to_settings()
-        tools_off = not switch().is_selected()
+        tools_off = not read(browser, lambda b: switch().is_selected())
         changed(lambda: switch().click())
-        start_again = switch().is_selected() and "TryExec=wholeheard\n" in entry.read_text() and "autostart = true" in window.file.read_text()
+        start_again = read(browser, lambda b: switch().is_selected()) and "TryExec=wholeheard\n" in entry.read_text() and "autostart = true" in window.file.read_text()
         check("the session starts Wholeheard from its first start; turned off here or by the desktop's tools, on again",
               start_on and start_off and tools_off and start_again, (start_on, start_off, tools_off, start_again))
         text = window.file.read_text()
@@ -3415,6 +3477,7 @@ def main() -> int:
     first_run(now)
     context_written(now)
     confidential_kept(now)
+    meeting_language(now)
     transcript_corrected(now)
     return 1 if FAILED else 0
 

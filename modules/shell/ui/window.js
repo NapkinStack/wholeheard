@@ -105,6 +105,43 @@ function leftSaid(words, left) {
   return each.length === 0 ? "" : fill(words.confidential_left, each.join(" · "));
 }
 
+// The language a meeting is spoken in (D65): the settings' own, or one of its own — its next
+// transcript heard in it. Written at once; refused, said, the choice put back.
+function languageRow(session, language, languages, words, settled) {
+  const row = element("div", "row language");
+  const label = element("label", "name", words.language_label);
+  label.htmlFor = "meeting-language";
+  const pick = element("select");
+  pick.id = "meeting-language";
+  const add = (value, text) => {
+    const option = element("option", "", text);
+    option.value = value;
+    pick.append(option);
+  };
+  // What « as in Settings » means, said: the language they name, or detected.
+  const settledSaid = settled ? languages.find(([code]) => code === settled)?.[1] ?? settled : words.language_detected_short;
+  add("", `${words.language_default} — ${settledSaid}`);
+  for (const [code, said] of languages) add(code, said);
+  if (language && !languages.some(([code]) => code === language)) add(language, language);
+  pick.value = language ?? "";
+  const said = element("p", "says");
+  said.id = "language-said";
+  said.setAttribute("role", "status");
+  let kept = pick.value;
+  pick.addEventListener("change", async () => {
+    try {
+      await window.__TAURI__.core.invoke("language_set", { name: nameOf(session), language: pick.value || null });
+      kept = pick.value;
+      said.textContent = "";
+    } catch (why) {
+      pick.value = kept;
+      said.textContent = fill(words.language_not_saved, why);
+    }
+  });
+  row.append(label, pick, said);
+  return row;
+}
+
 // The switch on a meeting's page: the file written or removed at once; what had left said.
 function confidentialCard(session, confidential, words) {
   const name = nameOf(session);
@@ -1182,7 +1219,7 @@ document.addEventListener("keydown", (event) => {
   player.playing() ? player.pause() : player.play();
 });
 
-function showMeeting({ session, transcript, minutes, developer, listen: listened, context, confidential }, words) {
+function showMeeting({ session, transcript, minutes, developer, listen: listened, context, confidential, language, languages, meeting_language }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
   const back = element("a", "back", `‹ ${words.back}`);
@@ -1237,7 +1274,9 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
   page.dataset.name = nameOf(session);
-  page.replaceChildren(top, title, confidentialCard(session, confidential, words), contextCard(session, { context, transcript, minutes }, words), drawn, columns);
+  const kept = confidentialCard(session, confidential, words);
+  kept.append(languageRow(session, language, languages, words, meeting_language));
+  page.replaceChildren(top, title, kept, contextCard(session, { context, transcript, minutes }, words), drawn, columns);
   // The line being said, marked while it plays; the page stays where the user left it (D26, the
   // decider, 2026-10-24: following the line was intrusive).
   if (player?.name === nameOf(session)) {
@@ -1749,7 +1788,27 @@ function showSettings(shown, minutes, words) {
   row.append(label, pick);
   const here = element("p", "status here", words.on_this_computer);
   here.append(element("code", "tag", words.builtin));
-  step.append(row, speech, service, here);
+  // The language meetings are spoken in, unless one says its own (D65): detected by default.
+  const spokenRow = element("div", "row");
+  const spokenLabel = element("label", "name", words.meetings_language);
+  spokenLabel.htmlFor = "meetings-language";
+  const spokenPick = element("select");
+  spokenPick.id = "meetings-language";
+  spokenPick.disabled = locked;
+  const spokenAdd = (value, text) => {
+    const option = element("option", "", text);
+    option.value = value;
+    spokenPick.append(option);
+  };
+  // SpeechAnalyzer hears French and English and detects none: those two, or Wholeheard's own.
+  const apple = shown.engine === "speechanalyzer";
+  spokenAdd("", apple ? words.language_as_app : words.language_detected);
+  for (const [code, said] of shown.languages) if (!apple || code === "fr" || code === "en") spokenAdd(code, said);
+  if (shown.meeting_language && !shown.languages.some(([code]) => code === shown.meeting_language)) spokenAdd(shown.meeting_language, shown.meeting_language);
+  spokenPick.value = shown.meeting_language ?? "";
+  spokenPick.addEventListener("change", () => save({ meeting_language: spokenPick.value }));
+  spokenRow.append(spokenLabel, spokenPick);
+  step.append(row, speech, service, here, spokenRow);
   // The short list of models to download, each said by what it is good for (D37).
   const offered = element("ul", "offered");
   offered.id = "offered";

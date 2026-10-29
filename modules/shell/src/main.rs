@@ -40,7 +40,7 @@ use wholeheard_shell::{
     registry,
     sessions::{self, Listed},
     settings::{self, After, Engine, KeepAudio, Log, Settings},
-    speech,
+    speech, spoken,
     summarising::{self, Summarising},
     transcription::{self, Hearer, Made, Transcription},
     words::{self, Language, Notice, Refusal, Trouble},
@@ -238,6 +238,7 @@ fn main() {
             context_shown,
             context_saved,
             context_redo,
+            language_set,
             confidential_set,
             transcript_redo,
             transcript_corrected,
@@ -908,6 +909,11 @@ struct Opened {
     listen: Option<String>,
     context: ContextShown,
     confidential: ConfidentialShown,
+    /// The language it says it is spoken in, if it says one, and those offered first (D65).
+    language: Option<String>,
+    languages: Vec<(&'static str, &'static str)>,
+    /// The settings' language for meetings, none: detected — what « as in Settings » means.
+    meeting_language: Option<String>,
 }
 
 #[tauri::command]
@@ -926,7 +932,20 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
         listen: playable(&shell, &folder),
         context: context_of(&shell, &folder),
         confidential: confidential_of(&shell, &folder),
+        language: spoken::read(&folder),
+        languages: spoken::OFFERED.to_vec(),
+        meeting_language: shell.settings().meeting_language,
     })
+}
+
+/// The language a meeting is spoken in, said on its page (D65): a code written, or none removed —
+/// the settings' default then. Its next transcript is heard in it.
+#[tauri::command]
+fn language_set(shell: State<'_, Shell>, name: String, language: Option<String>) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    spoken::mark(&folder, language.as_deref().filter(|code| !code.trim().is_empty())).map_err(|error| error.to_string())?;
+    tracing::info!(language = language.as_deref().unwrap_or("none"), "shell.language_set");
+    Ok(())
 }
 
 /// Whether a meeting is said confidential, and what had left before it was (D60).
@@ -1353,6 +1372,9 @@ struct SettingsShown {
     registry_host: String,
     /// The services that hear, offered by name (D63).
     hearing: Vec<providers::Hearing>,
+    /// The language meetings are spoken in, none: detected; and those offered first (D65).
+    meeting_language: Option<String>,
+    languages: Vec<(&'static str, &'static str)>,
     developer: bool,
     log: Log,
     unreadable: Option<String>,
@@ -1402,6 +1424,8 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         models,
         registry_host: registry::host(&registry_address()).to_owned(),
         hearing: providers::hearing(),
+        meeting_language: settings.meeting_language.clone(),
+        languages: spoken::OFFERED.to_vec(),
         offered: offered()
             .iter()
             .enumerate()
@@ -1433,6 +1457,8 @@ struct Change {
     engine: Option<Engine>,
     developer: Option<bool>,
     log: Option<Log>,
+    /// The language meetings are spoken in (D65): a code, or empty for « detected ».
+    meeting_language: Option<String>,
 }
 
 /// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
@@ -1472,6 +1498,12 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
     }
     if let Some(developer) = change.developer {
         settings.developer = developer;
+    }
+    if let Some(language) = change.meeting_language {
+        settings.meeting_language = match language.trim() {
+            "" => None,
+            text => Some(spoken::code(text).ok_or_else(|| format!("{text} is no language's code"))?),
+        };
     }
     if let Some(log) = change.log {
         settings.log = log;
@@ -2652,11 +2684,14 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(format!("the transcript there could not be set aside ({error}): nothing was made")),
     };
+    // The language the meeting says it is spoken in, else the settings' (D65).
+    let spoken = spoken::read(&folder).or_else(|| settings.meeting_language.clone());
     let started = Transcription::start_with(
         &program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"),
         &folder,
         &hearer,
         key.as_deref(),
+        spoken.as_deref(),
     );
     let (transcription, made) = match started {
         Ok(started) => started,
@@ -2791,11 +2826,14 @@ fn transcribe(app: &AppHandle, folder: PathBuf) {
         }
         return;
     }
+    // The language the meeting says it is spoken in, else the settings' (D65).
+    let spoken = spoken::read(&folder).or_else(|| settings.meeting_language.clone());
     let started = Transcription::start_with(
         &program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION"),
         &folder,
         &hearer,
         key.as_deref(),
+        spoken.as_deref(),
     );
     let (transcription, made) = match started {
         Ok(started) => started,

@@ -106,6 +106,9 @@ pub struct Settings {
     /// chosen yet.
     pub minutes_provider: Option<String>,
     pub minutes_model: Option<String>,
+    /// The language meetings are spoken in, unless one says its own (D65): a code of ISO 639-1;
+    /// none, the engine detects it.
+    pub meeting_language: Option<String>,
     /// The host the user agreed to send a meeting to, the first time minutes went to it; another
     /// host asks again. None: none yet.
     pub minutes_agreed: Option<String>,
@@ -143,6 +146,7 @@ impl Default for Settings {
             transcription_agreed: None,
             minutes_provider: None,
             minutes_model: None,
+            meeting_language: None,
             minutes_agreed: None,
             keep_audio: KeepAudio::Always,
             developer: false,
@@ -200,6 +204,7 @@ struct Written {
     transcription_agreed: Option<String>,
     minutes_provider: Option<String>,
     minutes_model: Option<String>,
+    meeting_language: Option<String>,
     minutes_agreed: Option<String>,
     keep_audio: Option<toml::Spanned<toml::Value>>,
     developer: Option<bool>,
@@ -254,6 +259,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     };
     settings.minutes_provider = written.minutes_provider.filter(|named| !named.trim().is_empty());
     settings.minutes_model = written.minutes_model.filter(|named| !named.trim().is_empty());
+    settings.meeting_language = written.meeting_language.as_deref().and_then(crate::spoken::code);
     settings.minutes_agreed = written.minutes_agreed.filter(|named| !named.trim().is_empty());
     settings.transcription_provider = written.transcription_provider.filter(|named| !named.trim().is_empty());
     settings.transcription_model = written.transcription_model.filter(|named| !named.trim().is_empty());
@@ -369,6 +375,7 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     for (key, named, was) in [
         ("minutes_provider", &settings.minutes_provider, &before.minutes_provider),
         ("minutes_model", &settings.minutes_model, &before.minutes_model),
+        ("meeting_language", &settings.meeting_language, &before.meeting_language),
         ("minutes_agreed", &settings.minutes_agreed, &before.minutes_agreed),
         (
             "transcription_provider",

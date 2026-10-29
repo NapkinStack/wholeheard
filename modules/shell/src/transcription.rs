@@ -33,11 +33,11 @@ pub enum Hearer {
     SpeechAnalyzer {
         language: String,
     },
-    /// A service the user named (D43): its address, its model, the language asked.
+    /// A service the user named (D43): its address, its model — the language is the meeting's,
+    /// told when it says one (D65).
     Service {
         provider: String,
         model: String,
-        language: String,
     },
 }
 
@@ -98,7 +98,6 @@ impl Hearer {
                 return Hearer::Service {
                     provider: provider.clone(),
                     model: model.clone(),
-                    language: language.into(),
                 };
             }
         }
@@ -129,11 +128,19 @@ impl Transcription {
     /// Starts the program that hears on a session's folder, with who hears. How it ended
     /// comes once on the receiver: `Written` only when it ended well with the transcript there.
     pub fn start(program: &Path, folder: &Path, hearer: &Hearer) -> io::Result<(Self, Receiver<Made>)> {
-        Self::start_with(program, folder, hearer, None)
+        Self::start_with(program, folder, hearer, None, None)
     }
 
-    /// The same, a service's key handed in the program's environment, never its arguments.
-    pub fn start_with(program: &Path, folder: &Path, hearer: &Hearer, key: Option<&str>) -> io::Result<(Self, Receiver<Made>)> {
+    /// The same, a service's key handed in the program's environment, never its arguments; and the
+    /// language the meeting is spoken in, when it or the settings say one (D65) — told to Whisper
+    /// and a service, and to SpeechAnalyzer when it hears it.
+    pub fn start_with(
+        program: &Path,
+        folder: &Path,
+        hearer: &Hearer,
+        key: Option<&str>,
+        spoken: Option<&str>,
+    ) -> io::Result<(Self, Receiver<Made>)> {
         let (trace, making) = crate::log::making();
         let _making = making.enter();
         let mut command = Command::new(program);
@@ -141,14 +148,23 @@ impl Transcription {
         let model = match hearer {
             Hearer::Model(model) => {
                 command.arg("--model").arg(model);
+                if let Some(spoken) = spoken {
+                    command.args(["--language", spoken]);
+                }
                 named(model)
             }
             Hearer::SpeechAnalyzer { language } => {
+                // It hears French and English, and detects none: the app's language otherwise.
+                let language = spoken.filter(|spoken| matches!(*spoken, "fr" | "en")).unwrap_or(language);
                 command.args(["--engine", "speechanalyzer", "--language", language]);
                 "SpeechAnalyzer".to_string()
             }
-            Hearer::Service { provider, model, language } => {
-                command.args(["--provider", provider, "--model", model, "--language", language]);
+            Hearer::Service { provider, model, .. } => {
+                command.args(["--provider", provider, "--model", model]);
+                // None said: the service detects it — never the app's language (D64, D65).
+                if let Some(spoken) = spoken {
+                    command.args(["--language", spoken]);
+                }
                 model.clone()
             }
         };
