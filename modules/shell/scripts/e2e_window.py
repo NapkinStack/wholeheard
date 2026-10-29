@@ -779,8 +779,8 @@ def service_named(now: dt.datetime) -> None:
         check("agreed, the service is saved as who hears, its host kept as agreed",
               saved and 'transcription_agreed = "hears.example"' in window.file.read_text() and "whisper-1" in window.file.read_text(), window.file.read_text())
         browser.find_element(By.ID, "transcription-test").click()
-        tested = wait_for(browser, lambda b: b.execute_script(said) and "Enregistré" not in b.execute_script(said), 10)
-        check("Tester says in one sentence what the service answered", tested, browser.execute_script(said))
+        tested = wait_for(browser, lambda b: b.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), 10)
+        check("Tester says in one sentence what the service answered: it hears, with each segment's times", tested, browser.execute_script(said))
         # Who heard a meeting, said where it is read: the service's host, never « sur cet ordinateur ».
         browser.execute_script("location.hash = '#/meeting/heard'")
         makers = lambda b: [p.text for p in b.find_elements(By.CSS_SELECTOR, "#meeting .maker")]
