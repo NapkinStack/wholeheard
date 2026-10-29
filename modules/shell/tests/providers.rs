@@ -6,7 +6,9 @@ use std::{
     thread,
 };
 
-use wholeheard_shell::providers::{self, ONLINE, hearing, hearing_listed, host, local, ollama_address, ollama_listed, ollama_models, ollama_pull};
+use wholeheard_shell::providers::{
+    self, ONLINE, hearing, hearing_listed, host, local, ollama_address, ollama_listed, ollama_models, ollama_pull,
+};
 
 /// A server that answers each request with `body`, as many times as asked.
 fn answering(body: &'static str, times: usize) -> String {
