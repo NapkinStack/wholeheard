@@ -2352,7 +2352,7 @@ def main() -> int:
         # Every action from the keyboard: the first stop of Tab is the section's link.
         browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.id")
-        check("Tab reaches the window's first action, in the sidebar: the small window's (D35, D61)", focused == "small-link", focused)
+        check("Tab reaches the window's first action, in the sidebar: the button that folds it (D61)", focused == "fold", focused)
         # A session recorded meanwhile is shown when the window comes forward again.
         session(sessions / "d", now - dt.timedelta(minutes=5), 3, {"local.wav": 1000, "remote.wav": 1000})
         browser.execute_script("window.dispatchEvent(new Event('focus'))")
@@ -2383,9 +2383,9 @@ def main() -> int:
         json.dumps(lines[0]) + "\n" + json.dumps({"type": "segment", "speaker": "me", "track": "local", "voice": None, "start": 1.0, "end": 2.0, "text": "Une autre réunion."}) + "\n"
     )
     with Window(meetings, "fr_FR.UTF-8") as browser:
-        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB, Keys.TAB)
+        browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB, Keys.TAB)
         focused = browser.execute_script("return document.activeElement.id")
-        check("Tab reaches the sidebar's gesture after the small window's and the one that folds it (D35, D61)", focused == "record", focused)
+        check("Tab reaches the sidebar's gesture after the button that folds it (D61)", focused == "record", focused)
         browser.find_element(By.ID, "record").send_keys(Keys.TAB)
         focused = browser.execute_script("return document.activeElement.id")
         check("then the search of the meetings", focused == "find", focused)

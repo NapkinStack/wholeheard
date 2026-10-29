@@ -2905,8 +2905,9 @@ document.getElementById("fold").addEventListener("click", () => fold(true));
 document.getElementById("unfold").addEventListener("click", () => fold(false));
 // Ctrl+B, ⌘B on a Mac, outside a text field: the convention of sidebars that fold.
 document.addEventListener("keydown", (event) => {
-  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "b") return;
-  const typing = event.target.closest?.("input, textarea, select, [contenteditable]");
+  // The key where B is, whatever the layout writes there; held down, it folds once.
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.code !== "KeyB" || event.repeat) return;
+  const typing = event.target.closest?.("textarea, select, [contenteditable], input:not([type=checkbox], [type=radio], [type=button])");
   if (typing || narrow.matches || document.getElementById("frame").hidden || document.body.classList.contains("small-window")) return;
   event.preventDefault();
   fold(!document.body.classList.contains("folded"));

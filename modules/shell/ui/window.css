@@ -355,7 +355,7 @@ body.small-window .frame { display: none; }
 }
 .side-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .side-top .brand { font-size: 16px; gap: 8px; }
-.side-top .open { min-height: 34px; padding: 0 10px; font-size: 13px; }
+.side-top #fold { flex: none; }
 .sidebar .act { margin: 0; flex-direction: column; align-items: stretch; gap: 4px; }
 .sidebar .act .primary { justify-content: center; min-height: 42px; padding: 0 12px; white-space: nowrap; font-size: 14.5px; }
 .sidebar .keys { text-align: center; font: 12px ui-monospace, monospace; color: var(--soft); background: transparent; padding: 0; }
@@ -381,7 +381,9 @@ body.small-window .frame { display: none; }
 .foot .total strong { font-size: 16px; }
 .foot .total #free-link { min-height: 30px; padding: 0 10px; font-size: 12.5px; }
 .foot .legend { font-size: 11.5px; gap: 2px 12px; }
+.foot nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .foot nav a { display: block; padding: 8px 10px; border-radius: 10px; }
+.foot nav .open { min-height: 32px; padding: 0 10px; font-size: 13px; white-space: nowrap; }
 .foot nav a[aria-current="page"] { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); }
 .pane { flex: 1; min-width: 0; container: pane / inline-size; }
 .pane > .back { display: none; }
