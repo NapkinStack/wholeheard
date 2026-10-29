@@ -98,7 +98,7 @@ deliverables:
   - id: D60
     title: "A meeting said confidential is transcribed and summarised on this computer alone, whatever the settings say"
     module: shell
-    state: in-progress
+    state: accepted
     acceptance:
       - "Given `contracts/session-audio/v2` and v1, when their pages are changed — in a pull request of the contracts module alone, merged first —, then each says an optional file `confidential`, empty, written by the shell on the user's word, which only the shell reads: it asks the shell to make the meeting on this computer alone; the steps that follow need not read it"
       - "Given the window while recording, and a meeting's page, when the user turns on « Réunion confidentielle » — « rien ne quitte cet ordinateur » —, then the file is written, and turned off it is removed; the page and the list of meetings show it with a lock and its words"
@@ -485,6 +485,23 @@ in one gesture: this one leaves nothing on the machine. The connected mode for f
   service is the user's own choice.
 - The connected mode has not met a real service yet (#463): the stand-in service's count of requests
   is what holds "nothing is sent".
+
+**Accepted, 2026-10-29**, on the decider's words that day, « tu peux valider en autonomie ». Built by
+#493 (the contract, first), #498 and #499. What #498's sheet passed on reading alone, the ways a
+meeting is made again, was run by #543. Each criterion is held by a scenario of the sheets:
+
+| Criterion | Held by |
+|---|---|
+| 1. `session-audio` v2 and v1 say an optional empty `confidential`, read by the shell alone, changed first | #493 S1, S2 |
+| 2. « Réunion confidentielle » while recording and on a meeting's page; the file written, removed; a lock in the page and the list | #498 S1, S6 |
+| 3. Made here — after the stop, by *Réessayer*, by *Refaire…*, from the tray —: Whisper with the settings' model, Ollama's model for the minutes, nothing asked nor sent; the model missing or Ollama silent, said and offered | #498 S2, S4; #543 S1 (from the tray), S2 (*Réessayer*), S3 (the minutes from the tray, « Refaire avec ce contexte ») |
+| 4. Turned on while a service makes it, while its agreement is asked, after a service wrote: ended, made here, what left said | #498 S3 |
+| 5. The tests and the e2e: a stand-in service counting no request; turned off, the settings choose again | #498 S2, S5; #499 S1 |
+
+What no scenario runs: Apple's SpeechAnalyzer itself, which a confidential meeting keeps where it is
+chosen — the shell's unit tests hold that it is kept, a Mac's trial (#426) would run it; *Refaire…*
+with a model, Whisper's alone by design (D59); a real service (#463). Known, said in #498: a meeting
+turned confidential while the keyring is read says « parti » though nothing left.
 
 ### D61
 
