@@ -1415,6 +1415,12 @@ def meeting_language(now: dt.datetime) -> None:
         offered = [o.text for o in Select(browser.find_element(By.ID, "meeting-language")).options]
         check("SpeechAnalyzer hearing: the page says the system's language, never « détectée », and offers French and English alone",
               offered == ["Celle des Réglages — Français", "Français", "English"], offered)
+    with window as browser:
+        press(browser, "settings-link")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meetings-language"), 10)
+        chosen = browser.execute_script("const p = document.getElementById('meetings-language'); return p.selectedIndex < 0 ? '' : p.options[p.selectedIndex].text")
+        check("Settings too: the meetings' language SpeechAnalyzer does not hear stays chosen, said as heard",
+              chosen == "Deutsch — SpeechAnalyzer entend celle du système", chosen)
     # Its own language written while Whisper heard, one SpeechAnalyzer does not hear: said as heard.
     (heard / "language").write_text("de\n")
     with window as browser:
