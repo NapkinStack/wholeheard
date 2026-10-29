@@ -2966,7 +2966,9 @@ def main() -> int:
         browser.switch_to.window(main)
         opened = wait_for(browser, lambda b: b.execute_script("return location.hash").startswith("#/meeting/") and len(b.window_handles) == 1, 5)
         check("its last meeting opens in the full window, in place of the small one", opened, (browser.execute_script("return location.hash"), browser.window_handles))
-        browser.find_element(By.ID, "small-link").click()
+        # Clicked by the page itself: the driver's click, a window having just gone, was left unanswered
+        # for a minute twice on a desktop in use — the windows' count below is what is checked.
+        browser.execute_script("document.getElementById('small-link').click()")
         wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
         browser.switch_to.window([h for h in browser.window_handles if h != main][0])
         wait_for(browser, lambda b: b.find_elements(By.ID, "small-all"), 5)
