@@ -1402,6 +1402,8 @@ def transcript_corrected(now: dt.datetime) -> None:
         invalid = [str(error.message) for kept_line in after for error in validator.iter_errors(json.loads(kept_line))]
         check("the file corrected is valid against transcript/v1's schema, its `edited` a date-time", invalid == [], invalid)
         shown = browser.find_element(By.CSS_SELECTOR, "#meeting .lines li").text
+        check("the page shows it, marked « corrigé », the focus back on its pencil",
+              "Bonjour à toutes" in shown and "corrigé" in shown and browser.execute_script("return document.activeElement.classList.contains('edit')"), shown)
         # Left by the pointer — a click elsewhere —: what is typed is kept, as Enter keeps it.
         browser.find_elements(By.CSS_SELECTOR, "#meeting .lines .edit")[1].click()
         wait_for(browser, lambda b: focused(b) == "correcting", 2)
@@ -1409,8 +1411,6 @@ def transcript_corrected(now: dt.datetime) -> None:
         browser.find_element(By.CSS_SELECTOR, "#meeting h1, #meeting .meeting-top").click()
         left = wait_for(browser, lambda b: "validé. en novembre" in (heard / "transcript.jsonl").read_text(), 3)
         check("leaving the field keeps what is typed", left, (heard / "transcript.jsonl").read_text().splitlines()[2:3])
-        check("the page shows it, marked « corrigé », the focus back on its pencil",
-              "Bonjour à toutes" in shown and "corrigé" in shown and browser.execute_script("return document.activeElement.classList.contains('edit')"), shown)
         # Drawn again: the minutes, older than the correction, say so and offer to be made again.
         browser.execute_script("location.hash = '#/'")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
