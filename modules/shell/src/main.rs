@@ -3049,7 +3049,6 @@ fn pull(app: &AppHandle) {
     if std::mem::replace(&mut *shell.fetching.lock().unwrap(), true) {
         return;
     }
-    let language = shell.language();
     *shell.fetched.lock().unwrap() = Some((providers::RECOMMENDED.to_owned(), 0, 0));
     let waiting = |app: &AppHandle, enabled: bool| {
         let app = app.clone();
@@ -3071,7 +3070,7 @@ fn pull(app: &AppHandle) {
         if let Err(why) = &outcome {
             tracing::error!(detail = %why, "shell.model_pull_failed");
         }
-        tell(&app, &words::pulled(&outcome, providers::RECOMMENDED, language));
+        tell(&app, &words::pulled(&outcome, providers::RECOMMENDED, shell.language()));
         waiting(&app, true);
         // The confidential minutes that waited for a model of Ollama's: made now (D60).
         if outcome.is_ok() {
@@ -3105,7 +3104,7 @@ fn fetch(app: &AppHandle, index: usize) {
     // The list read once: its address and the file it is kept as are one model's, whatever is
     // read again meanwhile.
     let listed = offered().get(index).map_or(model::DEFAULT, |listed| listed.published);
-    let (wanted, language) = (published_named(index).unwrap_or(listed), shell.language());
+    let wanted = published_named(index).unwrap_or(listed);
     let file = model::file(&listed);
     let to = models_folder().join(file);
     // The tray's entry is the default model's: it says how far that one is, and waits while
@@ -3120,9 +3119,10 @@ fn fetch(app: &AppHandle, index: usize) {
             let _ = shell.download.set_enabled(enabled);
         });
     };
-    let said = move |held: u64| (index == 0).then(|| words::fetching(language, held, wanted.bytes));
+    // In the language spoken at each step: chosen meanwhile, it is said in it (D64).
+    let said = move |app: &AppHandle, held: u64| (index == 0).then(|| words::fetching(app.state::<Shell>().language(), held, wanted.bytes));
     *shell.fetched.lock().unwrap() = Some((file.to_owned(), 0, wanted.bytes));
-    label(app, said(0), false);
+    label(app, said(app, 0), false);
     let app = app.clone();
     std::thread::spawn(move || {
         let mut shown = String::new();
@@ -3130,10 +3130,10 @@ fn fetch(app: &AppHandle, index: usize) {
             if let Some((_, far, _)) = app.state::<Shell>().fetched.lock().unwrap().as_mut() {
                 *far = held;
             }
-            let text = words::fetching(language, held, wanted.bytes);
+            let text = words::fetching(app.state::<Shell>().language(), held, wanted.bytes);
             if text != shown {
                 shown.clone_from(&text);
-                label(&app, said(held), false);
+                label(&app, said(&app, held), false);
             }
         });
         let shell = app.state::<Shell>();
@@ -3145,9 +3145,9 @@ fn fetch(app: &AppHandle, index: usize) {
         // The one the transcripts are made with: those in line follow it. Another is chosen
         // in Settings, the choice the user's (D37).
         let chosen = shell.settings().model == to;
-        tell(&app, &words::fetched(&outcome, chosen, language));
+        tell(&app, &words::fetched(&outcome, chosen, shell.language()));
         if outcome.is_err() {
-            let text = words::download(language, &model::size(published().bytes), published().host);
+            let text = words::download(shell.language(), &model::size(published().bytes), published().host);
             return label(&app, Some(text), true);
         }
         if index != 0 {
@@ -3184,6 +3184,14 @@ fn relabel(app: &AppHandle) {
         let labels = words::menu(shell.language());
         let _ = shell.open.set_text(labels.open);
         let _ = shell.quit.set_text(labels.quit);
+        // The model's entry, while it is offered: how far it is, or what it fetches.
+        let wanted = published();
+        let default = model::file(&model::DEFAULT);
+        let text = match shell.fetched.lock().unwrap().as_ref() {
+            Some((file, held, _)) if file == default => words::fetching(shell.language(), *held, wanted.bytes),
+            _ => words::download(shell.language(), &model::size(wanted.bytes), wanted.host),
+        };
+        let _ = shell.download.set_text(text);
     });
 }
 

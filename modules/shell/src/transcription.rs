@@ -154,7 +154,7 @@ impl Transcription {
                 named(model)
             }
             Hearer::SpeechAnalyzer { language } => {
-                // It hears French and English, and detects none: the app's language otherwise.
+                // It hears French and English, and detects none: the system's language otherwise (D64).
                 let language = spoken.filter(|spoken| matches!(*spoken, "fr" | "en")).unwrap_or(language);
                 command.args(["--engine", "speechanalyzer", "--language", language]);
                 "SpeechAnalyzer".to_string()
