@@ -1579,7 +1579,8 @@ def two_panes(now: dt.datetime) -> None:
         said = browser.execute_script("return [...document.querySelectorAll('#groups .session')].map(r => ["
                                       "r.querySelector('.day')?.textContent, r.querySelector('.length')?.textContent, r.querySelectorAll('.holds .chip').length])")
         check("each meeting in the list says its title and date, its length and what it holds",
-              len(said) == len(names) and all(day and length == "30 min" and chips >= 1 for day, length, chips in said), said[:3])
+              len(said) == len(names) and all(day and day not in names and " · " in day and any(c.isdigit() for c in day.split(" · ")[0])
+                                               and length == "30 min" and chips >= 1 for day, length, chips in said), said[:3])
         browser.execute_script("document.getElementById('list').scrollTop = 100000")
         scrolled = browser.execute_script("return document.getElementById('list').scrollTop")
         browser.find_elements(By.CSS_SELECTOR, "#groups .session")[-1].click()
@@ -1675,17 +1676,22 @@ def two_panes(now: dt.datetime) -> None:
         stops = []
         for _ in range(45):
             ActionChains(browser).send_keys(Keys.TAB).perform()
+            # Seen: its outline or its shadow — or its `.choice`'s, for a radio — differs from the same
+            # element's at rest, measured blurred; an outline at rest, or a shadow it always has, is no focus.
             stops.append(browser.execute_script(
-                "const e = document.activeElement, seen = (n) => { const s = getComputedStyle(n);"
-                " return (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) || s.boxShadow !== 'none'; };"
+                "const e = document.activeElement, n = e.closest('.choice') ?? e;"
+                "const look = () => { const s = getComputedStyle(n); return [s.outlineStyle, s.outlineWidth, s.outlineColor, s.boxShadow].join('|'); };"
+                "const focused = look(); e.blur(); const rest = look(); e.focus({focusVisible: true});"
+                "const s = getComputedStyle(n), drawn = (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) || s.boxShadow !== 'none';"
                 "return [document.getElementById('sidebar').contains(e) ? 'side' : document.getElementById('pane').contains(e) ? 'pane' : 'other',"
-                " seen(e) || (e.closest('.choice') !== null && seen(e.closest('.choice'))), e.id || e.className || e.tagName]"))
+                " drawn && focused !== rest && document.activeElement === e, e.id || e.className || e.tagName]"))
         places = [place for place, _, _ in stops]
         unseen = [name for _, seen_, name in stops if not seen_]
         # The pane's stops in one run: none of the sidebar's between them — past the last, the page starts again.
         last = len(places) - 1 - places[::-1].index("pane") if "pane" in places else 0
         check("in English, the keyboard reaches the sidebar first, then the whole pane", english == ["Start a recording", "Settings", "Free space"]
-              and places[0] == "side" and "pane" in places and set(places[places.index("pane"):last + 1]) == {"pane"}, (english, places))
+              and places[0] == "side" and "pane" in places and set(places[places.index("pane"):last + 1]) == {"pane"} and "other" not in places,
+              (english, places))
         check("the focus is always seen", unseen == [], unseen)
 
     empty = WORK / "panes-none"
@@ -1979,7 +1985,8 @@ def corrections_gated(now: dt.datetime) -> None:
             press(browser, "redo-corrections")
             asked = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/agree/{opened.name}"
                              and b.find_elements(By.ID, "agree-send"), 10)
-            check("a service not agreed to: « Refaire avec les corrections » asks first, as Refaire… does — nothing sent",
+            time.sleep(2)
+            check("a service not agreed to: « Refaire avec les corrections » asks first, as Refaire… does — the step not started, two seconds on",
                   asked and not args.exists() and (opened / "minutes.md").read_text() == minutes, browser.execute_script("return location.hash"))
             check("the agreement opens in the pane, the sidebar kept beside it (D61)", browser.execute_script(
                 "return document.getElementById('pane').contains(document.getElementById('agree'))")
