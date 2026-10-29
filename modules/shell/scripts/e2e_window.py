@@ -503,6 +503,8 @@ def models_listed(now: dt.datetime) -> None:
         wait_for(browser, lambda b: b.execute_script("return document.getElementById('model-fetch')?.disabled === false"), 15)
         browser.find_element(By.ID, "settings-link").click()
         wait_for(browser, lambda b: b.execute_script(small_row) and "Télécharger" in b.execute_script(small_row))
+        # Clickable once the fetch before it has let go — greyed until then, a click on it is none.
+        wait_for(browser, lambda b: b.execute_script("return document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button')?.disabled === false"), 10)
         browser.execute_script("document.querySelector('[data-offered=\"ggml-small-q8_0.bin\"] button').click()")
         far = wait_for(browser, lambda b: "%" in b.execute_script(small_row), 5)
         check("being downloaded, how far is said on its row", far, browser.execute_script(small_row))
