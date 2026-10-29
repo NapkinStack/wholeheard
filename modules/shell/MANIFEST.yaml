@@ -239,7 +239,7 @@ evidence:
     - pattern: '"message":"shell\.transcript_failed"'
       level: error
       scenario: F
-    # The window's Z tests the service with the played engine, which knows no `--test` (D43).
+    # The window's Z tests a model that gives no segment times: refused, as the step says it (D43, D63).
     - pattern: '"message":"shell\.transcription_test_failed"'
       level: warning
       scenario: Z

@@ -80,6 +80,12 @@ HEARING = WORK / "wholeheard-transcription"
 HEARING.write_text(
     """#!/bin/sh
 printf '%s\\n' "$*" > "$(dirname "$0")/hearing-args"
+# Tester (D43, D63): the key it was given kept beside; a model that gives no times refused, as the real one says it.
+if [ "$1" = --test ]; then
+  printf '%s' "${WHOLEHEARD_PROVIDER_KEY:-none}" > "$(dirname "$0")/hearing-key"
+  [ -e "$(dirname "$0")/no-times" ] && { echo "wholeheard-transcription: $(python3 -c "$HOST" "$3") gives no times: choose another model" >&2; exit 1; }
+  exit 0
+fi
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
 engine=whisper.cpp
 model=$(basename "$3" .bin)
@@ -773,8 +779,8 @@ def service_named(now: dt.datetime) -> None:
         check("agreed, the service is saved as who hears, its host kept as agreed",
               saved and 'transcription_agreed = "hears.example"' in window.file.read_text() and "whisper-1" in window.file.read_text(), window.file.read_text())
         browser.find_element(By.ID, "transcription-test").click()
-        tested = wait_for(browser, lambda b: b.execute_script(said) and "Enregistré" not in b.execute_script(said), 10)
-        check("Tester says in one sentence what the service answered", tested, browser.execute_script(said))
+        tested = wait_for(browser, lambda b: b.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), 10)
+        check("Tester says in one sentence what the service answered: it hears, with each segment's times", tested, browser.execute_script(said))
         # Who heard a meeting, said where it is read: the service's host, never « sur cet ordinateur ».
         browser.execute_script("location.hash = '#/meeting/heard'")
         makers = lambda b: [p.text for p in b.find_elements(By.CSS_SELECTOR, "#meeting .maker")]
@@ -805,9 +811,19 @@ def service_named(now: dt.datetime) -> None:
         text = window.file.read_text()
         check("saved: OpenRouter's address, the model chosen in its list, the key never in the settings",
               saved and 'transcription_model = "vendor/scribe"' in text and "sk-stand-in" not in text, text)
+        (WORK / "hearing-key").unlink(missing_ok=True)
         press(browser, "transcription-test")
-        tested = wait_for(browser, lambda b: b.execute_script(said) and "Enregistré" not in b.execute_script(said), 10)
-        check("Tester, on the service chosen from the list, says in one sentence what it answered", tested, browser.execute_script(said))
+        tested = wait_for(browser, lambda b: b.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), 10)
+        check("Tester, on the service chosen from the list, says it hears with each segment's times — the key the keyring kept given to it",
+              tested and (WORK / "hearing-key").exists() and (WORK / "hearing-key").read_text() == "sk-stand-in-not-a-key", browser.execute_script(said))
+        (WORK / "no-times").touch()
+        try:
+            press(browser, "transcription-test")
+            refused = wait_for(browser, lambda b: "gives no times: choose another model" in b.execute_script(said), 10)
+        finally:
+            (WORK / "no-times").unlink()
+        check("a model that gives no segment times: Tester says it is refused, and why", refused
+              and browser.execute_script(said).startswith("Le modèle ne répond pas"), browser.execute_script(said))
         browser.execute_script("location.hash = '#/'")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
         browser.execute_script("location.hash = '#/settings'")
