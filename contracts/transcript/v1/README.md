@@ -1,12 +1,14 @@
 # transcript — version 1
 
 A session's transcript is a file of timestamped segments, each naming who spoke, that only
-grows: read at any moment, it is true up to its last line.
+grows while it is made: read at any moment, it is true up to its last line. Once complete, a
+person who listens may correct a segment's text in it (ADR-0014).
 
 ```mermaid
 flowchart LR
     A["The session's sound, in either form<br/>context.txt"]:::file --> T["transcription"]:::producer
     T -->|"appends lines"| J["transcript.jsonl"]:::file
+    H["shell<br/>a person's correction"]:::producer -->|"once complete:<br/>rewrites one segment's text"| J
     J --> S["summary"]:::consumer
     J --> B["platform<br/>the bench's counts"]:::consumer
     J -.-> E["export"]:::planned
@@ -17,7 +19,7 @@ flowchart LR
     classDef planned fill:#1e3a8a,color:#fff,stroke-dasharray: 5 5
 ```
 
-**Legend** — green: the producer · grey: files in the session's folder · blue: consumers ·
+**Legend** — green: the producers — the step, then the shell for a person's correction · grey: files in the session's folder · blue: consumers ·
 dashed: a consumer that is planned, and reads nothing yet.
 
 **For a machine**: [`line.schema.json`](./line.schema.json) says what a line is — and is what
@@ -33,7 +35,7 @@ by a line feed. Lines are only ever added. Every line has a `type`.
 | `type` | When | Fields |
 |---|---|---|
 | `header` | First line, once | `contract`: `transcript/v1` · `engine` and `model`: what transcribed · `language`: the language asked for, or `null` when detected · `context`: the text the engine received, or `null` |
-| `segment` | Each stretch of speech | `speaker`: `me` or `others` · `track`: the track it was heard on, `local` for `me`, `remote` for `others` · `voice`: which voice within the track, `null` until voices are told apart · `start` and `end`: seconds from the session's `started`, to the hundredth · `text`: what was said, one line |
+| `segment` | Each stretch of speech | `speaker`: `me` or `others` · `track`: the track it was heard on, `local` for `me`, `remote` for `others` · `voice`: which voice within the track, `null` until voices are told apart · `start` and `end`: seconds from the session's `started`, to the hundredth · `text`: what was said, one line · `edited`, optional: when a person corrected `text`, ISO 8601 |
 | `covered` | After each span is done | `speaker` · `until`: seconds; every segment of that speaker that starts before `until` is in the file |
 | `complete` | Last line, once | `duration`: seconds of audio transcribed |
 
@@ -51,11 +53,16 @@ by a line feed. Lines are only ever added. Every line has a `type`.
   the last `covered`.
 - **No `complete` line means not finished** — still running, or stopped. The lines there are
   true all the same.
+- **A correction, once complete** (ADR-0014). After its `complete` line, and never while it is made
+  again, the shell may rewrite one segment's `text` on the user's word and set its `edited` to when:
+  the file replaced whole — written beside, then renamed —, its lines in the same order, nothing else
+  changed. A reader reads the text as it finds it; `edited` absent is the text as heard.
 
 ## What it never does
 
-- It never rewrites or removes a line. A better transcript is another file, made again from
-  the audio — never this one edited.
+- It never rewrites or removes a line while it is made. Once complete, it never removes one, and
+  rewrites one only for a person's correction of its `text` — a better transcript by an engine is
+  another file, made again from the audio.
 - It never names a person: `me` is whoever recorded, `others` is everyone else, however many
   they are.
 - It never promises that the segments of `me` and `others` do not overlap: people speak at
