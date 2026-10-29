@@ -4,7 +4,7 @@ use std::{fs, path::Path};
 
 use wholeheard_shell::{
     settings::{Settings, read, write},
-    words::{self, Language},
+    words::Language,
 };
 
 fn written(text: &str) -> Result<Settings, String> {
@@ -48,10 +48,7 @@ fn s4_language_persisted_and_shown() {
     settings.language = Some(Language::French);
     write(&path, &settings).unwrap();
     let content = fs::read_to_string(&path).unwrap();
-    assert!(
-        content.contains("language = \"fr\""),
-        "language not written: {content}"
-    );
+    assert!(content.contains("language = \"fr\""), "language not written: {content}");
     assert_eq!(read(&path).unwrap().language, Some(Language::French));
     // Settings shown carries it (direct read from struct).
     assert_eq!(Settings::default().language, None);

@@ -1446,10 +1446,13 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
             .collect(),
         developer: settings.developer,
         log: settings.log,
-        language: settings.language.as_ref().map(|l| match l {
-            Language::French => "fr",
-            Language::English => "en",
-        }.to_string()),
+        language: settings.language.as_ref().map(|l| {
+            match l {
+                Language::French => "fr",
+                Language::English => "en",
+            }
+            .to_string()
+        }),
         unreadable,
     }
 }

@@ -1846,7 +1846,27 @@ function showSettings(shown, minutes, words) {
   spokenPick.value = shown.meeting_language ?? "";
   spokenPick.addEventListener("change", () => save({ meeting_language: spokenPick.value }));
   spokenRow.append(spokenLabel, spokenPick);
-  step.append(row, speech, service, here, spokenRow);
+  // The interface language (D64): the user's choice or the system's default
+  const interfaceLanguageRow = element("div", "row");
+  const interfaceLanguageLabel = element("label", "name", "Langue de l'interface");
+  interfaceLanguageLabel.htmlFor = "interface-language";
+  const interfaceLanguagePick = element("select");
+  interfaceLanguagePick.id = "interface-language";
+  const addOption = (value, text) => {
+    const option = element("option", "", text);
+    option.value = value;
+    interfaceLanguagePick.append(option);
+  };
+  addOption("", "Celle du système");
+  addOption("fr", "Français");
+  addOption("en", "English");
+  interfaceLanguagePick.value = shown.language ?? "";
+  interfaceLanguagePick.addEventListener(
+    "change",
+    () => save({ language: interfaceLanguagePick.value === "" ? "system" : interfaceLanguagePick.value })
+  );
+  interfaceLanguageRow.append(interfaceLanguageLabel, interfaceLanguagePick);
+  step.append(row, speech, service, here, spokenRow, interfaceLanguageRow);
   // The short list of models to download, each said by what it is good for (D37).
   const offered = element("ul", "offered");
   offered.id = "offered";
