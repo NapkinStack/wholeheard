@@ -348,11 +348,11 @@ settings close that door, and they only hold together:
 The human who drove the agent may approve its pull request. A team that wants four eyes
 adds "require approval of the most recent reviewable push", or a second reviewer.
 
-**Where another contributor's agent approves.** A project of several contributors, each with
-an agent under an identity of its own, may answer `approval: agent` in `.copier-answers.yml` — the
+**Where another agent approves.** A project whose agents each work under an identity of
+their own may answer `approval: agent` in `.copier-answers.yml` — the
 decider's word, changed in a pull request a human approves. A change to a `prototype` or `standard`
-module is then approved by a human **or** by another contributor's agent — whoever is neither its
-author nor its last pusher; everything else still waits for a human code owner.
+module is then approved by a human **or** by another agent — under an identity that is neither its
+author's nor its last pusher's, whoever runs it; everything else still waits for a human code owner.
 The forge does the sorting, path by path:
 
 - **The code owners file names a human** for the project's rules (`AGENTS.md`, `CONTRIBUTING.md`,
@@ -367,10 +367,16 @@ The forge does the sorting, path by path:
 - **The approving agent says, in its approval**, the session it ran in and what it is expert in
   for the module. Where the module asks for a test sheet, it is the verifier who ran it; where
   it asks none, it reviews the change on its oracle and its checks.
-- **A contributor alone** has nobody else's agent: their changes wait for a human. A second
-  identity of their own would be the author approving itself. So the answer changes nothing until
-  a second contributor's agent works under an identity of its own; `doctor` says so while the
-  history shows a single agent identity.
+- **Independence is the identity's, not the person's.** Two agents one contributor runs —
+  each under its own App, in its own session, best on another model — approve each other's
+  changes as two contributors' agents would. What a second agent cannot do, nobody's can: approve
+  what a human must, or what it pushed. So the answer changes nothing until a second agent works
+  under an identity of its own; `doctor` says so while the history shows a single one.
+- **Two agents never loop.** The reviewing agent approves or comments — never *request
+  changes*, a block only it can lift — and never pushes to the change it reviews: it names what
+  is wrong, the author fixes. One round (`05-workflow.md`): its findings once; then it confirms
+  the fixes and approves, or, still disagreeing, hands the change to a human. A second pass
+  raises nothing new but what the fixes broke.
 
 **Where the forge cannot guard** — a private repository on a plan that enforces no ruleset —
 neither answer is enforced: the code owners file only asks for reviews, and `doctor` says
