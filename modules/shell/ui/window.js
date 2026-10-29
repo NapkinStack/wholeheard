@@ -496,7 +496,7 @@ function row(session, shape, words) {
   return item;
 }
 
-function show({ words, folder, sessions, shapes, recording, shortcut }) {
+function show({ words, folder, sessions, shapes, recording, shortcut, folded }) {
   document.documentElement.lang = words.locale;
   // The header's gesture, as the board has it: start or stop, with the shortcut beside.
   document.getElementById("free-link").textContent = words.free;
@@ -513,6 +513,14 @@ function show({ words, folder, sessions, shapes, recording, shortcut }) {
   document.getElementById("sections").setAttribute("aria-label", words.sections);
   document.getElementById("settings-link").textContent = words.settings;
   document.getElementById("pane-back").textContent = `‹ ${words.back}`;
+  // Folded as the user left it (D61), each button named with its shortcut.
+  document.body.classList.toggle("folded", folded);
+  const folding = /Mac/.test(navigator.platform) ? "⌘B" : "Ctrl+B";
+  for (const [id, name] of [["fold", words.fold], ["unfold", words.unfold]]) {
+    const button = document.getElementById(id);
+    button.setAttribute("aria-label", name);
+    button.title = `${name} (${folding})`;
+  }
   const find = document.getElementById("find");
   find.placeholder = words.find_meetings;
   find.setAttribute("aria-label", words.find_meetings);
@@ -2886,6 +2894,24 @@ async function refresh(again = false) {
 
 document.getElementById("small-link").addEventListener("click", () => window.__TAURI__.core.invoke("small_window"));
 document.getElementById("find").addEventListener("input", sought);
+// The sidebar folded, or brought back (D61): kept in the settings; the focus follows a button gone.
+async function fold(folded) {
+  document.body.classList.toggle("folded", folded);
+  const gone = document.getElementById(folded ? "sidebar" : "unfold");
+  if (gone.contains(document.activeElement)) document.getElementById(folded ? "unfold" : "fold").focus();
+  await window.__TAURI__.core.invoke("settings_saved", { change: { folded } }).catch(() => {});
+}
+document.getElementById("fold").addEventListener("click", () => fold(true));
+document.getElementById("unfold").addEventListener("click", () => fold(false));
+// Ctrl+B, ⌘B on a Mac, outside a text field: the convention of sidebars that fold.
+document.addEventListener("keydown", (event) => {
+  // The key where B is, whatever the layout writes there; held down, it folds once.
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.code !== "KeyB" || event.repeat) return;
+  const typing = event.target.closest?.("textarea, select, [contenteditable], input:not([type=checkbox], [type=radio], [type=button])");
+  if (typing || narrow.matches || document.getElementById("frame").hidden || document.body.classList.contains("small-window")) return;
+  event.preventDefault();
+  fold(!document.body.classList.contains("folded"));
+});
 // ↑ and ↓ on the list: the meeting above or below shown in the pane, the focus on its row (D61).
 document.getElementById("groups").addEventListener("keydown", (event) => {
   if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;

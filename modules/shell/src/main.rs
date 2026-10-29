@@ -602,6 +602,8 @@ struct Listing {
     /// Whether a recording runs, and the shortcut's keys as the desktop granted them: the header's.
     recording: bool,
     shortcut: Option<String>,
+    /// The sidebar folded, as the user left it (D61).
+    folded: bool,
 }
 
 /// A meeting's small relief, kept until its transcript changes: the list is drawn each time the
@@ -649,6 +651,7 @@ async fn listed(app: AppHandle) -> Result<Listing, String> {
             shapes,
             recording: shell.recording.lock().unwrap().is_some(),
             shortcut: shell.shortcut.lock().unwrap().clone(),
+            folded: shell.settings().folded,
         }
     })
     .await
@@ -1459,6 +1462,8 @@ struct Change {
     log: Option<Log>,
     /// The language meetings are spoken in (D65): a code, or empty for « detected ».
     meeting_language: Option<String>,
+    /// The sidebar folded or not (D61).
+    folded: Option<bool>,
 }
 
 /// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
@@ -1507,6 +1512,9 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
     }
     if let Some(log) = change.log {
         settings.log = log;
+    }
+    if let Some(folded) = change.folded {
+        settings.folded = folded;
     }
     // The same bounds as the file's: a value read refuses is never written.
     if let Some(KeepAudio::Days(days)) = change.keep_audio

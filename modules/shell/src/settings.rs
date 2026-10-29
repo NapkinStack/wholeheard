@@ -126,6 +126,8 @@ pub struct Settings {
     pub window: Window,
     /// The first run's assistant was shown (D58): it opens by itself at one start only.
     pub welcomed: bool,
+    /// The full window's sidebar folded by the user (D61): opened again as it was left.
+    pub folded: bool,
 }
 
 /// The model a transcript is heard with when the settings name none (ADR-0003).
@@ -155,6 +157,7 @@ impl Default for Settings {
             window: Window::Small,
             log: Log::Info,
             welcomed: false,
+            folded: false,
         }
     }
 }
@@ -213,6 +216,7 @@ struct Written {
     window: Option<Window>,
     log: Option<Log>,
     welcomed: Option<bool>,
+    folded: Option<bool>,
 }
 
 /// Reads the settings. No file is no choice made: the defaults. A file that cannot be read as
@@ -250,6 +254,7 @@ pub fn read(path: &Path) -> Result<Settings, String> {
     settings.autostart = written.autostart;
     settings.window = written.window.unwrap_or(settings.window);
     settings.welcomed = written.welcomed.unwrap_or(settings.welcomed);
+    settings.folded = written.folded.unwrap_or(settings.folded);
     settings.log = written.log.unwrap_or(settings.log);
     settings.engine = written.engine.unwrap_or(settings.engine);
     settings.after = match (written.after, written.transcript) {
@@ -338,6 +343,9 @@ pub fn write(path: &Path, settings: &Settings) -> io::Result<()> {
     }
     if settings.welcomed != before.welcomed {
         set(&mut document, "welcomed", Value::from(settings.welcomed));
+    }
+    if settings.folded != before.folded {
+        set(&mut document, "folded", Value::from(settings.folded));
     }
     if settings.log != before.log {
         set(&mut document, "log", Value::from(settings.log.as_str()));
