@@ -2854,10 +2854,17 @@ async function refresh() {
     else link.removeAttribute("aria-current");
   }
   // Drawn with what was read before it, never with a newer reading taken meanwhile.
-  if (opened) {
+  // The meeting shown beside the list, then reached at its own address — its row clicked —: the
+  // same page, not drawn again under the user (D61). Any other reading draws it anew.
+  const page = document.getElementById("meeting");
+  const address = listed ? "#/" : location.hash;
+  const kept = opened && page.dataset.name === name && page.dataset.at === "#/" && address !== "#/";
+  if (opened && !kept) {
     makings = seen;
     showMeeting(opened, words);
   }
+  if (opened) page.dataset.at = address;
+  else delete page.dataset.at;
   paintMakings();
   if (settings) {
     const [shown, minutes] = await Promise.all([
