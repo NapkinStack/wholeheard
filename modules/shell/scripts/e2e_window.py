@@ -2003,9 +2003,16 @@ def main() -> int:
         ready = browser.find_element(By.ID, "model-state").text
         check("the transcription model's state is said at the page's end", "Prêt" in ready and "sans réseau" in ready, ready)
         # Each change is saved, then the page is drawn again: the next acts on the new one.
+        # The page drawn again under the driver — the window coming back to the front draws it anew,
+        # the desktop being in use —: the gesture made again on the new one.
         def changed(act):
-            before = browser.find_element(By.ID, "reminder")
-            act()
+            for _ in range(5):
+                before = browser.find_element(By.ID, "reminder")
+                try:
+                    act()
+                    break
+                except StaleElementReferenceException:
+                    time.sleep(0.2)
             WebDriverWait(browser, 5).until(staleness_of(before))
 
         # Back to Settings from another page: its last drawing stays in the hidden page until the
@@ -2085,7 +2092,7 @@ def main() -> int:
         typed = browser.find_element(By.ID, "keep-other")
         changed(lambda: (typed.send_keys("45"), typed.send_keys(Keys.ENTER)))
         kept = window.file.read_text()
-        offered = [o.text for o in browser.find_elements(By.CSS_SELECTOR, "#keep option")]
+        offered = read(browser, lambda b: [o.text for o in b.find_elements(By.CSS_SELECTOR, "#keep option")])
         check("any number of days can be typed, and is offered after", "keep_audio = 45" in kept and "45 jours" in offered, (kept, offered))
         choose(browser, "keep", "other")
         typed_days = browser.find_element(By.ID, "keep-other")
