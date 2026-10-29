@@ -2061,10 +2061,11 @@ def confidential_kept(now: dt.datetime) -> None:
         check("the list shows the meeting with a lock and its word", chips == [["Confidentielle", True]], chips)
         seen(browser, "d60-4-list-light")
         browser.execute_script(f"location.hash = '#/meeting/{meeting.name}'")
+        # The last meeting, drawn beside the list already, is drawn again at its own address (D61).
         shown = wait_for(browser, lambda b: b.find_elements(By.ID, "confidential-switch"), 10)
         check("its page says it, the switch on, the lock among what it holds, nothing said to have left",
-              shown and switch(browser, "confidential-switch").is_selected()
-              and browser.find_element(By.CSS_SELECTOR, "#meeting .meeting-title .chip.locked").text == "Confidentielle"
+              shown and read(browser, lambda b: switch(b, "confidential-switch").is_selected()
+                             and b.find_element(By.CSS_SELECTOR, "#meeting .meeting-title .chip.locked").text == "Confidentielle")
               and browser.execute_script(left) == "")
         press(browser, "confidential-switch")
         off = wait_for(browser, lambda b: not (meeting / "confidential").exists(), 3)
@@ -2176,7 +2177,7 @@ def confidential_kept(now: dt.datetime) -> None:
         seen(browser, "d60-4-list-dark")
         browser.execute_script("location.hash = '#/meeting/2026-10-18_12-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "confidential-switch"), 10)
-        check("in English, the list and the page say it", chips == ["Confidential"] and switch(browser, "confidential-switch").is_selected()
+        check("in English, the list and the page say it", chips == ["Confidential"] and read(browser, lambda b: switch(b, "confidential-switch").is_selected())
               and counted == {"hear": 1, "write": 1}, (chips, counted))
         seen(browser, "d60-5-page-dark")
 
