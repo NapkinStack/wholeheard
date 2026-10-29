@@ -1318,6 +1318,12 @@ def transcript_corrected(now: dt.datetime) -> None:
               and dt.datetime.fromisoformat(line.get("edited", "1970-01-01T00:00:00+00:00")) > now - dt.timedelta(minutes=30)
               and {k: v for k, v in line.items() if k not in ("text", "edited")} == {k: v for k, v in json.loads(before.splitlines()[1]).items() if k != "text"},
               after)
+        # Against the contract's own schema, its formats checked: `edited` a date-time.
+        import jsonschema
+        schema = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "transcript" / "v1" / "line.schema.json").read_text())
+        validator = jsonschema.Draft202012Validator(schema, format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER)
+        invalid = [str(error.message) for kept_line in after for error in validator.iter_errors(json.loads(kept_line))]
+        check("the file corrected is valid against transcript/v1's schema, its `edited` a date-time", invalid == [], invalid)
         shown = browser.find_element(By.CSS_SELECTOR, "#meeting .lines li").text
         check("the page shows it, marked « corrigé », the focus back on its pencil",
               "Bonjour à toutes" in shown and "corrigé" in shown and browser.execute_script("return document.activeElement.classList.contains('edit')"), shown)
