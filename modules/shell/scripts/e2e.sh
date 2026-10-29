@@ -163,8 +163,9 @@ check is "$(titles 'Le son de la réunion est de nouveau enregistré')" 1
 click 3
 check is "$(cat "$work/sessions/told")" "stop"
 check is "$(labels)" "Ouvrir Wholeheard|Démarrer l’enregistrement|Transcrire le dernier enregistrement|Faire le compte rendu du dernier enregistrement|Quitter Wholeheard"
-check is "$(titles 'Enregistrement arrêté')" 1
-check grep -q 'Durée.: 32 min' "$work/notified"
+# The window opened above is seen: the stop is not told, the window says it (D44); with none
+# seen, it is told with its length (M, below).
+check is "$(titles 'Enregistrement arrêté')" 0
 check test ! -e "$work/sessions/heard"
 check is "$(grep -c 'La transcription suit' "$work/notified")" 0
 
@@ -383,6 +384,7 @@ check test -s "$work/sessions/2026-10-13_14-05/minutes.md"
 check is "$(tail -1 "$work/summarised")" "$work/sessions/2026-10-13_14-05 --provider http://127.0.0.1:9/v1 --model mistral"
 check is "$(titles 'Compte rendu prêt')" 3
 check is "$(( $(titles 'Enregistrement en cours') - reminded ))/$(( $(titles 'Enregistrement arrêté') - ended ))/$(( $(titles 'Transcription prête') - heard ))" "1/1/0"
+check grep -q 'Durée.: ' "$work/notified"
 click 6
 
 say "S. a call takes a microphone in another application: offered once, named; never while recording, nor with offers off (D30)"
