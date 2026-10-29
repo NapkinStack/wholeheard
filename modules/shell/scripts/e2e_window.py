@@ -1415,6 +1415,14 @@ def meeting_language(now: dt.datetime) -> None:
         offered = [o.text for o in Select(browser.find_element(By.ID, "meeting-language")).options]
         check("SpeechAnalyzer hearing: the page says the system's language, never « détectée », and offers French and English alone",
               offered == ["Celle des Réglages — Français", "Français", "English"], offered)
+    # Its own language written while Whisper heard, one SpeechAnalyzer does not hear: said as heard.
+    (heard / "language").write_text("de\n")
+    with window as browser:
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
+        own = Select(browser.find_element(By.ID, "meeting-language")).first_selected_option.text
+        check("a meeting's own language SpeechAnalyzer does not hear: kept, said with the one it hears", own == "Deutsch — SpeechAnalyzer entend Français", own)
+    (heard / "language").unlink()
 
 
 def app_language(now: dt.datetime) -> None:

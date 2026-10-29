@@ -125,7 +125,8 @@ function languageRow(session, language, languages, words, settled, apple, system
   const settledSaid = apple ? named(heard.some(([code]) => code === settled) ? settled : system) : settled ? named(settled) : words.language_detected_short;
   add("", `${words.language_default} — ${settledSaid}`);
   for (const [code, said] of heard) add(code, said);
-  if (language && !heard.some(([code]) => code === language)) add(language, named(language));
+  // A language of its own SpeechAnalyzer does not hear — written while Whisper heard —: kept, said as heard.
+  if (language && !heard.some(([code]) => code === language)) add(language, apple ? fill(words.language_heard_as, named(language), named(system)) : named(language));
   pick.value = language ?? "";
   const said = element("p", "says");
   said.id = "language-said";
