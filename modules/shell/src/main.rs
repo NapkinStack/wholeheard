@@ -881,6 +881,8 @@ struct Opened {
     /// The language it says it is spoken in, if it says one, and those offered first (D65).
     language: Option<String>,
     languages: Vec<(&'static str, &'static str)>,
+    /// The settings' language for meetings, none: detected — what « as in Settings » means.
+    meeting_language: Option<String>,
 }
 
 #[tauri::command]
@@ -901,6 +903,7 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
         confidential: confidential_of(&shell, &folder),
         language: spoken::read(&folder),
         languages: spoken::OFFERED.to_vec(),
+        meeting_language: shell.settings().meeting_language,
     })
 }
 

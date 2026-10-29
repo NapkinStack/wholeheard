@@ -107,7 +107,7 @@ function leftSaid(words, left) {
 
 // The language a meeting is spoken in (D65): the settings' own, or one of its own — its next
 // transcript heard in it. Written at once; refused, said, the choice put back.
-function languageRow(session, language, languages, words) {
+function languageRow(session, language, languages, words, settled) {
   const row = element("div", "row language");
   const label = element("label", "name", words.language_label);
   label.htmlFor = "meeting-language";
@@ -118,7 +118,9 @@ function languageRow(session, language, languages, words) {
     option.value = value;
     pick.append(option);
   };
-  add("", words.language_default);
+  // What « as in Settings » means, said: the language they name, or detected.
+  const settledSaid = settled ? languages.find(([code]) => code === settled)?.[1] ?? settled : words.language_detected_short;
+  add("", `${words.language_default} — ${settledSaid}`);
   for (const [code, said] of languages) add(code, said);
   if (language && !languages.some(([code]) => code === language)) add(language, language);
   pick.value = language ?? "";
@@ -1113,7 +1115,7 @@ document.addEventListener("keydown", (event) => {
   player.playing() ? player.pause() : player.play();
 });
 
-function showMeeting({ session, transcript, minutes, developer, listen: listened, context, confidential, language, languages }, words) {
+function showMeeting({ session, transcript, minutes, developer, listen: listened, context, confidential, language, languages, meeting_language }, words) {
   const page = document.getElementById("meeting");
   const top = element("div", "meeting-top");
   const back = element("a", "back", `‹ ${words.back}`);
@@ -1169,7 +1171,7 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
   page.dataset.name = nameOf(session);
   const kept = confidentialCard(session, confidential, words);
-  kept.append(languageRow(session, language, languages, words));
+  kept.append(languageRow(session, language, languages, words, meeting_language));
   page.replaceChildren(top, title, kept, contextCard(session, { context, transcript, minutes }, words), drawn, columns);
   // The line being said, marked while it plays; the page stays where the user left it (D26, the
   // decider, 2026-10-24: following the line was intrusive).
@@ -1694,8 +1696,10 @@ function showSettings(shown, minutes, words) {
     option.value = value;
     spokenPick.append(option);
   };
-  spokenAdd("", words.language_detected);
-  for (const [code, said] of shown.languages) spokenAdd(code, said);
+  // SpeechAnalyzer hears French and English and detects none: those two, or Wholeheard's own.
+  const apple = shown.engine === "speechanalyzer";
+  spokenAdd("", apple ? words.language_as_app : words.language_detected);
+  for (const [code, said] of shown.languages) if (!apple || code === "fr" || code === "en") spokenAdd(code, said);
   if (shown.meeting_language && !shown.languages.some(([code]) => code === shown.meeting_language)) spokenAdd(shown.meeting_language, shown.meeting_language);
   spokenPick.value = shown.meeting_language ?? "";
   spokenPick.addEventListener("change", () => save({ meeting_language: spokenPick.value }));

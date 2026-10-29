@@ -14,7 +14,8 @@ fn folder(name: &str) -> std::path::PathBuf {
 #[test]
 fn a_code_is_two_lower_case_letters_and_nothing_else() {
     assert_eq!(code(" fr\n"), Some("fr".to_string()));
-    for not in ["", "FR", "fr-FR", "fra", "f", "f1", "é1", "  "] {
+    assert_eq!(code("zh"), Some("zh".to_string()));
+    for not in ["", "FR", "fr-FR", "fra", "f", "f1", "é1", "  ", "zz", "qq", "xx"] {
         assert_eq!(code(not), None, "{not:?}");
     }
 }

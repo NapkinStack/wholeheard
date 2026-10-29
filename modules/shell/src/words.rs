@@ -618,6 +618,8 @@ pub struct Window {
     pub language_detected: &'static str,
     pub meetings_language: &'static str,
     pub language_not_saved: &'static str,
+    pub language_detected_short: &'static str,
+    pub language_as_app: &'static str,
     pub context_not_saved: &'static str,
     /// A meeting said confidential (D60): the switch's name and its words; the list's word beside
     /// the lock; what had left before ({} what, then each: the sound, the transcript, {} a host);
@@ -954,6 +956,8 @@ pub fn window(language: Language) -> Window {
             language_detected: "Detected by the transcription",
             meetings_language: "Language of the meetings",
             language_not_saved: "The language was not saved: {}",
+            language_detected_short: "detected",
+            language_as_app: "Wholeheard’s own",
             context_not_saved: "The context could not be saved.",
             confidential_name: "Confidential meeting",
             confidential_says: "Nothing leaves this computer",
@@ -1290,6 +1294,8 @@ pub fn window(language: Language) -> Window {
             language_detected: "Détectée par la transcription",
             meetings_language: "Langue des réunions",
             language_not_saved: "La langue n’a pas été enregistrée\u{a0}: {}",
+            language_detected_short: "détectée",
+            language_as_app: "Celle de Wholeheard",
             context_not_saved: "Le contexte n’a pas pu être enregistré.",
             confidential_name: "Réunion confidentielle",
             confidential_says: "Rien ne quitte cet ordinateur",

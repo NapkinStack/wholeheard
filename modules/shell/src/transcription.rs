@@ -33,11 +33,11 @@ pub enum Hearer {
     SpeechAnalyzer {
         language: String,
     },
-    /// A service the user named (D43): its address, its model, the language asked.
+    /// A service the user named (D43): its address, its model — the language is the meeting's,
+    /// told when it says one (D65).
     Service {
         provider: String,
         model: String,
-        language: String,
     },
 }
 
@@ -98,7 +98,6 @@ impl Hearer {
                 return Hearer::Service {
                     provider: provider.clone(),
                     model: model.clone(),
-                    language: language.into(),
                 };
             }
         }
@@ -160,8 +159,12 @@ impl Transcription {
                 command.args(["--engine", "speechanalyzer", "--language", language]);
                 "SpeechAnalyzer".to_string()
             }
-            Hearer::Service { provider, model, language } => {
-                command.args(["--provider", provider, "--model", model, "--language", spoken.unwrap_or(language)]);
+            Hearer::Service { provider, model, .. } => {
+                command.args(["--provider", provider, "--model", model]);
+                // None said: the service detects it — never the app's language (D64, D65).
+                if let Some(spoken) = spoken {
+                    command.args(["--language", spoken]);
+                }
                 model.clone()
             }
         };

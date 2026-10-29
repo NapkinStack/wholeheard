@@ -1331,8 +1331,8 @@ def meeting_language(now: dt.datetime) -> None:
         browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
         own = Select(browser.find_element(By.ID, "meeting-language"))
-        check("a meeting's page offers its own language, the settings' by default",
-              own.first_selected_option.text == "Celle des Réglages" and not (heard / "language").exists())
+        check("a meeting's page offers its own language, the settings' by default — the language they name said",
+              own.first_selected_option.text == "Celle des Réglages — English" and not (heard / "language").exists(), own.first_selected_option.text)
         own.select_by_value("de")
         written = wait_for(browser, lambda b: (heard / "language").exists() and (heard / "language").read_text() == "de\n", 5)
         check("chosen on its page, the meeting's language file holds its code alone", written)
@@ -1355,9 +1355,16 @@ def meeting_language(now: dt.datetime) -> None:
         browser.execute_script("window.__TAURI__.core.invoke('transcript_redo', {name: arguments[0], model: arguments[1]})", heard.name, str(model))
         detected = wait_for(browser, lambda b: told() != "", 15)
         check("« Détectée »: no language told, the engine detects it", detected and "--language" not in told() and "meeting_language" not in window.file.read_text(), (told(), window.file.read_text()))
-        refused = browser.execute_script(
-            "return window.__TAURI__.core.invoke('language_set', {name: arguments[0], language: 'Deutsch'}).then(() => 'kept', (why) => String(why))", heard.name)
-        check("a text that is not a code is refused, nothing written", refused != "kept" and not (heard / "language").exists(), refused)
+        refused = [browser.execute_script(
+            "return window.__TAURI__.core.invoke('language_set', {name: arguments[0], language: arguments[1]}).then(() => 'kept', (why) => String(why))", heard.name, text)
+            for text in ("Deutsch", "zz")]
+        check("a text that is not a code of ISO 639-1 is refused, nothing written", "kept" not in refused and not (heard / "language").exists(), refused)
+        browser.execute_script(f"location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
+        browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
+        said = Select(browser.find_element(By.ID, "meeting-language")).first_selected_option.text
+        check("the settings detecting it, the page says « détectée »", said == "Celle des Réglages — détectée", said)
 
 
 def context_written(now: dt.datetime) -> None:
