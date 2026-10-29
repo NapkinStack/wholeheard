@@ -29,7 +29,7 @@ use wholeheard_shell::microphone;
 use wholeheard_shell::{
     autostart,
     confidential::{self, Left, Wait, What},
-    context, desktop, keys, log,
+    context, correction, desktop, keys, log,
     meeting::{self, Read, Transcript},
     migrate,
     minutes::{self, Minutes},
@@ -240,6 +240,7 @@ fn main() {
             context_redo,
             confidential_set,
             transcript_redo,
+            transcript_corrected,
             transcript_asked,
             transcript_again,
             opened,
@@ -710,6 +711,36 @@ fn minutes_redo(
         }
     };
     write_minutes(&app, folder, None, chosen);
+    Ok(())
+}
+
+/// A line of a meeting's transcript corrected on the user's word (D62, ADR-0014): once complete,
+/// never while it is made or waits to be made again. The making's lock held while it is written:
+/// one writer at a time.
+#[tauri::command]
+fn transcript_corrected(shell: State<'_, Shell>, name: String, track: String, start: f64, text: String) -> Result<(), String> {
+    let folder = session_folder(&shell, &name)?;
+    let running = shell.transcription.lock().unwrap();
+    let hearing = shell.hearing.lock().unwrap().as_deref() == Some(folder.as_path());
+    let waits = shell.waiting.lock().unwrap().iter().any(|(queued, _)| *queued == folder);
+    if (running.is_some() && hearing) || waits {
+        return Err(format!("the transcript of {name} is being made"));
+    }
+    // Its minutes being written read the transcript before: a correction now would be older than
+    // their `made`, and never offered again (#528's verification).
+    if shell.writing_minutes.lock().unwrap().as_deref() == Some(folder.as_path()) {
+        return Err(format!("the minutes of {name} are being written"));
+    }
+    let when = chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
+    correction::correct(&folder.join("transcript.jsonl"), &track, start, &text, &when).map_err(|refused| match refused {
+        correction::Refused::NotComplete => format!("the transcript of {name} is not complete"),
+        correction::Refused::NoSuchLine => "no line of the transcript starts there".to_string(),
+        correction::Refused::Empty => "a line is not left empty".to_string(),
+        correction::Refused::File(why) => why,
+    })?;
+    drop(running);
+    // What was typed is the meeting's: never in the log.
+    tracing::info!("shell.transcript_corrected");
     Ok(())
 }
 
