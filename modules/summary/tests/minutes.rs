@@ -3,7 +3,7 @@
 
 use std::fs;
 
-use wholeheard_summary::{Made, Refused, minutes, read_transcript, request, write_minutes};
+use wholeheard_summary::{Made, Minutes, Refused, minutes, read_transcript, request, write_minutes};
 
 const HEADER: &str =
     r#"{"type": "header", "contract": "transcript/v1", "engine": "an-engine", "model": "a-model", "language": "fr", "context": null}"#;
@@ -145,7 +145,7 @@ fn the_minutes_say_what_made_them_and_hold_the_three_sections() {
     assert_eq!(
         front.lines().collect::<Vec<_>>(),
         [
-            "contract: minutes/v1",
+            "contract: minutes/v2",
             "made: 2026-10-13T15:12:40+02:00",
             "provider: \"local\"",
             "model: \"a-model\"",
@@ -445,4 +445,69 @@ fn a_writing_that_fails_leaves_the_minutes_that_were_there() {
         "the minutes that were there\n"
     );
     assert!(fs::symlink_metadata(folder.path().join("minutes.md.part")).is_err());
+}
+
+fn front(written: &Minutes) -> Vec<String> {
+    let (front, _) = written.as_str().strip_prefix("---\n").unwrap().split_once("\n---\n\n").unwrap();
+    front.lines().map(str::to_string).collect()
+}
+
+const SECTIONS: &str = "## A\n\nx\n\n## B\n\n- a\n\n## C\n\n- z\n";
+
+#[test]
+fn the_title_the_answer_opens_on_names_the_meeting() {
+    for (above, title) in [
+        ("# Lancement : calendrier et budget", r#"title: "Lancement : calendrier et budget""#),
+        ("# Le \"comité\" **de pilotage**", r#"title: "Le \"comité\" de pilotage""#),
+        ("Le budget\n===", r#"title: "Le budget""#),
+        ("# <img src=x onerror=alert(1)>", r#"title: "<img src=x onerror=alert(1)>""#),
+    ] {
+        let written = minutes(&format!("{above}\n\n{SECTIONS}"), &made(None)).unwrap();
+        assert_eq!(front(&written).last().map(String::as_str), Some(title), "{above}");
+        assert!(written.as_str().ends_with(&format!("\n---\n\n{SECTIONS}")), "{}", written.as_str());
+    }
+    // At the bound: characters, not bytes.
+    let longest = "é".repeat(80);
+    let written = minutes(&format!("# {longest}\n\n{SECTIONS}"), &made(None)).unwrap();
+    assert_eq!(front(&written).last().unwrap(), &format!("title: \"{longest}\""));
+}
+
+#[test]
+fn a_title_out_of_the_contract_leaves_the_minutes_whole_without_it() {
+    let long = format!("# {}", "é".repeat(81));
+    for above in [
+        long.as_str(),
+        "Deux\nlignes\n===",
+        "# /srv/reunions/2026-10-28",
+        "# C:\\Users\\f\\reunion.wav",
+        "# /srv/Mes Documents/reunion 3.wav",
+        "# C:\\Mes Documents\\r.wav",
+        "# Notes de /srv/x",
+        "# Notes (/srv/Mes Documents/r.wav)",
+        "# file:///srv/r.wav",
+        "# ../f/reunion.wav",
+        "# reunions/2026-10-28/notes.wav",
+        "# Accord Q3/Q4",
+        "# Le\u{0007} budget",
+        "# Le\u{2028} budget",
+        "# \u{3164}",
+    ] {
+        let written = minutes(&format!("{above}\n\n{SECTIONS}"), &made(None)).unwrap();
+        assert!(
+            front(&written).iter().all(|line| !line.starts_with("title:")),
+            "{above}: {}",
+            written.as_str()
+        );
+        assert!(written.as_str().ends_with(&format!("\n---\n\n{SECTIONS}")), "{}", written.as_str());
+    }
+    // A model that gives none: the minutes as they are, no key.
+    let written = minutes(SECTIONS, &made(None)).unwrap();
+    assert!(front(&written).iter().all(|line| !line.starts_with("title:")));
+}
+
+#[test]
+fn the_request_asks_for_a_title_on_the_first_line() {
+    let asked = request(&[], None);
+    assert!(asked.contains("first level"), "{asked}");
+    assert!(asked.contains("at most 80 characters"), "{asked}");
 }
