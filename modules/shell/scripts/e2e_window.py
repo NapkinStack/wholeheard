@@ -3849,8 +3849,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
         press(browser, "redo-minutes")
-        # The panel's models come after it: its choices are waited for, not only its button.
-        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]"))
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
         browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[0].click()
         time.sleep(1)
         since = len(heard.read_text())
