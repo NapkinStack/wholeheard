@@ -974,42 +974,34 @@ fn every_french_word_of_the_window_is_typeset_as_french() {
     }
 }
 
-/// A literal is English only when it says so: no letter of French's own and a common English word.
-/// Anything else is judged as French, so that a sentence nothing recognises is held, not let
-/// through (a « reads as French » list missed « Enregistrer cet appel avec Wholeheard ? »).
-fn reads_as_english(text: &str) -> bool {
-    const FRENCH: &str = "éèêëàâäçùûüîïôöœæÉÈÊËÀÂÇÙÛÎÏÔŒ";
-    const ENGLISH: [&str; 40] = [
-        "a", "an", "and", "are", "as", "at", "be", "by", "can", "could", "do", "for", "from", "had", "has", "have", "here", "in", "is",
-        "it", "its", "no", "not", "now", "of", "on", "or", "recorded", "s", "t", "that", "the", "this", "to", "try", "was", "what", "with",
-        "you", "your",
-    ];
-    !text.contains(|c| FRENCH.contains(c))
-        && text
-            .split(|c: char| !c.is_alphabetic())
-            .any(|word| ENGLISH.contains(&word.to_lowercase().as_str()))
-}
-
-/// The French sentences of `src/words.rs`: each string literal that does not read as English, its
-/// escapes (`\u{a0}`, `\u{202f}`, `\"`) read as the compiler reads them.
-fn french_literals() -> Vec<String> {
+/// The French sentences of `src/words.rs`, read from its structure: each string literal after the
+/// word `French` and before the next `English`, as every arm of the file is written. Its escapes
+/// (`\u{a0}`, `\u{202f}`, `\"`) are read as the compiler reads them. Also the literals after
+/// `English`, for the test to hold that the structure was read right.
+fn literals_by_language() -> (Vec<String>, Vec<String>) {
     let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/words.rs")).unwrap();
-    let mut found = Vec::new();
+    let (mut french, mut english) = (Vec::new(), Vec::new());
+    let mut in_french = false;
+    let mut word = String::new();
     let mut chars = source.chars().peekable();
-    let mut in_comment = false;
     let mut previous = ' ';
     while let Some(c) = chars.next() {
-        if in_comment {
-            if c == '\n' {
-                in_comment = false;
-            }
+        if c == '/' && chars.peek() == Some(&'/') {
+            chars.by_ref().find(|&d| d == '\n');
+            previous = '\n';
+            continue;
+        }
+        if c.is_alphanumeric() || c == '_' {
+            word.push(c);
             previous = c;
             continue;
         }
-        if c == '/' && previous == '/' {
-            in_comment = true;
-            continue;
+        match word.as_str() {
+            "French" => in_french = true,
+            "English" => in_french = false,
+            _ => {}
         }
+        word.clear();
         if c == '"' && previous != '\'' {
             let mut text = String::new();
             while let Some(d) = chars.next() {
@@ -1027,15 +1019,31 @@ fn french_literals() -> Vec<String> {
                     other => text.push(other),
                 }
             }
-            if !reads_as_english(&text) {
-                found.push(text);
-            }
+            if in_french { &mut french } else { &mut english }.push(text);
             previous = '"';
             continue;
         }
         previous = c;
     }
-    found
+    (french, english)
+}
+
+#[test]
+fn the_literals_of_each_language_are_read_as_the_file_arranges_them() {
+    let (french, english) = literals_by_language();
+    assert!(french.len() > 300 && english.len() > 300, "{} {}", french.len(), english.len());
+    let accented: Vec<_> = english
+        .iter()
+        .filter(|text| text.contains(|c: char| "éèêàâçùûîôœÉÈÀÇ".contains(c)))
+        .collect();
+    // Inès: a name in an English example.
+    assert_eq!(
+        accented,
+        ["E.g. the Q4 budget with Inès Durand and the purchasing team"],
+        "French read as English"
+    );
+    let plain: Vec<_> = french.iter().filter(|text| format!(" {text} ").contains(" the ")).collect();
+    assert!(plain.is_empty(), "English read as French: {plain:#?}");
 }
 
 #[test]
@@ -1043,9 +1051,9 @@ fn every_french_sentence_has_its_spaces_before_the_tall_signs() {
     // D47: U+202F before « ? ! ; », U+00A0 before « : » — times (12:21) and addresses (https:)
     // aside — in every French sentence the window and the notifications say.
     let mut wrong = Vec::new();
-    for text in french_literals() {
-        // What is filled in (`{minutes:02}`) and a program's name in its own message are no sentence.
-        if text.starts_with("wholeheard-") {
+    for text in literals_by_language().0 {
+        // A program's name, as its own messages open: no sentence. What is filled in neither.
+        if matches!(text.as_str(), "wholeheard-capture:" | "wholeheard-transcription:") {
             continue;
         }
         let chars: Vec<char> = text.chars().collect();
