@@ -292,6 +292,10 @@ evidence:
     - pattern: '"message":"shell\.minutes_failed"'
       level: error
       scenario: N
+    # A command the page calls refused (D47): the window's AB corrects a transcript not complete.
+    - pattern: '"message":"shell\.command_failed"'
+      level: warning
+      scenario: AB
     # A failure of the page's own, thrown then rejected; any other kind of the page's is not provoked.
     - pattern: '^(?=.*"message":"shell\.page_failed")(?=.*"kind":"ScenarioI")'
       level: error

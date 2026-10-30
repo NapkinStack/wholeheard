@@ -43,7 +43,7 @@ use wholeheard_shell::{
     speech, spoken,
     summarising::{self, Summarising},
     transcription::{self, Hearer, Made, Transcription},
-    words::{self, Language, Notice, Refusal, Trouble},
+    words::{self, Failure, Language, Notice, Refusal, Told, Trouble},
 };
 
 const TRAY: &str = "wholeheard";
@@ -172,13 +172,40 @@ impl Shell {
     }
 
     /// Reads the settings file again — the user may have changed it by hand — and holds what it
-    /// says; a file that cannot be read is said, and what was held stays.
+    /// says; a file that cannot be read is said, by its name and not its path, and what was held
+    /// stays.
     fn reread(&self) -> Result<Settings, String> {
-        let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
+        let read = settings::file().map_or_else(
+            || Ok(Settings::default()),
+            |file| settings::read(&file).map_err(|why| settings::unnamed(&why, &file)),
+        );
         if let Ok(settings) = &read {
             *self.settings.lock().unwrap() = settings.clone();
         }
         read
+    }
+
+    /// What a command that failed tells the page, the raw text going to the log too: a detail holds
+    /// nothing of a meeting, no key and no path (`tests/log.rs`).
+    fn told(&self, failure: Failure, detail: impl std::fmt::Display) -> Told {
+        let detail = log::command_failed(&failure, &detail.to_string(), settings::file().as_deref());
+        self.said(failure, &detail)
+    }
+
+    /// The same, when its own line has already logged the failure.
+    fn said(&self, failure: Failure, detail: &str) -> Told {
+        words::told(failure, detail, self.language(), self.settings().developer)
+    }
+
+    /// The settings read again for a command.
+    fn read_or_told(&self) -> Result<Settings, Told> {
+        self.reread().map_err(|why| self.told(Failure::SettingsUnread, why))
+    }
+
+    /// The settings written for a command.
+    fn write_or_told(&self, settings: &Settings) -> Result<(), Told> {
+        let file = settings::file().ok_or_else(|| self.told(Failure::SettingsUnwritten, "this system names no folder for settings"))?;
+        settings::write(&file, settings).map_err(|error| self.told(Failure::SettingsUnwritten, error))
     }
 }
 
@@ -630,7 +657,8 @@ type Shapes = HashMap<PathBuf, (Option<std::time::SystemTime>, u64, Option<[Vec<
 /// The list, read away from the window's and the tray's thread: it reads every transcript it
 /// has not read yet.
 #[tauri::command]
-async fn listed(app: AppHandle) -> Result<Listing, String> {
+async fn listed(app: AppHandle) -> Result<Listing, Told> {
+    let asked = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let shell = app.state::<Shell>();
         let recorded = shell.recorded.lock().unwrap().clone();
@@ -672,7 +700,7 @@ async fn listed(app: AppHandle) -> Result<Listing, String> {
         }
     })
     .await
-    .map_err(|error| error.to_string())
+    .map_err(|error| asked.state::<Shell>().told(Failure::Unexpected, error))
 }
 
 /// What the header shows, asked often: whether a recording runs — started from the tray or the
@@ -694,7 +722,7 @@ fn header(shell: State<'_, Shell>) -> Header {
 /// What a meeting lacks, made on the user's word from its page (D18): its minutes — through the
 /// same gate as the tray's, the agreement included —, or its transcript.
 #[tauri::command]
-fn minutes_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+fn minutes_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
     make_minutes(&app, folder);
     Ok(())
@@ -703,7 +731,7 @@ fn minutes_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Resul
 /// *Try again*, on a meeting whose minutes were not made: asked as they were last, with the model
 /// a Refaire… named then.
 #[tauri::command]
-fn minutes_again(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+fn minutes_again(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
     let chosen = shell.minutes_tried.lock().unwrap().get(&folder).cloned().flatten();
     write_minutes(&app, folder, None, chosen);
@@ -720,14 +748,14 @@ fn minutes_redo(
     name: String,
     provider: Option<String>,
     model: Option<String>,
-) -> Result<(), String> {
+) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
     // The settings' model, as they name it now, when none is chosen: still a redo, which waits
     // its turn behind the meeting's own making — never taken for a second first one.
     let chosen = match provider.zip(model) {
         Some(choice) => Some(choice),
         None => {
-            let settings = shell.reread()?;
+            let settings = shell.read_or_told()?;
             settings.minutes_provider.zip(settings.minutes_model)
         }
     };
@@ -739,25 +767,25 @@ fn minutes_redo(
 /// never while it is made or waits to be made again. The making's lock held while it is written:
 /// one writer at a time.
 #[tauri::command]
-fn transcript_corrected(shell: State<'_, Shell>, name: String, track: String, start: f64, text: String) -> Result<(), String> {
+fn transcript_corrected(shell: State<'_, Shell>, name: String, track: String, start: f64, text: String) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
     let running = shell.transcription.lock().unwrap();
     let hearing = shell.hearing.lock().unwrap().as_deref() == Some(folder.as_path());
     let waits = shell.waiting.lock().unwrap().iter().any(|(queued, _)| *queued == folder);
     if (running.is_some() && hearing) || waits {
-        return Err(format!("the transcript of {name} is being made"));
+        return Err(shell.told(Failure::Busy, format!("the transcript of {name} is being made")));
     }
     // Its minutes being written read the transcript before: a correction now would be older than
     // their `made`, and never offered again (#528's verification).
     if shell.writing_minutes.lock().unwrap().as_deref() == Some(folder.as_path()) {
-        return Err(format!("the minutes of {name} are being written"));
+        return Err(shell.told(Failure::Busy, format!("the minutes of {name} are being written")));
     }
     let when = chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
     correction::correct(&folder.join("transcript.jsonl"), &track, start, &text, &when).map_err(|refused| match refused {
-        correction::Refused::NotComplete => format!("the transcript of {name} is not complete"),
-        correction::Refused::NoSuchLine => "no line of the transcript starts there".to_string(),
-        correction::Refused::Empty => "a line is not left empty".to_string(),
-        correction::Refused::File(why) => why,
+        correction::Refused::NotComplete => shell.told(Failure::NotComplete, format!("the transcript of {name} is not complete")),
+        correction::Refused::NoSuchLine => shell.told(Failure::Unexpected, "no line of the transcript starts there"),
+        correction::Refused::Empty => shell.told(Failure::Unexpected, "a line is not left empty"),
+        correction::Refused::File(why) => shell.told(Failure::MeetingFile, why),
     })?;
     drop(running);
     // What was typed is the meeting's: never in the log.
@@ -766,15 +794,15 @@ fn transcript_corrected(shell: State<'_, Shell>, name: String, track: String, st
 }
 
 #[tauri::command]
-fn transcript_redo(app: AppHandle, shell: State<'_, Shell>, name: String, model: PathBuf) -> Result<(), String> {
+fn transcript_redo(app: AppHandle, shell: State<'_, Shell>, name: String, model: PathBuf) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
-    retranscribe(&app, folder, Again::Model(model))
+    retranscribe(&app, folder, Again::Model(model)).map_err(|(failure, detail)| shell.told(failure, detail))
 }
 
 /// *Try again*, on a meeting whose transcript was not made: as it was last asked — made again
 /// with the model a Refaire… picked, the transcript there kept until the new one is whole.
 #[tauri::command]
-fn transcript_again(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+fn transcript_again(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
     // Read, and the lock let go, before it is asked again: retranscribe takes it too.
     let tried = shell.transcripts_tried.lock().unwrap().get(&folder).cloned().flatten();
@@ -786,11 +814,11 @@ fn transcript_again(app: AppHandle, shell: State<'_, Shell>, name: String) -> Re
 }
 
 #[tauri::command]
-fn transcript_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+fn transcript_asked(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
     // The meeting being recorded has no transcript to make yet.
     if shell.recording.lock().unwrap().is_some() && shell.recorded.lock().unwrap().as_deref() == Some(folder.as_path()) {
-        return Err(format!("{name} is being recorded"));
+        return Err(shell.told(Failure::Busy, format!("{name} is being recorded")));
     }
     transcribe(&app, folder);
     Ok(())
@@ -820,13 +848,16 @@ fn busy_meetings(shell: State<'_, Shell>) -> Vec<String> {
 /// still read —, or the whole meetings; to the system's trash, never deleted, restored from there.
 /// A meeting being recorded, transcribed or its minutes written is refused.
 #[tauri::command]
-fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(), String> {
+fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(), Told> {
     let busy = busy(&shell);
     let mut gone = Vec::new();
     for name in &names {
         let folder = session_folder(&shell, name)?;
         if busy.contains(&folder) {
-            return Err(format!("{name} is being recorded, transcribed or its minutes written"));
+            return Err(shell.told(
+                Failure::Busy,
+                format!("{name} is being recorded, transcribed or its minutes written"),
+            ));
         }
         if whole {
             gone.push(folder);
@@ -837,12 +868,8 @@ fn freed(shell: State<'_, Shell>, names: Vec<String>, whole: bool) -> Result<(),
     if gone.is_empty() {
         return Ok(());
     }
-    trash::delete_all(&gone).map_err(|error| refusal_said(&error, shell.language()))
-}
-
-/// A trash's refusal, in the user's words (as the audio's expiry says it).
-fn refusal_said(error: &trash::Error, language: Language) -> String {
-    words::audio_trashed(language, &Err(refusal(error))).body
+    // Its reason alone: the system's own wording names a file.
+    trash::delete_all(&gone).map_err(|error| shell.told(Failure::Trash(refusal(&error)), "the system's trash refused"))
 }
 
 /// What the small window shows (D22), asked ten times a second: whether a recording runs, for
@@ -921,8 +948,8 @@ fn record(app: AppHandle) {
 }
 
 /// The folder of a session the window names (`sessions::folder`).
-fn session_folder(shell: &Shell, name: &str) -> Result<PathBuf, String> {
-    sessions::folder(&shell.settings().sessions, name).ok_or_else(|| format!("{name} is no session"))
+fn session_folder(shell: &Shell, name: &str) -> Result<PathBuf, Told> {
+    sessions::folder(&shell.settings().sessions, name).ok_or_else(|| shell.told(Failure::NoMeeting, format!("{name} is no session")))
 }
 
 /// One meeting, as its page shows it.
@@ -950,13 +977,13 @@ struct Opened {
 }
 
 #[tauri::command]
-fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
+fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, Told> {
     let folder = session_folder(&shell, &name)?;
     let recorded = shell.recorded.lock().unwrap().clone();
     let session = sessions::list(&shell.settings().sessions, recorded.as_deref())
         .into_iter()
         .find(|listed| listed.folder == folder)
-        .ok_or_else(|| format!("{name} is no session"))?;
+        .ok_or_else(|| shell.told(Failure::NoMeeting, format!("{name} is no session")))?;
     Ok(Opened {
         session,
         transcript: meeting::transcript(&folder),
@@ -976,9 +1003,17 @@ fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, String> {
 /// The language a meeting is spoken in, said on its page (D65): a code written, or none removed —
 /// the settings' default then. Its next transcript is heard in it.
 #[tauri::command]
-fn language_set(shell: State<'_, Shell>, name: String, language: Option<String>) -> Result<(), String> {
+fn language_set(shell: State<'_, Shell>, name: String, language: Option<String>) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
-    spoken::mark(&folder, language.as_deref().filter(|code| !code.trim().is_empty())).map_err(|error| error.to_string())?;
+    spoken::mark(&folder, language.as_deref().filter(|code| !code.trim().is_empty())).map_err(|error| {
+        // A code the page's list never offers; else the folder.
+        let failure = if error.kind() == std::io::ErrorKind::InvalidInput {
+            Failure::Unexpected
+        } else {
+            Failure::MeetingFile
+        };
+        shell.told(failure, error)
+    })?;
     tracing::info!(language = language.as_deref().unwrap_or("none"), "shell.language_set");
     Ok(())
 }
@@ -1011,9 +1046,9 @@ fn confidential_of(shell: &Shell, folder: &Path) -> ConfidentialShown {
 /// is no longer, minutes a service wrote are written again here — what had already left kept to
 /// be said, with its host. Turned off, the settings choose again, for what is made next.
 #[tauri::command]
-fn confidential_set(app: AppHandle, shell: State<'_, Shell>, name: String, on: bool) -> Result<ConfidentialShown, String> {
+fn confidential_set(app: AppHandle, shell: State<'_, Shell>, name: String, on: bool) -> Result<ConfidentialShown, Told> {
     let folder = session_folder(&shell, &name)?;
-    confidential::mark(&folder, on).map_err(|error| error.to_string())?;
+    confidential::mark(&folder, on).map_err(|error| shell.told(Failure::MeetingFile, error))?;
     tracing::info!(on, "shell.confidential");
     if !on {
         // Waiting for Ollama no longer: the page offers them again, made as the settings say.
@@ -1099,7 +1134,7 @@ fn making(shell: &Shell, folder: &Path) -> bool {
 }
 
 #[tauri::command]
-fn context_shown(shell: State<'_, Shell>, name: String) -> Result<ContextShown, String> {
+fn context_shown(shell: State<'_, Shell>, name: String) -> Result<ContextShown, Told> {
     let folder = session_folder(&shell, &name)?;
     Ok(context_of(&shell, &folder))
 }
@@ -1108,12 +1143,12 @@ fn context_shown(shell: State<'_, Shell>, name: String) -> Result<ContextShown, 
 /// recorded once its folder holds its session —; refused while a making of it runs, or its
 /// transcript is left unfinished.
 #[tauri::command]
-fn context_saved(shell: State<'_, Shell>, name: String, text: String) -> Result<ContextShown, String> {
+fn context_saved(shell: State<'_, Shell>, name: String, text: String) -> Result<ContextShown, Told> {
     let folder = session_folder(&shell, &name)?;
     if let Some(closed) = context::closed(making(&shell, &folder), &meeting::transcript(&folder)) {
-        return Err(format!("the context cannot change now: {closed:?}"));
+        return Err(shell.told(closed.failure(), format!("the context cannot change now: {closed:?}")));
     }
-    context::write(&folder, &text).map_err(|error| error.to_string())?;
+    context::write(&folder, &text).map_err(|error| shell.told(Failure::MeetingFile, error))?;
     Ok(context_of(&shell, &folder))
 }
 
@@ -1121,13 +1156,13 @@ fn context_saved(shell: State<'_, Shell>, name: String, text: String) -> Result<
 /// hear, then the minutes by whoever they name to write — each kept in place until the new one
 /// is whole, put back if it is not.
 #[tauri::command]
-fn context_redo(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), String> {
+fn context_redo(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
     if shell.recording.lock().unwrap().is_some() && shell.recorded.lock().unwrap().as_deref() == Some(folder.as_path()) {
-        return Err(format!("{name} is being recorded"));
+        return Err(shell.told(Failure::Busy, format!("{name} is being recorded")));
     }
-    if context::closed(making(&shell, &folder), &meeting::transcript(&folder)).is_some() {
-        return Err(format!("{name} is being made, or its transcript is unfinished"));
+    if let Some(closed) = context::closed(making(&shell, &folder), &meeting::transcript(&folder)) {
+        return Err(shell.told(closed.failure(), format!("{name} cannot be made again now: {closed:?}")));
     }
     // One that cannot begin — no model, the program missing — says why on its page.
     retranscribe_or_say(&app, folder, Again::Settings);
@@ -1153,12 +1188,12 @@ fn playable(shell: &Shell, folder: &Path) -> Option<String> {
 /// A meeting's diagnostic, for the page to copy: every program's log lines of its makings, then
 /// each track's level — nothing of the meeting, which no line holds (D29).
 #[tauri::command]
-async fn diagnostic(shell: State<'_, Shell>, name: String) -> Result<String, String> {
+async fn diagnostic(shell: State<'_, Shell>, name: String) -> Result<String, Told> {
     if !shell.settings().developer {
-        return Err("the developer mode is off".into());
+        return Err(shell.told(Failure::Unexpected, "the developer mode is off"));
     }
     let session = session_folder(&shell, &name)?;
-    let folder = log::folder().ok_or("this system names no folder for logs")?;
+    let folder = log::folder().ok_or_else(|| shell.told(Failure::Unexpected, "this system names no folder for logs"))?;
     // Each track's level beside the logs: whether a side was heard at all, in numbers (D39) —
     // read away from the window's thread, an hour of tracks taking a second.
     tauri::async_runtime::spawn_blocking(move || {
@@ -1167,7 +1202,7 @@ async fn diagnostic(shell: State<'_, Shell>, name: String) -> Result<String, Str
         if lines.is_empty() { levels } else { format!("{lines}\n{levels}") }
     })
     .await
-    .map_err(|error| error.to_string())
+    .map_err(|error| shell.told(Failure::Unexpected, error))
 }
 
 /// A failure of the window's page, as it reports its own (D29): an error, its kind and where in
@@ -1179,10 +1214,10 @@ fn page_failed(kind: String, file: String, line: u32, column: u32) {
 
 /// Opens the logs' folder in the system's file manager, made when nothing was logged yet.
 #[tauri::command]
-fn open_logs() -> Result<(), String> {
-    let folder = log::folder().ok_or("this system names no folder for logs")?;
-    std::fs::create_dir_all(&folder).map_err(|error| error.to_string())?;
-    opening(&folder)
+fn open_logs(shell: State<'_, Shell>) -> Result<(), Told> {
+    let folder = log::folder().ok_or_else(|| shell.told(Failure::FolderNotOpened, "this system names no folder for logs"))?;
+    std::fs::create_dir_all(&folder).map_err(|error| shell.told(Failure::FolderNotOpened, error))?;
+    opening(&shell, &folder)
 }
 
 /// What the agreement page shows before a meeting first leaves for a host (D11's fifth board):
@@ -1200,18 +1235,18 @@ struct Agreement {
 }
 
 #[tauri::command]
-async fn agreement_shown(shell: State<'_, Shell>, name: String) -> Result<Agreement, String> {
+async fn agreement_shown(shell: State<'_, Shell>, name: String) -> Result<Agreement, Told> {
     let folder = session_folder(&shell, &name)?;
     // Said confidential: nothing is sent, nothing is asked (D60).
     if confidential::marked(&folder) {
-        return Err(format!("{name} is confidential: nothing is sent"));
+        return Err(shell.told(Failure::Confidential, format!("{name} is confidential: nothing is sent")));
     }
-    let settings = shell.reread()?;
+    let settings = shell.read_or_told()?;
     let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
-        return Err("no one is chosen to write the minutes".into());
+        return Err(shell.told(Failure::NoneChosen, "no one is chosen to write the minutes"));
     };
     let meeting::Read::Present(transcript) = meeting::transcript(&folder) else {
-        return Err(format!("{name} has no transcript to send"));
+        return Err(shell.told(Failure::NoTranscript, format!("{name} has no transcript to send")));
     };
     let words = |text: &str| text.split_whitespace().count();
     let listed = sessions::list(&settings.sessions, None)
@@ -1238,28 +1273,27 @@ async fn agreement_shown(shell: State<'_, Shell>, name: String) -> Result<Agreem
 /// The user's word: this meeting is sent; and, when they ticked it, the host is agreed to for the
 /// next ones, kept in the settings.
 #[tauri::command]
-fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, remember: bool) -> Result<(), String> {
+fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, remember: bool) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
     if confidential::marked(&folder) {
-        return Err(format!("{name} is confidential: nothing is sent"));
+        return Err(shell.told(Failure::Confidential, format!("{name} is confidential: nothing is sent")));
     }
     // The word given is for the host the page showed: chosen otherwise meanwhile, nothing goes.
-    let read = shell.reread()?;
+    let read = shell.read_or_told()?;
     let named = read.minutes_provider.clone().zip(read.minutes_model.clone());
     let now = read.minutes_provider.as_deref().and_then(providers::host);
     if now.as_deref() != Some(host.as_str()) {
-        return Err(format!("the minutes are no longer written by {host}: look again"));
+        return Err(shell.told(Failure::ProviderChanged, format!("the minutes are no longer written by {host}")));
     }
     if remember {
         let _saving = shell.saving.lock().unwrap();
-        let mut settings = shell.reread()?;
+        let mut settings = shell.read_or_told()?;
         // Kept only for the host shown, as the file still names it.
         if settings.minutes_provider.as_deref().and_then(providers::host).as_deref() != Some(host.as_str()) {
-            return Err(format!("the minutes are no longer written by {host}: look again"));
+            return Err(shell.told(Failure::ProviderChanged, format!("the minutes are no longer written by {host}")));
         }
         settings.minutes_agreed = Some(host.clone());
-        let file = settings::file().ok_or("this system names no folder for settings")?;
-        settings::write(&file, &settings).map_err(|error| error.to_string())?;
+        shell.write_or_told(&settings)?;
         *shell.settings.lock().unwrap() = settings;
     }
     let again = shell
@@ -1277,18 +1311,17 @@ fn agreed(app: AppHandle, shell: State<'_, Shell>, name: String, host: String, r
 /// Written on this computer instead: Ollama's model chosen for these minutes and the next ones;
 /// nothing is agreed to, nothing leaves.
 #[tauri::command]
-fn local_instead(app: AppHandle, shell: State<'_, Shell>, name: String, model: String) -> Result<(), String> {
+fn local_instead(app: AppHandle, shell: State<'_, Shell>, name: String, model: String) -> Result<(), Told> {
     let folder = session_folder(&shell, &name)?;
     if model.trim().is_empty() {
-        return Err("a model is named".into());
+        return Err(shell.told(Failure::ModelUnnamed, "no model is named"));
     }
     {
         let _saving = shell.saving.lock().unwrap();
-        let mut settings = shell.reread()?;
+        let mut settings = shell.read_or_told()?;
         settings.minutes_provider = Some(providers::ollama_address(&ollama()));
         settings.minutes_model = Some(model.trim().to_string());
-        let file = settings::file().ok_or("this system names no folder for settings")?;
-        settings::write(&file, &settings).map_err(|error| error.to_string())?;
+        shell.write_or_told(&settings)?;
         *shell.settings.lock().unwrap() = settings;
     }
     make_minutes(&app, folder);
@@ -1298,12 +1331,12 @@ fn local_instead(app: AppHandle, shell: State<'_, Shell>, name: String, model: S
 
 /// Opens a session's folder in the system's file manager.
 #[tauri::command]
-fn open_folder(shell: State<'_, Shell>, name: String) -> Result<(), String> {
-    opening(&session_folder(&shell, &name)?)
+fn open_folder(shell: State<'_, Shell>, name: String) -> Result<(), Told> {
+    opening(&shell, &session_folder(&shell, &name)?)
 }
 
 /// Opens a folder in the system's file manager.
-fn opening(folder: &Path) -> Result<(), String> {
+fn opening(shell: &Shell, folder: &Path) -> Result<(), Told> {
     let opener = if cfg!(target_os = "macos") {
         "open"
     } else if cfg!(windows) {
@@ -1315,7 +1348,7 @@ fn opening(folder: &Path) -> Result<(), String> {
     let mut started = std::process::Command::new(opener)
         .arg(folder)
         .spawn()
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| shell.told(Failure::FolderNotOpened, error))?;
     std::thread::spawn(move || started.wait());
     Ok(())
 }
@@ -1416,7 +1449,7 @@ struct SettingsShown {
     language: Option<&'static str>,
     developer: bool,
     log: Log,
-    unreadable: Option<String>,
+    unreadable: Option<Told>,
 }
 
 /// The folder Wholeheard keeps its models in: the default model's.
@@ -1426,9 +1459,10 @@ fn models_folder() -> PathBuf {
 
 #[tauri::command]
 fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
-    let read = shell.reread();
-    let unreadable = read.as_ref().err().cloned();
-    let settings = read.unwrap_or_else(|_| shell.settings());
+    let (settings, unreadable) = match shell.reread() {
+        Ok(settings) => (settings, None),
+        Err(why) => (shell.settings(), Some(shell.told(Failure::SettingsLocked, why))),
+    };
     let models = settings::whisper_models(&models_folder(), &settings)
         .into_iter()
         .map(|path| Model {
@@ -1509,21 +1543,21 @@ struct Change {
 /// Writes a change to the settings file, then holds it: the next recording follows it. Nothing
 /// is written over a file that could not be read, and a model is only one found on this computer.
 #[tauri::command]
-fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Result<(), String> {
+fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Result<(), Told> {
     let apple = change.engine == Some(Engine::SpeechAnalyzer);
     // The change goes onto what the file says now: what the user changed by hand stays.
     let _saving = shell.saving.lock().unwrap();
-    let mut settings = shell.reread()?;
+    let mut settings = shell.read_or_told()?;
     // A folder for the sessions: a whole path, made when it is not there yet.
     if let Some(sessions) = change.sessions {
         if sessions.as_os_str().is_empty() {
-            return Err("a folder is named".into());
+            return Err(shell.told(Failure::FolderUnnamed, "no folder is named"));
         }
         let sessions = settings::from_home(sessions);
         if !sessions.is_absolute() {
-            return Err(format!("{} is no whole path, from the root or from ~", sessions.display()));
+            return Err(shell.told(Failure::FolderNotWhole, "no whole path, from the root or from ~"));
         }
-        std::fs::create_dir_all(&sessions).map_err(|error| format!("{}: {error}", sessions.display()))?;
+        std::fs::create_dir_all(&sessions).map_err(|error| shell.told(Failure::FolderUnmade, error))?;
         settings.sessions = sessions;
     }
     if let Some(after) = change.after {
@@ -1537,8 +1571,9 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
     }
     // The entry first: the settings say what Wholeheard wrote of it, once it is written.
     if let Some(on) = change.autostart {
-        let entry = autostart::file().ok_or("this system names no folder for the session's start")?;
-        autostart::set(&entry, on).map_err(|error| format!("{}: {error}", entry.display()))?;
+        let entry =
+            autostart::file().ok_or_else(|| shell.told(Failure::Autostart, "this system names no folder for the session's start"))?;
+        autostart::set(&entry, on).map_err(|error| shell.told(Failure::Autostart, error))?;
         settings.autostart = Some(on);
     }
     if let Some(developer) = change.developer {
@@ -1547,7 +1582,7 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
     if let Some(language) = change.meeting_language {
         settings.meeting_language = match language.trim() {
             "" => None,
-            text => Some(spoken::code(text).ok_or_else(|| format!("{text} is no language's code"))?),
+            text => Some(spoken::code(text).ok_or_else(|| shell.told(Failure::Unexpected, "no language's code"))?),
         };
     }
     if let Some(log) = change.log {
@@ -1560,21 +1595,21 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
     if let Some(language) = change.language {
         settings.language = match language.trim() {
             "" => None,
-            code => Some(Language::named(code).ok_or_else(|| format!("{code} is no language Wholeheard speaks"))?),
+            code => Some(Language::named(code).ok_or_else(|| shell.told(Failure::Unexpected, "no language Wholeheard speaks"))?),
         };
     }
     // The same bounds as the file's: a value read refuses is never written.
     if let Some(KeepAudio::Days(days)) = change.keep_audio
         && !(1..=36_500).contains(&days)
     {
-        return Err(format!("{days} is no number of days to keep audio"));
+        return Err(shell.told(Failure::Unexpected, format!("{days} is no number of days to keep audio")));
     }
     if let Some(keep) = change.keep_audio {
         settings.keep_audio = keep;
     }
     if let Some(model) = change.model {
         if !settings::whisper_models(&models_folder(), &settings).contains(&model) {
-            return Err(format!("{} is no model on this computer", model.display()));
+            return Err(shell.told(Failure::ModelAbsent, "no model on this computer"));
         }
         settings.model = model;
         settings.engine = Engine::Whisper;
@@ -1582,8 +1617,7 @@ fn settings_saved(app: AppHandle, shell: State<'_, Shell>, change: Change) -> Re
     if let Some(engine) = change.engine {
         settings.engine = engine;
     }
-    let file = settings::file().ok_or("this system names no folder for settings")?;
-    settings::write(&file, &settings).map_err(|error| error.to_string())?;
+    shell.write_or_told(&settings)?;
     let relabelled = settings.language != spoken;
     *shell.settings.lock().unwrap() = settings;
     // Another language, spoken at once: the tray's menu; the window draws itself again (D64).
@@ -1640,12 +1674,13 @@ fn keyboard_settings() -> Option<PathBuf> {
 
 /// Opens the desktop's keyboard settings: the shortcut is the desktop's to change.
 #[tauri::command]
-fn shortcut_settings() -> Result<(), String> {
-    let program = keyboard_settings().ok_or("this desktop's keyboard settings cannot be opened from Wholeheard")?;
+fn shortcut_settings(shell: State<'_, Shell>) -> Result<(), Told> {
+    let program =
+        keyboard_settings().ok_or_else(|| shell.told(Failure::KeyboardSettings, "no keyboard settings to open on this desktop"))?;
     let mut started = std::process::Command::new(program)
         .arg("keyboard")
         .spawn()
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| shell.told(Failure::KeyboardSettings, error))?;
     std::thread::spawn(move || started.wait());
     Ok(())
 }
@@ -1686,7 +1721,7 @@ struct MinutesShown {
 }
 
 #[tauri::command]
-async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, String> {
+async fn minutes_shown(shell: State<'_, Shell>) -> Result<MinutesShown, Told> {
     let settings = shell.reread().unwrap_or_else(|_| shell.settings());
     let kept = settings
         .minutes_provider
@@ -1723,27 +1758,26 @@ async fn minutes_saved(
     provider: String,
     model: String,
     key: Option<String>,
-) -> Result<Option<String>, String> {
+) -> Result<Option<Told>, Told> {
     // Held until the file is written, never across the keyring's wait.
     let (host, key) = {
         let _saving = shell.saving.lock().unwrap();
         // The choice goes onto what the file says now; a file that cannot be read is not written over,
         // and no key is kept for a choice that is not saved: the file first, then the key.
-        let mut settings = shell.reread()?;
-        let host = providers::host(provider.trim()).ok_or_else(|| format!("{provider} is no provider's address"))?;
+        let mut settings = shell.read_or_told()?;
+        let host = providers::host(provider.trim()).ok_or_else(|| shell.told(Failure::BadAddress, "no provider's address"))?;
         if model.trim().is_empty() {
-            return Err("a model is named".into());
+            return Err(shell.told(Failure::ModelUnnamed, "no model is named"));
         }
         let key = key.map(|key| key.trim().to_string()).filter(|key| !key.is_empty());
         if key.is_some()
             && let Some(why) = shell.keyring.lock().unwrap().clone()
         {
-            return Err(format!("the system's keyring could not be opened ({why})"));
+            return Err(shell.told(Failure::Keyring, format!("the system's keyring could not be opened ({why})")));
         }
         settings.minutes_provider = Some(provider.trim().to_string());
         settings.minutes_model = Some(model.trim().to_string());
-        let file = settings::file().ok_or("this system names no folder for settings")?;
-        settings::write(&file, &settings).map_err(|error| error.to_string())?;
+        shell.write_or_told(&settings)?;
         *shell.settings.lock().unwrap() = settings;
         (host, key)
     };
@@ -1752,7 +1786,10 @@ async fn minutes_saved(
     let not_kept = match key {
         Some(key) => {
             let kept = tauri::async_runtime::spawn_blocking(move || keys::keep(&host, &key)).await;
-            kept.map_err(|error| error.to_string()).and_then(|kept| kept).err()
+            kept.map_err(|error| error.to_string())
+                .and_then(|kept| kept)
+                .err()
+                .map(|why| shell.told(Failure::Keyring, why))
         }
         None => None,
     };
@@ -1770,27 +1807,27 @@ async fn transcription_saved(
     model: String,
     key: Option<String>,
     agreed: bool,
-) -> Result<Option<String>, String> {
+) -> Result<Option<Told>, Told> {
     let (host, key) = {
         let _saving = shell.saving.lock().unwrap();
-        let mut settings = shell.reread()?;
+        let mut settings = shell.read_or_told()?;
         let (host, agreed_to) = transcription::service_named(&provider, &model, agreed).map_err(|refused| match refused {
-            transcription::Refused::Address => format!("{provider} is no service's address"),
-            transcription::Refused::Model => "a model is named".to_string(),
-            transcription::Refused::NotAgreed(host) => format!("the meetings' sound is sent to {host}: agree to it first"),
+            transcription::Refused::Address => shell.told(Failure::BadAddress, "no service's address"),
+            transcription::Refused::Model => shell.told(Failure::ModelUnnamed, "no model is named"),
+            // The page asks for the word first.
+            transcription::Refused::NotAgreed(host) => shell.told(Failure::Unexpected, format!("{host} is not agreed to")),
         })?;
         let key = key.map(|key| key.trim().to_string()).filter(|key| !key.is_empty());
         if key.is_some()
             && let Some(why) = shell.keyring.lock().unwrap().clone()
         {
-            return Err(format!("the system's keyring could not be opened ({why})"));
+            return Err(shell.told(Failure::Keyring, format!("the system's keyring could not be opened ({why})")));
         }
         settings.engine = Engine::Service;
         settings.transcription_provider = Some(provider.trim().to_string());
         settings.transcription_model = Some(model.trim().to_string());
         settings.transcription_agreed = agreed_to;
-        let file = settings::file().ok_or("this system names no folder for settings")?;
-        settings::write(&file, &settings).map_err(|error| error.to_string())?;
+        shell.write_or_told(&settings)?;
         *shell.settings.lock().unwrap() = settings;
         tracing::info!(host = %host, "shell.transcription_service_saved");
         (host, key)
@@ -1799,7 +1836,10 @@ async fn transcription_saved(
         Some(key) => {
             let account = transcription::key_account(&host);
             let kept = tauri::async_runtime::spawn_blocking(move || keys::keep(&account, &key)).await;
-            kept.map_err(|error| error.to_string()).and_then(|kept| kept).err()
+            kept.map_err(|error| error.to_string())
+                .and_then(|kept| kept)
+                .err()
+                .map(|why| shell.told(Failure::Keyring, why))
         }
         None => None,
     };
@@ -1809,8 +1849,11 @@ async fn transcription_saved(
 /// The transcription models a service that hears offers (D63): listed by the service where it
 /// lists them, else those it publishes. Nothing of a meeting is sent; no key is needed to list.
 #[tauri::command]
-async fn hearing_models(index: usize) -> Result<Vec<String>, String> {
-    let service = providers::hearing().into_iter().nth(index).ok_or("no such service")?;
+async fn hearing_models(shell: State<'_, Shell>, index: usize) -> Result<Vec<String>, Told> {
+    let service = providers::hearing()
+        .into_iter()
+        .nth(index)
+        .ok_or_else(|| shell.told(Failure::Unexpected, "no such service"))?;
     let published = || service.models.iter().map(|model| model.to_string()).collect();
     if !service.listed {
         return Ok(published());
@@ -1818,17 +1861,17 @@ async fn hearing_models(index: usize) -> Result<Vec<String>, String> {
     let address = service.address.clone();
     let listed = tauri::async_runtime::spawn_blocking(move || providers::hearing_listed(&address))
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| shell.told(Failure::Unexpected, error))?;
     Ok(listed.unwrap_or_else(published))
 }
 
 /// *Tester* for who hears: `wholeheard-transcription --test` sends a sound of its own to the service
 /// saved, its key in the environment; refused, the program's own sentence.
 #[tauri::command]
-async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), String> {
-    let settings = shell.reread()?;
+async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), Told> {
+    let settings = shell.read_or_told()?;
     let (Some(provider), Some(model)) = (settings.transcription_provider, settings.transcription_model) else {
-        return Err("no service is chosen yet".into());
+        return Err(shell.told(Failure::NoneChosen, "no service is chosen yet"));
     };
     let hearing = program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION");
     let output = tauri::async_runtime::spawn_blocking(move || {
@@ -1844,8 +1887,8 @@ async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), String> {
         command.output()
     })
     .await
-    .map_err(|error| error.to_string())?
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| shell.told(Failure::Unexpected, error))?
+    .map_err(|error| shell.told(Failure::ProgramNotStarted, error))?;
     if output.status.success() {
         tracing::info!("shell.transcription_tested");
         return Ok(());
@@ -1854,21 +1897,22 @@ async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), String> {
     let said = said.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
     let said = said.strip_prefix("wholeheard-transcription: ").unwrap_or(said).to_string();
     tracing::warn!(detail = %said, "shell.transcription_test_failed");
-    Err(if said.is_empty() {
+    let said = if said.is_empty() {
         format!("wholeheard-transcription stopped without saying why ({})", output.status)
     } else {
         said
-    })
+    };
+    Err(shell.said(Failure::TestRefused, &said))
 }
 
 /// *Tester*: asks `wholeheard-summary` whether the model saved answers — one sentence of its own,
 /// nothing of a meeting —, the key going from the keyring to its environment, never its
 /// arguments. Refused, the program's own sentence.
 #[tauri::command]
-async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
-    let settings = shell.reread()?;
+async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), Told> {
+    let settings = shell.read_or_told()?;
     let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
-        return Err("no model is chosen yet".into());
+        return Err(shell.told(Failure::NoneChosen, "no model is chosen yet"));
     };
     let summary = program("wholeheard-summary", "WHOLEHEARD_SUMMARY");
     let ran = tauri::async_runtime::spawn_blocking(move || {
@@ -1900,20 +1944,24 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), String> {
         output
     })
     .await
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| shell.told(Failure::Unexpected, error))?;
     match ran {
         Ok(output) if output.status.success() => Ok(()),
         Ok(output) => {
             let said = String::from_utf8_lossy(&output.stderr);
             let said = said.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
             let said = said.strip_prefix("wholeheard-summary: ").unwrap_or(said);
-            Err(if said.is_empty() {
+            let said = if said.is_empty() {
                 format!("wholeheard-summary stopped without saying why ({})", output.status)
             } else {
                 said.to_string()
-            })
+            };
+            Err(shell.said(Failure::TestRefused, &said))
         }
-        Err(error) => Err(format!("wholeheard-summary could not be started ({error})")),
+        Err(error) => Err(shell.said(
+            Failure::ProgramNotStarted,
+            &format!("wholeheard-summary could not be started ({error})"),
+        )),
     }
 }
 
@@ -2705,7 +2753,7 @@ fn transcribe_next(app: &AppHandle) {
 
 /// Made again as a Refaire… asked; one that cannot begin says why on its page.
 fn retranscribe_or_say(app: &AppHandle, folder: PathBuf, again: Again) {
-    if let Err(why) = retranscribe(app, folder.clone(), again) {
+    if let Err((_, why)) = retranscribe(app, folder.clone(), again) {
         app.state::<Shell>().transcripts_failed.lock().unwrap().insert(folder, why);
     }
 }
@@ -2715,7 +2763,7 @@ fn retranscribe_or_say(app: &AppHandle, folder: PathBuf, again: Again) {
 /// transcript there stays in place until the new one is whole — set aside for the run, since the
 /// program goes on from a transcript it finds —, then goes to the system's trash; a run that
 /// fails, or that Wholeheard ends as it quits, puts it back.
-fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), String> {
+fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), (Failure, String)> {
     let shell = app.state::<Shell>();
     let mut running = shell.transcription.lock().unwrap();
     if running.is_some() {
@@ -2725,10 +2773,10 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
         return Ok(());
     }
     shell.transcripts_tried.lock().unwrap().insert(folder.clone(), Some(again.clone()));
-    let settings = shell.reread()?;
+    let settings = shell.reread().map_err(|why| (Failure::SettingsUnread, why))?;
     let (hearer, key) = match &again {
         Again::Model(model) if !settings::whisper_models(&models_folder(), &settings).contains(model) => {
-            return Err(format!("{} is no model on this computer", model.display()));
+            return Err((Failure::ModelAbsent, "no model on this computer".to_string()));
         }
         Again::Model(model) => (Hearer::Model(model.clone()), None),
         Again::Settings => hearer_now(&shell, &settings, &folder),
@@ -2746,7 +2794,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
             }
             return Ok(());
         }
-        return Err(format!("{} is no model on this computer", model.display()));
+        return Err((Failure::ModelAbsent, "no model on this computer".to_string()));
     }
     // Made again with the context: its minutes too, when it had some or the settings make them.
     let minutes_after = again == Again::Settings && (folder.join("minutes.md").is_file() || settings.after == After::Minutes);
@@ -2755,7 +2803,12 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
     let previous = match sessions::set_aside(&current, true) {
         Ok(previous) => Some(previous),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => return Err(format!("the transcript there could not be set aside ({error}): nothing was made")),
+        Err(error) => {
+            return Err((
+                Failure::MeetingFile,
+                format!("the transcript there could not be set aside ({error}): nothing was made"),
+            ));
+        }
     };
     // The language the meeting says it is spoken in, else the settings' (D65).
     let spoken = spoken::read(&folder).or_else(|| settings.meeting_language.clone());
@@ -2772,7 +2825,7 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
             if let Some(previous) = &previous {
                 let _ = std::fs::rename(previous, &current);
             }
-            return Err(error.to_string());
+            return Err((Failure::ProgramNotStarted, error.to_string()));
         }
     };
     *running = Some(transcription);

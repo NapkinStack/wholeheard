@@ -193,6 +193,17 @@ pub fn welcome_due(settings: &Settings) -> bool {
 }
 
 /// Where the settings are on this system: `wholeheard/settings.toml` in the user's configuration.
+/// A failure of the settings file as a log and developer mode may hold it: the file by its name,
+/// not its path — nor the one a link points to, which `write` reads it by.
+pub fn unnamed(said: &str, file: &Path) -> String {
+    let name = file.file_name().map_or_else(|| "settings".into(), |name| name.to_string_lossy());
+    let said = said.replace(&file.display().to_string(), &name);
+    match fs::canonicalize(file) {
+        Ok(real) => said.replace(&real.display().to_string(), &name),
+        Err(_) => said,
+    }
+}
+
 pub fn file() -> Option<PathBuf> {
     dirs::config_dir().map(|folder| folder.join("wholeheard").join("settings.toml"))
 }
