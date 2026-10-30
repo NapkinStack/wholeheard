@@ -726,7 +726,7 @@ fn a_device_changed_says_what_is_recorded_now_one_gone_says_that_side_and_one_ba
             Said::Lost(Source::Me),
             French,
             "Votre micro n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{202f}; l’enregistrement continue.",
         ),
         (
             Said::Lost(Source::Others),
@@ -738,7 +738,7 @@ fn a_device_changed_says_what_is_recorded_now_one_gone_says_that_side_and_one_ba
             Said::Lost(Source::Others),
             French,
             "Le son de la réunion n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{202f}; l’enregistrement continue.",
         ),
     ] {
         assert_eq!(
@@ -823,7 +823,7 @@ fn what_the_devices_are_decides_what_is_said_of_one_gone_and_one_back() {
     sides.told(&Said::Lost(Source::Me), false, French);
     assert_eq!(
         body(&mut sides, &lost, French).as_deref(),
-        Some("Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.")
+        Some("Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{202f}; l’enregistrement continue.")
     );
     // The microphone not opened at the start: the same.
     let mut sides = Sides::default();
@@ -972,4 +972,91 @@ fn every_french_word_of_the_window_is_typeset_as_french() {
         }
         assert!(!sentence.contains("« "), "{sentence}");
     }
+}
+
+/// The French sentences of `src/words.rs`: each string literal that reads as French, its escapes
+/// (`\u{a0}`, `\u{202f}`, `\"`) read as the compiler reads them.
+fn french_literals() -> Vec<String> {
+    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/words.rs")).unwrap();
+    let mut found = Vec::new();
+    let mut chars = source.chars().peekable();
+    let mut in_comment = false;
+    let mut previous = ' ';
+    while let Some(c) = chars.next() {
+        if in_comment {
+            if c == '\n' {
+                in_comment = false;
+            }
+            previous = c;
+            continue;
+        }
+        if c == '/' && previous == '/' {
+            in_comment = true;
+            continue;
+        }
+        if c == '"' && previous != '\'' {
+            let mut text = String::new();
+            while let Some(d) = chars.next() {
+                match d {
+                    '\\' => match chars.next() {
+                        Some('u') => {
+                            let code: String = chars.by_ref().skip(1).take_while(|&e| e != '}').collect();
+                            text.push(char::from_u32(u32::from_str_radix(&code, 16).unwrap()).unwrap());
+                        }
+                        Some('n') => text.push('\n'),
+                        Some(other) => text.push(other),
+                        None => break,
+                    },
+                    '"' => break,
+                    other => text.push(other),
+                }
+            }
+            let french = text.contains(['é', 'è', 'à', 'ç', 'ù', 'ê', 'ô', 'î', 'â'])
+                || [
+                    " le ", " la ", " les ", " des ", " un ", " une ", " vous", " pour ", " est ", " pas ",
+                ]
+                .iter()
+                .any(|word| format!(" {text} ").contains(word));
+            if french {
+                found.push(text);
+            }
+            previous = '"';
+            continue;
+        }
+        previous = c;
+    }
+    found
+}
+
+#[test]
+fn every_french_sentence_has_its_spaces_before_the_tall_signs() {
+    // D47: U+202F before « ? ! ; », U+00A0 before « : » — times (12:21) and addresses (https:)
+    // aside — in every French sentence the window and the notifications say.
+    let mut wrong = Vec::new();
+    for text in french_literals() {
+        let chars: Vec<char> = text.chars().collect();
+        for (at, &c) in chars.iter().enumerate() {
+            let before = if at == 0 { None } else { Some(chars[at - 1]) };
+            let after = chars.get(at + 1).copied();
+            let bad = match c {
+                '?' | '!' | ';' => before.is_some_and(|b| b != '\u{202f}'),
+                ':' => {
+                    let time = before.is_some_and(|b| b.is_ascii_digit()) && after.is_some_and(|a| a.is_ascii_digit());
+                    let address = after == Some('/');
+                    !time && !address && before.is_some_and(|b| b != '\u{a0}')
+                }
+                _ => false,
+            };
+            if bad {
+                wrong.push(text.clone());
+                break;
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} French sentences without their space:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }

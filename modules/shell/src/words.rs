@@ -170,7 +170,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         ),
         (Said::Lost(Source::Me), French) => (
             "Votre micro n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{202f}; l’enregistrement continue.",
         ),
         (Said::Lost(Source::Others), English) => (
             "The meeting’s sound is not recorded for now",
@@ -178,7 +178,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         ),
         (Said::Lost(Source::Others), French) => (
             "Le son de la réunion n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{202f}; l’enregistrement continue.",
         ),
         (Said::Nothing, _) => return sends_nothing(None, language),
         (Said::Silent(Source::Me), English) => (
@@ -1559,7 +1559,7 @@ pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
         ),
         (Trouble::NoTranscriber(_), French) => (
             "Wholeheard ne peut pas transcrire",
-            "Son programme de transcription n’a pas pu démarrer. L’enregistrement est conservé\u{a0}; réinstaller Wholeheard remet le programme en place.",
+            "Son programme de transcription n’a pas pu démarrer. L’enregistrement est conservé\u{202f}; réinstaller Wholeheard remet le programme en place.",
         ),
     };
     said(title, body.to_string())
@@ -2041,7 +2041,7 @@ pub fn carried_over(language: Language) -> Notice {
         ),
         Language::French => (
             "Summit s’appelle maintenant Wholeheard",
-            "Vos réglages, vos réunions et le modèle de transcription sont repris\u{a0}; le raccourci clavier peut être redemandé une fois.",
+            "Vos réglages, vos réunions et le modèle de transcription sont repris\u{202f}; le raccourci clavier peut être redemandé une fois.",
         ),
     };
     Notice {
