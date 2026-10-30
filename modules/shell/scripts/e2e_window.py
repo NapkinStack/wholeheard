@@ -1732,6 +1732,64 @@ def minutes_copied(now: dt.datetime) -> None:
             wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').dataset.name") == folder.name
                      and b.find_elements(By.CSS_SELECTOR, "#meeting .minutes .none"), 10)
             check(f"a meeting {why} offers no copy", not browser.find_elements(By.ID, "copy-minutes"))
+def meeting_named(now: dt.datetime) -> None:
+    """AL. A meeting named by its minutes (D48): the title in the row and the page, as text."""
+    print("AL. a meeting takes the title its minutes give it — the date beneath it in the list, above it on the page; as text; made again, the new one (D48)")
+    meetings = WORK / "named"
+    def written(folder: Path, contract: str, title: str | None) -> None:
+        named = f"title: {json.dumps(title)}\n" if title is not None else ""
+        (folder / "minutes.md").write_text(
+            f"---\ncontract: {contract}\nmade: 2026-10-28T15:00:00+01:00\nprovider: local\nmodel: m\ncontext: null\n{named}---\n\n"
+            "## 1.\n\nLe budget.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    long = "Lancement du produit — calendrier, budget, recrutement, et tout ce qui reste à fixer"[:80]
+    named, marked, old, without = [meetings / f"2026-10-2{i}_14-00" for i in (8, 7, 6, 5)]
+    for i, folder in enumerate((named, marked, old, without)):
+        session(folder, now - dt.timedelta(days=1 + i), 10, {"local.wav": 1000})
+    written(named, "minutes/v2", long)
+    written(marked, "minutes/v2", "<img src=x onerror=\"window.named_ran=1\">")
+    written(old, "minutes/v1", None)
+    rows_said = ("return [...document.querySelectorAll('#groups .session')].map(r => ["
+                 "r.querySelector('.day').textContent, r.querySelector('.day').title, r.querySelector('.on')?.textContent ?? null])")
+    with Window(meetings, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: len(b.find_elements(By.CSS_SELECTOR, "#groups .session")) == 4, 10)
+        said = browser.execute_script(rows_said)
+        check("the title in its row, whole in its tooltip, the date beneath it", said[0][0] == long and said[0][1] == long and bool(said[0][2]) and "·" in said[0][2], said)
+        check("minutes made before, or none: the date as today, nothing beneath",
+              all("·" in row[0] and row[2] is None for row in said[2:]), said)
+        check("markup in a title is shown as text, never as markup",
+              said[1][0] == "<img src=x onerror=\"window.named_ran=1\">"
+              and not browser.execute_script("return document.querySelector('#groups img') || window.named_ran"), said[1])
+        fits = browser.execute_script(
+            "const d = document.querySelector('#groups .session .day'); const r = d.closest('.session').getBoundingClientRect();"
+            "return [getComputedStyle(d).whiteSpace, getComputedStyle(d).textOverflow, d.getBoundingClientRect().height < 30, d.getBoundingClientRect().right <= r.right]")
+        check("a long title on one line, cut by an ellipsis, inside its row", fits == ["nowrap", "ellipsis", True, True], fits)
+        browser.execute_script("const f = document.getElementById('find'); f.value = 'recrutement'; f.dispatchEvent(new Event('input'))")
+        found = wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('#groups li')].filter(l => !l.hidden).length") == 1, 5)
+        check("the search finds a meeting by its title", found)
+        browser.execute_script("const f = document.getElementById('find'); f.value = ''; f.dispatchEvent(new Event('input'))")
+        head = "return [...document.querySelectorAll('#meeting .named > *')].map(e => [e.tagName, e.className, e.textContent])"
+        browser.execute_script(f"location.hash = '#/meeting/{named.name}'")
+        page = wait_for(browser, lambda b: b.execute_script(head)[:2:1] and b.execute_script(head)[1][0] == "H1" and b.execute_script(head)[1][2] == long, 10)
+        got = browser.execute_script(head)
+        check("on its page: the date above, the title its heading", page and got[0][0] != "H1" and "·" in got[0][2], got)
+        shot(browser, "d48-named")
+        browser.execute_script(f"location.hash = '#/meeting/{marked.name}'")
+        as_text = wait_for(browser, lambda b: b.execute_script(head)[1][2].startswith("<img"), 10)
+        check("markup in a title is text on the page too",
+              as_text and not browser.execute_script("return document.querySelector('#meeting .named img') || window.named_ran"), browser.execute_script(head))
+        browser.execute_script(f"location.hash = '#/meeting/{old.name}'")
+        dated = wait_for(browser, lambda b: b.execute_script(head)[0][0] == "H1" and "·" in b.execute_script(head)[0][2], 10)
+        check("minutes made before: the date is the heading, as today", dated, browser.execute_script(head))
+        # Made again: the new title, read from the file as the list reads again.
+        written(named, "minutes/v2", "Un nouveau nom")
+        browser.execute_script(f"location.hash = '#/meeting/{named.name}'")
+        again = wait_for(browser, lambda b: b.execute_script(head)[1][2] == "Un nouveau nom", 10)
+        check("the minutes made again: the meeting takes the new title", again, browser.execute_script(head))
+        retitled = wait_for(browser, lambda b: b.execute_script(rows_said)[0][0] == "Un nouveau nom", 10)
+        check("its row too", retitled, browser.execute_script(rows_said)[0])
+
+
 def actions_rows(now: dt.datetime) -> None:
     """AK. A meeting's actions as rows: Qui · Quoi · Pour quand (D46)."""
     print("AK. the minutes' actions as rows — who in its colour, by when in monospace, an item that does not split shown as written (D46)")
@@ -4372,6 +4430,7 @@ def main() -> int:
     meeting_told_once(now)
     minutes_copied(now)
     actions_rows(now)
+    meeting_named(now)
     return 1 if FAILED else 0
 
 

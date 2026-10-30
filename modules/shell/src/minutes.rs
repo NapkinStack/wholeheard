@@ -1,4 +1,4 @@
-//! One meeting's minutes (`contracts/minutes/v1`), as the window opens them: who wrote them, where
+//! One meeting's minutes (`contracts/minutes/v1` and `v2`), as the window opens them: who wrote them, where
 //! and when, from the front matter; and the body as written — rendered from its CommonMark by the
 //! reader their producer judged them with, not read into parts the window would guess at. Nothing
 //! here writes. Minutes without their front matter or their three sections are said unreadable.
@@ -17,6 +17,9 @@ pub struct Minutes {
     pub model: Option<String>,
     /// The context they were written with, as the front matter says (D59).
     pub context: Option<String>,
+    /// The meeting's name, as the front matter says it (`minutes/v2`, D48); one out of the
+    /// contract's bounds is no name, and the minutes still read.
+    pub title: Option<String>,
     /// The three sections as HTML: their titles, paragraphs and lists as written. What the
     /// body holds as HTML is shown as text, and a link as its words: a page shows the minutes, it
     /// is never driven by them.
@@ -32,6 +35,23 @@ pub fn minutes(folder: &Path, sections: [&str; 3]) -> Read<Minutes> {
         Err(_) => Read::Absent,
         Ok(text) => parse_minutes(&text, sections).map_or(Read::Unreadable, Read::Present),
     }
+}
+
+/// The most a title holds, in characters (`minutes/v2`).
+const TITLE_MOST: usize = 80;
+
+/// A meeting's name, as the list and its page show it: the title of minutes that read.
+pub fn title(folder: &Path) -> Option<String> {
+    match minutes(folder, ["", "", ""]) {
+        Read::Present(minutes) => minutes.title,
+        _ => None,
+    }
+}
+
+/// A title within the contract: on one line, not blank, at most 80 characters.
+fn within(title: String) -> Option<String> {
+    let one_line = !title.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'));
+    (one_line && !title.trim().is_empty() && title.chars().count() <= TITLE_MOST).then_some(title)
 }
 
 /// A front matter value as `wholeheard-summary` writes it: `null`, a plain value, or a string in
@@ -57,7 +77,7 @@ fn parse_minutes(text: &str, sections: [&str; 3]) -> Option<Minutes> {
         fields.insert(key.trim(), written);
     }
     let field = |key: &str| fields.get(key).and_then(|written| value(written));
-    if field("contract").as_deref() != Some("minutes/v1") {
+    if !matches!(field("contract").as_deref(), Some("minutes/v1" | "minutes/v2")) {
         return None;
     }
     // Three sections, each on a title of second level however it is written: what the producer
@@ -139,6 +159,7 @@ fn parse_minutes(text: &str, sections: [&str; 3]) -> Option<Minutes> {
         provider: field("provider"),
         model: field("model"),
         context: field("context"),
+        title: field("title").and_then(within),
         body: html,
         markdown,
     })
