@@ -140,7 +140,7 @@ active on its monitor: wrong by construction.
 | In the graph | `me` records | Its stream | Said |
 |---|---|---|---|
 | A call holds a microphone | That microphone; followed if it changes | Passive on a loopback source, else as today | `device`, as D31 |
-| No call; the default input is a loopback source | Nothing yet: it waits | Passive | The microphone waits (below) |
+| No call; the default input is a loopback source | Nothing yet: it waits | None | The microphone waits (below) |
 | No call; another default input | The default input | As today, active | As today |
 
 2. **A stream never opens a `bluez5.loopback=true` source actively.** `node.passive=in-follow` on the
