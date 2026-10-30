@@ -1432,6 +1432,119 @@ pub fn shown_detail(said: &str, developer: bool) -> String {
     if developer { said.to_string() } else { String::new() }
 }
 
+/// Why a command the page called failed: each is one sentence below. What no gesture of the user
+/// can reach — the page refuses it first, or offers nothing else — is `Unexpected`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Failure {
+    Unexpected,
+    NoMeeting,
+    Busy,
+    NotComplete,
+    MeetingFile,
+    Trash(Refusal),
+    Confidential,
+    NoneChosen,
+    NoTranscript,
+    ProviderChanged,
+    ModelUnnamed,
+    ModelAbsent,
+    BadAddress,
+    FolderUnnamed,
+    FolderNotWhole,
+    FolderUnmade,
+    Autostart,
+    SettingsUnread,
+    SettingsUnwritten,
+    FolderNotOpened,
+    KeyboardSettings,
+    Keyring,
+    ProgramNotStarted,
+    TestRefused,
+}
+
+/// A failure's sentence. Most follow the page's own « not saved: » and so start in lower case; those
+/// the page shows alone, `FolderNotOpened` and `KeyboardSettings`, are whole.
+pub fn failure(failure: Failure, language: Language) -> String {
+    use Language::*;
+    match (failure, language) {
+        (Failure::Trash(refusal), _) => return audio_trashed(language, &Err(refusal)).body,
+        (Failure::Unexpected, English) => "Wholeheard could not do this: try again, and restart it if it happens again.",
+        (Failure::Unexpected, French) => "Wholeheard n’a pas pu le faire\u{a0}: réessayez, et redémarrez-le si cela se reproduit.",
+        (Failure::NoMeeting, English) => "this meeting is no longer in the meetings’ folder: go back to the list.",
+        (Failure::NoMeeting, French) => "cette réunion n’est plus dans le dossier des réunions\u{a0}: revenez à la liste.",
+        (Failure::Busy, English) => "this meeting is being recorded or made: try again once that is done.",
+        (Failure::Busy, French) => "cette réunion est en cours d’enregistrement ou de préparation\u{a0}: réessayez une fois cela terminé.",
+        (Failure::NotComplete, English) => "its transcript is not complete: make it again first.",
+        (Failure::NotComplete, French) => "sa transcription n’est pas complète\u{a0}: refaites-la d’abord.",
+        (Failure::MeetingFile, English) => {
+            "its folder could not be written to: check that the disk has room and that you may write there, then try again."
+        }
+        (Failure::MeetingFile, French) => {
+            "son dossier n’a pas pu être écrit\u{a0}: vérifiez qu’il reste de la place et que vous pouvez y écrire, puis réessayez."
+        }
+        (Failure::Confidential, English) => "this meeting is confidential: nothing is sent.",
+        (Failure::Confidential, French) => "cette réunion est confidentielle\u{a0}: rien n’est envoyé.",
+        (Failure::NoneChosen, English) => "nothing is chosen yet: choose it in Settings, then try again.",
+        (Failure::NoneChosen, French) => "rien n’est encore choisi\u{a0}: choisissez dans les réglages, puis réessayez.",
+        (Failure::NoTranscript, English) => "this meeting has no transcript to send: make it first.",
+        (Failure::NoTranscript, French) => "cette réunion n’a pas de transcription à envoyer\u{a0}: faites-la d’abord.",
+        (Failure::ProviderChanged, English) => "who writes the minutes has changed: look at this page again.",
+        (Failure::ProviderChanged, French) => "le rédacteur du compte rendu a changé\u{a0}: revoyez cette page.",
+        (Failure::ModelUnnamed, English) => "name a model, then try again.",
+        (Failure::ModelUnnamed, French) => "nommez un modèle, puis réessayez.",
+        (Failure::ModelAbsent, English) => "this model is not on this computer: fetch it in Settings.",
+        (Failure::ModelAbsent, French) => "ce modèle n’est pas sur cet ordinateur\u{a0}: téléchargez-le dans les réglages.",
+        (Failure::BadAddress, English) => "this address cannot be used: write it whole, starting with https://.",
+        (Failure::BadAddress, French) => "cette adresse n’est pas utilisable\u{a0}: écrivez-la en entier, en commençant par https://.",
+        (Failure::FolderUnnamed, English) => "name a folder, then try again.",
+        (Failure::FolderUnnamed, French) => "nommez un dossier, puis réessayez.",
+        (Failure::FolderNotWhole, English) => "write the folder’s whole path, from / or from ~.",
+        (Failure::FolderNotWhole, French) => "écrivez le chemin entier du dossier, depuis / ou depuis ~.",
+        (Failure::FolderUnmade, English) => "this folder could not be made: check that you may write there.",
+        (Failure::FolderUnmade, French) => "ce dossier n’a pas pu être créé\u{a0}: vérifiez que vous pouvez y écrire.",
+        (Failure::Autostart, English) => "starting at login could not be changed: check that your home folder can be written to.",
+        (Failure::Autostart, French) => {
+            "le démarrage à l’ouverture de session n’a pas pu être changé\u{a0}: vérifiez que votre dossier personnel peut être écrit."
+        }
+        (Failure::SettingsUnread, English) => "the settings file cannot be read: correct it, then try again.",
+        (Failure::SettingsUnread, French) => "le fichier des réglages ne peut pas être lu\u{a0}: corrigez-le, puis réessayez.",
+        (Failure::SettingsUnwritten, English) => "the settings file could not be written: check that the disk has room, then try again.",
+        (Failure::SettingsUnwritten, French) => {
+            "le fichier des réglages n’a pas pu être écrit\u{a0}: vérifiez qu’il reste de la place, puis réessayez."
+        }
+        (Failure::FolderNotOpened, English) => "The folder could not be opened: open it from your file manager.",
+        (Failure::FolderNotOpened, French) => "Le dossier n’a pas pu être ouvert\u{a0}: ouvrez-le depuis votre gestionnaire de fichiers.",
+        (Failure::KeyboardSettings, English) => "The keyboard settings cannot be opened from here: open them from your system’s settings.",
+        (Failure::KeyboardSettings, French) => {
+            "Les réglages du clavier ne s’ouvrent pas d’ici\u{a0}: ouvrez-les depuis ceux de votre système."
+        }
+        (Failure::Keyring, English) => "the system’s keyring does not answer: unlock it, then try again.",
+        (Failure::Keyring, French) => "le trousseau du système ne répond pas\u{a0}: déverrouillez-le, puis réessayez.",
+        (Failure::ProgramNotStarted, English) => "a program of Wholeheard’s could not be started: install Wholeheard again.",
+        (Failure::ProgramNotStarted, French) => "un programme de Wholeheard n’a pas pu démarrer\u{a0}: réinstallez Wholeheard.",
+        (Failure::TestRefused, English) => "check its address, its name and its key, then try again.",
+        (Failure::TestRefused, French) => "vérifiez son adresse, son nom et sa clé, puis réessayez.",
+    }
+    .to_string()
+}
+
+/// What a command that failed hands the page: a sentence of these words, and only here made — and,
+/// in developer mode, the raw text on the line under it (D47).
+#[derive(Debug, PartialEq, serde::Serialize)]
+#[serde(transparent)]
+pub struct Told(String);
+
+/// A failure as the page is told it.
+pub fn told(which: Failure, detail: &str, language: Language, developer: bool) -> Told {
+    let sentence = failure(which, language);
+    let shown = shown_detail(detail, developer);
+    Told(if shown.is_empty() {
+        sentence
+    } else {
+        format!("{sentence}\n{shown}")
+    })
+}
+
 /// Why minutes were not made, and what to do, as wholeheard-summary coded it (summarising/v1).
 pub fn cause(cause: Cause, language: Language) -> &'static str {
     use Language::{English, French};

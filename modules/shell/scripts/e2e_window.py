@@ -826,7 +826,7 @@ def service_named(now: dt.datetime) -> None:
         (WORK / "no-times").touch()
         try:
             press(browser, "transcription-test")
-            refused = wait_for(browser, lambda b: "gives no times: choose another model" in b.execute_script(said), 10)
+            refused = wait_for(browser, lambda b: "vérifiez son adresse, son nom et sa clé" in b.execute_script(said), 10)
         finally:
             (WORK / "no-times").unlink()
         check("a model that gives no segment times: Tester says it is refused, and why", refused
@@ -2207,7 +2207,7 @@ def transcript_corrected(now: dt.datetime) -> None:
             "return window.__TAURI__.core.invoke('transcript_corrected', {name: arguments[0], track: 'local', start: 0.4, text: 'x'}).then(() => 'kept', (why) => String(why))",
             unfinished.name)
         check("a transcript not complete offers no line to correct, and a correction asked is refused, the file as it was",
-              browser.execute_script(pencils) == 0 and "not complete" in refused and (unfinished / "transcript.jsonl").read_text() == before.replace('{"type":"complete","duration":3.0}\n', ""),
+              browser.execute_script(pencils) == 0 and refused == "sa transcription n’est pas complète\u00a0: refaites-la d’abord." and (unfinished / "transcript.jsonl").read_text() == before.replace('{"type":"complete","duration":3.0}\n', ""),
               (browser.execute_script(pencils), refused))
         browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
         wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#meeting .lines .edit"), 10)
@@ -2300,7 +2300,7 @@ def transcript_corrected(now: dt.datetime) -> None:
                 heard.name)
             hidden = wait_for(browser, lambda b: b.execute_script(pencils) == 0, 3)
             check("while the minutes are written, no line is corrected: refused, its pencils hidden",
-                  writing and "being written" in asked and hidden and "Le budget de Jiri" in (heard / "transcript.jsonl").read_text(), (writing, asked))
+                  writing and "en cours d’enregistrement ou de préparation" in asked and hidden and "Le budget de Jiri" in (heard / "transcript.jsonl").read_text(), (writing, asked))
         finally:
             (WORK / "slow-minutes").unlink()
         remade = wait_for(browser, lambda b: (heard / "minutes.md").read_text() != minutes, 10)
@@ -2321,7 +2321,7 @@ def transcript_corrected(now: dt.datetime) -> None:
                 heard.name)
         finally:
             (WORK / "slow-hearing").unlink()
-        check("a correction asked while the transcript is made again is refused", "being made" in refused, refused)
+        check("a correction asked while the transcript is made again is refused", "en cours d’enregistrement ou de préparation" in refused, refused)
         # Its end waited for: the transcript set aside meanwhile, then the new one in its place.
         def remade() -> bool:
             try:
@@ -3519,7 +3519,8 @@ def main() -> int:
         check(
             "a model that does not answer is said in one sentence; the key goes by the environment, never the arguments",
             refused
-            and said.endswith("the provider at openrouter.ai refused the key")
+            and said.endswith("vérifiez son adresse, son nom et sa clé, puis réessayez.")
+            and "openrouter.ai" not in said
             and (WORK / "summary-key").read_text() == "sk-scenario"
             and "sk-scenario" not in (WORK / "summary-args").read_text(),
             said,

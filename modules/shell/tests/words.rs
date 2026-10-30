@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use wholeheard_shell::{
     recording::{Said, Source},
-    words::{self, Language, Notice, Refusal},
+    words::{self, Failure, Language, Notice, Refusal},
 };
 
 const BOTH: [Language; 2] = [Language::English, Language::French];
@@ -1208,4 +1208,59 @@ fn a_stop_says_how_long_was_recorded_agreed_in_french_and_no_session_in_a_failur
         let failed = told(&Said::Failed(why.into()), false, Language::French).1;
         assert!(failed.ends_with("est gardé dans le dossier de la réunion."), "{failed}");
     }
+}
+
+/// Each `#[tauri::command]` of the shell's `main.rs`: its signature, then its body.
+fn commands() -> Vec<(String, String)> {
+    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs")).unwrap();
+    source
+        .split("#[tauri::command]\n")
+        .skip(1)
+        .map(|command| {
+            let command = &command[..command.find("\n}\n").expect("a command ends")];
+            let (signature, body) = command.split_once(" {\n").expect("a command has a body");
+            (signature.to_string(), body.to_string())
+        })
+        .collect()
+}
+
+#[test]
+fn a_command_hands_the_page_no_text_of_its_own_only_a_sentence_of_these_words() {
+    let commands = commands();
+    assert!(commands.len() > 30, "{} commands read", commands.len());
+    for (signature, body) in &commands {
+        if let Some((_, answer)) = signature.split_once("-> Result<") {
+            let error = answer.rsplit(", ").next().unwrap().trim();
+            assert!(
+                error == "Told>" || error == "()>",
+                "a command fails with a sentence of words.rs (Told), or says nothing: {signature}"
+            );
+            assert!(!answer.contains("Option<String>"), "a failure answered as a text: {signature}");
+        }
+        for text in ["Err(\"", "Err(format!", ".into())", "ok_or(\"", ".ok_or_else(|| format!"] {
+            assert!(!body.contains(text), "{signature} hands the page a text: {text}");
+        }
+    }
+}
+
+#[test]
+fn a_command_that_failed_says_its_sentence_and_the_raw_text_only_in_developer_mode() {
+    let raw = "os error 28";
+    let page = |language, developer| serde_json::to_string(&words::told(Failure::MeetingFile, raw, language, developer)).unwrap();
+    assert_eq!(
+        page(Language::French, false),
+        "\"son dossier n’a pas pu être écrit\u{a0}: vérifiez qu’il reste de la place et que vous pouvez y écrire, puis réessayez.\""
+    );
+    assert!(page(Language::English, false).starts_with("\"its folder could not be written to"));
+    assert!(!page(Language::English, false).contains(raw));
+    assert!(
+        page(Language::French, true).ends_with("réessayez.\\nos error 28\""),
+        "{}",
+        page(Language::French, true)
+    );
+    // A trash's refusal is the sentence its expiry says.
+    assert_eq!(
+        words::failure(Failure::Trash(Refusal::NoSpace), Language::French),
+        words::audio_trashed(Language::French, &Err(Refusal::NoSpace)).body
+    );
 }

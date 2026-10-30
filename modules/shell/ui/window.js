@@ -665,7 +665,9 @@ function contextCard(session, { context, transcript, minutes }, words) {
   redo.id = "context-redo";
   redo.addEventListener("click", async () => {
     redo.disabled = true;
-    await window.__TAURI__.core.invoke("context_redo", { name }).catch(() => {});
+    await window.__TAURI__.core.invoke("context_redo", { name }).catch((why) => {
+      said.textContent = fill(words.not_saved, why);
+    });
     await readMakings();
     redo.disabled = false;
   });
@@ -930,7 +932,9 @@ function minutesCard(read, words, session, transcript) {
     again.id = "redo-corrections";
     again.addEventListener("click", async () => {
       again.disabled = true;
-      await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: null, model: null }).catch(() => {});
+      await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: null, model: null }).catch((why) => {
+        since.append(element("p", "note warn", fill(words.not_saved, why)));
+      });
       readMakings();
     });
     since.append(element("p", "note", words.corrected_since), again);
@@ -1340,7 +1344,9 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   const top = element("div", "meeting-top");
   const open = element("button", "open", words.open_folder);
   open.type = "button";
-  open.addEventListener("click", () => window.__TAURI__.core.invoke("open_folder", { name: nameOf(session) }));
+  open.addEventListener("click", () => window.__TAURI__.core.invoke("open_folder", { name: nameOf(session) }).catch((why) => {
+    open.replaceWith(element("p", "note warn", why));
+  }));
   const actions = element("div", "actions");
   // In developer mode: this meeting's logs, to send to whoever looks into it — nothing of the
   // meeting is in them (D29).
