@@ -84,7 +84,8 @@ def pitch(one):
         return 0
     crossings = sounding = 0
     for at in range(loud[0], loud[-1]):
-        if one["first"][at] and one["first"][at + 1]:
+        # Either: a note may fall on exactly zero at each crossing, and zeros of a gap are both.
+        if one["first"][at] or one["first"][at + 1]:
             sounding += 1
             crossings += first[at] < 0 <= first[at + 1]
     return crossings * one["rate"] / max(sounding, 1)
@@ -187,14 +188,37 @@ def own_microphone(pid):
             and str(props.get("application.process.id")) == str(pid) and props.get("stream.capture.sink") not in (True, "true")]
 
 
-def in_follow(pid):
-    """capture's local stream is passive, and its remote stream is not (ADR-0015)."""
+def passive(pid):
+    """capture's local stream says the value this PipeWire reads as passive, its remote stream none (ADR-0015)."""
+    dump = json.loads(subprocess.run(["pw-dump"], capture_output=True, text=True, check=True).stdout)
+    version = next(o["info"]["version"] for o in dump if o["type"].endswith(":Core"))
+    wanted = "in-follow" if tuple(map(int, version.split(".")[:2])) >= (1, 7) else "in"
     local = own_microphone(pid)
     assert local, f"process {pid} has no local stream"
-    assert local[0].get("node.passive") == "in-follow", f"the local stream says node.passive={local[0].get('node.passive')}"
+    assert local[0].get("node.passive") == wanted, f"PipeWire {version}: the local stream says node.passive={local[0].get('node.passive')}"
     remote = [props for _, props in graph_nodes() if str(props.get("application.process.id")) == str(pid) and props.get("stream.capture.sink") in (True, "true")]
     assert remote and "node.passive" not in remote[0], "the remote stream changed"
-    print("    the local stream says node.passive=in-follow; the remote does not")
+    print(f"    PipeWire {version}: the local stream says node.passive={wanted}; the remote does not")
+
+
+def state(name):
+    states = [state for state, props in graph_nodes() if props.get("node.name") == name]
+    assert states, f"{name} is not in the graph"
+    return states[0]
+
+
+def not_running(name, seconds):
+    """The source is never `running`, read every tenth of a second for that long."""
+    until = time.time() + seconds
+    while time.time() < until:
+        assert state(name) != "running", f"{name} runs with nothing holding it"
+        time.sleep(0.1)
+    print(f"    {name}: not running, read for {seconds} s")
+
+
+def running(name):
+    assert state(name) == "running", f"{name} is {state(name)}, with a call holding it"
+    print(f"    {name}: running")
 
 
 def waited(folder):
@@ -305,8 +329,12 @@ def main(what, folder, *args):
         return followed(folder, *args)
     if what == "moves-said":
         return moves_said(folder, *args)
-    if what == "in-follow":
-        return in_follow(folder)
+    if what == "passive":
+        return passive(folder)
+    if what == "not-running":
+        return not_running(folder, float(args[0]))
+    if what == "running":
+        return running(folder)
     if what == "not-following":
         assert not own_microphone(folder), "capture still has a local stream, after the call left"
         return print("    capture holds no local stream")

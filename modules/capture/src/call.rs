@@ -46,8 +46,8 @@ pub fn output(dump: &str, ours: u64) -> Result<Option<Output>, String> {
     }
     Ok(Some(Output {
         name: node.name.clone(),
-        // Named as cpal and `linked` name it: never two names for one device (#458).
-        description: node.description.clone().unwrap_or_else(|| "unknown".to_string()),
+        // Named as cpal and `linked` name it: never two names for one device (#458), never an address.
+        description: node.named(),
     }))
 }
 
@@ -87,8 +87,9 @@ pub struct Microphone {
     pub name: String,
     pub description: String,
     /// It is a headset's virtual input, or a filter fed by one (ADR-0015): whoever makes it run
-    /// asks for the headset's profile, so it is only ever listened to passively.
-    pub loopback: bool,
+    /// asks for the headset's profile, so it is only ever listened to passively, saying this
+    /// `node.passive`. None: any other source.
+    pub passive: Option<&'static str>,
 }
 
 /// What the local side records (D66, ADR-0015).
@@ -112,14 +113,36 @@ pub enum Step {
     Take,
 }
 
-/// The local stream's own, on a source that must not be made to run. `in-follow`: it never makes
-/// its source run, it runs when something else does. Nothing moves it elsewhere when the source
-/// goes: it fails, and the graph says what comes next.
-pub const PASSIVE_PROPS: [(&str, &str); 3] = [
-    ("node.passive", "in-follow"),
-    ("node.dont-fallback", "true"),
-    ("node.dont-reconnect", "true"),
-];
+/// The `node.passive` that never makes a source run and runs when something else does (ADR-0015),
+/// for the PipeWire that reads it: `pw-dump`'s `Core` version, the server's, whose parser decides.
+/// To 1.6: `in`; a passive link makes nothing runnable, and a running driver carries a leaf node;
+/// `in-follow` is not known there, and reads as an active stream. From 1.7: `in-follow`; the leaf
+/// rule is gone, and `in` would hear nothing. A version not read: `in`, the wrong guess costing a
+/// silent track, never a call.
+pub fn passive_value(version: Option<&str>) -> &'static str {
+    let number = |part: Option<&str>| part.and_then(|part| part.parse::<u32>().ok());
+    let mut parts = version.unwrap_or_default().split('.');
+    match (number(parts.next()), number(parts.next())) {
+        (Some(major), Some(minor)) if (major, minor) >= (1, 7) => "in-follow",
+        _ => "in",
+    }
+}
+
+/// The local stream's own, on a source that must not be made to run. Nothing moves it elsewhere
+/// when the source goes: it fails, and the graph says what comes next.
+pub fn passive_props(value: &'static str) -> [(&'static str, &'static str); 3] {
+    [
+        ("node.passive", value),
+        ("node.dont-fallback", "true"),
+        ("node.dont-reconnect", "true"),
+    ]
+}
+
+/// How long after this many failures the next try comes: a reading comes each second, and what fails
+/// is not asked each time; never so long that a call's words are lost for it.
+pub fn retry_after(tries: u32) -> std::time::Duration {
+    std::time::Duration::from_secs(2u64.saturating_pow(tries).min(8))
+}
 
 /// Programs whose streams are Wholeheard's own — as the shell's offer reads them.
 const OWN: [&str; 2] = ["wholeheard-capture", "wholeheard"];
@@ -148,13 +171,8 @@ pub fn me(dump: &str, ours: u64) -> Result<Me, String> {
         froms.sort_unstable();
         froms.into_iter().find_map(|from| graph.source_behind(from, &mut BTreeSet::new()))
     });
-    let default = graph.nodes.values().find(|node| Some(&node.name) == graph.default_source.as_ref());
     let Some(source) = held else {
-        return Ok(if default.is_some_and(|node| node.loopback) {
-            Me::Wait
-        } else {
-            Me::Default
-        });
+        return Ok(if graph.default_waits() { Me::Wait } else { Me::Default });
     };
     let node = &graph.nodes[&source];
     let loopback = graph.loopback_behind(source, &mut BTreeSet::new());
@@ -164,26 +182,23 @@ pub fn me(dump: &str, ours: u64) -> Result<Me, String> {
     Ok(Me::Hold(Microphone {
         name: node.name.clone(),
         description: node.named(),
-        loopback,
+        passive: loopback.then(|| passive_value(graph.version.as_deref())),
     }))
 }
 
 /// The same, when the graph does not read: only the default input's name is left, if that. A
-/// headset's is never opened actively; anything else is as it was.
+/// headset's is never opened actively, and a default not named may be one.
 pub fn me_unread(default: Option<&str>) -> Me {
-    if default.is_some_and(|name| name.starts_with("bluez_")) {
-        Me::Wait
-    } else {
-        Me::Default
+    match default {
+        Some(name) if !name.starts_with("bluez_") => Me::Default,
+        _ => Me::Wait,
     }
 }
 
-/// Whether the default input is a headset's virtual input — false when the graph does not read.
-pub fn default_is_loopback(dump: &str) -> bool {
-    Graph::read(dump).is_ok_and(|graph| {
-        let default = graph.nodes.values().find(|node| Some(&node.name) == graph.default_source.as_ref());
-        default.is_some_and(|node| node.loopback)
-    })
+/// Whether the default input must not be opened, for the first form, which follows nothing. A
+/// graph that does not read is said so.
+pub fn default_waits(dump: &str) -> Result<bool, String> {
+    Ok(Graph::read(dump)?.default_waits())
 }
 
 /// What to do of the stream that is `on`, `alive` or not, when the graph wants `want`.
@@ -203,7 +218,8 @@ pub fn without_address(text: &str) -> String {
     let pair = |at: usize| bytes.len() >= at + 2 && bytes[at].is_ascii_hexdigit() && bytes[at + 1].is_ascii_hexdigit();
     let address = |at: usize| {
         (0..6).all(|n| pair(at + 3 * n))
-            && (0..5).all(|n| matches!(bytes[at + 3 * n + 2], b':' | b'-' | b'_'))
+            // A space: as WirePlumber's `create-loopback-node.lua` makes a description of one.
+            && (0..5).all(|n| matches!(bytes[at + 3 * n + 2], b':' | b'-' | b'_' | b' '))
             && !bytes.get(at + 17).is_some_and(u8::is_ascii_hexdigit)
     };
     let (mut kept, mut from, mut at) = (String::new(), 0, 0);
@@ -257,9 +273,24 @@ struct Graph {
     links: Vec<(u64, u64)>,
     default_sink: Option<String>,
     default_source: Option<String>,
+    /// PipeWire's own, as its `Core` says.
+    version: Option<String>,
 }
 
 impl Graph {
+    /// Whether opening the default input could wake a headset's, read as WirePlumber's script reads
+    /// it, through the filters. A name with no node is judged by the name; no name at all, by
+    /// whether there is a headset's input for the system to choose.
+    fn default_waits(&self) -> bool {
+        let Some(name) = &self.default_source else {
+            return self.nodes.values().any(|node| node.loopback);
+        };
+        match self.nodes.iter().find(|(_, node)| node.name == *name) {
+            Some((id, _)) => self.loopback_behind(*id, &mut BTreeSet::new()),
+            None => name.starts_with("bluez_"),
+        }
+    }
+
     /// The other nodes of a filter's group, each with what feeds it.
     fn behind(&self, id: u64, group: &str) -> Vec<u64> {
         let mut froms: Vec<u64> = self
@@ -303,6 +334,7 @@ impl Graph {
             links: Vec::new(),
             default_sink: None,
             default_source: None,
+            version: None,
         };
         // A native client names its process on the client alone (pw-loopback, cpal's streams).
         let number = |value: &Value| value.as_u64().or_else(|| value.as_str()?.parse().ok());
@@ -353,6 +385,9 @@ impl Graph {
                             running: object["info"]["state"] == "running",
                         },
                     );
+                }
+                (Some("PipeWire:Interface:Core"), _) => {
+                    graph.version = object["info"]["version"].as_str().map(str::to_string);
                 }
                 (Some("PipeWire:Interface:Link"), _) => {
                     let ends = (object["info"]["output-node-id"].as_u64(), object["info"]["input-node-id"].as_u64());

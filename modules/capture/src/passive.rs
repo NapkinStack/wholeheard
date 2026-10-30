@@ -1,16 +1,20 @@
-//! The local side's stream on a headset's virtual input (ADR-0015): `node.passive=in-follow`, so it
-//! never makes the source run — it is carried by the call that does, and nothing it does asks for
+//! The local side's stream on a headset's virtual input (ADR-0015): passive (`call::passive_value`), so
+//! it never makes the source run — it is carried by the call that does, and nothing it does asks for
 //! the headset's profile. cpal cannot say that of a stream, nor leave a stream out of its
 //! `node.group`, so this one source is opened with the library cpal itself is built on.
 //!
 //! It has a thread and a main loop of its own, and delivers what it hears as cpal's streams do. A
 //! stream that fails only says so: the recording goes on, and the graph says what comes next.
+//!
+//! Opening it never waits. On a source that is not running, PipeWire links it and negotiates nothing
+//! (measured on 1.6.10, a `Format` of none, the link `paused`): a form comes when the source runs, that
+//! is, when a call does. Until then it is healthy, and has no form to say.
 
 use std::{
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Sender},
+        mpsc::Sender,
     },
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -31,8 +35,9 @@ use wholeheard_capture::call;
 
 use crate::Sound;
 
-/// A link and its format take the session manager a moment; beyond this, the graph is asked again.
-const NEGOTIATED_WITHIN: Duration = Duration::from_secs(2);
+/// Closing takes the stream's thread a moment; one that does not answer is left behind, for a
+/// stop or the next attach never waits on it.
+const CLOSED_WITHIN: Duration = Duration::from_millis(500);
 
 /// A form: frames a second, and channels.
 type Form = (u32, u16);
@@ -42,45 +47,46 @@ pub struct Passive {
     stop: pw::channel::Sender<()>,
     thread: Option<JoinHandle<()>>,
     alive: Arc<AtomicBool>,
+    form: Arc<OnceLock<Form>>,
 }
 
 impl Passive {
-    /// Listens to the source named `target`, and hands what it delivers to `sound` as source
-    /// `index`. `form`: the one a track already has, into which the system converts, as it does
-    /// when a device changes; none, the one it negotiates, returned.
-    pub fn open(target: &str, form: Option<Form>, index: usize, zero: Instant, sound: Sender<Sound>) -> Result<(Passive, Form), String> {
+    /// Listens to the source named `target`, saying `passive`, and hands what it delivers to `sound`
+    /// as source `index`. `form`: the one a track already has, into which the system converts, as it
+    /// does when a device changes; none, the one it negotiates, read from `form`.
+    pub fn open(target: &str, passive: &'static str, form: Option<Form>, (index, zero): (usize, Instant), sound: Sender<Sound>) -> Passive {
         let (stop, stopped) = pw::channel::channel::<()>();
-        let (told, given) = mpsc::channel();
         let alive = Arc::new(AtomicBool::new(true));
+        let formed = Arc::new(OnceLock::new());
         let thread = {
-            let (target, alive, run) = (target.to_string(), alive.clone(), tracing::Span::current());
+            let (target, alive, formed, run) = (target.to_string(), alive.clone(), formed.clone(), tracing::Span::current());
             std::thread::spawn(move || {
                 let _run = run.enter();
                 let listening = Listening {
                     asked: form,
-                    form: None,
-                    told: told.clone(),
+                    form: formed,
                     alive: alive.clone(),
                     index,
                     zero,
                     sound,
                 };
-                if let Err(detail) = listen(&target, form, stopped, listening) {
+                if let Err(detail) = listen(&target, passive, form, stopped, listening) {
                     alive.store(false, Ordering::SeqCst);
-                    let _ = told.send(Err(detail));
+                    warn!(detail = %call::without_address(&detail), "capture.me_lost");
                 }
             })
         };
-        let stream = Passive {
+        Passive {
             stop,
             thread: Some(thread),
             alive,
-        };
-        let negotiated = given
-            .recv_timeout(NEGOTIATED_WITHIN)
-            .unwrap_or_else(|_| Err("no format was negotiated in time".to_string()));
-        // Dropped on the way out, when it failed: it leaves the graph.
-        Ok((stream, negotiated?))
+            form: formed,
+        }
+    }
+
+    /// The form negotiated, once the source ran.
+    pub fn form(&self) -> Option<Form> {
+        self.form.get().copied()
     }
 
     /// False once it failed: its source gone, or its format changed.
@@ -92,23 +98,35 @@ impl Passive {
 impl Drop for Passive {
     fn drop(&mut self) {
         let _ = self.stop.send(());
-        if let Some(thread) = self.thread.take() {
+        let Some(thread) = self.thread.take() else { return };
+        let asked = Instant::now();
+        while !thread.is_finished() && asked.elapsed() < CLOSED_WITHIN {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        if thread.is_finished() {
             let _ = thread.join();
+        } else {
+            warn!("capture.me_not_closed");
         }
     }
 }
 
 struct Listening {
     asked: Option<Form>,
-    form: Option<Form>,
-    told: Sender<Result<Form, String>>,
+    form: Arc<OnceLock<Form>>,
     alive: Arc<AtomicBool>,
     index: usize,
     zero: Instant,
     sound: Sender<Sound>,
 }
 
-fn listen(target: &str, form: Option<Form>, stopped: pw::channel::Receiver<()>, listening: Listening) -> Result<(), String> {
+fn listen(
+    target: &str,
+    passive: &'static str,
+    form: Option<Form>,
+    stopped: pw::channel::Receiver<()>,
+    listening: Listening,
+) -> Result<(), String> {
     let failed = |what: &str, error: pw::Error| format!("{what} ({error})");
     // cpal's host, alive for the whole recording, keeps the library initialised: this only asks.
     pw::init();
@@ -127,7 +145,7 @@ fn listen(target: &str, form: Option<Form>, stopped: pw::channel::Receiver<()>, 
         *pw::keys::NODE_NAME => "wholeheard-capture-me",
         *pw::keys::TARGET_OBJECT => target,
     };
-    for (key, value) in call::PASSIVE_PROPS {
+    for (key, value) in call::passive_props(passive) {
         props.insert(key, value);
     }
     let stream = pw::stream::StreamRc::new(core, "wholeheard-capture-me", props).map_err(|e| failed("no stream", e))?;
@@ -148,17 +166,11 @@ fn listen(target: &str, form: Option<Form>, stopped: pw::channel::Receiver<()>, 
                     return;
                 }
                 let now = (info.rate(), info.channels() as u16);
-                if listening.form.is_some_and(|form| form != now) || listening.asked.is_some_and(|asked| asked != now) {
+                if *listening.form.get_or_init(|| listening.asked.unwrap_or(now)) != now {
                     // Not the track's form: the graph is asked again, with the track's.
                     warn!("capture.me_form_changed");
-                    let _ = listening.told.send(Err("another format was negotiated".to_string()));
                     listening.alive.store(false, Ordering::SeqCst);
                     main_loop.quit();
-                    return;
-                }
-                if listening.form.is_none() {
-                    listening.form = Some(now);
-                    let _ = listening.told.send(Ok(now));
                 }
             }
         })
@@ -168,7 +180,6 @@ fn listen(target: &str, form: Option<Form>, stopped: pw::channel::Receiver<()>, 
                 if matches!(state, pw::stream::StreamState::Error(_) | pw::stream::StreamState::Unconnected) {
                     // Its detail is the system's, and may name the source: never logged.
                     warn!("capture.me_lost");
-                    let _ = listening.told.send(Err("the stream failed".to_string()));
                     listening.alive.store(false, Ordering::SeqCst);
                     main_loop.quit();
                 }
@@ -176,13 +187,16 @@ fn listen(target: &str, form: Option<Form>, stopped: pw::channel::Receiver<()>, 
         })
         .process(|stream, listening| {
             let Some(mut buffer) = stream.dequeue_buffer() else { return };
-            let Some((_, channels)) = listening.form else { return };
+            let Some((_, channels)) = listening.form.get().copied() else {
+                return;
+            };
             let Some(data) = buffer.datas_mut().first_mut() else { return };
             let (offset, size) = (data.chunk().offset() as usize, data.chunk().size() as usize);
             let Some(bytes) = data.data().and_then(|bytes| bytes.get(offset..offset + size)) else {
                 return;
             };
-            // The instant it was handed over; this thread is the system's, and nothing here waits.
+            // The instant this stream's thread was given it, so with that thread's latency, where
+            // cpal's are placed by the stream's own clock. Nothing here waits.
             let at = listening.zero.elapsed().as_secs_f64();
             let _ = listening.sound.send((listening.index, at, call::whole_frames(bytes, channels)));
         })

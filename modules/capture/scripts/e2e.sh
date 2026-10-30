@@ -315,9 +315,14 @@ check test "$stopped_as" = 0 -a ! -s "$work/l.errors"
 check grep -q '"device":"wholeheard_e2e_other"' "$work/l.events"
 check grep -q 'wholeheard_e2e_other' "$work/l-during.json"
 check grep -q '"device":"wholeheard_e2e_mic' "$work/l.events"    # back on the default when it left
+check test -z "$(grep '"device":null' "$work/l.events")"           # a stream closed by capture is no device lost
 
 # The default is a headset's, and no call: the microphone waits, nothing opens it. A call takes it:
 # a passive stream, which it carries. It leaves: capture lets go, and the source no longer runs.
+# The source's state is what is judged, so its sink is played to only while a call is on: a stand-in
+# runs whenever it is, and a real headset does not. WirePlumber's own script, and the profile it would
+# switch, are judged on real AirPods alone (D66).
+kill "$mic_player" 2>/dev/null || true; wait "$mic_player" 2>/dev/null || true
 stand_in wholeheard_e2e_headset "bluez5.loopback=true"; headset=$!
 sleep 1
 pactl set-default-source wholeheard_e2e_headset
@@ -327,24 +332,24 @@ sleep 3
 folder=$(ls -d "$work"/v2-headset/*/ | head -1)
 check grep -q 'unavailable.*waits' "$work/m.events"
 check test ! -e "$folder/local.wav"
-# The stand-in runs whenever its sink is played to, unlike a real headset: what is judged is that
-# nothing of capture is on it. WirePlumber's own script is judged on real AirPods alone (D66).
 check measure2 not-following "$recorder"
+check measure2 not-running wholeheard_e2e_headset 2
 call_on wholeheard_e2e_headset; call=$!
+pw-play --target wholeheard_e2e_mic_c "$work/660-long.wav" & mic_player=$!
 sleep 3
 check grep -q '"device":"wholeheard_e2e_headset"' "$work/m.events"
-check measure2 in-follow "$recorder"
+check measure2 passive "$recorder"
+check measure2 running wholeheard_e2e_headset
 check test -e "$folder/local.wav"
+sleep 2
+kill "$mic_player" 2>/dev/null || true; wait "$mic_player" 2>/dev/null || true
 kill "$call" 2>/dev/null || true; wait "$call" 2>/dev/null || true
 sleep 3     # what WirePlumber's restore takes, 2 s, and a reading of the graph
 check measure2 not-following "$recorder"
-# The stand-in runs whenever its sink is played to, unlike a real headset: what is judged is that
-# nothing of capture is on it. WirePlumber's own script is judged on real AirPods alone (D66).
-check measure2 not-following "$recorder"
+check measure2 not-running wholeheard_e2e_headset 2
 check grep -q '"device":null' "$work/m.events"
 pw-play --target wholeheard_e2e_out "$work/880.wav"
 kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
-kill "$mic_player" 2>/dev/null || true; wait "$mic_player" 2>/dev/null || true
 kill "$headset" 2>/dev/null || true; wait "$headset" 2>/dev/null || true
 pactl set-default-source wholeheard_e2e_mic.monitor
 pactl unload-module "$mic_c"; mic_c=
@@ -355,6 +360,9 @@ check measure2 waited "$folder"
 check logged e2e-m capture.unavailable capture.started capture.opened capture.device capture.me_waits capture.stopped
 # Never an address, in a line of the output, a session or a log: a stand-in has none, this holds the path.
 check test -z "$(grep -lE '([0-9A-Fa-f]{2}[:_-]){5}[0-9A-Fa-f]{2}' "$work/m.events" "$folder/session.json" "$WHOLEHEARD_LOG_DIR"/capture.*.jsonl 2>/dev/null)"
+
+say "N. what takes the session manager away, on a private graph of its own (D66)"
+check bash scripts/private_graph.sh "$bin"
 
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"
 exit "$failed"

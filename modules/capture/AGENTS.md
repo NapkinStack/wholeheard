@@ -31,14 +31,16 @@ Records the audio sources of a conversation into a session.
   for one system (ADR-0002's success criterion). `src/passive.rs` and `src/call.rs` are the
   exceptions the ADRs name (ADR-0011, ADR-0015), and the first is the only file that knows the
   `pipewire` crate.
-- `src/call.rs` decides from the graph, nothing else; `Following` in `src/main.rs` applies it, on
-  the main loop, closing before it opens. `Me` and `Step` are tested in `tests/call.rs`.
+- `src/call.rs` decides from the graph, nothing else; `Following` in `src/main.rs` applies it, polled
+  by the main loop, closing before it opens. `Me` and `Step` are tested in `tests/call.rs`.
 
 ## Business invariants
 
 - A `bluez5.loopback=true` source, or a filter fed by one, is never opened actively: `me` is
-  passive on it (`node.passive=in-follow`) while a call holds it, and has no stream otherwise
-  (ADR-0015). A Bluetooth address reaches no log, event or session: `call::without_address`.
+  passive on it (`call::passive_value`, by the running PipeWire's version: `in` to 1.6, `in-follow`
+  from 1.7) while a call holds it, and has no stream otherwise (ADR-0015). A Bluetooth address
+  reaches no log, event or session: `call::without_address`.
+- The recording's loop never waits on the system: `Following` opens on a thread and polls.
 
 - What was heard is on disk when `Track::push` returns: no buffer between a sample and the file.
 - A sample once written never changes; the header's lengths are true only after a clean stop.
@@ -53,8 +55,13 @@ Records the audio sources of a conversation into a session.
 
 ## Known traps
 
-- A system default that becomes a headset's moves the open cpal stream there, actively, until the
-  next reading of the graph closes it: a second at most, against the script's 500 ms.
+- A system default that becomes a headset's moves the open cpal stream there, actively, until a
+  reading of the graph closes it: a second between readings, plus `pw-dump`, up to two, against the
+  script's 500 ms. The switch can fire; said in the README, no fast path.
+- A passive stream on a source that does not run links and negotiates nothing: no form, no track,
+  until a call runs it. Never read that as a failure.
+- What a desktop's graph must not be put through — a stuck session manager, a source's state with
+  nothing else on it — is `scripts/private_graph.sh`, safe beside a call: a PipeWire of its own.
 - `--as v1` does not follow a call's microphone: it refuses a headset's default at its start only.
 
 - A microphone rested at a third of full scale and opened on a click at full scale (cycle 01,

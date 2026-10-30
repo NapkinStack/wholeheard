@@ -290,7 +290,7 @@ fn held(name: &str, description: &str, loopback: bool) -> Me {
     Me::Hold(Microphone {
         name: name.into(),
         description: description.into(),
-        loopback,
+        passive: loopback.then_some("in"),
     })
 }
 
@@ -326,7 +326,11 @@ fn no_call_records_the_default_unless_it_is_a_loopback_then_it_waits() {
     let mut graph = sources();
     graph.push(default_source(AIRPODS));
     assert_eq!(me(graph), Me::Wait);
-    assert_eq!(me(sources()), Me::Default, "no default named: nothing says Bluetooth");
+    assert_eq!(
+        me(sources()),
+        Me::Wait,
+        "no default named, and a headset's input the system may choose"
+    );
     let mut graph = sources();
     graph.push(default_source("a_source_gone"));
     assert_eq!(me(graph), Me::Default);
@@ -477,18 +481,65 @@ fn a_graph_that_does_not_read_is_said_so_and_the_default_s_name_alone_decides() 
     assert!(call::me("not json", OURS).is_err());
     assert_eq!(call::me_unread(Some(AIRPODS)), Me::Wait, "never an active open on Bluetooth");
     assert_eq!(call::me_unread(Some("alsa_input.laptop")), Me::Default, "today's behaviour");
-    assert_eq!(call::me_unread(None), Me::Default, "today's behaviour");
+    assert_eq!(call::me_unread(None), Me::Wait, "a default not named may be a headset's");
 }
 
 #[test]
-fn whether_the_default_input_is_a_loopback_for_the_first_form() {
+fn whether_the_default_input_may_be_opened_for_the_first_form() {
     let mut graph = sources();
     graph.push(default_source(AIRPODS));
-    assert!(call::default_is_loopback(&Value::Array(graph).to_string()));
+    assert_eq!(call::default_waits(&Value::Array(graph).to_string()), Ok(true));
     let mut graph = sources();
     graph.push(default_source("alsa_input.laptop"));
-    assert!(!call::default_is_loopback(&Value::Array(graph).to_string()));
-    assert!(!call::default_is_loopback("not json"));
+    assert_eq!(call::default_waits(&Value::Array(graph).to_string()), Ok(false));
+    assert!(call::default_waits("not json").is_err(), "said so, never read as a no");
+}
+
+/// A filter whose source is the default, its capture fed by the headset's virtual input, no call.
+fn a_filter_on_the_headset_as_default() -> Vec<Value> {
+    let mut graph = sources();
+    graph.extend([
+        node(
+            200,
+            "Audio/Source",
+            json!({ "node.name": "effect_output.echo", "node.description": "Echo", "node.link-group": "echo" }),
+        ),
+        node(
+            201,
+            "Stream/Input/Audio",
+            json!({ "node.name": "effect_input.echo", "application.process.id": 300, "node.link-group": "echo" }),
+        ),
+        link(5, 134, 201),
+        default_source("effect_output.echo"),
+    ]);
+    graph
+}
+
+#[test]
+fn a_default_that_is_a_filter_fed_by_the_headset_is_never_opened_in_either_form() {
+    assert_eq!(me(a_filter_on_the_headset_as_default()), Me::Wait);
+    let dump = Value::Array(a_filter_on_the_headset_as_default()).to_string();
+    assert_eq!(call::default_waits(&dump), Ok(true));
+}
+
+#[test]
+fn a_default_that_cannot_be_judged_by_its_node_is_judged_by_its_name_or_by_the_graph() {
+    let mut named = sources();
+    named.remove(0);
+    named.push(default_source("bluez_input.gone"));
+    assert_eq!(me(named), Me::Wait, "a name with no node, a headset's");
+    let mut other = sources();
+    other.remove(0);
+    other.push(default_source("alsa_input.gone"));
+    assert_eq!(me(other), Me::Default);
+    assert_eq!(
+        me(sources()),
+        Me::Wait,
+        "no default said, and a headset's input for the system to choose"
+    );
+    let mut none = sources();
+    none.remove(0);
+    assert_eq!(me(none), Me::Default, "no default said, and no headset");
 }
 
 #[test]
@@ -516,13 +567,18 @@ fn what_a_change_of_the_graph_calls_for() {
 #[test]
 fn a_bluetooth_address_never_passes() {
     assert_eq!(call::without_address("AirPods de F"), "AirPods de F");
-    for address in ["00:00:5E:00:53:01", "00-00-5e-00-53-01", "00_00_5E_00_53_01"] {
+    for address in ["00:00:5E:00:53:01", "00-00-5e-00-53-01", "00_00_5E_00_53_01", "00 00 5E 00 53 01"] {
         assert_eq!(call::without_address(address), "unknown", "{address}");
         let said = call::without_address(&format!("bluez_input.{address}.1 failed"));
         assert!(!said.contains("5E") && !said.contains("5e"), "{said}");
     }
     // Hexadecimal that is no address stays.
     assert_eq!(call::without_address("12:30 ab-cd"), "12:30 ab-cd");
+    assert_eq!(
+        call::without_address("00:00:5E:00:53:012"),
+        "00:00:5E:00:53:012",
+        "one digit too many: no address"
+    );
     // A headset the system could only name by its address, in the graph.
     let mut graph = sources();
     graph[0]["info"]["props"]["node.description"] = "00-00-5E-00-53-01".into();
@@ -540,9 +596,106 @@ fn only_whole_frames_of_what_the_passive_stream_delivered_are_handed_on() {
 }
 
 #[test]
-fn the_passive_stream_says_it_follows_and_is_never_moved_elsewhere() {
-    let says = |key: &str| call::PASSIVE_PROPS.iter().find(|(name, _)| *name == key).map(|(_, value)| *value);
-    assert_eq!(says("node.passive"), Some("in-follow"));
+fn a_followed_output_named_by_its_address_says_no_address() {
+    for address in ["00-00-5E-00-53-01", "00 00 5E 00 53 01", "00:00:5E:00:53:01"] {
+        let mut outputs = graph(&[136]);
+        outputs[1]["info"]["props"]["node.description"] = address.into();
+        assert_eq!(read(outputs).unwrap().expect("the earbuds").description, "unknown", "{address}");
+    }
+}
+
+#[test]
+fn a_stream_of_a_filter_s_group_that_records_a_monitor_is_not_what_feeds_it() {
+    let mut graph = sources();
+    graph.extend([
+        node(
+            200,
+            "Stream/Output/Audio",
+            json!({ "node.name": "effect_output.x", "node.link-group": "x" }),
+        ),
+        node(
+            201,
+            "Stream/Input/Audio",
+            json!({ "node.name": "monitor_of_x", "node.link-group": "x", "stream.monitor": "true", "application.process.id": 300 }),
+        ),
+        node(
+            202,
+            "Stream/Input/Audio",
+            json!({ "node.name": "effect_input.x", "node.link-group": "x", "application.process.id": 300 }),
+        ),
+        link(5, 50, 201),
+        link(6, 134, 202),
+        stream(131, 143),
+        link(7, 200, 131),
+        default_source("alsa_input.laptop"),
+    ]);
+    assert_eq!(me(graph), held(AIRPODS, "AirPods", true));
+}
+
+#[test]
+fn a_call_on_a_duplex_node_holds_it() {
+    let mut graph = sources();
+    graph.extend([
+        node(
+            210,
+            "Audio/Duplex",
+            json!({ "node.name": "a_duplex", "node.description": "Duplex" }),
+        ),
+        stream(131, 143),
+        link(5, 210, 131),
+        default_source("alsa_input.laptop"),
+    ]);
+    assert_eq!(me(graph), held("a_duplex", "Duplex", false));
+}
+
+#[test]
+fn the_passive_value_is_the_one_the_running_pipewire_knows() {
+    // Read in their sources: 1.6.10's parser knows `in`, and `in-follow` reads as false.
+    for version in ["1.0.5", "1.4.9", "1.6.10", "1.6.11"] {
+        assert_eq!(call::passive_value(Some(version)), "in", "{version}");
+    }
+    // 1.7's scheduler: a `true` port is not made active by its peer, `follow` is.
+    for version in ["1.7.0", "1.7.3", "1.8.0", "2.0.0"] {
+        assert_eq!(call::passive_value(Some(version)), "in-follow", "{version}");
+    }
+    // Not read: the wrong guess costs a silent track, never a call.
+    for version in [None, Some(""), Some("devel"), Some("1")] {
+        assert_eq!(call::passive_value(version), "in", "{version:?}");
+    }
+}
+
+#[test]
+fn the_passive_value_comes_with_the_graph_s_own_version() {
+    let on = |version: &str| {
+        let mut graph = sources();
+        graph.extend([
+            json!({ "id": 0, "type": "PipeWire:Interface:Core", "info": { "version": version } }),
+            stream(131, 143),
+            link(3, 134, 131),
+            default_source(AIRPODS),
+        ]);
+        me(graph)
+    };
+    let says = |me: Me| match me {
+        Me::Hold(microphone) => microphone.passive,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(says(on("1.6.10")), Some("in"));
+    assert_eq!(says(on("1.7.0")), Some("in-follow"));
+}
+
+#[test]
+fn attaches_that_fail_are_tried_less_and_less_often_and_never_rarer_than_eight_seconds() {
+    let seconds = |tries| call::retry_after(tries).as_secs();
+    assert_eq!([1, 2, 3, 4].map(seconds), [2, 4, 8, 8]);
+    assert_eq!(seconds(64), 8);
+}
+
+#[test]
+fn the_passive_stream_says_its_value_and_is_never_moved_elsewhere() {
+    let props = call::passive_props("in");
+    let says = |key: &str| props.iter().find(|(name, _)| *name == key).map(|(_, value)| *value);
+    assert_eq!(says("node.passive"), Some("in"));
     assert_eq!(
         says("node.dont-fallback"),
         Some("true"),

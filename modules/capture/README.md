@@ -77,16 +77,21 @@ answer, read from the same reading of the graph as below:
 | In the graph | `me` records | Said |
 |---|---|---|
 | An application other than Wholeheard holds a source, not simply the default | That source, under the track's form; of several, the one running, then the oldest stream | `device`, with its description |
-| That source is a headset's virtual input (`bluez5.loopback=true`), or a filter fed by one | The same, on a stream that says `node.passive=in-follow` (`src/passive.rs`): it never makes the source run, so never asks for the headset's profile | `device` |
+| That source is a headset's virtual input (`bluez5.loopback=true`), or a filter fed by one | The same, on a passive stream (`src/passive.rs`, its `node.passive` the one the running PipeWire reads as such: `call::passive_value`): it never makes the source run, so never asks for the headset's profile; it has no form, no track, nothing said, until the source runs | `device`, once it runs |
 | Nobody, and another default input | The default, as above | As above |
 | Nobody, and the default is a headset's | Nothing: no stream at all, until a call takes it | `unavailable` at the start; `device: null` later |
 
 A track that waits from the start has no file until it is taken, in the form then negotiated, opening on
 zeros the clock names; never taken, it has no track, as a source that could not be opened. Taken back, it
 goes on in its form, the system converting; the gap is zeros the clock names. A graph that does not read
-leaves what is open as it is; at the start, a default named `bluez_…` waits and any other opens. `--as v1`
-follows nothing, and records no microphone with a headset's default. macOS and Windows: the default, as
-above.
+leaves what is open as it is; at the start, a default named `bluez_…`, or not named at all, waits and any
+other opens. `--as v1` follows nothing, and records no microphone with a headset's default. macOS and
+Windows: the default, as above.
+
+**What this does not prevent.** A default input that *becomes* a headset's during a recording is moved there
+by the system, on capture's active stream, until a reading of the graph closes it: up to a second between
+readings, plus what `pw-dump` takes, up to two. That can pass the 500 ms of WirePlumber's script: the profile
+can switch, and a call be cut, by that one move. No fast path is built; the cost is known and named here.
 
 The other side follows the call (D41, ADR-0011), where PipeWire's tools answer: once a second capture
 reads the graph (`pw-dump`); when an application other than capture holds a microphone and all its
