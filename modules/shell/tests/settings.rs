@@ -15,6 +15,12 @@ fn written(text: &str) -> Result<Settings, String> {
 }
 
 #[test]
+fn the_reminder_is_on_unless_the_file_says_otherwise() {
+    assert!(Settings::default().reminder);
+    assert!(written("after = \"nothing\"\n").unwrap().reminder);
+}
+
+#[test]
 fn no_file_and_an_empty_one_are_every_default() {
     let defaults = Settings::default();
     // The reminder is shown unless the user says otherwise; sessions go to a folder named Wholeheard.
