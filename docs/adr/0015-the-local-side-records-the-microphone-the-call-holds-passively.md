@@ -16,7 +16,7 @@
 flowchart LR
     B["The call's application<br/>takes the microphone"]:::app -->|"an active stream"| L["The headset's virtual input<br/>bluez5.loopback=true"]:::dev
     L -->|"running, and linked to a stream"| W["WirePlumber's autoswitch<br/>500 ms to HFP · 2 s back"]:::sys
-    C["capture's local stream<br/>node.passive=in-follow"]:::mod -.->|"listens: never makes it run"| L
+    C["capture's local stream<br/>node.passive: in, on 1.6"]:::mod -.->|"listens: never makes it run"| L
     O["capture's remote stream<br/>unchanged"]:::mod -->|"records"| M["The output's monitor<br/>not counted by the script"]:::dev
     X["Today: capture opens<br/>the default input, actively"]:::old -.->|"makes it run: #494"| L
     classDef app fill:#1e3a8a,color:#fff
@@ -33,6 +33,13 @@ deciding anything (green), or what this decision removes (red).
 ## Context
 
 *Facts, read 2026-10-30 on Fedora 44: pipewire 1.6.10, wireplumber 0.5.18, bluez 5.87.*
+
+> **Correction, 2026-10-30, the verifier of #574.** This page first said `node.passive=in-follow` on the
+> strength of `running.dox` on PipeWire's master, and of the trial below. Wrong on the version it was tried
+> on: 1.6.10 parses `out`, `in`, else a boolean (`impl-node.c:1256-1261`), so `in-follow` is **false: an active
+> stream**. `running.dox` is not in that tag; `in-follow` is on master only (49073cf527, 2026-04-08), no
+> release holds it. The trial proved nothing on passiveness, a call already holding the source. See
+> *The measure*; what is corrected below is said so.
 
 - **Two defects, one cause: `me` is the default input** (`record_v2`, `host.default_input_device()`),
   not the call's. On 2026-10-27, capture opening the AirPods' virtual input during a call cut the call
@@ -56,6 +63,26 @@ deciding anything (green), or what this decision removes (red).
   stays the monitor.
 - **cpal 0.18.2** (`src/host/pipewire/device.rs`, `pw_properties`) offers no way to set `node.passive`,
   and puts both streams in `node.group=cpal-<pid>`. It is the latest release on crates.io.
+
+- **The measure**, 2026-10-30, a private PipeWire 1.6.10 and WirePlumber 0.5.18, no hardware, a stand-in made
+  as `create-loopback-node.lua` makes the virtual input, `pw-dump`'s state of the source:
+
+  | | `pw-record -P '{ node.passive=in-follow }'` | `in` |
+  |---|---|---|
+  | Stream linked, alone | **running** | suspended; the link `paused`, no `Format` |
+  | Another stream active on it, a note on its sink | running, the stream fed | running, the stream fed: 10.15 s, -21.1 dB peak |
+  | The other gone, the note stopped, 6 s later | **running** | suspended, the stream still linked |
+
+  *Why* (`context.c:collect_nodes`, 1.6.10): a link is passive when `input->passive && output_node->can_suspend`,
+  and a running driver makes a passive *leaf* runnable. **`in` works to 1.6; it does not after:** master removed
+  the leaf rule (437a8d3, 2026-03-05), and its `makes_runnable` refuses a `true` port, so there `in` would hear
+  nothing, and `in-follow` is the one (read in the sources; **not run**: nothing later than 1.6.11 is released).
+  No string says both: 1.6 reads anything else as a boolean. So the value is read from the running PipeWire,
+  `pw-dump`'s `Core` version, which parses it: `in` below 1.7, `in-follow` from it, `in` if not read — the wrong
+  guess costing a silent track, never a call.
+- **A passive stream on a source that does not run negotiates nothing**: no form, so no track, until a call
+  runs the source. Seen with capture's own stream (`scripts/private_graph.sh`). So attaching never waits for
+  a form, and a stream that has none is healthy.
 
 *Inferred, not observed:* the mechanism from switch to failure — WirePlumber logs no switch at warning
 level.
@@ -95,7 +122,7 @@ HFP; a node that must not wake its peer is declared passive.
 | Reference | What it says or does | Applicable here? |
 |---|---|---|
 | [Granola, *Transcription issues*](https://docs.granola.ai/help-center/troubleshooting/transcription-issues) | "Auto follows your meeting app's microphone when one is open. Otherwise it uses your system default." A microphone can also be chosen in the transcript window | Yes: the product's behaviour. The choice by hand: *Later* |
-| [PipeWire, *running.dox*](https://raw.githubusercontent.com/PipeWire/pipewire/master/doc/dox/internals/running.dox) | `in-follow`: "input ports have `port.passive = follow`"; a `follow` port does not make its peer active, an active peer makes it run | Yes: the mechanism tried |
+| [PipeWire, *running.dox*](https://raw.githubusercontent.com/PipeWire/pipewire/master/doc/dox/internals/running.dox), master only, not in the 1.6.10 tag | `in-follow`: "input ports have `port.passive = follow`"; a `follow` port does not make its peer active, an active peer makes it run; `in`: "an active peer will not make this port active" | From 1.7, the mechanism. To 1.6, read the sources: see *The measure* |
 | [WirePlumber, *Linking policy*](https://pipewire.pages.freedesktop.org/wireplumber/policies/linking.html) | `target.object` on a stream names its node. The page says nothing of `node.passive` | Yes: how the stream is moved, as ADR-0011 |
 | [WirePlumber, *NEWS*](https://github.com/PipeWire/wireplumber/blob/master/NEWS.rst) | 0.4.82: auto-switching through a virtual source node; 0.5.7: a timer delays the switch; 0.5.14: the loopback nodes always created; 0.5.18: a pending restore cancelled when a headset profile is applied explicitly | Yes: the script is the system's and it moves, so capture depends on the *conditions*, never on the timers |
 | [Voxtype #773](https://github.com/peteonrails/voxtype/issues/773) | A tool opening the same microphone and a playing stream: the switch errors its transports and aborts its recording. A commenter names `pipewire#5476`, fixed after 1.6.9 *(their word; not checked, nor whether 1.6.10 holds it)* and the workaround of turning the autoswitch off | The same family of failure elsewhere. A fix upstream does not remove the switch: the call would still be cut over to HFP by capture |
@@ -143,8 +170,9 @@ active on its monitor: wrong by construction.
 | No call; the default input is a loopback source | Nothing yet: it waits | None | The microphone waits (below) |
 | No call; another default input | The default input | As today, active | As today |
 
-2. **A stream never opens a `bluez5.loopback=true` source actively.** `node.passive=in-follow` on the
-   local stream alone. `others` is left as it is.
+2. **A stream never opens a `bluez5.loopback=true` source actively.** `node.passive` on the local stream alone,
+   by the running PipeWire's version (*The measure*; corrected 2026-10-30, it said `in-follow`). `others` is
+   left as it is.
 3. **Contracts.** A gap is already what [`session-audio/v2`](../../contracts/session-audio/v2/README.md)
    allows: `clock.jsonl`'s `silence`, `changed` with `device: null`. No schema of it changes.
    [`recording/v1`](../../contracts/recording/v1/README.md)'s `device: null` carries the moment, but the
@@ -181,9 +209,9 @@ force a card's profile.
 
 None was tried; the first three on the decider's device, the rest on virtual ones.
 
-- **A passive stream with no call at all.** The trial ran with a call already holding. That it leaves the
-  node asleep and the profile on A2DP is what `running.dox` says, not what was seen.
-- **The signal in `in-follow` across a flip** — the stream connected before the call takes the microphone,
+- ~~**A passive stream with no call at all.**~~ Settled on a stand-in, *The measure*: suspended. On the
+  decider's device, the profile stays theirs to see.
+- **The signal in a passive stream across a flip** — the stream connected before the call takes the microphone,
   and through 500 ms to HFP and 2 s back: does it deliver, how late, in what form?
 - **`others` across a flip**: the stream on the A2DP sink's monitor, and how it reconnects.
 - **A stream's clock.** Outside cpal's `node.group`, the two streams may run on different drivers. The
@@ -213,7 +241,7 @@ the local track inherits it while the call holds it.
 its own pull request; D55's runbook, whose known failure #494 changes when this lands.
 
 **Rule to automate:** capture's e2e, on a stand-in source carrying `bluez5.loopback=true`: the source is
-not `running` from capture's stream alone, and capture's node says `node.passive=in-follow`. No Bluetooth
+not `running` from capture's stream alone, and capture's node says the `node.passive` of its version. No Bluetooth
 card there, so WirePlumber's script itself is judged by the decider's trial alone.
 
 ---

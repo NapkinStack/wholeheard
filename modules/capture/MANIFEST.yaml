@@ -76,6 +76,13 @@ dependencies:
     exit_strategy: >
       Used in src/main.rs only, behind one function that hands samples to the library of
       this module. A system it fails on gets its own capture there; src/lib.rs does not move.
+  - name: pipewire
+    purpose: On Linux, listens to a headset's virtual input passively, what cpal cannot ask of a stream
+    adr: docs/adr/0015-the-local-side-records-the-microphone-the-call-holds-passively.md
+    exit_strategy: >
+      The one file src/passive.rs, behind one function. Deleted, cpal opens the source again, and
+      #494 is back; on the day cpal offers the property, it goes. Its -sys crate allows one version
+      in a build, so its version moves with cpal's.
   - name: chrono
     purpose: The local day, hour and offset a session is named and dated by
     adr: docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md
@@ -127,6 +134,10 @@ evidence:
     - pattern: '"message":"capture\.zeros"'
       level: warning
       scenario: H
+    # The default input is a stand-in headset's, and no call has it: the microphone waits (M).
+    - pattern: '"message":"capture\.unavailable"'
+      level: warning
+      scenario: M
 
 docs:
   readme: README.md
