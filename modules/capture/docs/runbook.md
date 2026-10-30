@@ -46,10 +46,12 @@ written up to then is kept.
 
 ## Known failures
 
-- [#494](https://github.com/NapkinStack/wholeheard/issues/494): a recording started during a call
-  on Bluetooth earbuds cut the call, the laptop's microphone as the input or not. Open, its cause
-  not settled, no remedy known. A way still to be tried, in the issue: the earbuds in A2DP and
-  `wpctl settings bluetooth.autoswitch-to-headset-profile false`.
+- [#494](https://github.com/NapkinStack/wholeheard/issues/494): on Bluetooth earbuds, most
+  `Failure in Bluetooth audio transport` lines are WirePlumber's profile switches, made by whichever
+  program runs the earbuds' input: a call's browser, with or without Wholeheard. Since D66, capture
+  makes none of its own, but within a few seconds of a default turning into a headset during a
+  recording (ADR-0015). Real disconnections remain unexplained. The trial on real earbuds is the
+  decider's.
 
 ## What a user is told
 
