@@ -61,7 +61,7 @@ fn the_minutes_are_written_from_the_transcript_the_context_and_the_providers_ans
     );
 
     let minutes = fs::read_to_string(folder.path().join("minutes.md")).unwrap();
-    assert!(minutes.starts_with("---\ncontract: minutes/v1\nmade: "), "{minutes}");
+    assert!(minutes.starts_with("---\ncontract: minutes/v2\nmade: "), "{minutes}");
     assert!(
         minutes.contains("\nprovider: \"local\"\nmodel: \"a-model\"\ncontext: \"Quatre personnes, réunion d'organisation.\"\n---\n"),
         "{minutes}"
