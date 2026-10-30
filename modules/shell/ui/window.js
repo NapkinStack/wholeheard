@@ -480,8 +480,11 @@ function row(session, shape, words) {
   when.className = "when";
   const title = document.createElement("span");
   title.className = "day";
-  title.textContent = heading(session, words);
-  when.append(title);
+  // Named by its minutes (D48): the name whole in its tooltip, the date beneath it.
+  title.textContent = session.title ?? heading(session, words);
+  if (session.title) title.title = session.title;
+  if (session.title) when.append(element("span", "on", heading(session, words)));
+  else when.append(title);
   if (session.seconds !== null) {
     const lasted = document.createElement("span");
     lasted.className = "length";
@@ -495,6 +498,8 @@ function row(session, shape, words) {
   // In the sidebar (D61): the title and its relief on a line, what it holds below.
   const line = element("div", "line");
   line.append(when, drawn);
+  // A name has the row's whole width, its date and relief under it.
+  if (session.title) link.append(title);
   link.append(line, holdings(session, words));
   item.append(link);
   return item;
@@ -1362,7 +1367,9 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   top.append(actions);
   const title = element("section", "meeting-title");
   const named = element("div", "named");
-  named.append(element("h1", "", heading(session, words)));
+  // Named by its minutes (D48): the date above the name.
+  if (session.title) named.append(element("span", "on", heading(session, words)));
+  named.append(element("h1", "", session.title ?? heading(session, words)));
   if (session.seconds !== null) named.append(element("span", "length", length(session.seconds)));
   // Where the minutes were written, from their own front matter: unread, or naming none, not said.
   const minutesHere = minutes.state === "present" && minutes.provider ? minutes.provider === "local" : undefined;
