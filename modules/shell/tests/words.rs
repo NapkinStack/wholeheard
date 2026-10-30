@@ -158,7 +158,7 @@ fn french_is_written_as_french_is_printed() {
     );
     assert_eq!(
         told(&Said::Stopped("/s".into(), 1912.4), false, Language::French).1,
-        "Durée\u{a0}: 32 min."
+        "32 min enregistrées."
     );
     // No straight apostrophe in a sentence of ours, in either language.
     let all = [
@@ -226,7 +226,7 @@ fn a_failure_never_says_what_the_program_said_of_it() {
         for language in BOTH {
             let body = said(sentence, language);
             assert!(
-                !body.contains('(') && (body.ends_with("session’s folder.") || body.ends_with("dossier de la session.")),
+                !body.contains('(') && (body.ends_with("session’s folder.") || body.ends_with("dossier de la réunion.")),
                 "{sentence:?}: {body}"
             );
         }
@@ -286,7 +286,7 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
     );
     assert_eq!(
         (french.start, french.stop),
-        ("Démarrer l’enregistrement", "Arrêter l’enregistrement")
+        ("Démarrer un enregistrement", "Arrêter l’enregistrement")
     );
     // No entry is the same in the two languages, and none is empty.
     for (one, other) in [
@@ -435,12 +435,12 @@ fn audio_sent_to_the_trash_is_said_with_its_counts_and_a_refusal_never_claims_to
     assert_eq!(
         said(Language::French, Ok((1, 1))),
         "Audio mis à la corbeille | L’audio d’une réunion gardé plus d’un jour est dans la corbeille\u{202f}; \
-         son transcript et son compte rendu restent."
+         sa transcription et son compte rendu restent."
     );
     assert_eq!(
         said(Language::French, Ok((3, 30))),
         "Audio mis à la corbeille | L’audio de 3 réunions gardé plus de 30 jours est dans la \
-         corbeille\u{202f}; leurs transcripts et leurs comptes rendus restent."
+         corbeille\u{202f}; leurs transcriptions et leurs comptes rendus restent."
     );
     // The trash may have taken some before it refused: what is said holds either way, in the
     // user's language, without the system's own wording.
@@ -1151,4 +1151,122 @@ fn the_small_window_says_a_silence_as_the_notifications_do() {
             .small_silent_others
             .contains("play a sound in the call")
     );
+}
+/// The wording table of the UX review, §10 (D47): its sentences, as they are read. A row left out
+/// here is one the table's sentence would make false: said in the pull request.
+#[test]
+fn the_review_s_wording_is_what_the_window_says_in_french() {
+    let french = words::window(Language::French);
+    for (said, wanted) in [
+        (french.transcript, "Transcription"),
+        (french.transcript_title, "Transcription"),
+        (french.chip_transcribing, "Transcription…"),
+        (french.ran_here, "sur cet ordinateur"),
+        (french.heard_by, "Transcrit par {}, sur cet ordinateur"),
+        (french.remote_described, "À distance — le son de l’ordinateur"),
+        (french.no_match, "Aucun passage ne correspond."),
+        (french.search, "Rechercher dans la transcription"),
+        (french.interrupted, "Interrompu"),
+        (french.undated, "Date inconnue"),
+        (french.chip_awaiting, "Accord requis"),
+        (french.minutes_waiting, "En file d’attente · {} avant"),
+        (french.minutes_unsaved, "Modification non enregistrée\u{a0}: {} reste utilisé."),
+        (french.test_sends, "Le test envoie une courte phrase à {} — rien de vos réunions."),
+        (french.test_answered, "Ça marche\u{a0}: le modèle répond."),
+        (
+            french.developer[1],
+            "Affiche le détail technique sous chaque erreur, pour aider au diagnostic.",
+        ),
+        (french.log_level[1], "S’applique au prochain lancement de Wholeheard."),
+        (french.playback, "Position de lecture"),
+        (french.not_playable, "Cette version de Wholeheard ne peut pas lire cet audio."),
+        (
+            french.not_played,
+            "Lecture impossible ici. Ouvrez le dossier pour l’écouter avec un autre lecteur.",
+        ),
+        (
+            french.no_player,
+            "L’audio a été supprimé pour faire de la place. La transcription et le compte rendu restent.",
+        ),
+        (french.small_no_keys, "Pas de raccourci clavier — en définir un"),
+        (french.shortcut_none, "Aucun raccourci défini"),
+        (french.shortcut_where, "Il se modifie dans les réglages clavier du système."),
+        (
+            french.ollama_silent,
+            "Ollama ne répond pas ou n’a aucun modèle\u{a0}: lancez Ollama, puis téléchargez un modèle.",
+        ),
+        (french.key, "Clé d’API"),
+        (french.agree_local_write, "Rédiger sur cet ordinateur"),
+    ] {
+        assert_eq!(said, wanted);
+    }
+    assert!(
+        french.ollama_lacks.ends_with("ou téléchargez-le avec Ollama."),
+        "{}",
+        french.ollama_lacks
+    );
+    let menu = words::menu(Language::French);
+    assert_eq!(menu.start, french.record_start);
+    assert_eq!(menu.minutes, "Rédiger le compte rendu de la dernière réunion");
+    assert_eq!(
+        words::minutes(&words::Minutes::Unchosen, Language::French).title,
+        "Aucun modèle choisi pour les comptes rendus"
+    );
+}
+
+#[test]
+fn the_review_s_english_sentences_are_rewritten() {
+    let english = words::window(Language::English);
+    assert_eq!(english.interrupted, "Interrupted");
+    assert_eq!(english.keep_not_days, "{} is not a number of days: from 1 to 36,500");
+}
+
+/// *Transcript* is the English word: French says *Transcription*, feminine, everywhere (D47).
+#[test]
+fn french_never_says_transcript() {
+    use words::Minutes;
+    let window = serde_json::to_value(words::window(Language::French)).unwrap();
+    let mut strings = vec![window];
+    while let Some(value) = strings.pop() {
+        match value {
+            serde_json::Value::Array(items) => strings.extend(items),
+            serde_json::Value::Object(fields) => strings.extend(fields.into_iter().map(|(_, value)| value)),
+            serde_json::Value::String(said) => {
+                assert!(
+                    !said.to_lowercase().contains("transcript") || said.to_lowercase().contains("transcription"),
+                    "{said}"
+                );
+                assert!(!said.contains("Le transcription") && !said.contains("le transcription"), "{said}");
+            }
+            _ => {}
+        }
+    }
+    for notice in [
+        words::minutes(&Minutes::Ready, Language::French),
+        words::minutes(&Minutes::NoTranscript, Language::French),
+        words::minutes(&Minutes::Failed(None), Language::French),
+        words::transcript_kept_beside(Language::French, "x", false),
+        words::transcript_kept_beside(Language::French, "x", true),
+        words::fetched(&Ok(()), false, Language::French),
+        words::audio_trashed(Language::French, &Ok((2, 30))),
+    ] {
+        let said = format!("{} {}", notice.title, notice.body);
+        assert!(
+            !said.contains("transcript ") && !said.contains("transcripts") && !said.contains("transcript."),
+            "{said}"
+        );
+    }
+}
+
+#[test]
+fn a_stop_says_how_long_was_recorded_agreed_in_french_and_no_session_in_a_failure() {
+    let stopped = |seconds| told(&Said::Stopped("/s".into(), seconds), false, Language::French).1;
+    assert_eq!(stopped(1.0), "1 s enregistrée.");
+    assert_eq!(stopped(60.0), "1 min enregistrée.");
+    assert_eq!(stopped(960.0), "16 min enregistrées.");
+    assert_eq!(stopped(5400.0), "1 h 30 enregistrées.");
+    for why in ["", "gone"] {
+        let failed = told(&Said::Failed(why.into()), false, Language::French).1;
+        assert!(failed.ends_with("est gardé dans le dossier de la réunion."), "{failed}");
+    }
 }

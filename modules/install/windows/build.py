@@ -1,7 +1,7 @@
 """Run on Windows by scripts/release.sh: Wholeheard-<version>-windows-x64.zip from the artefacts
 each module's release left — the four programs side by side in one folder, where the shell looks
 for them (D53). No installer, no signature: the colleague unpacks it and opens wholeheard.exe; the
-Store's package, signed by Microsoft, is later (PDR-0004).
+Store's package is msix.py's (D54).
 
 Usage: build.py <artefacts> <version> <out>
 """

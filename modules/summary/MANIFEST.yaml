@@ -40,6 +40,10 @@ provides:
     version: v1
     path: contracts/minutes/v1
     stability: experimental      # experimental | stable | deprecated
+  - contract: minutes
+    version: v2
+    path: contracts/minutes/v2
+    stability: experimental
   - contract: summarising
     version: v1
     path: contracts/summarising/v1
