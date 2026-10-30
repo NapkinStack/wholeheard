@@ -166,6 +166,13 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
             done => break done?,
         }
     };
+    // Nor when the title, its marks read, spells it (D48): what is judged is what is written.
+    if key.as_deref().is_some_and(|key| !key.is_empty() && written.as_str().contains(key)) {
+        return Err(Refused(
+            format!("{} sent the key back in its answer: nothing was written", provider.named()),
+            None,
+        ));
+    }
     write_minutes(folder, &written)
         .map_err(|error| Refused(format!("the minutes could not be written ({error})"), Some("minutes.unwritable")))?;
     info!("summary.written");
