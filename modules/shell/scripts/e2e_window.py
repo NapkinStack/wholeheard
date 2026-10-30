@@ -3758,7 +3758,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#settings .warn"))
         warned = browser.find_element(By.CSS_SELECTOR, "#settings .warn").text
         locked = browser.execute_script("return [...document.querySelectorAll('#settings input, #settings select')].every(e => e.disabled)")
-        check("a settings file that cannot be read is said so, and nothing can be changed", warned == "Le fichier des réglages ne peut pas être lu\u00a0: Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé." and locked, warned)
+        check("a settings file that cannot be read is said so, and nothing can be changed", warned == "Le fichier des réglages ne peut pas être lu : Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé." and locked, warned)
         check("it is left as it was", window.file.read_text() == f'sessions = "{broken}"\nwelcomed = true\nkeep_audio = 0\n')
         # The shell itself refuses, not only the page.
         refused = browser.execute_async_script(
