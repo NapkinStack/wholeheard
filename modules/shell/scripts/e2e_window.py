@@ -2276,7 +2276,7 @@ def transcript_corrected(now: dt.datetime) -> None:
         browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
         offered = wait_for(browser, lambda b: b.find_elements(By.ID, "corrected-since"), 10)
         check("the minutes written before it say the transcript was corrected since, and offer « Refaire avec les corrections »",
-              offered and "corrigé après ce compte rendu" in browser.find_element(By.ID, "corrected-since").text
+              offered and "corrigée après ce compte rendu" in browser.find_element(By.ID, "corrected-since").text
               and browser.find_element(By.ID, "redo-corrections").text == "Refaire avec les corrections")
         time.sleep(2)
         check("nothing is made again without that click", (heard / "minutes.md").read_text() == minutes)
@@ -4407,7 +4407,7 @@ def main() -> int:
         browser.find_element(By.CSS_SELECTOR, ".drawing").send_keys(Keys.END)
         press(browser, "play")
         said = wait_for(browser, lambda b: b.find_elements(By.ID, "not-played") and b.find_element(By.ID, "not-played").text, 10)
-        check("a sound that cannot be played is said", said and "n’a pas pu être lue" in browser.find_element(By.ID, "not-played").text)
+        check("a sound that cannot be played is said", said and "Lecture impossible ici" in browser.find_element(By.ID, "not-played").text)
         (listening / "aside-long.wav").rename(long / "local.wav")
         # A track in a form no player reads: no sound, and it is said not playable here.
         browser.execute_script("location.hash = '#/meeting/2026-10-19_07-00'")
