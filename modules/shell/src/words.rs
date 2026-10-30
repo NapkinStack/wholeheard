@@ -171,7 +171,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         // None left: that side, and nothing of the other, which may have none either. Of the
         // microphone, never why: the system took it away, or a call let go of it (D66).
         (Said::Lost(Source::Me), English) => ("Your microphone is not recorded for now", "The recording goes on."),
-        (Said::Lost(Source::Me), French) => ("Votre micro n’est plus enregistré pour l’instant", "L’enregistrement continue."),
+        (Said::Lost(Source::Me), French) => ("Votre micro n’est pas enregistré pour l’instant", "L’enregistrement continue."),
         (Said::Lost(Source::Others), English) => (
             "The meeting’s sound is not recorded for now",
             "Your computer has no sound output left. An output plugged in is recorded at once; the recording goes on.",
@@ -1945,96 +1945,60 @@ pub struct Sides {
     gone: [bool; 2],
     /// What each side is recorded from, to name a microphone that sends nothing.
     devices: crate::recording::Devices,
-    /// The small window is seen: it says the microphone waits.
-    small_seen: bool,
-    /// The microphone's going, and its return, were said: once a recording each, a call taking
-    /// and leaving it being no news each time (D66).
+    /// The microphone's going was said: once a recording, a call taking and leaving it being no
+    /// news each time. Its return is never said: the small window and the page show it (D66).
     me_out_said: bool,
-    me_back_said: bool,
-    /// The microphone has not been recorded yet: its first device is no « again ».
+    /// The microphone waits for its first device: taking it is no change.
     me_waited: bool,
-    /// The microphones already named in this recording.
-    me_named: Vec<Option<String>>,
+    /// The microphone last named, by the start or by a notice.
+    me_last: Option<String>,
 }
 
 impl Sides {
-    /// Whether the small window is seen now.
-    pub fn seen(&mut self, small: bool) {
-        self.small_seen = small;
-    }
-
     /// The notice of what a recording said, as [`of`] says it, knowing the sides: a side gone
-    /// says the other is still recorded only when it is; one back after none is recorded again.
+    /// says the other is still recorded only when it is; the meeting's sound back after none is
+    /// recorded again.
     pub fn told(&mut self, said: &Said, reminder: bool, language: Language) -> Option<Notice> {
-        let side = |source: &Source| usize::from(*source == Source::Others);
         self.devices.heard(said);
         match said {
             // None left, it was said: the zeros the recording keeps in its place are no news.
             Said::Nothing if self.gone[0] => return None,
             Said::Nothing => return sends_nothing(self.devices.names()[0].as_deref(), language),
-            Said::Started(_, me, _) => self.me_named.push(me.clone()),
-            Said::Unavailable(Source::Me, _) => {
+            Said::Started(_, me, _) => self.me_last = me.clone(),
+            Said::Unavailable(Source::Me, _) | Said::Lost(Source::Me) => {
                 self.gone[0] = true;
-                self.me_waited = true;
-                if !self.me_out() {
+                self.me_waited |= matches!(said, Said::Unavailable(..));
+                if std::mem::replace(&mut self.me_out_said, true) {
                     return None;
                 }
-            }
-            Said::Lost(Source::Me) => {
-                self.gone[0] = true;
-                if !self.me_out() {
-                    return None;
-                }
-                if !self.gone[1] {
-                    return Some(lost_beside(Source::Me, language));
-                }
-            }
-            Said::Moved(Source::Me, name) if self.gone[0] => {
-                self.gone[0] = false;
-                self.me_named.push(name.clone());
-                let first = std::mem::take(&mut self.me_waited);
-                if self.small_seen || std::mem::replace(&mut self.me_back_said, true) {
-                    return None;
-                }
-                let notice = back(Source::Me, name.as_deref(), language);
-                return Some(match (first, language) {
-                    (false, _) => notice,
-                    (true, Language::English) => Notice {
-                        title: "Your microphone is recorded".into(),
-                        ..notice
-                    },
-                    (true, Language::French) => Notice {
-                        title: "Votre micro est enregistré".into(),
-                        ..notice
-                    },
-                });
+                return if self.gone[1] {
+                    of(&Said::Lost(Source::Me), reminder, language)
+                } else {
+                    Some(lost_beside(Source::Me, language))
+                };
             }
             Said::Moved(Source::Me, name) => {
-                if self.me_named.contains(name) {
+                self.gone[0] = false;
+                let first = std::mem::take(&mut self.me_waited);
+                let same = *name == std::mem::replace(&mut self.me_last, name.clone());
+                if first || same {
                     return None;
                 }
-                self.me_named.push(name.clone());
             }
-            Said::Unavailable(source, _) => self.gone[side(source)] = true,
-            Said::Lost(source) => {
-                self.gone[side(source)] = true;
-                if !self.gone[1 - side(source)] {
-                    return Some(lost_beside(*source, language));
+            Said::Unavailable(Source::Others, _) => self.gone[1] = true,
+            Said::Lost(Source::Others) => {
+                self.gone[1] = true;
+                if !self.gone[0] {
+                    return Some(lost_beside(Source::Others, language));
                 }
             }
-            Said::Moved(source, name) if self.gone[side(source)] => {
-                self.gone[side(source)] = false;
-                return Some(back(*source, name.as_deref(), language));
+            Said::Moved(Source::Others, name) if self.gone[1] => {
+                self.gone[1] = false;
+                return Some(back(name.as_deref(), language));
             }
             _ => {}
         }
         of(said, reminder, language)
-    }
-
-    /// Whether the microphone's going is to be notified now: not where the small window says it,
-    /// and only once.
-    fn me_out(&mut self) -> bool {
-        !self.small_seen && !std::mem::replace(&mut self.me_out_said, true)
     }
 }
 
@@ -2062,7 +2026,7 @@ fn lost_beside(source: Source, language: Language) -> Notice {
     let (title, body) = match (source, language) {
         (Source::Me, Language::English) => ("Your microphone is not recorded for now", "The meeting’s sound is still recorded."),
         (Source::Me, Language::French) => (
-            "Votre micro n’est plus enregistré pour l’instant",
+            "Votre micro n’est pas enregistré pour l’instant",
             "Le son de la réunion est toujours enregistré.",
         ),
         (Source::Others, Language::English) => (
@@ -2080,26 +2044,14 @@ fn lost_beside(source: Source, language: Language) -> Notice {
     }
 }
 
-/// Said when a side that had no device left is recorded again, from this one (D31).
-pub fn back(source: Source, name: Option<&str>, language: Language) -> Notice {
-    let (title, body) = match (source, language) {
-        (Source::Me, Language::English) => (
-            "Your microphone is recorded again",
-            name.map_or("From the one your computer uses now.".into(), |name| {
-                format!("Now recorded: {name}.")
-            }),
-        ),
-        (Source::Me, Language::French) => (
-            "Votre micro est de nouveau enregistré",
-            name.map_or("Depuis celui qu’utilise maintenant votre ordinateur.".into(), |name| {
-                format!("Enregistré maintenant\u{a0}: {name}.")
-            }),
-        ),
-        (Source::Others, Language::English) => (
+/// Said when the meeting's sound, with no device left, is recorded again, from this one (D31).
+pub fn back(name: Option<&str>, language: Language) -> Notice {
+    let (title, body) = match language {
+        Language::English => (
             "The meeting’s sound is recorded again",
             name.map_or("From the output your computer uses now.".into(), |name| format!("From {name}.")),
         ),
-        (Source::Others, Language::French) => (
+        Language::French => (
             "Le son de la réunion est de nouveau enregistré",
             name.map_or("Depuis la sortie qu’utilise maintenant votre ordinateur.".into(), |name| {
                 format!("Depuis {name}.")
