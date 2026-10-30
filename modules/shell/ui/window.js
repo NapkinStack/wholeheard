@@ -287,6 +287,7 @@ function paintState(said, shown, of) {
       again.id = of.again;
       again.addEventListener("click", async () => {
         again.disabled = true;
+        // Fails only when the meeting is gone, and says nothing then; a later failure is on this page.
         await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name }).catch(() => {});
         said.dataset.key = "";
         readMakings();
@@ -315,6 +316,7 @@ function paintState(said, shown, of) {
     again.id = of.again;
     again.addEventListener("click", async () => {
       again.disabled = true;
+      // Fails only when the meeting is gone, and says nothing then; a later failure is on this page.
       await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name }).catch(() => {});
       // Failing again for the same reason is said again: the state drawn anew.
       said.dataset.key = "";
@@ -670,7 +672,9 @@ function contextCard(session, { context, transcript, minutes }, words) {
   redo.id = "context-redo";
   redo.addEventListener("click", async () => {
     redo.disabled = true;
-    await window.__TAURI__.core.invoke("context_redo", { name }).catch(() => {});
+    await window.__TAURI__.core.invoke("context_redo", { name }).catch((why) => {
+      said.textContent = fill(words.not_saved, why);
+    });
     await readMakings();
     redo.disabled = false;
   });
@@ -935,7 +939,9 @@ function minutesCard(read, words, session, transcript) {
     again.id = "redo-corrections";
     again.addEventListener("click", async () => {
       again.disabled = true;
-      await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: null, model: null }).catch(() => {});
+      await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: null, model: null }).catch((why) => {
+        since.append(element("p", "note warn", fill(words.not_saved, why)));
+      });
       readMakings();
     });
     since.append(element("p", "note", words.corrected_since), again);
@@ -1345,7 +1351,9 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   const top = element("div", "meeting-top");
   const open = element("button", "open", words.open_folder);
   open.type = "button";
-  open.addEventListener("click", () => window.__TAURI__.core.invoke("open_folder", { name: nameOf(session) }));
+  open.addEventListener("click", () => window.__TAURI__.core.invoke("open_folder", { name: nameOf(session) }).catch((why) => {
+    open.replaceWith(element("p", "note warn", why));
+  }));
   const actions = element("div", "actions");
   // In developer mode: this meeting's logs, to send to whoever looks into it — nothing of the
   // meeting is in them (D29).
@@ -1661,7 +1669,11 @@ function showSettings(shown, minutes, words) {
     await refresh();
   };
   const parts = [];
-  if (locked) parts.push(element("p", "card note warn", fill(words.settings_unreadable, shown.unreadable)));
+  if (locked) {
+    const unreadable = element("p", "card note warn", shown.unreadable);
+    unreadable.id = "settings-unreadable";
+    parts.push(unreadable);
+  }
   const failed = element("p", "card note warn");
   failed.id = "not-saved";
   // What the last save could not do, said on the page drawn after it — once.
@@ -1800,6 +1812,7 @@ function showSettings(shown, minutes, words) {
     if (named && serviceModels.value !== "") serviceModel.value = serviceModels.value;
   };
   const offerModels = async (index) => {
+    // Refused: an empty list, and nothing said; the model can still be typed.
     const listed = await window.__TAURI__.core.invoke("hearing_models", { index }).catch(() => []);
     // Another chosen meanwhile: its own list comes.
     if (pick.value !== `service:${index}`) return;
@@ -3066,6 +3079,7 @@ async function fold(folded) {
   document.body.classList.toggle("folded", folded);
   const gone = document.getElementById(folded ? "sidebar" : "unfold");
   if (gone.contains(document.activeElement)) document.getElementById(folded ? "unfold" : "fold").focus();
+  // Not kept: nothing said; the sidebar stays as asked until the next start.
   await window.__TAURI__.core.invoke("settings_saved", { change: { folded } }).catch(() => {});
 }
 document.getElementById("fold").addEventListener("click", () => fold(true));

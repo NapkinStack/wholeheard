@@ -7,7 +7,7 @@ use std::{fs, io, path::Path};
 
 use serde::Serialize;
 
-use crate::{meeting::Read, meeting::Transcript, minutes::Minutes};
+use crate::{meeting::Read, meeting::Transcript, minutes::Minutes, words::Failure};
 
 /// The most the field takes, in characters as the page counts them: 400 of a Latin or Cyrillic
 /// script are under the 224 tokens Whisper keeps and a service like Groq takes (#466, #489).
@@ -21,6 +21,16 @@ pub enum Closed {
     Making,
     /// A transcript is left unfinished: continued with another context, it would be refused.
     Unfinished,
+}
+
+impl Closed {
+    /// How a command refused for it says so.
+    pub fn failure(self) -> Failure {
+        match self {
+            Closed::Making => Failure::Busy,
+            Closed::Unfinished => Failure::NotComplete,
+        }
+    }
 }
 
 /// The context as the user wrote it; none when there is none, or it cannot be read as text.

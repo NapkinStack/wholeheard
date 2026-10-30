@@ -592,3 +592,29 @@ fn the_app_speaks_the_system_s_language_until_one_is_chosen_and_keeps_the_one_ch
     write(&path, &by_hand).unwrap();
     assert!(fs::read_to_string(&path).unwrap().contains("language = \"de\""));
 }
+
+#[test]
+fn a_failure_of_the_settings_file_names_it_without_its_path_even_through_a_link() {
+    use wholeheard_shell::settings::unnamed;
+    let folder = tempfile::tempdir().unwrap();
+    let file = folder.path().join("settings.toml");
+    fs::write(&file, "keep_audio = 0\n").unwrap();
+    let said = read(&file).unwrap_err();
+    assert_eq!(
+        unnamed(&said, &file),
+        "settings.toml, line 1: keep_audio is \"always\" or a number of days"
+    );
+    assert_eq!(unnamed("os error 28", &file), "os error 28");
+    #[cfg(unix)]
+    {
+        let other = tempfile::tempdir().unwrap();
+        let link = other.path().join("settings.toml");
+        std::os::unix::fs::symlink(&file, &link).unwrap();
+        // Written through a link, the file it points to is the one its error names.
+        let refused = write(&link, &Settings::default()).unwrap_err().to_string();
+        assert_eq!(
+            unnamed(&refused, &link),
+            "settings.toml, line 1: keep_audio is \"always\" or a number of days"
+        );
+    }
+}
