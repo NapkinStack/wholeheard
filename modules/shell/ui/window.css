@@ -258,6 +258,17 @@ body.small-window .frame { display: none; }
 .meter .fill { display: block; height: 100%; width: 0; border-radius: 4px; background: var(--accent); transition: width 90ms linear; }
 #level-others { background: var(--ok); }
 #small .danger { width: 100%; }
+.small-announce { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; font-size: 12px; line-height: 1.3; color: var(--soft); }
+.small-announce[hidden] { display: none; }
+.small-announce.gone { visibility: hidden; }
+#small .small-announce .link, #small .small-announce .says { font-size: 12px; line-height: 1.3; }
+#small .small-announce ~ .meters { gap: 4px 16px; }
+#small .small-live { gap: 5px; }
+#small .small-live .disclose { min-height: 34px; }
+#small .small-live .danger { min-height: 40px; }
+.small-live .small-top .time { font-size: 26px; }
+.small-live .small-top .icon { min-height: 34px; width: 34px; }
+.small-live.context-open .small-announce { display: none; }
 /* At rest (D35, D34's board): the recording's gesture, the last meeting, the way to the full window. */
 .small-rest, .small-live { display: flex; flex-direction: column; gap: 12px; }
 .small-brand { font-weight: 700; font-size: 16px; }

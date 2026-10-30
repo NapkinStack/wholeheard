@@ -475,6 +475,10 @@ pub struct Window {
     pub small_meeting: &'static str,
     pub small_stop: &'static str,
     pub small_note: &'static str,
+    /// The reminder said where the user looks, the first seconds of a recording (D50).
+    pub small_announce: &'static str,
+    pub copy_announcement: &'static str,
+    pub announcement_not_copied: &'static str,
     pub small_full: &'static str,
     /// The small window at rest (D35): no meeting yet, the last one, and the ways to the full window.
     pub small_none: &'static str,
@@ -843,6 +847,9 @@ pub fn window(language: Language) -> Window {
             small_meeting: "The meeting",
             small_stop: "Stop",
             small_note: "Once stopped, the transcript writes itself. You will be told.",
+            small_announce: "Tell the participants this meeting is being recorded.",
+            copy_announcement: "Copy the announcement",
+            announcement_not_copied: "Not copied.",
             small_full: "The whole window",
             small_none: "No meeting yet.",
             small_last: "Last meeting",
@@ -1201,6 +1208,9 @@ pub fn window(language: Language) -> Window {
             small_meeting: "La réunion",
             small_stop: "Arrêter",
             small_note: "À l’arrêt, la transcription s’écrit toute seule. Vous serez prévenu.",
+            small_announce: "Prévenez les participants que cette réunion est enregistrée.",
+            copy_announcement: "Copier l’annonce",
+            announcement_not_copied: "Pas copiée.",
             small_full: "Toute la fenêtre",
             small_none: "Aucune réunion pour l’instant.",
             small_last: "Dernière réunion",
@@ -1485,11 +1495,11 @@ pub fn failure(failure: Failure, language: Language) -> String {
         (Failure::Confidential, English) => "this meeting is confidential: nothing is sent.",
         (Failure::Confidential, French) => "cette réunion est confidentielle\u{a0}: rien n’est envoyé.",
         (Failure::NoneChosen, English) => "nothing is chosen yet: choose it in Settings, then try again.",
-        (Failure::NoneChosen, French) => "rien n’est encore choisi\u{a0}: choisissez dans les réglages, puis réessayez.",
+        (Failure::NoneChosen, French) => "aucun modèle choisi\u{a0}: choisissez-en un dans les réglages, puis réessayez.",
         (Failure::NoTranscript, English) => "this meeting has no transcript to send: make it first.",
         (Failure::NoTranscript, French) => "cette réunion n’a pas de transcription à envoyer\u{a0}: faites-la d’abord.",
         (Failure::ProviderChanged, English) => "who writes the minutes has changed: look at this page again.",
-        (Failure::ProviderChanged, French) => "le rédacteur du compte rendu a changé\u{a0}: revoyez cette page.",
+        (Failure::ProviderChanged, French) => "le modèle qui rédige le compte rendu a changé\u{a0}: revoyez cette page.",
         (Failure::ModelUnnamed, English) => "name a model, then try again.",
         (Failure::ModelUnnamed, French) => "nommez un modèle, puis réessayez.",
         (Failure::ModelAbsent, English) => "this model is not on this computer: fetch it in Settings.",
@@ -2261,4 +2271,20 @@ pub fn fetched(outcome: &Result<(), String>, chosen: bool, language: Language) -
         ),
     };
     notice(title, body.to_string()).expect("always said")
+}
+
+/// The sentence « Copier l'annonce » puts on the clipboard, for the call's chat (D50): in the
+/// meeting's language when it says French or English, else in the window's.
+pub fn announcement(meeting: Option<&str>, window: Language) -> &'static str {
+    let language = match meeting {
+        Some("fr") => Language::French,
+        Some("en") => Language::English,
+        _ => window,
+    };
+    match language {
+        Language::French => {
+            "J’enregistre cette réunion pour en faire le compte rendu. Dites-le-moi si vous préférez que je ne le fasse pas."
+        }
+        Language::English => "I’m recording this meeting to write up its minutes. Tell me if you’d rather I didn’t.",
+    }
 }

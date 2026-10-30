@@ -885,6 +885,8 @@ struct Now {
     meeting: Option<String>,
     /// Whether it is said confidential (D60).
     confidential: bool,
+    /// The announcement to copy, the reminder on; none, the reminder off (D50).
+    announcement: Option<&'static str>,
 }
 
 #[tauri::command]
@@ -898,6 +900,9 @@ fn recording_now(shell: State<'_, Shell>) -> Now {
         .clone()
         .filter(|folder| recording && folder.join("session.json").is_file());
     let confidential = meeting.as_deref().is_some_and(confidential::marked);
+    let settings = shell.settings();
+    let spoken = meeting.as_deref().and_then(spoken::read).or(settings.meeting_language.clone());
+    let announcement = settings.reminder.then(|| words::announcement(spoken.as_deref(), shell.language()));
     let meeting = meeting.map(|folder| named(&folder));
     Now {
         recording: shell.recording.lock().unwrap().is_some() && started.is_some(),
@@ -907,6 +912,7 @@ fn recording_now(shell: State<'_, Shell>) -> Now {
         transcript_follows: shell.settings.lock().unwrap().after != settings::After::Nothing,
         meeting,
         confidential,
+        announcement,
     }
 }
 

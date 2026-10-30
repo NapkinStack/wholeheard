@@ -974,6 +974,17 @@ fn every_french_word_of_the_window_is_typeset_as_french() {
     }
 }
 
+#[test]
+fn the_announcement_is_in_the_meetings_language_when_it_says_french_or_english_else_the_windows() {
+    use wholeheard_shell::words::{Language, announcement};
+    let french = "J’enregistre cette réunion pour en faire le compte rendu. Dites-le-moi si vous préférez que je ne le fasse pas.";
+    let english = "I’m recording this meeting to write up its minutes. Tell me if you’d rather I didn’t.";
+    assert_eq!(announcement(Some("fr"), Language::English), french);
+    assert_eq!(announcement(Some("en"), Language::French), english);
+    assert_eq!(announcement(Some("de"), Language::French), french);
+    assert_eq!(announcement(None, Language::English), english);
+}
+
 /// The French sentences of `src/words.rs`, read from its structure: each string literal after the
 /// word `French` and before the next `English`, as every arm of the file is written. Its escapes
 /// (`\u{a0}`, `\u{202f}`, `\"`) are read as the compiler reads them. Also the literals after
