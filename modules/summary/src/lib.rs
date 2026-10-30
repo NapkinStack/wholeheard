@@ -291,9 +291,14 @@ fn title(written: &str) -> Option<String> {
         }
     }
     let words = words.trim();
-    let path = !words.contains(char::is_whitespace) && words.contains(['/', '\\']);
+    let path = words
+        .split_whitespace()
+        .any(|word| word.starts_with('/') || word.starts_with("~/") || word.contains('\\') || word.as_bytes().get(1..3) == Some(b":/"));
     let one_line = !words.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'));
-    (one_line && !path && !words.is_empty() && words.chars().count() <= TITLE_MOST).then(|| words.to_string())
+    let says = words
+        .chars()
+        .any(|c| c.is_alphanumeric() && !matches!(c, '\u{3164}' | '\u{115f}' | '\u{1160}' | '\u{ffa0}'));
+    (one_line && !path && says && words.chars().count() <= TITLE_MOST).then(|| words.to_string())
 }
 
 /// A text as one YAML string: quoted, on one line, with every character a YAML reader

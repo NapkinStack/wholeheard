@@ -480,6 +480,12 @@ fn a_title_out_of_the_contract_leaves_the_minutes_whole_without_it() {
         "Deux\nlignes\n===",
         "# /srv/reunions/2026-10-28",
         "# C:\\Users\\f\\reunion.wav",
+        "# /srv/Mes Documents/reunion 3.wav",
+        "# C:\\Mes Documents\\r.wav",
+        "# Notes de /srv/x",
+        "# Le\u{0007} budget",
+        "# Le\u{2028} budget",
+        "# \u{3164}",
     ] {
         let written = minutes(&format!("{above}\n\n{SECTIONS}"), &made(None)).unwrap();
         assert!(

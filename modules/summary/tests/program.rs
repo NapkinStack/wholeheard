@@ -208,6 +208,18 @@ fn a_proxy_named_by_the_environment_is_never_used() {
 }
 
 #[test]
+fn a_key_spelled_through_a_titles_marks_is_never_written() {
+    for above in ["# a-key-**for**-the-test", "# a-key-for&#45;the-test", "# a-key\\-for-the-test"] {
+        let folder = session(None);
+        let (address, _received) = provider("200 OK", answering(&format!("{above}\n\n{MINUTES}"), "stop"));
+        let output = run(folder.path(), &address, Some("a-key-for-the-test"));
+        let (_, err) = said(&output);
+        assert!(!output.status.success() && err.contains("sent the key back"), "{above}: {err}");
+        assert!(!folder.path().join("minutes.md").exists(), "{above}");
+    }
+}
+
+#[test]
 fn a_key_the_provider_sends_back_in_its_answer_is_never_written() {
     let folder = session(None);
     fs::write(folder.path().join("minutes.md"), "the minutes that were there\n").unwrap();
