@@ -46,9 +46,19 @@ language:
   that fails leaves the minutes that were there, or none.
 - **Made again replaces.** There is one `minutes.md`; the one before is not kept by this
   contract, nor its `title`.
+- **A value is on its line.** Each key holds one line: `key: value`. A value holding anything but
+  plain words — `title` always — is a JSON string in double quotes, its escapes JSON's; so a
+  `title` holding `"` or `:` stays on its line, and `null` is no value, quoted or not.
+- **A title out of these bounds is no title.** A reader takes a `title` that once read is blank,
+  holds a line break or a control character, or runs over 80 characters — characters, not bytes —
+  as absent: the minutes still read, and the date names the meeting. A producer given such a title
+  writes the minutes without it. Whether a title is a key or a path, no reader can tell: that is
+  the producer's to keep out.
 - **A consumer reads both versions.** `minutes/v1` and `minutes/v2` alike, with or without a
-  `title`; a key it does not know, it leaves aside. The producer writes v2 once its consumers read
-  it.
+  `title`; a key it does not know, it leaves aside, and a `title` in a file naming `minutes/v1` too.
+  The producer writes v2 once its consumers read it.
+- **Version 1 is not deprecated.** Minutes already on a user's disk stay in v1, are never rewritten
+  for this, and stay readable: v1 has no removal date.
 
 ## What it never does
 
@@ -86,5 +96,5 @@ La date de l'événement est fixée au jeudi 3 juin, avec le 10 en seconde date.
 - Réponse des intervenants attendue pour le 26 avril ; un plan B reste à trouver.
 ```
 
-To refuse: a file without the front matter or naming another `contract`; fewer or more than
-three sections of second level.
+To refuse: a file without the front matter or naming a `contract` other than `minutes/v1` and
+`minutes/v2`; fewer or more than three sections of second level.
