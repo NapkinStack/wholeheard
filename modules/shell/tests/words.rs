@@ -1042,8 +1042,9 @@ fn the_literals_of_each_language_are_read_as_the_file_arranges_them() {
         ["E.g. the Q4 budget with Inès Durand and the purchasing team"],
         "French read as English"
     );
+    // An `expect`'s words, for the developer: no sentence the user reads.
     let plain: Vec<_> = french.iter().filter(|text| format!(" {text} ").contains(" the ")).collect();
-    assert!(plain.is_empty(), "English read as French: {plain:#?}");
+    assert_eq!(plain, ["the minutes' end is always said"], "English read as French");
 }
 
 #[test]
