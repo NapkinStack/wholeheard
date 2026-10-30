@@ -983,6 +983,8 @@ fn the_announcement_is_in_the_meetings_language_when_it_says_french_or_english_e
     assert_eq!(announcement(Some("en"), Language::French), english);
     assert_eq!(announcement(Some("de"), Language::French), french);
     assert_eq!(announcement(None, Language::English), english);
+}
+
 /// The French sentences of `src/words.rs`, read from its structure: each string literal after the
 /// word `French` and before the next `English`, as every arm of the file is written. Its escapes
 /// (`\u{a0}`, `\u{202f}`, `\"`) are read as the compiler reads them. Also the literals after

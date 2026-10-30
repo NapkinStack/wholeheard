@@ -1741,6 +1741,8 @@ def minutes_copied(now: dt.datetime) -> None:
             wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').dataset.name") == folder.name
                      and b.find_elements(By.CSS_SELECTOR, "#meeting .minutes .none"), 10)
             check(f"a meeting {why} offers no copy", not browser.find_elements(By.ID, "copy-minutes"))
+
+
 def announced(now: dt.datetime) -> None:
     """AM. The reminder said in the small window, the announcement one click away (D50)."""
     print("AM. the reminder under the timer for fifteen seconds, its announcement copied; the reminder off, neither (D50)")
@@ -1793,6 +1795,8 @@ def announced(now: dt.datetime) -> None:
         time.sleep(1.5)
         check("the reminder off: neither the line nor the button shows", not browser.execute_script(line)[0], browser.execute_script(line))
         stop_from_small(browser)
+
+
 def meeting_named(now: dt.datetime) -> None:
     """AL. A meeting named by its minutes (D48): the title in the row and the page, as text."""
     print("AL. a meeting takes the title its minutes give it — the date beneath it in the list, above it on the page; as text; made again, the new one (D48)")
