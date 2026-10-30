@@ -1271,13 +1271,18 @@ fn a_stop_says_how_long_was_recorded_agreed_in_french_and_no_session_in_a_failur
     }
 }
 
-/// Each `#[tauri::command]` of the shell's `main.rs`: its signature, then its body.
+fn main_rs() -> String {
+    std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs")).unwrap()
+}
+
+/// Each `#[tauri::command…]` of the shell's `main.rs`, whatever its arguments: its signature, then
+/// its body.
 fn commands() -> Vec<(String, String)> {
-    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs")).unwrap();
-    source
-        .split("#[tauri::command]\n")
+    main_rs()
+        .split("#[tauri::command")
         .skip(1)
         .map(|command| {
+            let command = &command[command.find("]\n").expect("an attribute ends") + 2..];
             let command = &command[..command.find("\n}\n").expect("a command ends")];
             let (signature, body) = command.split_once(" {\n").expect("a command has a body");
             (signature.to_string(), body.to_string())
@@ -1285,23 +1290,140 @@ fn commands() -> Vec<(String, String)> {
         .collect()
 }
 
+/// The structs of `main.rs` the page is handed: each with its fields, name and type.
+fn payloads() -> Vec<(String, Vec<(String, String)>)> {
+    let source = main_rs();
+    let mut found = Vec::new();
+    let mut lines = source.lines().peekable();
+    while let Some(line) = lines.next() {
+        if !(line.starts_with("#[derive(") && line.contains("Serialize")) {
+            continue;
+        }
+        while lines.peek().is_some_and(|next| next.starts_with("#[")) {
+            lines.next();
+        }
+        let Some(name) = lines.peek().and_then(|next| next.strip_prefix("struct ")) else {
+            continue;
+        };
+        let name = name.split([' ', '<']).next().unwrap().to_string();
+        let mut fields = Vec::new();
+        for field in lines.by_ref().skip(1).take_while(|field| *field != "}") {
+            if let Some((field, kind)) = field.trim().split_once(": ")
+                && !field.starts_with("//")
+            {
+                fields.push((field.to_string(), kind.trim_end_matches(',').to_string()));
+            }
+        }
+        found.push((name, fields));
+    }
+    found
+}
+
 #[test]
 fn a_command_hands_the_page_no_text_of_its_own_only_a_sentence_of_these_words() {
     let commands = commands();
     assert!(commands.len() > 30, "{} commands read", commands.len());
+    let structs: Vec<String> = payloads().into_iter().map(|(name, _)| name).collect();
+    assert!(structs.len() > 10, "{structs:?}");
     for (signature, body) in &commands {
-        if let Some((_, answer)) = signature.split_once("-> Result<") {
-            let error = answer.rsplit(", ").next().unwrap().trim();
+        if let Some((_, answer)) = signature.rsplit_once("-> ") {
+            // Every name of its answer is known here: an alias could hide a text.
+            for name in answer
+                .split(|c: char| !c.is_alphanumeric() && c != '_')
+                .filter(|name| !name.is_empty())
+            {
+                assert!(
+                    ["Result", "Option", "Vec", "Told", "PathBuf", "String", "speech", "Status"].contains(&name)
+                        || structs.iter().any(|known| known == name),
+                    "{signature}: {name} is no type this test knows"
+                );
+            }
+            // A text alone is none of the page's answers, a list of names and the logs asked for aside.
             assert!(
-                error == "Told>" || error == "()>",
-                "a command fails with a sentence of words.rs (Told), or says nothing: {signature}"
+                !answer.replace("Vec<String>", "").contains("String") || signature.starts_with("async fn diagnostic("),
+                "a command answers with a text: {signature}"
             );
-            assert!(!answer.contains("Option<String>"), "a failure answered as a text: {signature}");
+            assert!(!answer.contains("Result") || answer.starts_with("Result<"), "{signature}");
+            if let Some(answer) = answer.strip_prefix("Result<") {
+                let error = answer.rsplit(", ").next().unwrap().trim();
+                assert!(
+                    error == "Told>" || error == "()>",
+                    "a command fails with a sentence of words.rs (Told), or says nothing: {signature}"
+                );
+            }
         }
         for text in ["Err(\"", "Err(format!", ".into())", "ok_or(\"", ".ok_or_else(|| format!"] {
             assert!(!body.contains(text), "{signature} hands the page a text: {text}");
         }
+        // An error kept as an answer's field: read by what `Ok` is made of, as far as a name tells.
+        for (at, _) in body.match_indices(".err()") {
+            assert!(
+                body[at + ".err()".len()..].trim_start().starts_with(".map(|why| shell.told("),
+                "{signature} keeps an error for its answer"
+            );
+        }
     }
+}
+
+#[test]
+fn an_answer_holds_a_failure_as_a_sentence_or_for_developer_mode_never_as_raw_text() {
+    // By the field's name: a raw error under another name, or within another type, is not seen.
+    const NAMES: [&str; 8] = ["unreadable", "error", "why", "failed", "refused", "detail", "reason", "problem"];
+    // Those of `makings`, the page's reading of the makings: what a program said, through
+    // `shown_detail`, and its cause's sentence.
+    const THROUGH_THE_WORDS: [&str; 3] = ["failed", "transcripts_failed", "failed_said"];
+    let payloads = payloads();
+    let mut read = 0;
+    for (name, fields) in &payloads {
+        for (field, kind) in fields {
+            if !NAMES.iter().any(|said| field.contains(said)) {
+                continue;
+            }
+            read += 1;
+            assert!(
+                !kind.contains("String") || (name == "Makings" && THROUGH_THE_WORDS.contains(&field.as_str())),
+                "{name}.{field}: {kind} hands the page raw text"
+            );
+        }
+    }
+    assert!(read >= 4, "{read} fields read: the structs are no longer read as written");
+    let source = main_rs();
+    assert!(source.contains("let said = |why: &String| words::shown_detail(why, developer);"));
+    assert_eq!(
+        source.matches("(named(folder), said(why))").count(),
+        2,
+        "failed, transcripts_failed"
+    );
+}
+
+#[test]
+fn the_settings_files_path_stays_out_of_what_a_command_keeps_of_a_failure() {
+    let source = main_rs();
+    let reread = &source[source.find("fn reread(&self)").unwrap()..];
+    let reread = &reread[..reread.find("\n    }\n").unwrap()];
+    // Every route starts here, the transcript's and the minutes' that keep it for developer mode.
+    assert!(reread.contains("settings::unnamed("), "{reread}");
+    // One place logs a command's failure: `log::command_failed`, which `tests/log.rs` reads.
+    assert!(!source.contains("\"shell.command_failed\""));
+    assert_eq!(source.matches("log::command_failed(").count(), 1);
+}
+
+#[test]
+fn a_settings_file_that_cannot_be_read_is_said_whole_its_raw_text_under_it_only_in_developer_mode() {
+    let raw = "settings.toml, line 1: keep_audio is \"always\" or a number of days";
+    let page = |language, developer| serde_json::to_value(words::told(Failure::SettingsLocked, raw, language, developer)).unwrap();
+    assert_eq!(
+        page(Language::French, false),
+        "Le fichier des réglages ne peut pas être lu\u{a0}: Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé."
+    );
+    assert_eq!(
+        page(Language::English, false),
+        "The settings file cannot be read: Wholeheard does not write over it until it is corrected."
+    );
+    assert_eq!(
+        page(Language::English, true),
+        format!("The settings file cannot be read: Wholeheard does not write over it until it is corrected.\n{raw}").as_str()
+    );
 }
 
 #[test]

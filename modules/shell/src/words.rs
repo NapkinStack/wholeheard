@@ -584,7 +584,6 @@ pub struct Window {
     /// A number of days the audio is kept.
     pub keep_days: &'static str,
     /// The settings file could not be read: why.
-    pub settings_unreadable: &'static str,
     /// A change could not be saved: why.
     pub not_saved: &'static str,
     /// Who writes the minutes was saved, but the keyring did not keep the key: why.
@@ -957,7 +956,6 @@ pub fn window(language: Language) -> Window {
             ],
             keep_always: "Always",
             keep_days: "{} days",
-            settings_unreadable: "The settings file cannot be read ({}): Wholeheard does not write over it until it is corrected.",
             not_saved: "The setting was not saved: {}",
             key_not_kept: "The choice is saved, but the key was not kept in the system's keyring: {}",
             minutes_step: "Minutes",
@@ -1324,7 +1322,6 @@ pub fn window(language: Language) -> Window {
             ],
             keep_always: "Toujours",
             keep_days: "{} jours",
-            settings_unreadable: "Le fichier des réglages ne peut pas être lu ({})\u{a0}: Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé.",
             not_saved: "Le réglage n’a pas été enregistré\u{a0}: {}",
             key_not_kept: "Le choix est enregistré, mais la clé n’a pas été gardée dans le trousseau du système\u{a0}: {}",
             minutes_step: "Compte rendu",
@@ -1484,6 +1481,7 @@ pub enum Failure {
     FolderUnmade,
     Autostart,
     SettingsUnread,
+    SettingsLocked,
     SettingsUnwritten,
     FolderNotOpened,
     KeyboardSettings,
@@ -1493,7 +1491,7 @@ pub enum Failure {
 }
 
 /// A failure's sentence. Most follow the page's own « not saved: » and so start in lower case; those
-/// the page shows alone, `FolderNotOpened` and `KeyboardSettings`, are whole.
+/// the page shows alone, `FolderNotOpened`, `KeyboardSettings` and `SettingsLocked`, are whole.
 pub fn failure(failure: Failure, language: Language) -> String {
     use Language::*;
     match (failure, language) {
@@ -1538,6 +1536,10 @@ pub fn failure(failure: Failure, language: Language) -> String {
         }
         (Failure::SettingsUnread, English) => "the settings file cannot be read: correct it, then try again.",
         (Failure::SettingsUnread, French) => "le fichier des réglages ne peut pas être lu\u{a0}: corrigez-le, puis réessayez.",
+        (Failure::SettingsLocked, English) => "The settings file cannot be read: Wholeheard does not write over it until it is corrected.",
+        (Failure::SettingsLocked, French) => {
+            "Le fichier des réglages ne peut pas être lu\u{a0}: Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé."
+        }
         (Failure::SettingsUnwritten, English) => "the settings file could not be written: check that the disk has room, then try again.",
         (Failure::SettingsUnwritten, French) => {
             "le fichier des réglages n’a pas pu être écrit\u{a0}: vérifiez qu’il reste de la place, puis réessayez."

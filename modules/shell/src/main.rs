@@ -172,9 +172,13 @@ impl Shell {
     }
 
     /// Reads the settings file again — the user may have changed it by hand — and holds what it
-    /// says; a file that cannot be read is said, and what was held stays.
+    /// says; a file that cannot be read is said, by its name and not its path, and what was held
+    /// stays.
     fn reread(&self) -> Result<Settings, String> {
-        let read = settings::file().map_or_else(|| Ok(Settings::default()), |file| settings::read(&file));
+        let read = settings::file().map_or_else(
+            || Ok(Settings::default()),
+            |file| settings::read(&file).map_err(|why| settings::unnamed(&why, &file)),
+        );
         if let Ok(settings) = &read {
             *self.settings.lock().unwrap() = settings.clone();
         }
@@ -184,8 +188,7 @@ impl Shell {
     /// What a command that failed tells the page, the raw text going to the log too: a detail holds
     /// nothing of a meeting, no key and no path (`tests/log.rs`).
     fn told(&self, failure: Failure, detail: impl std::fmt::Display) -> Told {
-        let detail = detail.to_string();
-        tracing::warn!(?failure, detail = %detail, "shell.command_failed");
+        let detail = log::command_failed(&failure, &detail.to_string(), settings::file().as_deref());
         self.said(failure, &detail)
     }
 
@@ -194,12 +197,9 @@ impl Shell {
         words::told(failure, detail, self.language(), self.settings().developer)
     }
 
-    /// The settings read again for a command; refused, the file named without its path.
+    /// The settings read again for a command.
     fn read_or_told(&self) -> Result<Settings, Told> {
-        self.reread().map_err(|why| {
-            let why = settings::file().map_or(why.clone(), |file| why.replace(&file.display().to_string(), "settings"));
-            self.told(Failure::SettingsUnread, why)
-        })
+        self.reread().map_err(|why| self.told(Failure::SettingsUnread, why))
     }
 
     /// The settings written for a command.
@@ -1146,7 +1146,7 @@ fn context_shown(shell: State<'_, Shell>, name: String) -> Result<ContextShown, 
 fn context_saved(shell: State<'_, Shell>, name: String, text: String) -> Result<ContextShown, Told> {
     let folder = session_folder(&shell, &name)?;
     if let Some(closed) = context::closed(making(&shell, &folder), &meeting::transcript(&folder)) {
-        return Err(shell.told(Failure::Busy, format!("the context cannot change now: {closed:?}")));
+        return Err(shell.told(closed.failure(), format!("the context cannot change now: {closed:?}")));
     }
     context::write(&folder, &text).map_err(|error| shell.told(Failure::MeetingFile, error))?;
     Ok(context_of(&shell, &folder))
@@ -1161,8 +1161,8 @@ fn context_redo(app: AppHandle, shell: State<'_, Shell>, name: String) -> Result
     if shell.recording.lock().unwrap().is_some() && shell.recorded.lock().unwrap().as_deref() == Some(folder.as_path()) {
         return Err(shell.told(Failure::Busy, format!("{name} is being recorded")));
     }
-    if context::closed(making(&shell, &folder), &meeting::transcript(&folder)).is_some() {
-        return Err(shell.told(Failure::Busy, format!("{name} is being made, or its transcript is unfinished")));
+    if let Some(closed) = context::closed(making(&shell, &folder), &meeting::transcript(&folder)) {
+        return Err(shell.told(closed.failure(), format!("{name} cannot be made again now: {closed:?}")));
     }
     // One that cannot begin — no model, the program missing — says why on its page.
     retranscribe_or_say(&app, folder, Again::Settings);
@@ -1447,7 +1447,7 @@ struct SettingsShown {
     language: Option<&'static str>,
     developer: bool,
     log: Log,
-    unreadable: Option<String>,
+    unreadable: Option<Told>,
 }
 
 /// The folder Wholeheard keeps its models in: the default model's.
@@ -1457,9 +1457,10 @@ fn models_folder() -> PathBuf {
 
 #[tauri::command]
 fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
-    let read = shell.reread();
-    let unreadable = read.as_ref().err().cloned();
-    let settings = read.unwrap_or_else(|_| shell.settings());
+    let (settings, unreadable) = match shell.reread() {
+        Ok(settings) => (settings, None),
+        Err(why) => (shell.settings(), Some(shell.told(Failure::SettingsLocked, why))),
+    };
     let models = settings::whisper_models(&models_folder(), &settings)
         .into_iter()
         .map(|path| Model {

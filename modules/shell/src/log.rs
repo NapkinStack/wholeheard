@@ -89,6 +89,14 @@ pub fn without(said: &str, sessions: Option<&Path>) -> String {
     kept
 }
 
+/// Logs a command's failure: its kind and its raw text, the settings file named without its path.
+/// The text kept is what developer mode may show.
+pub fn command_failed(failure: &impl std::fmt::Debug, detail: &str, settings: Option<&Path>) -> String {
+    let detail = settings.map_or_else(|| detail.to_string(), |file| crate::settings::unnamed(detail, file));
+    tracing::warn!(?failure, detail = %detail, "shell.command_failed");
+    detail
+}
+
 /// Logs a failure of the window's page, as it reports its own: its kind and the page's file it
 /// was thrown in — names of the page's code —, and where. Its sentence is never taken, which may
 /// hold a meeting's words; what is no such name is left out, empty.

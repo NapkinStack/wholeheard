@@ -12,9 +12,12 @@ use std::{
 };
 
 use wholeheard_shell::{
+    log,
     recording::{Recording, Said},
+    settings,
     summarising::{Event, Summarising},
     transcription::{Hearer, Transcription},
+    words::Failure,
 };
 
 /// Where the log is written, for the test to read.
@@ -116,6 +119,14 @@ exit 1"#,
     assert!(Summarising::start(&folder.path().join("nowhere"), &session, "http://127.0.0.1:9/v1", "m", None).is_err());
     assert!(Recording::start(&folder.path().join("nowhere"), &sessions).is_err());
 
+    // A command refused by a settings file broken by hand: `settings::read` names its whole path.
+    let broken = folder.path().join("settings.toml");
+    fs::write(&broken, "keep_audio = 0\n").unwrap();
+    let raw = settings::read(&broken).unwrap_err();
+    assert!(raw.contains(&*folder.path().to_string_lossy()), "{raw}");
+    let unread = "settings.toml, line 1: keep_audio is \"always\" or a number of days";
+    assert_eq!(log::command_failed(&Failure::SettingsUnread, &raw, Some(&broken)), unread);
+
     let text = String::from_utf8(kept.0.lock().unwrap().clone()).unwrap();
     let lines: Vec<serde_json::Value> = text.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
     let heard = fs::read_to_string(folder.path().join("transcript.trace")).unwrap();
@@ -133,6 +144,12 @@ exit 1"#,
     assert_eq!(
         (&asked["session"], &asked["host"], &asked["key"]),
         (&"2026-10-20_10-00".into(), &"openrouter.ai".into(), &true.into())
+    );
+    let refused = lines.iter().find(|line| line["message"] == "shell.command_failed").unwrap();
+    assert_eq!(
+        (&refused["failure"], &refused["detail"]),
+        (&"SettingsUnread".into(), &unread.into()),
+        "{text}"
     );
     let recorded = fs::read_to_string(folder.path().join("recording.trace")).unwrap();
     assert_eq!(
