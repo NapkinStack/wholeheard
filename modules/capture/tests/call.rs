@@ -705,3 +705,36 @@ fn the_passive_stream_says_its_value_and_is_never_moved_elsewhere() {
     assert_eq!(says("stream.monitor"), None, "never lying to WirePlumber's script (ADR-0015)");
     assert_eq!(says("node.group"), None);
 }
+
+// ---- What `device` says of the local side: what is being recorded now (D66).
+
+use wholeheard_capture::call::Local;
+
+#[test]
+fn a_stream_with_no_track_is_not_named_whatever_the_graph_links() {
+    let waiting = Local::started(false);
+    assert!(!waiting.says(Some("AirPods")));
+}
+
+#[test]
+fn a_stream_with_a_track_is_named_and_follows_the_graph() {
+    let mut local = Local::started(false);
+    local.gained();
+    assert!(local.says(Some("AirPods")));
+    assert!(Local::started(true).says(Some("Digital Microphone")));
+}
+
+#[test]
+fn a_device_said_is_closed_once_when_its_stream_goes() {
+    let mut local = Local::started(false);
+    local.gained();
+    assert!(local.gone(), "null is owed");
+    assert!(!local.gone(), "once");
+    assert!(local.says(None), "and said, there being no track any more");
+    assert!(!local.says(Some("AirPods")), "a name read of the stream gone says nothing");
+}
+
+#[test]
+fn a_stream_that_never_had_a_track_owes_no_null() {
+    assert!(!Local::started(false).gone());
+}

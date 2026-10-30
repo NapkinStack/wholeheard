@@ -315,7 +315,7 @@ check test "$stopped_as" = 0 -a ! -s "$work/l.errors"
 check grep -q '"device":"wholeheard_e2e_other"' "$work/l.events"
 check grep -q 'wholeheard_e2e_other' "$work/l-during.json"
 check grep -q '"device":"wholeheard_e2e_mic' "$work/l.events"    # back on the default when it left
-check test -z "$(grep '"device":null' "$work/l.events")"           # a stream closed by capture is no device lost
+check measure2 said "$work/l.events" me wholeheard_e2e_other wholeheard_e2e_mic    # another takes over at once: no device lost
 
 # The default is a headset's, and no call: the microphone waits, nothing opens it. A call takes it:
 # a passive stream, which it carries. It leaves: capture lets go, and the source no longer runs.

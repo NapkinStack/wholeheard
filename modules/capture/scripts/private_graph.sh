@@ -44,6 +44,8 @@ failed=0
 say() { echo "$*"; }
 check() { if "$@"; then say "  ok    $*"; else say "  FAIL  $*"; failed=1; fi; }
 measure2() { python3 scripts/e2e_measure_v2.py "$@"; }
+# Waits for `device` to name $2 in the events $1: up to five seconds.
+said_within() { for _ in $(seq 50); do grep -q "\"device\":\"$2\"" "$1" && return 0; sleep 0.1; done; return 1; }
 sink() { pw-cli create-node adapter factory.name=support.null-audio-sink node.name="$1" node.description="$1" media.class=Audio/Sink object.linger=true audio.position=[FL,FR] > /dev/null; }
 default_source() { pw-metadata -n default 0 default.configured.audio.source "{ \"name\": \"$1\" }" Spa:String:JSON > /dev/null; }
 stand_in() {
@@ -76,11 +78,15 @@ sleep 3
 check measure2 passive "$recorder"
 check measure2 not-running wholeheard_e2e_headset 3
 check test ! -e "$folder/local.wav"    # linked, and no form before the source runs
+check measure2 said "$work/p.events" me    # and nothing said: no track, no device
+check measure2 no-local "$folder"
 # It runs: capture hears it.
 pw-record --target wholeheard_e2e_headset -P '{ node.name=call-active }' "$work/call.wav" & call=$!
 pw-play --target wholeheard_e2e_mic_c "$work/660.wav" & player=$!
-sleep 3
-check grep -q '"device":"wholeheard_e2e_headset"' "$work/p.events"
+check said_within "$work/p.events" wholeheard_e2e_headset
+check measure2 has-local "$folder"    # in session.json as soon as it is said
+check test -e "$folder/local.wav"
+sleep 2
 check measure2 running wholeheard_e2e_headset
 sleep 2
 kill "$player" "$call" 2>/dev/null || true; wait "$player" "$call" 2>/dev/null || true
@@ -91,7 +97,7 @@ check measure2 not-running wholeheard_e2e_headset 3
 kill "$idle" 2>/dev/null || true; wait "$idle" 2>/dev/null || true
 sleep 3
 check measure2 not-following "$recorder"
-check grep -q '"device":null' "$work/p.events"
+check measure2 said "$work/p.events" me wholeheard_e2e_headset null
 check measure2 not-running wholeheard_e2e_headset 2
 kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
 check test "$stopped_as" = 0 -a ! -s "$work/p.errors"
@@ -112,7 +118,47 @@ sleep 3
 kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
 check test "$stopped_as" = 0 -a ! -s "$work/d.errors"
 
-say "Followed: a stream capture closes itself is no device lost"
+say "Never run: a call that holds the headset and never runs it, to the stop"
+default_source wholeheard_e2e_headset
+sleep 1
+"$bin" record "$work/never" --as v2 > "$work/n.events" 2> "$work/n.errors" & recorder=$!
+pw-record --target wholeheard_e2e_headset -P '{ node.passive=in node.name=call-idle }' "$work/idle3.wav" & idle=$!
+sleep 5
+folder=$(ls -d "$work"/never/*/ | head -1)
+check measure2 passive "$recorder"
+stopping=$(date +%s.%N)
+kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
+took=$(python3 -c "import time; print(f'{time.time() - $stopping:.1f}')")
+kill "$idle" 2>/dev/null || true; wait "$idle" 2>/dev/null || true
+say "    stop took $took s"
+check test "$stopped_as" = 0 -a ! -s "$work/n.errors"
+check python3 -c "assert $took < 1.5, 'the stop took $took s'"
+check measure2 said "$work/n.events" me
+check test ! -e "$folder/local.wav"
+check measure2 no-local "$folder"
+
+say "Under a track: a stream that goes with none to take over says null, one that has not run says nothing"
+default_source wholeheard_e2e_plain
+sleep 1
+"$bin" record "$work/under" --as v2 > "$work/u.events" 2> "$work/u.errors" & recorder=$!
+sleep 2
+folder=$(ls -d "$work"/under/*/ | head -1)
+pw-record --target wholeheard_e2e_headset -P '{ node.passive=in node.name=call-idle }' "$work/idle4.wav" & idle=$!
+sleep 4
+check measure2 passive "$recorder"
+check measure2 said "$work/u.events" me null    # the default closed; the headset, not running, unnamed
+pw-record --target wholeheard_e2e_headset -P '{ node.name=call-active }' "$work/call4.wav" & call=$!
+pw-play --target wholeheard_e2e_mic_c "$work/660.wav" & player=$!
+check said_within "$work/u.events" wholeheard_e2e_headset
+sleep 2
+kill "$player" "$call" "$idle" 2>/dev/null || true; wait "$player" "$call" "$idle" 2>/dev/null || true
+sleep 4
+kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
+check test "$stopped_as" = 0 -a ! -s "$work/u.errors"
+check measure2 said "$work/u.events" me null wholeheard_e2e_headset wholeheard_e2e_plain
+check measure2 changes "$folder" null wholeheard_e2e_headset wholeheard_e2e_plain
+
+say "Followed: a stream another takes over from at once is no device lost"
 default_source wholeheard_e2e_plain
 sleep 1
 "$bin" record "$work/followed" --as v2 > "$work/f.events" 2> "$work/f.errors" & recorder=$!
@@ -122,8 +168,7 @@ sleep 3
 check grep -q '"device":"wholeheard_e2e_other"' "$work/f.events"
 kill "$call" 2>/dev/null || true; wait "$call" 2>/dev/null || true
 sleep 3
-check grep -q '"device":"wholeheard_e2e_plain"' "$work/f.events"
-check test -z "$(grep '"device":null' "$work/f.events")"
+check measure2 said "$work/f.events" me wholeheard_e2e_other wholeheard_e2e_plain
 kill -INT "$recorder"; wait "$recorder" || true
 
 say "Starved: the session manager stuck, a stream that never negotiates"

@@ -236,6 +236,22 @@ def waited(folder):
     print(f"    local opens on {silences[0][1] / one['rate']:.1f} s of zeros said, then the call's note")
 
 
+def said(events, source, *expected):
+    """What `device` said of a source, in order: each a name it starts with, or `null`."""
+    told = [json.loads(line) for line in open(events)]
+    told = [line["device"] for line in told if line["event"] == "device" and line["source"] == source]
+    told = ["null" if name is None else name for name in told]
+    assert len(told) == len(expected) and all(n.startswith(e) for n, e in zip(told, expected)), f"{source} said {told}, not {list(expected)}"
+    print(f"    {source} said: {told}")
+
+
+def changes(folder, *expected):
+    """The local track's changes in session.json, in order: as `said`."""
+    told = ["null" if line["device"] is None else line["device"] for line in session(folder)["tracks"]["local"].get("changed", [])]
+    assert len(told) == len(expected) and all(n.startswith(e) for n, e in zip(told, expected)), f"local changed {told}, not {list(expected)}"
+    print(f"    local changed: {told}")
+
+
 def notes(one):
     """The note each whole second of a track holds, in Hz — 0 for a second of silence."""
     rate, first, found = one["rate"], one["first"], []
@@ -338,6 +354,16 @@ def main(what, folder, *args):
     if what == "not-following":
         assert not own_microphone(folder), "capture still has a local stream, after the call left"
         return print("    capture holds no local stream")
+    if what == "said":
+        return said(folder, *args)
+    if what == "changes":
+        return changes(folder, *args)
+    if what == "no-local":
+        assert "local" not in session(folder)["tracks"], "session.json holds a local track"
+        return print("    session.json holds no local track")
+    if what == "has-local":
+        assert "local" in session(folder)["tracks"], "session.json holds no local track"
+        return print("    session.json holds the local track")
     if what == "waited":
         return waited(folder)
     if what == "playing":

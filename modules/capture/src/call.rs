@@ -113,6 +113,37 @@ pub enum Step {
     Take,
 }
 
+/// What `device` says of the local side: what is being recorded now. A stream has a name to say from
+/// the moment it has a track — it received its format —, and every name said is closed: by the next
+/// name, when another takes over at once, by `null` otherwise. A stream that has not run has neither
+/// (ADR-0015).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Local {
+    saying: bool,
+}
+
+impl Local {
+    /// `recording`: the stream that opened with the recording, named by `started`.
+    pub fn started(recording: bool) -> Local {
+        Local { saying: recording }
+    }
+
+    /// The stream has its track.
+    pub fn gained(&mut self) {
+        self.saying = true;
+    }
+
+    /// The stream went: whether a `null` is owed.
+    pub fn gone(&mut self) -> bool {
+        std::mem::replace(&mut self.saying, false)
+    }
+
+    /// Whether what is told of the side may be said: a name, only of a stream with a track.
+    pub fn says(self, told: Option<&str>) -> bool {
+        told.is_none() || self.saying
+    }
+}
+
 /// The `node.passive` that never makes a source run and runs when something else does (ADR-0015),
 /// for the PipeWire that reads it: `pw-dump`'s `Core` version, the server's, whose parser decides.
 /// To 1.6: `in`; a passive link makes nothing runnable, and a running driver carries a leaf node;

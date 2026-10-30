@@ -84,9 +84,9 @@ impl Passive {
         }
     }
 
-    /// The form negotiated, once the source ran.
+    /// The form it received, once the source ran; none once it failed.
     pub fn form(&self) -> Option<Form> {
-        self.form.get().copied()
+        self.form.get().copied().filter(|_| self.alive())
     }
 
     /// False once it failed: its source gone, or its format changed.

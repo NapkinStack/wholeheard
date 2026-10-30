@@ -58,11 +58,12 @@ Records the audio sources of a conversation into a session.
 - A system default that becomes a headset's moves the open cpal stream there, actively, until a
   reading of the graph closes it: a second between readings, plus `pw-dump`, up to two, against the
   script's 500 ms. The switch can fire; said in the README, no fast path.
-- A passive stream on a source that does not run links and negotiates nothing: no form, no track,
-  until a call runs it. Never read that as a failure.
+- A passive stream on a source that does not run links and negotiates nothing: no form, no track, no
+  name said, until a call runs it. Never read that as a failure, nor `call::linked`'s link as a recording:
+  `call::Local` decides what `device` says of `me`.
 - What a desktop's graph must not be put through — a stuck session manager, a source's state with
   nothing else on it — is `scripts/private_graph.sh`, safe beside a call: a PipeWire of its own.
-- `--as v1` does not follow a call's microphone: it refuses a headset's default at its start only.
+- `--as v1` does not follow a call's microphone: it refuses a headset's default at its start only. Its `others` follows, as v2's.
 
 - A microphone rested at a third of full scale and opened on a click at full scale (cycle 01,
   D1): measured from zero, a silent room is sound. Tested.
