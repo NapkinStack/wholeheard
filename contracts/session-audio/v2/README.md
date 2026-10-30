@@ -127,7 +127,8 @@ call takes a microphone, or the default input changes.
   `tracks`, so a track named there has its file.
 - **Its first point** comes with its first sound, at `n` when that comes within 1.5 s. Later, another
   `silence` precedes it, and it is at a later frame. On a stop before the first sound, it has none.
-- **Its entry** says the device it opened on: that is no `changed`. Each later `changed` is as above.
+- **Its entry**: a track gained during a recording is in `session.json` when gained, before `device`
+  names it; its first device is no `changed`. Each later `changed` is as above.
 
 **What a consumer reads**, for where a track holds sound and where it does not:
 
@@ -138,8 +139,8 @@ call takes a microphone, or the default input changes.
   1.5 s, it leaves no `silence`: the next point alone shows it. Longer, it leaves zeros that stop
   0.5 to 1.5 s of frames short of the clock, and frames after a gap are read from the point that
   follows it, never counted from the start.
-- **The entry after it names the stream at once**: the source may not run yet, zeros going on. The
-  point after it says when sound came back.
+- **The entry after it names a stream that received its format** (`recording/v1`): sound may come
+  later, zeros going on. The point after it says when sound came back.
 - **`tracks` is read at the end**: while recording, a source without an entry may yet gain one. With
   `stopped` written, a source without an entry never had a track.
 
@@ -188,7 +189,7 @@ Valid, a microphone that could not be opened: `tracks` holds `remote` alone, the
 no `local.wav`, and `clock.jsonl` no line for `local`.
 
 Valid, a microphone that waited, at 48,000 samples a second, taken by a call at 30 seconds, let go at
-39, taken at 42.6 and running at 43, let go at 50 and taken at 51, then stopped; the lines of `local`
+39, given its format at 42.6 and sound at 43, let go at 50 and taken at 51, then stopped; the lines of `local`
 alone:
 
 ```json

@@ -412,13 +412,12 @@ proposed, holds the evidence and the options; the recommended build is the `pipe
 stream, on Linux.
 
 - **Built in order**, in pull requests of one module each: the unknowns of ADR-0015 tried first —
-  a passive stream with no call above all; `recording/v1`'s optional field, alone; capture; the shell's
-  sentence. macOS and Windows: the same product contract, other adapters: **not in this deliverable**.
-- **The sentences**, *(framer, to confirm)*: « Votre micro attend l'appel : le son de la réunion est
-  enregistré, le micro le sera dès qu'un appel le prend. » / "Your microphone is waiting for the call: the
-  meeting's sound is recorded, and the microphone will be as soon as a call takes it." — a gap: « Le micro
-  a coupé un instant ; l'enregistrement continue. » / "The microphone cut out for a moment; the
-  recording goes on." Today's `device: null` says the computer has no microphone left: false here.
+  a passive stream with no call above all; the words of `recording/v1` and `session-audio/v2`, no field
+  added, alone; capture; the shell's sentence. macOS and Windows: the same product contract, other adapters: **not in this deliverable**.
+- **The sentences**: no field says why, so the shell's sentence says what is true whatever the reason:
+  « Votre micro n'est pas enregistré pour l'instant. Le son de la réunion est toujours enregistré. » /
+  "Your microphone is not recorded for now. The meeting's sound is still recorded." `device: null` no
+  longer says the computer has no microphone left.
 - **Not built** (ADR-0015, *Rejected alternatives*): the user's configuration written or the autoswitch
   off, a card's profile forced, `stream.monitor=true` set to hide from the script, heuristics per headset,
   a modal on each device.

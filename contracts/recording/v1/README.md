@@ -96,19 +96,23 @@ a consumer of this version already ignores an `event` it does not know.
 `me` may be said `unavailable` because nothing may open its microphone yet, a headset's that a
 stream would switch to another profile, or because its microphone was refused at the start. No
 track, no `level`, while it waits. It may be taken as the graph changes: a call takes a microphone,
-or the default input changes. `device` names it once it has a track (`session-audio`), and the
-source is then recorded as any other. A stream whose source does not run yet may be named a little
-before, from the graph: `tracks` says whether a track exists, not this event.
+or the default input changes.
 
-A call that moves to another microphone: `device` with its name, no `null`. A call that lets go, or
-a stream that fails: `device` with `null`, its track holding zeros where its clock says them. The
-`device` after it names the stream at once: sound may come later, zeros going on until it does. As
-often as calls come, for as long as the recording lasts. Never taken, it stays what `unavailable`
-says. During a gap of over ten seconds, `silent` with `nothing: true` may come: there it says the
-gap, not a device at rest.
+`device` on `me` says what is being recorded now: a stream is named when it has a track, that is,
+when it received its format; a stream linked to a source that does not run says nothing and has no
+track.
 
-A recording that leaves `session-audio/v1` (`--as v1`) follows no call: on a headset's default it
-says `unavailable` with the waiting reason and records no microphone, its file silence to the end.
+A name said is closed by the next when another stream takes over at once, otherwise by `device:
+null`; `stopped` closes the last. A stream that never received a format said nothing and owes no
+`null`. (A live cpal stream may say `null` when the system names no device: D31.)
+
+Under `null`, its track holds zeros where its clock says them. As often as calls come, for as long
+as the recording lasts. Never taken, it stays what `unavailable` says. During a gap of over ten
+seconds, `silent` with `nothing: true` may come: there it says the gap, not a device at rest.
+
+A recording that leaves `session-audio/v1` (`--as v1`) still follows a call's output on `others`;
+`me` does not follow a call's microphone: on a headset's default it says `unavailable` with the
+waiting reason and records no microphone, its file silence to the end.
 
 **A consumer must accept** that sequence: `unavailable` is what was true at the start, `started`'s
 `sources` does not change, and what `me` records now is the last `device`. `null` says that nothing
