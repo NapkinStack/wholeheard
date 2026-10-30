@@ -31,7 +31,10 @@ use cpal::{
 };
 use serde_json::json;
 use tracing::{error, info, warn};
-use wholeheard_capture::{Event, Heard, RATE, SOURCES, Track, Watch, call, log, new_folder, v2, write_session};
+use wholeheard_capture::{Event, Heard, RATE, SOURCES, Track, Watch, call, call::Me, log, new_folder, v2, write_session};
+
+#[cfg(target_os = "linux")]
+mod passive;
 
 /// A source is told silent after this long without a sound.
 const SILENT_AFTER: f64 = 10.0;
@@ -52,7 +55,15 @@ const TRACKS: [&str; 2] = ["local", "remote"];
 
 /// What a source just delivered: which source, when it was heard — in seconds since the
 /// program took its clock — and the sound, interleaved.
-type Sound = (usize, f64, Vec<f32>);
+pub(crate) type Sound = (usize, f64, Vec<f32>);
+/// A source's form: frames a second, and channels.
+type Form = (u32, u16);
+/// Said of a microphone not opened, for it is a headset's and nothing has taken it (ADR-0015).
+const WAITS: &str = "the default input is a Bluetooth headset's: the microphone waits for a call to take it";
+/// Said of a headset's microphone a call holds and does not run yet.
+const WAITS_NOT_RUNNING: &str = "the call holds a Bluetooth headset's microphone, not running yet: the microphone waits for it";
+/// How long a recording's start waits for a source that runs to negotiate.
+const FORMED_AT_THE_START: Duration = Duration::from_secs(1);
 /// A source recorded from another device now: when, on the session's clock, and its name — none
 /// when the system names none.
 type Moved = (usize, f64, Option<String>);
@@ -128,11 +139,13 @@ fn devices() -> Result<(), String> {
 }
 
 fn named(device: &Device) -> String {
-    device
+    let name = device
         .description()
         .map(|description| description.name().to_string())
         .or_else(|_| device.id().map(|id| id.to_string()))
-        .unwrap_or_else(|_| "unnamed".into())
+        .unwrap_or_else(|_| "unnamed".into());
+    // A headset's node is named for its address: never in a log or a session.
+    call::without_address(&name)
 }
 
 /// The name of the device a source records. A desktop's default device is a name for whichever
@@ -192,8 +205,9 @@ fn naming(moves: Receiver<Move>) -> (Receiver<Moved>, Sender<Moved>) {
 /// Follows a call to the output it plays on (D41, ADR-0011), once a second until `stop`: the
 /// remote stream moved there by its `target.object`, and back to the default when the call
 /// leaves it. Each move is told as the system's are, from `zero`. A graph that does not read, or
-/// a stream that cannot be moved, leaves the default, said once.
-fn follow(tell: Sender<Moved>, zero: Instant, stop: Arc<AtomicBool>) {
+/// a stream that cannot be moved, leaves the default, said once. Each reading also says what the
+/// local side should record, to `me`: nothing, when the graph does not read (ADR-0015).
+fn follow(tell: Sender<Moved>, me: Option<Sender<Me>>, zero: Instant, stop: Arc<AtomicBool>) {
     let run = tracing::Span::current();
     std::thread::spawn(move || {
         let _run = run.enter();
@@ -225,6 +239,11 @@ fn follow(tell: Sender<Moved>, zero: Instant, stop: Arc<AtomicBool>) {
                 }
             }
             fed = Some(now);
+            if let Some(me) = &me
+                && let Ok(wanted) = call::me(&dump, ours)
+            {
+                let _ = me.send(wanted);
+            }
             let wanted = match call::output(&dump, ours) {
                 Ok(wanted) => wanted,
                 Err(detail) => {
@@ -313,17 +332,19 @@ fn graph() -> Option<String> {
     }
 }
 
-/// Says each source moved to a device other than the one it was last said on. `closing`: the
-/// streams are gone, and every move still being named is waited for, so none is lost at the stop.
+/// Says each source moved to a device other than the one it was last said on; of the local side,
+/// only what `me` lets be said. `closing`: the streams are gone, and every move still being named is
+/// waited for, so none is lost at the stop.
 fn said_moved(
     moved: &Receiver<Moved>,
     closing: bool,
+    me: call::Local,
     last: &mut [Option<String>; 2],
     mut kept: impl FnMut(usize, f64, Option<&str>) -> Result<(), String>,
 ) -> Result<(), String> {
     let next = || if closing { moved.recv().ok() } else { moved.try_recv().ok() };
     while let Some((index, at, name)) = next() {
-        if name == last[index] {
+        if name == last[index] || (index == 0 && !me.says(name.as_deref())) {
             continue;
         }
         say(Event::Device {
@@ -361,6 +382,323 @@ fn metadata(key: &str) -> Option<String> {
     Some(printed)
 }
 
+/// What the local side should record now. Where PipeWire is not, the default, as ever. Where the
+/// graph does not read, the default input's name alone decides: a headset's is not opened.
+fn me_now(host: &Host) -> Me {
+    if host.id().name() != "PipeWire" {
+        return Me::Default;
+    }
+    let read = graph().and_then(|dump| call::me(&dump, u64::from(std::process::id())).ok());
+    read.unwrap_or_else(unread_me)
+}
+
+/// The same, with no graph: the default input's name alone.
+fn unread_me() -> Me {
+    let key = "default.audio.source";
+    let default = metadata(key).and_then(|printed| wholeheard_capture::standing_for(&printed, key));
+    call::me_unread(default.as_deref())
+}
+
+/// Whether the default input must not be opened, as far as can be read: unread, it is not.
+fn default_is_a_headset(host: &Host) -> bool {
+    host.id().name() == "PipeWire"
+        && graph()
+            .and_then(|dump| call::default_waits(&dump).ok())
+            .unwrap_or_else(|| unread_me() == Me::Wait)
+}
+
+/// What feeds the second form's tracks.
+enum Feed {
+    Cpal {
+        #[expect(dead_code, reason = "held for what it does: dropped, it closes")]
+        stream: Stream,
+        /// Set before it closes: what the stream says of its end is no move of the system's.
+        closing: Arc<AtomicBool>,
+    },
+    #[cfg(target_os = "linux")]
+    Passive(passive::Passive),
+}
+
+impl Feed {
+    /// False once it failed and will deliver nothing more; a cpal stream goes on and is moved.
+    fn alive(&self) -> bool {
+        match self {
+            Feed::Cpal { .. } => true,
+            #[cfg(target_os = "linux")]
+            Feed::Passive(stream) => stream.alive(),
+        }
+    }
+
+    /// What a passive stream negotiated, if it has yet. A cpal stream says its own when opened.
+    fn form(&self) -> Option<Form> {
+        match self {
+            Feed::Cpal { .. } => None,
+            #[cfg(target_os = "linux")]
+            Feed::Passive(stream) => stream.form(),
+        }
+    }
+}
+
+impl Drop for Feed {
+    fn drop(&mut self) {
+        if let Feed::Cpal { closing, .. } = self {
+            closing.store(true, Ordering::SeqCst);
+        }
+    }
+}
+
+/// What the recording needs to open the local side, on whichever thread does it.
+#[derive(Clone)]
+struct Opening {
+    zero: Instant,
+    sound: Sender<Sound>,
+    moved: Sender<Move>,
+}
+
+/// Opens what the local side should record — in `form`, the track's, when it has one — with its name,
+/// and the form it delivers, none on a passive stream until it received one. A cpal stream takes
+/// some seconds at most to answer when the system does not: at the start, or on a thread of its own
+/// (`Following`), never in the loop that writes the sound.
+fn open_me(host: &Host, wanted: &Me, form: Option<Form>, opening: &Opening) -> Result<Opened, String> {
+    let cpal_on = |device: &Device, name: Option<String>| {
+        let closing = Arc::new(AtomicBool::new(false));
+        let (stream, rate, channels) = open(
+            device,
+            false,
+            0,
+            opening.zero,
+            form,
+            opening.sound.clone(),
+            (opening.moved.clone(), closing.clone()),
+        )?;
+        Ok((
+            Feed::Cpal { stream, closing },
+            name.unwrap_or_else(|| named_as_used(host, device)),
+            Some((rate, channels)),
+        ))
+    };
+    match wanted {
+        Me::Wait => Err(WAITS.to_string()),
+        Me::Default => cpal_on(&host.default_input_device().ok_or("the system names no default device")?, None),
+        #[cfg(target_os = "linux")]
+        Me::Hold(call::Microphone {
+            name,
+            description,
+            passive: Some(passive),
+        }) => {
+            let stream = passive::Passive::open(name, passive, form, (0, opening.zero), opening.sound.clone());
+            Ok((Feed::Passive(stream), description.clone(), None))
+        }
+        Me::Hold(microphone) => {
+            // A new host: its devices are what the graph holds now.
+            let device = host_devices(&microphone.name).ok_or("the source is no longer there")?;
+            cpal_on(&device, Some(microphone.description.clone()))
+        }
+    }
+}
+
+/// At the start, where a track's form is wanted now: a source that runs negotiates at once, and one
+/// that does not has no track until it does: `Following` takes it from there.
+fn formed_at_the_start(opened: Opened, stop: &AtomicBool) -> Result<(Feed, String, Form), String> {
+    let (feed, name, form) = opened;
+    let asked = Instant::now();
+    loop {
+        if let Some(form) = form.or_else(|| feed.form()) {
+            return Ok((feed, name, form));
+        }
+        if !feed.alive() || stop.load(Ordering::SeqCst) || asked.elapsed() >= FORMED_AT_THE_START {
+            return Err(WAITS_NOT_RUNNING.to_string());
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// The device of a node, by its name.
+fn host_devices(node: &str) -> Option<Device> {
+    host().devices().ok()?.find(|device| device.id().is_ok_and(|id| id.id() == node))
+}
+
+/// What opening the local side gives: what feeds it, its name, and its form when it has one yet.
+type Opened = (Feed, String, Option<Form>);
+
+/// A local stream being opened, on a thread of its own. Dropped before it answers, what that thread
+/// opens is closed there.
+struct Attaching {
+    want: Me,
+    given: Receiver<Result<Opened, String>>,
+}
+
+/// Who follows the local side, once it runs: what it is on, and what it takes to open another. The
+/// recording's loop only polls it: nothing here waits on the system.
+struct Following {
+    on: Me,
+    /// What `device` may say of it.
+    local: call::Local,
+    attaching: Option<Attaching>,
+    /// A stream with no form yet, its source not run: it records nothing, and nothing is said of it.
+    unformed: Option<Opened>,
+    /// What failed, how many times, and when it may be tried again.
+    failed: Option<(Me, u32, Instant)>,
+    refused: bool,
+    opening: Opening,
+    tell: Sender<Moved>,
+}
+
+impl Following {
+    /// Does what the graph calls for, and never stops the recording for it: a source that cannot
+    /// be opened is logged once, and tried again less and less often.
+    fn heed(&mut self, want: Me, source: &mut Option<Delivered>) {
+        if let Some(attaching) = &self.attaching {
+            if attaching.want == want {
+                return;
+            }
+            // What it was to take over from has closed already, and it will not.
+            self.attaching = None;
+            self.gone();
+        }
+        if self.feed(source).is_some_and(|feed| !feed.alive()) {
+            let on = std::mem::replace(&mut self.on, Me::Wait);
+            self.close(source);
+            self.gone();
+            self.failure(on, "the stream failed");
+        }
+        // No stream on the default: it could not be opened at the start, and is not asked again.
+        let alive = self.feed(source).map_or(self.on == Me::Default, Feed::alive);
+        let step = call::step(&self.on, alive, &want);
+        if step == call::Step::Keep {
+            return;
+        }
+        if step == call::Step::Take
+            && let Some((failed, _, again)) = &self.failed
+            && *failed == want
+            && Instant::now() < *again
+        {
+            return;
+        }
+        // Closed first, always: it lets go before anything else is opened.
+        self.close(source);
+        self.on = Me::Wait;
+        if step == call::Step::Let {
+            info!("capture.me_waits");
+            self.gone();
+            return;
+        }
+        let form = source.as_ref().map(|source| (source.track.rate(), source.track.channels()));
+        let (give, given) = mpsc::channel();
+        let (asked, opening, run) = (want.clone(), self.opening.clone(), tracing::Span::current());
+        std::thread::spawn(move || {
+            let _run = run.enter();
+            let _ = give.send(open_me(&host(), &asked, form, &opening));
+        });
+        self.attaching = Some(Attaching { want, given });
+    }
+
+    /// Takes the answer of what was being opened, and the form of what waited for one, if they came.
+    /// Given its form, a stream has its track: the session says so first, then `device`.
+    fn settle(
+        &mut self,
+        source: &mut Option<Delivered>,
+        held: &mut Vec<v2::Held>,
+        clock: &mut v2::Clock,
+        folder: &Path,
+        session: impl Fn(&[v2::Held]) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let answer = self.attaching.as_ref().and_then(|attaching| match attaching.given.try_recv() {
+            Ok(answer) => Some(answer),
+            Err(mpsc::TryRecvError::Empty) => None,
+            Err(mpsc::TryRecvError::Disconnected) => Some(Err("what opens it ended".to_string())),
+        });
+        if let Some(answer) = answer
+            && let Some(Attaching { want, .. }) = self.attaching.take()
+        {
+            match answer {
+                Ok(opened) => {
+                    self.on = want;
+                    self.unformed = Some(opened);
+                }
+                Err(detail) => {
+                    self.gone();
+                    self.failure(want, &detail);
+                }
+            }
+        }
+        let Some((feed, _, opened_in)) = &self.unformed else {
+            return Ok(());
+        };
+        let Some(form) = opened_in.or_else(|| feed.form()) else {
+            // None takes over from what was said: it is not being recorded any more.
+            self.gone();
+            return Ok(());
+        };
+        let Some((feed, name, _)) = self.unformed.take() else {
+            return Ok(());
+        };
+        if let Some(source) = source.as_mut() {
+            // Under a track, in its form.
+            source.stream = Some(feed);
+        } else {
+            info!(source = SOURCES[0], device = %name, rate = form.0, channels = form.1, "capture.opened");
+            let at = self.opening.zero.elapsed().as_secs_f64();
+            match Delivered::after_waiting(folder, form, at, clock) {
+                Ok(mut track) => {
+                    track.stream = Some(feed);
+                    *source = Some(track);
+                    held.push(v2::Held::new(TRACKS[0], &name));
+                    session(held)?;
+                }
+                Err(error) => {
+                    let on = std::mem::replace(&mut self.on, Me::Wait);
+                    self.failure(on, &error.to_string());
+                    return Ok(());
+                }
+            }
+        }
+        self.taken(name);
+        Ok(())
+    }
+
+    /// What feeds the local side, track or no track.
+    fn feed<'a>(&'a self, source: &'a Option<Delivered>) -> Option<&'a Feed> {
+        let unformed = self.unformed.as_ref().map(|(feed, ..)| feed);
+        unformed.or_else(|| source.as_ref()?.stream.as_ref())
+    }
+
+    fn taken(&mut self, name: String) {
+        self.failed = None;
+        self.refused = false;
+        self.local.gained();
+        let _ = self.tell.send((0, self.opening.zero.elapsed().as_secs_f64(), Some(name)));
+    }
+
+    fn close(&mut self, source: &mut Option<Delivered>) {
+        self.unformed = None;
+        if let Some(source) = source.as_mut() {
+            source.stream = None;
+        }
+    }
+
+    /// `what` could not be opened, or did not last: logged once, and tried again later.
+    fn failure(&mut self, what: Me, detail: &str) {
+        let tries = self
+            .failed
+            .as_ref()
+            .filter(|(failed, ..)| *failed == what)
+            .map_or(0, |(_, tries, _)| *tries)
+            + 1;
+        self.failed = Some((what, tries, Instant::now() + call::retry_after(tries)));
+        if !std::mem::replace(&mut self.refused, true) {
+            warn!(detail = %call::without_address(detail), "capture.me_not_attached");
+        }
+    }
+
+    /// The local side has no device now: said, if one was.
+    fn gone(&mut self) {
+        if self.local.gone() {
+            let _ = self.tell.send((0, self.opening.zero.elapsed().as_secs_f64(), None));
+        }
+    }
+}
+
 /// A source being recorded: its file, and the stream that feeds it while it lives.
 struct Source {
     track: Track,
@@ -380,15 +718,28 @@ fn record(sessions: &Path) -> Result<(), String> {
     // "me" is the default microphone; "others" is what the default output plays. Each is
     // opened on its own: a source that cannot be opened is written as silence and said, the
     // other is still recorded.
-    let wanted = [(host.default_input_device(), false), (host.default_output_device(), true)];
+    // A headset's virtual input is never opened actively (ADR-0015): this form does not follow a
+    // call's microphone, and records none there.
+    let headset = default_is_a_headset(&host);
+    let wanted = [
+        (host.default_input_device().filter(|_| !headset), false),
+        (host.default_output_device(), true),
+    ];
     let mut names = Vec::new();
     let mut sources = Vec::new();
     for (index, (device, playback)) in wanted.into_iter().enumerate() {
         let path = folder.join(format!("{}.wav", SOURCES[index]));
         let opened = device
-            .ok_or_else(|| "the system names no default device".to_string())
+            .ok_or_else(|| {
+                if index == 0 && headset {
+                    WAITS
+                } else {
+                    "the system names no default device"
+                }
+                .to_string()
+            })
             .and_then(|device| {
-                open(&device, playback, index, zero, sound.clone(), moved.clone())
+                open(&device, playback, index, zero, None, sound.clone(), (moved.clone(), Arc::default()))
                     .map(|(stream, rate, channels)| (named_as_used(&host, &device), stream, rate, channels))
             });
         let (name, stream, rate, channels) = match opened {
@@ -426,7 +777,7 @@ fn record(sessions: &Path) -> Result<(), String> {
     let stop = stop_asked()?;
     // A call heard on another output than the default is followed there, where PipeWire is.
     if host.id().name() == "PipeWire" {
-        follow(follower, zero, stop.clone());
+        follow(follower, None, zero, stop.clone());
     } else {
         drop(follower);
     }
@@ -435,8 +786,10 @@ fn record(sessions: &Path) -> Result<(), String> {
     let mut checked = clock;
     let mut metered = clock;
     let mut last = [Some(names[0].clone()), Some(names[1].clone())];
+    // This form's local stream, if any, stays as it opened: the system moves it, and it is named.
+    let me = call::Local::started(true);
     while !stop.load(Ordering::SeqCst) {
-        said_moved(&moves, false, &mut last, |_, _, _| Ok(()))?;
+        said_moved(&moves, false, me, &mut last, |_, _, _| Ok(()))?;
         match heard.recv_timeout(Duration::from_millis(50)) {
             Ok((index, _, samples)) => sources[index].track.push(&samples).map_err(|e| e.to_string())?,
             Err(RecvTimeoutError::Timeout) => {}
@@ -487,7 +840,7 @@ fn record(sessions: &Path) -> Result<(), String> {
         source._stream = None;
     }
     // A move the system made in the last moment is said too.
-    said_moved(&moves, true, &mut last, |_, _, _| Ok(()))?;
+    said_moved(&moves, true, me, &mut last, |_, _, _| Ok(()))?;
     while let Ok((index, _, samples)) = heard.try_recv() {
         sources[index].track.push(&samples).map_err(|e| e.to_string())?;
     }
@@ -534,10 +887,28 @@ struct Delivered {
     owed: bool,
     /// Zeros are being written for it: logged once a gap, the first from the start included.
     mute: bool,
-    stream: Option<Stream>,
+    stream: Option<Feed>,
 }
 
 impl Delivered {
+    /// The local track of a microphone that waited: made when it can be, in the form the source
+    /// negotiated, and on the clock by zeros that are said (session-audio/v2).
+    fn after_waiting(folder: &Path, (rate, channels): Form, at: f64, clock: &mut v2::Clock) -> std::io::Result<Delivered> {
+        let mut track = v2::Track::create(&folder.join(format!("{}.wav", TRACKS[0])), rate, channels)?;
+        let zeros = (0, (at * f64::from(track.rate())) as u64);
+        clock.silence(TRACKS[0], zeros)?;
+        track.silence_to(zeros.1)?;
+        Ok(Delivered {
+            track,
+            watch: Watch::new(SILENT_AFTER),
+            point: None,
+            owed: true,
+            // Those zeros are not a source gone mute.
+            mute: true,
+            stream: None,
+        })
+    }
+
     /// Writes what the source delivered, and says where it is on the clock when that is owed:
     /// the first piece, the first after zeros of ours, every few seconds — and whenever a
     /// piece is not where the last point puts it, so that a source that stopped for a moment
@@ -571,20 +942,40 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
     let zero = Instant::now();
     let folder = new_folder(sessions, &started.format("%Y-%m-%d_%H-%M").to_string()).map_err(|e| e.to_string())?;
 
-    // A source that cannot be opened is said and has no track; the other is still recorded.
-    let wanted = [(host.default_input_device(), false), (host.default_output_device(), true)];
+    // A source that cannot be opened is said and has no track; the other is still recorded. The
+    // local side is what the graph says (ADR-0015): it may wait, and gets its track when it is taken.
+    let stop = stop_asked()?;
+    let opening = Opening { zero, sound, moved };
+    let me_first = me_now(&host);
+    let mut me_opened = false;
     let mut names = Vec::new();
     let mut sources = Vec::new();
-    for (index, (device, playback)) in wanted.into_iter().enumerate() {
-        let opened = device
-            .ok_or_else(|| "the system names no default device".to_string())
-            .and_then(|device| {
-                open(&device, playback, index, zero, sound.clone(), moved.clone())
-                    .map(|(stream, rate, channels)| (named_as_used(&host, &device), stream, rate, channels))
-            });
+    for index in 0..2 {
+        let opened = if index == 0 {
+            open_me(&host, &me_first, None, &opening)
+                .and_then(|opened| formed_at_the_start(opened, &stop))
+                .map(|(feed, name, (rate, channels))| (name, feed, rate, channels))
+        } else {
+            host.default_output_device()
+                .ok_or_else(|| "the system names no default device".to_string())
+                .and_then(|device| {
+                    let closing = Arc::new(AtomicBool::new(false));
+                    open(
+                        &device,
+                        true,
+                        index,
+                        zero,
+                        None,
+                        opening.sound.clone(),
+                        (opening.moved.clone(), closing.clone()),
+                    )
+                    .map(|(stream, rate, channels)| (named_as_used(&host, &device), Feed::Cpal { stream, closing }, rate, channels))
+                })
+        };
         match opened {
             Ok((name, stream, rate, channels)) => {
                 info!(source = SOURCES[index], device = %name, rate, channels, "capture.opened");
+                me_opened |= index == 0;
                 let path = folder.join(format!("{}.wav", TRACKS[index]));
                 names.push(name);
                 sources.push(Some(Delivered {
@@ -599,14 +990,13 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
             Err(reason) => {
                 say(Event::Unavailable {
                     source: index,
-                    reason: &reason,
+                    reason: &call::without_address(&reason),
                 });
                 names.push("unavailable".to_string());
                 sources.push(None);
             }
         }
     }
-    drop((sound, moved));
     if sources.iter().all(Option::is_none) {
         return Err("no source could be opened: nothing to record".into());
     }
@@ -616,31 +1006,48 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
         .map(|index| v2::Held::new(TRACKS[index], &names[index]))
         .collect();
     let stamp = |time: chrono::DateTime<chrono::Local>| time.to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
-    v2::write_session(&folder, &stamp(started), None, &held).map_err(|e| e.to_string())?;
+    let session = |held: &[v2::Held]| v2::write_session(&folder, &stamp(started), None, held).map_err(|e| e.to_string());
+    session(&held)?;
     say(Event::Started {
         folder: &folder,
         sources: [&names[0], &names[1]],
     });
 
-    let stop = stop_asked()?;
-    // A call heard on another output than the default is followed there, where PipeWire is.
+    let (wants, wanted_me) = mpsc::channel::<Me>();
+    let mut following = Following {
+        // A default that could not be opened stays as it was; anything else is asked again.
+        on: if me_opened || me_first == Me::Default { me_first } else { Me::Wait },
+        local: call::Local::started(me_opened),
+        attaching: None,
+        unformed: None,
+        failed: None,
+        refused: false,
+        opening,
+        tell: follower.clone(),
+    };
+    // A call heard on another output than the default is followed there, where PipeWire is; the
+    // microphone it holds, too.
     if host.id().name() == "PipeWire" {
-        follow(follower, zero, stop.clone());
+        follow(follower, Some(wants), zero, stop.clone());
     } else {
-        drop(follower);
+        drop((follower, wants));
     }
     let mut checked = Instant::now();
     let mut metered = checked;
     let mut last = [Some(names[0].clone()), Some(names[1].clone())];
     while !stop.load(Ordering::SeqCst) {
         // The session keeps each device a track was recorded from after its first.
-        said_moved(&moves, false, &mut last, |index, at, name| {
+        said_moved(&moves, false, following.local, &mut last, |index, at, name| {
             let Some(track) = held.iter_mut().find(|held| held.track == TRACKS[index]) else {
                 return Ok(());
             };
-            track.changed.push((at, name.map(str::to_string)));
-            v2::write_session(&folder, &stamp(started), None, &held).map_err(|e| e.to_string())
+            track.moved(at, name);
+            session(&held)
         })?;
+        while let Ok(want) = wanted_me.try_recv() {
+            following.heed(want, &mut sources[0]);
+        }
+        following.settle(&mut sources[0], &mut held, &mut clock, &folder, session)?;
         match heard.recv_timeout(Duration::from_millis(50)) {
             Ok((index, at, samples)) => {
                 if let Some(source) = &mut sources[index] {
@@ -702,10 +1109,13 @@ fn record_v2(sessions: &Path) -> Result<(), String> {
     for source in sources.iter_mut().flatten() {
         source.stream = None;
     }
+    // What it took to open another goes too: the moves' channel ends with it.
+    let me = following.local;
+    drop(following);
     // A move the system made in the last moment is said, and kept, too.
-    said_moved(&moves, true, &mut last, |index, at, name| {
+    said_moved(&moves, true, me, &mut last, |index, at, name| {
         if let Some(track) = held.iter_mut().find(|held| held.track == TRACKS[index]) {
-            track.changed.push((at, name.map(str::to_string)));
+            track.moved(at, name);
         }
         Ok(())
     })?;
@@ -731,8 +1141,9 @@ fn open(
     playback: bool,
     index: usize,
     zero: Instant,
+    form: Option<Form>,
     sound: Sender<Sound>,
-    moved: Sender<Move>,
+    moved: (Sender<Move>, Arc<AtomicBool>),
 ) -> Result<(Stream, u32, u16), String> {
     let config = if playback {
         device.default_output_config()
@@ -740,15 +1151,22 @@ fn open(
         device.default_input_config()
     }
     .map_err(|error| format!("no default configuration ({error})"))?;
-    let (rate, channels) = (config.sample_rate(), config.channels());
-    let stream = match config.sample_format() {
-        SampleFormat::I8 => listen::<i8>(device, config.into(), index, zero, sound, moved),
-        SampleFormat::I16 => listen::<i16>(device, config.into(), index, zero, sound, moved),
-        SampleFormat::I32 => listen::<i32>(device, config.into(), index, zero, sound, moved),
-        SampleFormat::U8 => listen::<u8>(device, config.into(), index, zero, sound, moved),
-        SampleFormat::U16 => listen::<u16>(device, config.into(), index, zero, sound, moved),
-        SampleFormat::F32 => listen::<f32>(device, config.into(), index, zero, sound, moved),
-        SampleFormat::F64 => listen::<f64>(device, config.into(), index, zero, sound, moved),
+    // A track that already has a form keeps it: the system converts, as when a device changes.
+    let (rate, channels) = form.unwrap_or((config.sample_rate(), config.channels()));
+    let format = config.sample_format();
+    let config = cpal::StreamConfig {
+        sample_rate: rate,
+        channels,
+        ..config.into()
+    };
+    let stream = match format {
+        SampleFormat::I8 => listen::<i8>(device, config, index, zero, sound, moved),
+        SampleFormat::I16 => listen::<i16>(device, config, index, zero, sound, moved),
+        SampleFormat::I32 => listen::<i32>(device, config, index, zero, sound, moved),
+        SampleFormat::U8 => listen::<u8>(device, config, index, zero, sound, moved),
+        SampleFormat::U16 => listen::<u16>(device, config, index, zero, sound, moved),
+        SampleFormat::F32 => listen::<f32>(device, config, index, zero, sound, moved),
+        SampleFormat::F64 => listen::<f64>(device, config, index, zero, sound, moved),
         other => Err(format!("sample format {other} not handled")),
     }?;
     stream.play().map_err(|error| format!("the stream could not start ({error})"))?;
@@ -761,7 +1179,7 @@ fn listen<T>(
     index: usize,
     zero: Instant,
     sound: Sender<Sound>,
-    moved: Sender<Move>,
+    (moved, closing): (Sender<Move>, Arc<AtomicBool>),
 ) -> Result<Stream, String>
 where
     T: SizedSample,
@@ -788,7 +1206,11 @@ where
                 // The system moved the stream to another device, or has none for it now: the
                 // track goes on, and the device is named — off this thread, which the system's
                 // sound waits on.
+                if closing.load(Ordering::SeqCst) {
+                    return;
+                }
                 let Some(left) = wholeheard_capture::moved(error.kind()) else {
+                    let error = call::without_address(&error.to_string());
                     run.in_scope(|| warn!(source = name, detail = %error, "capture.stream_error"));
                     drop(writeln!(std::io::stderr(), "wholeheard-capture: [{name}] {error}"));
                     return;
