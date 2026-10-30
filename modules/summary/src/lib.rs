@@ -141,7 +141,7 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
          owner with \"probably\", or none.\n\n\
          Open your answer on one line that names the meeting: a title of first level — a line \
          starting with one number sign and a space, in plain text —, a few words in the \
-         meeting's language saying what it was about, at most 80 characters, never a date.\n\
+         meeting's language saying what it was about, at most 80 characters, never a date, without a slash.\n\
          Then answer with exactly three sections and nothing between or after them. Each \
          opens on a title of second level — a line starting with two number signs and a space, \
          in plain text — in this order:\n\
@@ -291,9 +291,9 @@ fn title(written: &str) -> Option<String> {
         }
     }
     let words = words.trim();
-    let path = words
-        .split_whitespace()
-        .any(|word| word.starts_with('/') || word.starts_with("~/") || word.contains('\\') || word.as_bytes().get(1..3) == Some(b":/"));
+    // Whether words name a path no rule can tell: a slash of any kind leaves the date to name it,
+    // « Q3/Q4 » too — a meeting loses a name, never shows a path (`minutes/v2`).
+    let path = words.contains(['/', '\\']);
     let one_line = !words.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'));
     let says = words
         .chars()
