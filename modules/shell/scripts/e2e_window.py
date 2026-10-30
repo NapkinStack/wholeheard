@@ -1786,6 +1786,21 @@ def announced(now: dt.datetime) -> None:
         wait_for(browser, lambda b: b.execute_script("return window.copied_for_test"), 3)
         text = browser.execute_script("return window.copied_for_test")
         check("a meeting said in English: the announcement in English, the window in French", text == "I’m recording this meeting to write up its minutes. Tell me if you’d rather I didn’t.", text)
+        # Its own language file comes before the settings', as a meeting's own word does.
+        folder = next(p for p in speaking.iterdir() if (p / "session.json").exists())
+        (folder / "language").write_text("fr\n")
+        browser.execute_script("window.copied_for_test = null")
+        time.sleep(0.5)
+        browser.find_element(By.ID, "small-announce-copy").click()
+        wait_for(browser, lambda b: b.execute_script("return window.copied_for_test"), 3)
+        text = browser.execute_script("return window.copied_for_test")
+        check("the meeting's own language comes first", text.startswith("J’enregistre"), text)
+        # Refused: said of the announcement, in place, nothing moved.
+        before = browser.execute_script(place)
+        browser.execute_script("Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: () => Promise.reject(new Error('refused'))}})")
+        browser.find_element(By.ID, "small-announce-copy").click()
+        refused = wait_for(browser, lambda b: b.find_element(By.ID, "small-announce-copied").text == "Pas copiée.", 3)
+        check("a clipboard refused: said of the announcement, Arrêter where it was", refused and browser.execute_script(place) == before, browser.find_element(By.ID, "small-announce-copied").text)
         stop_from_small(browser)
     quiet = WORK / "announcing-off"
     quiet.mkdir()

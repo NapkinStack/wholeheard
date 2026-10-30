@@ -469,6 +469,7 @@ pub struct Window {
     /// The reminder said where the user looks, the first seconds of a recording (D50).
     pub small_announce: &'static str,
     pub copy_announcement: &'static str,
+    pub announcement_not_copied: &'static str,
     pub small_full: &'static str,
     /// The small window at rest (D35): no meeting yet, the last one, and the ways to the full window.
     pub small_none: &'static str,
@@ -839,6 +840,7 @@ pub fn window(language: Language) -> Window {
             small_note: "Once stopped, the transcript writes itself. You will be told.",
             small_announce: "Tell the participants this meeting is being recorded.",
             copy_announcement: "Copy the announcement",
+            announcement_not_copied: "Not copied.",
             small_full: "The whole window",
             small_none: "No meeting yet.",
             small_last: "Last meeting",
@@ -1202,6 +1204,7 @@ pub fn window(language: Language) -> Window {
             small_note: "À l’arrêt, le transcript s’écrit tout seul. Vous serez prévenu.",
             small_announce: "Prévenez les participants que cette réunion est enregistrée.",
             copy_announcement: "Copier l’annonce",
+            announcement_not_copied: "Pas copiée.",
             small_full: "Toute la fenêtre",
             small_none: "Aucune réunion pour l’instant.",
             small_last: "Dernière réunion",

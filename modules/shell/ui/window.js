@@ -2376,7 +2376,7 @@ function showSmall(words) {
       await navigator.clipboard.writeText(announcement);
       said_copied.textContent = words.minutes_copied;
     } catch {
-      said_copied.textContent = words.minutes_not_copied;
+      said_copied.textContent = words.announcement_not_copied;
     }
     setTimeout(() => (said_copied.textContent = ""), 2000);
   });

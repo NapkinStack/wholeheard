@@ -17,7 +17,7 @@ fn written(text: &str) -> Result<Settings, String> {
 #[test]
 fn the_reminder_is_on_unless_the_file_says_otherwise() {
     assert!(Settings::default().reminder);
-    assert!(written("sessions = \"/tmp/m\"\n").unwrap().reminder);
+    assert!(written("after = \"nothing\"\n").unwrap().reminder);
 }
 
 #[test]
