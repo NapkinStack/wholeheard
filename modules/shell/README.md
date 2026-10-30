@@ -77,7 +77,9 @@ from sessions whose transcript is whole; their transcript and minutes stay.
 **The small window** (D35, D34's board) opens first: *Démarrer un enregistrement* and the shortcut
 as the desktop granted it — or where to choose one —, the last meeting and where it stands, what
 the meetings weigh, and the way to the full window. A recording shows in it (board 6, D33), above
-the other windows until the stop; then it comes back to rest. One window at a time: going from one
+the other windows until the stop; then it comes back to rest. While recording, each side has its
+check (D49): a ring that turns ✓ when it is heard, then fades; a silence capture says is said under
+it, a side with no device too, and *Arrêter* stays where it is as they come. One window at a time: going from one
 to the other replaces it, and the one left — `window` in the settings, `small` or `full` — is the
 one reopened. A settings file that cannot be read opens the full window, where it is said.
 
