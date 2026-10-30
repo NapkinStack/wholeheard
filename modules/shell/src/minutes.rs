@@ -42,16 +42,15 @@ const TITLE_MOST: usize = 80;
 
 /// A meeting's name, as the list and its page show it: the title of minutes that read.
 pub fn title(folder: &Path) -> Option<String> {
-    match minutes(folder, ["", "", ""]) {
-        Read::Present(minutes) => minutes.title,
-        _ => None,
-    }
+    let text = fs::read_to_string(folder.join("minutes.md")).ok()?;
+    let (fields, body) = front_matter(&text)?;
+    (sections_in(body) == 3).then(|| fields.get("title").and_then(|written| value(written)).and_then(within))?
 }
 
 /// A title within the contract: on one line, not blank, at most 80 characters.
 fn within(title: String) -> Option<String> {
     let one_line = !title.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'));
-    (one_line && !title.trim().is_empty() && title.chars().count() <= TITLE_MOST).then_some(title)
+    (one_line && title.chars().any(char::is_alphanumeric) && title.chars().count() <= TITLE_MOST).then_some(title)
 }
 
 /// A front matter value as `wholeheard-summary` writes it: `null`, a plain value, or a string in
@@ -66,9 +65,8 @@ fn value(written: &str) -> Option<String> {
     (read != "null" && !read.is_empty()).then_some(read)
 }
 
-fn parse_minutes(text: &str, sections: [&str; 3]) -> Option<Minutes> {
-    use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
-
+/// The front matter's keys, of minutes of a version read here, and the body after it.
+fn front_matter(text: &str) -> Option<(std::collections::HashMap<&str, &str>, &str)> {
     let rest = text.strip_prefix("---\n")?;
     let (front, body) = rest.split_once("\n---\n")?;
     let mut fields = std::collections::HashMap::new();
@@ -76,13 +74,16 @@ fn parse_minutes(text: &str, sections: [&str; 3]) -> Option<Minutes> {
         let (key, written) = line.split_once(':')?;
         fields.insert(key.trim(), written);
     }
-    let field = |key: &str| fields.get(key).and_then(|written| value(written));
-    if !matches!(field("contract").as_deref(), Some("minutes/v1" | "minutes/v2")) {
-        return None;
-    }
-    // Three sections, each on a title of second level however it is written: what the producer
-    // judged before writing, read by the same reader.
-    let titles = Parser::new(body)
+    let contract = fields.get("contract").and_then(|written| value(written));
+    matches!(contract.as_deref(), Some("minutes/v1" | "minutes/v2")).then_some((fields, body))
+}
+
+/// The sections, each on a title of second level however it is written: what the producer judged
+/// before writing, read by the same reader.
+fn sections_in(body: &str) -> usize {
+    use pulldown_cmark::{Event, HeadingLevel, Parser, Tag};
+
+    Parser::new(body)
         .filter(|event| {
             matches!(
                 event,
@@ -92,8 +93,15 @@ fn parse_minutes(text: &str, sections: [&str; 3]) -> Option<Minutes> {
                 })
             )
         })
-        .count();
-    if titles != 3 {
+        .count()
+}
+
+fn parse_minutes(text: &str, sections: [&str; 3]) -> Option<Minutes> {
+    use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+
+    let (fields, body) = front_matter(text)?;
+    let field = |key: &str| fields.get(key).and_then(|written| value(written));
+    if sections_in(body) != 3 {
         return None;
     }
     // Each section titled as the page names it: the order is the contract's, the words the

@@ -221,9 +221,7 @@ fn a_title_is_read_from_minutes_v2_and_minutes_v1_have_none() {
         panic!("v2 without its optional title not read")
     };
     assert_eq!(untitled.title, None);
-    let Read::Present(one) = read(MINUTES) else {
-        panic!("v1 not read")
-    };
+    let Read::Present(one) = read(MINUTES) else { panic!("v1 not read") };
     assert_eq!(one.title, None);
     // A key this version does not know is left aside, as the contract says.
     let Read::Present(more) = read(&titled("\"Un nom\"").replace("provider:", "later: 1\nprovider:")) else {
@@ -244,6 +242,10 @@ fn a_title_out_of_the_contract_is_no_title_and_the_minutes_still_read() {
         format!("\"{}\"", "é".repeat(81)),
         "\"deux\\nlignes\"".to_string(),
         "\"un\\u2028saut\"".to_string(),
+        "\"un\\u2029saut\"".to_string(),
+        "\"une\\ttabulation\"".to_string(),
+        "\"\\u200b\"".to_string(),
+        "\"guillemet non fermé".to_string(),
         "\"   \"".to_string(),
         "null".to_string(),
         "\"\"".to_string(),
@@ -275,14 +277,7 @@ fn a_session_listed_says_its_minutes_title() {
     write("none", None);
     write("broken", Some(&titled("\"Un nom\"").replace("## Actions", "Actions")));
     let listed = wholeheard_shell::sessions::list(sessions.path(), None);
-    let title = |name: &str| {
-        listed
-            .iter()
-            .find(|session| session.folder.ends_with(name))
-            .unwrap()
-            .title
-            .clone()
-    };
+    let title = |name: &str| listed.iter().find(|session| session.folder.ends_with(name)).unwrap().title.clone();
     assert_eq!(title("titled").as_deref(), Some("Un nom"));
     for untitled in ["old", "none", "broken"] {
         assert_eq!(title(untitled), None, "{untitled}");

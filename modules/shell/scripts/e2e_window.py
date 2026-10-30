@@ -1776,6 +1776,14 @@ def meeting_named(now: dt.datetime) -> None:
         shot(browser, "d48-named")
         browser.execute_script(f"location.hash = '#/meeting/{marked.name}'")
         as_text = wait_for(browser, lambda b: b.execute_script(head)[1][2].startswith("<img"), 10)
+        written(marked, "minutes/v2", "W" * 80)
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script(f"location.hash = '#/meeting/{marked.name}'")
+        wide = wait_for(browser, lambda b: b.execute_script(head)[1][2] == "W" * 80, 10)
+        check("a long title with no space does not widen the page",
+              wide and browser.execute_script("const e = document.scrollingElement; return e.scrollWidth <= e.clientWidth"),
+              browser.execute_script("return [document.scrollingElement.scrollWidth, document.scrollingElement.clientWidth]"))
+        written(marked, "minutes/v2", "<img src=x onerror=\"window.named_ran=1\">")
         check("markup in a title is text on the page too",
               as_text and not browser.execute_script("return document.querySelector('#meeting .named img') || window.named_ran"), browser.execute_script(head))
         browser.execute_script(f"location.hash = '#/meeting/{old.name}'")
