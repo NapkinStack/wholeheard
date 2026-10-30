@@ -34,12 +34,12 @@ order of the events, and what each means, are said here and nowhere else.
 
 | `event` | Other fields | Says |
 |---|---|---|
-| `unavailable` | `source`: `me` or `others`; `reason`: a sentence | This source could not be opened: in a session of `session-audio/v2` it has no track — in one of `session-audio/v1`, its file is silence. Said before `started`; the other source is still recorded |
+| `unavailable` | `source`: `me` or `others`; `reason`: a sentence, free: for a person or a log, no consumer reads a meaning from its words | This source could not be opened: in a session of `session-audio/v2` it has no track — in one of `session-audio/v1`, its file is silence. Said before `started`; the other source is still recorded. It is not always for good: *A microphone that waits*, below |
 | `started` | `folder`: the session's folder, a path; `sources`: for `me` and `others`, the name the system gave it, or `unavailable` | The recording runs, and `session.json` is in the folder. **Once**, and first unless `unavailable` came before |
 | `silent` | `source`; `nothing`: `true` when not one sample other than an exact zero came — optional | This source has given no sound for ten seconds. Said once per silence. `nothing`: the device delivers nothing at all — no microphone at rest gives exact zeros —, not a quiet room (#361); absent, unknown |
 | `heard` | `source` | A source that was said `silent` gives sound again |
 | `level` | `source`; `level`: how loud it is now, from 0 (silence) to 1 (the loudest it can be), a number | About ten times a second for each source being recorded, after `started` and before `stopped`: for a meter that moves as sound comes (cycle 03, D22) |
-| `device` | `source`; `device`: the name the system gives the device, or `null` | This source is now recorded from another device: the user chose another default, or the one recorded was taken away and the system named another — or, for `others`, a call plays on an output other than the default, or left it for the default (cycle 04, D41). Its track goes on, in the form it opened with (`session-audio`). `null`: the system names no device for it, and nothing comes from it until a `device` names one. Said at each change, after `started` and before `stopped`; never of a source said `unavailable`, which has no stream to move |
+| `device` | `source`; `device`: the name the system gives the device, or `null` | This source is now recorded from another device: the user chose another default, or the one recorded was taken away and the system named another — or, for `others`, a call plays on an output other than the default, or left it for the default (cycle 04, D41) — or, for `me`, a call holds a microphone other than the one recorded, or no longer does (cycle 05, D66). Its track goes on, in the form it opened with (`session-audio`). `null`: the system names no device for it, or the call let go of it, and nothing comes from it before a `device` names one. Said at each change, after `started` and before `stopped`; of a source said `unavailable`, as *A microphone that waits* says, below |
 | `stopped` | `folder`; `seconds`: the recording's length, a number | The session's files are whole and `session.json` says `stopped`. **Last**, and only when the recording was stopped as below |
 
 **Stopping**: the line `stop` on the program's input, an interrupt or a termination signal.
@@ -92,6 +92,34 @@ holds zeros, as a silence of the capture (`session-audio`), until a `device` nam
 (cycle 01, D3's fifth criterion; cycle 03, D31). `device` was added in cycle 03, as `level` was:
 a consumer of this version already ignores an `event` it does not know.
 
+**A microphone that waits** (cycle 05, D66; [ADR-0015](../../../docs/adr/0015-the-local-side-records-the-microphone-the-call-holds-passively.md)):
+`me` may be said `unavailable` because nothing may open its microphone yet, a headset's that a
+stream would switch to another profile, or because its microphone was refused at the start. No
+track, no `level`, while it waits. It may be taken as the graph changes: a call takes a microphone,
+or the default input changes.
+
+`device` on `me` says what is being recorded now: a stream is named when it has a track, that is,
+when it received its format; a stream linked to a source that does not run says nothing and has no
+track.
+
+A name said is closed by the next when another stream takes over at once, otherwise by `device:
+null`; `stopped` closes the last. A stream that never received a format said nothing and owes no
+`null`. (A live cpal stream may say `null` when the system names no device: D31.)
+
+Under `null`, its track holds zeros where its clock says them. As often as calls come, for as long
+as the recording lasts. Never taken, it stays what `unavailable` says. During a gap of over ten
+seconds, `silent` with `nothing: true` may come: there it says the gap, not a device at rest.
+
+A recording that leaves `session-audio/v1` (`--as v1`) still follows a call's output on `others`;
+`me` does not follow a call's microphone: on a headset's default it says `unavailable` with the
+waiting reason and records no microphone, its file silence to the end.
+
+**A consumer must accept** that sequence: `unavailable` is what was true at the start, `started`'s
+`sources` does not change, and what `me` records now is the last `device`. `null` says that nothing
+comes from the source, never why: not that the computer has no microphone left. The change is
+additive for a consumer that reads each line for itself, as this page has always asked; this page
+said before that `device` was never said of a source said `unavailable`.
+
 ## Examples
 
 Valid — a recording where nothing plays for a while, stopped by the line `stop`:
@@ -110,6 +138,18 @@ Valid — the microphone refused, the meeting still recorded:
 ```text
 {"event":"unavailable","source":"me","reason":"the system names no default device"}
 {"event":"started","folder":"<sessions-folder>/2026-10-13_14-05","sources":{"me":"unavailable","others":"Speaker"}}
+```
+
+Valid — a microphone that waits, taken by a call, let go, taken again, let go:
+
+```text
+{"event":"unavailable","source":"me","reason":"the default input is a Bluetooth headset's: the microphone waits for a call to take it"}
+{"event":"started","folder":"<sessions-folder>/2026-10-13_14-05","sources":{"me":"unavailable","others":"Speaker"}}
+{"event":"device","source":"me","device":"Headset Microphone"}
+{"event":"device","source":"me","device":null}
+{"event":"device","source":"me","device":"Headset Microphone"}
+{"event":"device","source":"me","device":null}
+{"event":"stopped","folder":"<sessions-folder>/2026-10-13_14-05","seconds":70.1}
 ```
 
 To refuse: a line that is not a JSON object with an `event`.
