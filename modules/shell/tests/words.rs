@@ -336,10 +336,23 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
 
 #[test]
 fn a_transcript_is_said_ready_or_not_with_how_to_have_it_again() {
-    use wholeheard_shell::{transcription::Made, words::Trouble};
+    use wholeheard_shell::{
+        transcription::Made,
+        words::{Minutes, Trouble},
+    };
     let ready = |language| words::made(&Made::Written("/s/2026-10-16_09-30".into()), language);
     assert_eq!(ready(Language::English).title, "Transcript ready");
-    assert!(ready(Language::French).body.contains("ouvrir le dossier"));
+    // D44: on Linux a click opens the meeting in Wholeheard, and says so; elsewhere no click is
+    // promised — the notification is said, and the window holds the meeting.
+    if cfg!(target_os = "linux") {
+        assert_eq!(ready(Language::French).body, "Cliquez pour l’ouvrir.");
+        assert_eq!(ready(Language::English).body, "Click to open it.");
+        assert_eq!(words::minutes(&Minutes::Ready, Language::French).body, "Cliquez pour l’ouvrir.");
+    } else {
+        assert!(!ready(Language::French).body.contains("Cliquez") && !ready(Language::English).body.contains("Click"));
+        assert!(!words::minutes(&Minutes::Ready, Language::English).body.contains("Click"));
+    }
+    assert!(!ready(Language::French).body.contains("dossier"));
     // Failed: the recording untouched, the menu's entry — never what the program said.
     let failed = words::made(
         &Made::Failed("wholeheard-transcription: the model cannot be loaded".into()),
