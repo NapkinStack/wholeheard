@@ -1975,7 +1975,8 @@ function showSettings(shown, minutes, words) {
   pulled.append(pulledSaid, element("span", "state"));
   offered.append(pulled);
   // The list read again from where it is kept, only on this click, its host shown (D40): read,
-  // the page is drawn with it; refused, the list above stays, and it is said.
+  // the page is drawn with it; refused, the list above stays, and it is said. Until the key that
+  // signs it is built in, no click is offered, and that is said (D56).
   const refreshed = element("p", "says");
   refreshed.id = "offered-refreshed";
   refreshed.setAttribute("role", "status");
@@ -1990,7 +1991,8 @@ function showSettings(shown, minutes, words) {
     refresh_.disabled = false;
     refreshed.textContent = words.offered_refresh_failed;
   });
-  step.append(element("h3", "", words.offered_title), offered, refresh_, refreshed);
+  if (shown.registry_waits) refreshed.textContent = words.offered_refresh_waits;
+  step.append(element("h3", "", words.offered_title), offered, ...(shown.registry_waits ? [] : [refresh_]), refreshed);
   paintOffered(offered);
   models.append(step, minutesRow(minutes, words, locked), element("p", "says", words.models_note));
   parts.push(models);

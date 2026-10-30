@@ -388,6 +388,7 @@ pub struct Window {
     /// what is said when it could not be.
     pub offered_refresh: &'static str,
     pub offered_refresh_failed: &'static str,
+    pub offered_refresh_waits: &'static str,
     /// Apple's SpeechAnalyzer among who hears, on a Mac with macOS 26 (D42): its name in the
     /// choice; its model not on the Mac yet; the gesture that has macOS fetch it, and from whom;
     /// while it comes; when it did not.
@@ -776,6 +777,7 @@ pub fn window(language: Language) -> Window {
             offered_needs_ollama: "Needs Ollama — install it from ollama.com",
             offered_refresh: "Update the list ({})",
             offered_refresh_failed: "The list could not be updated: the models above are still offered.",
+            offered_refresh_waits: "The list cannot be updated yet: it waits on the key that signs it. The models above are still offered.",
             speech_option: "Apple's SpeechAnalyzer, on this Mac",
             speech_missing: "Apple's model is not on this Mac yet",
             speech_fetch: "Download Apple's model (macOS fetches it from Apple)",
@@ -1142,6 +1144,7 @@ pub fn window(language: Language) -> Window {
             offered_needs_ollama: "Nécessite Ollama, à installer depuis ollama.com",
             offered_refresh: "Mettre à jour la liste ({})",
             offered_refresh_failed: "La liste n’a pas pu être mise à jour\u{a0}: les modèles ci-dessus restent proposés.",
+            offered_refresh_waits: "La liste ne peut pas encore être mise à jour\u{a0}: elle attend la clé qui la signe. Les modèles ci-dessus restent proposés.",
             speech_option: "SpeechAnalyzer d’Apple, sur ce Mac",
             speech_missing: "le modèle d’Apple n’est pas encore sur ce Mac",
             speech_fetch: "Télécharger le modèle d’Apple (macOS le télécharge depuis Apple)",

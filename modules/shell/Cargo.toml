@@ -37,6 +37,7 @@ ureq = "3.4.2"
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "json", "env-filter", "std"] }
+minisign-verify = "0.3.0"
 
 [build-dependencies]
 tauri-build = "2.7.2"
@@ -65,4 +66,5 @@ windows-native-keyring-store = "1.1.0"
 tauri-plugin-global-shortcut = "2.4.1"
 
 [dev-dependencies]
+minisign = "0.10.0"
 tempfile = "3"
