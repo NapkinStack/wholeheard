@@ -478,7 +478,7 @@ fn a_title_out_of_the_contract_leaves_the_minutes_whole_without_it() {
     for above in [
         long.as_str(),
         "Deux\nlignes\n===",
-        "# /home/f/Documents/Wholeheard/2026-10-28",
+        "# /srv/reunions/2026-10-28",
         "# C:\\Users\\f\\reunion.wav",
     ] {
         let written = minutes(&format!("{above}\n\n{SECTIONS}"), &made(None)).unwrap();
