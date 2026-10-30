@@ -620,23 +620,19 @@ def models_listed(now: dt.datetime) -> None:
 
 
 def list_refreshed(now: dt.datetime) -> None:
-    """W. Settings read the list of models again on the user's click, its host shown (D40)."""
-    print("W. Settings: the list of models read again on the user's click, its host shown (D40)")
-    shipped = json.loads((Path(__file__).resolve().parent.parent / "registry" / "models.json").read_text())
-    more = json.loads(json.dumps(shipped))
-    # A model of a test's, never fetched: offered, its host shown.
-    more["whisper"].append({"address": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q8_0.bin",
-                            "bytes": 1000, "sha256": "0" * 64, "good": "faster"})
-    answers, asked = [(200, json.dumps(more)), (404, "Not Found")], []
+    """W. The list of models is read again only signed by the decider's key: until it is built in, none is (D40, D56)."""
+    print("W. Settings: no list of models read again until the decider's key is built in, and it is said (D40, D56)")
+    # When registry::PUBLIC_KEY is set, this scenario changes: the button is back, its host shown,
+    # and an unsigned list served here is refused. The signed path is the shell's tests'
+    # (tests/registry_fetch.rs), with a key of their own: no window can hold a key a test made.
+    asked = []
 
     class List(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             asked.append(self.path)
-            status, body = answers.pop(0)
-            self.send_response(status)
-            self.send_header("Content-Length", str(len(body.encode())))
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
             self.end_headers()
-            self.wfile.write(body.encode())
 
         def log_message(self, *_):
             pass
@@ -646,31 +642,23 @@ def list_refreshed(now: dt.datetime) -> None:
     at = f"127.0.0.1:{server.server_address[1]}"
     meetings = WORK / "refreshed"
     meetings.mkdir()
-    base = "return document.querySelector('[data-offered=\"ggml-base-q8_0.bin\"]')?.innerText || ''"
     said = "return document.getElementById('offered-refreshed')?.innerText || ''"
-    for answered in ("a list", "a page not found"):
-        window = Window(meetings, "fr_FR.UTF-8")
-        window.env.update(WHOLEHEARD_REGISTRY=f"http://{at}/models.json")
-        with window as browser:
-            browser.find_element(By.ID, "settings-link").click()
-            wait_for(browser, lambda b: b.find_elements(By.ID, "offered-refresh"))
-            label = browser.find_element(By.ID, "offered-refresh").text
-            if answered == "a list":
-                check("opening Settings reads nothing of the list", asked == [], asked)
-                check("the button says where the list is read from", label == f"Mettre à jour la liste ({at})", label)
-            browser.execute_script("document.getElementById('offered-refresh').click()")
-            if answered == "a list":
-                listed = wait_for(browser, lambda b: b.execute_script(base), 10)
-                check("read on the click, its models are offered, each with its size, its host and what it is good for",
-                      listed and asked == ["/models.json"] and "huggingface.co" in browser.execute_script(base)
-                      and "1 ko" in browser.execute_script(base)
-                      and "ordinateur modeste" in browser.execute_script(base), (asked, browser.execute_script(base)))
-            else:
-                refused = wait_for(browser, lambda b: "n’a pas pu être mise à jour" in b.execute_script(said), 10)
-                check("refused, it is said, and the list shipped stays offered",
-                      refused and len(asked) == 2 and not browser.execute_script(base)
-                      and browser.find_elements(By.CSS_SELECTOR, '[data-offered="ggml-small-q8_0.bin"]'),
-                      (asked, browser.execute_script(said)))
+    window = Window(meetings, "fr_FR.UTF-8")
+    window.env.update(WHOLEHEARD_REGISTRY=f"http://{at}/models.json")
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        waits = wait_for(browser, lambda b: "attend la clé qui la signe" in b.execute_script(said), 10)
+        check("Settings say the list waits on the key that signs it, and the models stay offered",
+              waits and "restent proposés" in browser.execute_script(said)
+              and browser.find_elements(By.CSS_SELECTOR, '[data-offered="ggml-small-q8_0.bin"]'),
+              browser.execute_script(said))
+        check("no button offers to read it again", not browser.find_elements(By.ID, "offered-refresh"))
+        # Asked all the same, it is refused, and logged so, with nothing asked of anyone.
+        browser.execute_script("window.__TAURI__.core.invoke('registry_refresh').then(() => { window.listRead = 'read'; }, () => { window.listRead = 'refused'; })")
+        answered = wait_for(browser, lambda b: b.execute_script("return window.listRead || ''"), 10)
+        check("asked all the same, it is refused, and nothing crosses the network",
+              answered and browser.execute_script("return window.listRead") == "refused" and asked == [],
+              (browser.execute_script("return window.listRead"), asked))
     server.shutdown()
 
 

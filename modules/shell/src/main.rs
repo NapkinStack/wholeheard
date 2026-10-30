@@ -1336,12 +1336,13 @@ fn registry_address() -> String {
 }
 
 /// Reads the list again, on the user's click in Settings — its host shown on the button. Taken,
-/// it is offered until Wholeheard quits; refused, the list offered stays, and the page says so.
+/// signed by the key built in, it is offered until Wholeheard quits; refused, the list offered
+/// stays, and the page says so. With no key built in the page offers no click (D56).
 #[tauri::command]
 async fn registry_refresh() -> Result<(), ()> {
     let address = registry_address();
     let host = registry::host(&address).to_owned();
-    let read = tauri::async_runtime::spawn_blocking(move || registry::fetch(&address)).await;
+    let read = tauri::async_runtime::spawn_blocking(move || registry::fetch(&address, registry::PUBLIC_KEY)).await;
     match read.unwrap_or_else(|error| Err(error.to_string())) {
         Ok(listed) => {
             tracing::info!(host = %host, models = listed.len(), "shell.registry_read");
@@ -1393,6 +1394,7 @@ struct SettingsShown {
     /// host it is read again from on the user's gesture (D40).
     offered: Vec<Offered>,
     registry_host: String,
+    registry_waits: bool,
     /// The services that hear, offered by name (D63).
     hearing: Vec<providers::Hearing>,
     /// The language meetings are spoken in, none: detected; and those offered first (D65).
@@ -1448,6 +1450,7 @@ fn settings_shown(shell: State<'_, Shell>) -> SettingsShown {
         transcription_agreed: settings.transcription_agreed.clone(),
         models,
         registry_host: registry::host(&registry_address()).to_owned(),
+        registry_waits: registry::PUBLIC_KEY.is_none(),
         hearing: providers::hearing(),
         meeting_language: settings.meeting_language.clone(),
         languages: spoken::OFFERED.to_vec(),

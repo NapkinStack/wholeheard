@@ -1090,3 +1090,10 @@ fn every_french_sentence_has_its_spaces_before_the_tall_signs() {
         wrong.join("\n")
     );
 }
+
+#[test]
+fn a_list_waiting_on_its_key_says_so_and_what_stays_offered() {
+    let (english, french) = (words::window(Language::English), words::window(Language::French));
+    assert!(english.offered_refresh_waits.contains("waits on the key") && english.offered_refresh_waits.contains("still offered"));
+    assert!(french.offered_refresh_waits.contains("attend la clé") && french.offered_refresh_waits.contains("restent proposés"));
+}

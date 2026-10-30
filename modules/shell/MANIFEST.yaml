@@ -184,6 +184,23 @@ dependencies:
     purpose: The loopback server's token, 128 random bits from the system
     adr: docs/adr/0008-the-window-plays-a-meeting-from-a-loopback-server.md
     exit_strategy: One call in player::Served::start; the system's own source (/dev/urandom) replaces it.
+  - name: minisign-verify
+    purpose: >
+      Verifies the decider's minisign signature on the list of models read again (D56); 0.3.0,
+      MIT, no dependency of its own, by minisign's author
+    adr: docs/adr/0010-the-models-offered-are-a-list-kept-in-the-repository.md
+    exit_strategy: >
+      One function, verify in src/registry.rs, and a format that is public: any Ed25519 library
+      and the few lines that read a .minisig replace it; dropping the reading again leaves the
+      shipped list as it is.
+  - name: minisign
+    purpose: >
+      For the tests only (a dev-dependency) — makes a key at each run and signs with it, so that
+      no key is kept in the repository
+    adr: docs/adr/0010-the-models-offered-are-a-list-kept-in-the-repository.md
+    exit_strategy: >
+      Two helpers of tests/registry_fetch.rs; a test-only pair and signatures written in the test
+      replace it.
   - name: tracing
     purpose: The steps and failures the shell logs, each making under its id (ADR-0007)
     adr: docs/adr/0007-each-program-logs-what-it-does-never-what-was-said.md
@@ -247,7 +264,7 @@ evidence:
     - pattern: '"message":"shell\.model_fetch_failed"'
       level: error
       scenario: G
-    # The list of models read again answers a page not found, refused (the window's W, D40).
+    # The list of models read again, refused: no key built in yet, nothing asked (the window's W, D40, D56).
     - pattern: '"message":"shell\.registry_refused"'
       level: warning
       scenario: W
