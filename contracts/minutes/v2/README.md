@@ -46,17 +46,19 @@ language:
   that fails leaves the minutes that were there, or none.
 - **Made again replaces.** There is one `minutes.md`; the one before is not kept by this
   contract, nor its `title`.
-- **A value is on its line.** Each key holds one line: `key: value`. A value holding anything but
-  plain words — `title` always — is a JSON string in double quotes, its escapes JSON's; so a
-  `title` holding `"` or `:` stays on its line, and `null` is no value, quoted or not.
-- **A title out of these bounds is no title.** A reader takes a `title` that once read is blank,
-  holds a line break or a control character, or runs over 80 characters — characters, not bytes —
-  as absent: the minutes still read, and the date names the meeting. A producer given such a title
-  writes the minutes without it. Whether a title is a key or a path, no reader can tell: that is
-  the producer's to keep out.
+- **One key, one line.** The front matter is lines of `key: value`. The producer writes `contract`
+  and `made` bare; `provider`, `model`, `context` and `title` as JSON strings in double quotes, so
+  that a `"`, a `:` or a line break stays on its line; `context` may be `null`. A reader takes a
+  value in double quotes as JSON and any other as written, bare; `null`, quoted or not, and an
+  empty value are no value.
+- **A title out of these bounds is no title.** A reader takes a `title` that holds no value or that
+  cannot be read as JSON, that is blank, that holds a line break or a control character, or that
+  runs over 80 characters — Unicode code points, counted as read — as absent: the minutes still
+  read, and the date names the meeting. A producer given such a title writes the minutes without
+  it. Whether a title is a key or a path, a reader cannot tell: that is the producer's to keep out.
 - **A consumer reads both versions.** `minutes/v1` and `minutes/v2` alike, with or without a
-  `title`; a key it does not know, it leaves aside, and a `title` in a file naming `minutes/v1` too.
-  The producer writes v2 once its consumers read it.
+  `title`; a key it does not know, it leaves aside. The producer writes v2 once its consumers read
+  it.
 - **Version 1 is not deprecated.** Minutes already on a user's disk stay in v1, are never rewritten
   for this, and stay readable: v1 has no removal date.
 
@@ -76,8 +78,8 @@ Valid:
 ---
 contract: minutes/v2
 made: 2026-10-13T15:12:40+02:00
-provider: local
-model: mistral
+provider: "local"
+model: "mistral"
 context: null
 title: "Date de l'événement et intervenants"
 ---
@@ -97,4 +99,5 @@ La date de l'événement est fixée au jeudi 3 juin, avec le 10 en seconde date.
 ```
 
 To refuse: a file without the front matter or naming a `contract` other than `minutes/v1` and
-`minutes/v2`; fewer or more than three sections of second level.
+`minutes/v2`; a line of the front matter that is not `key: value`; fewer or more than three
+sections of second level.
