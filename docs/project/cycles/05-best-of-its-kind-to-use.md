@@ -43,7 +43,7 @@ deliverables:
     module: summary
     state: ready
     acceptance:
-      - "Given `contracts/minutes/v1`, when its page is changed, then it says an optional `title` in the front matter — one line, a few words in the meeting's language, at most 80 characters, never a key or a path — in a pull request of the contracts module alone, merged before the summary writes it; the shell, which reads the front matter into a table of keys (`minutes.rs`'s reader), reads minutes with or without it unchanged"
+      - "Given `contracts/minutes/v2`, a new version of `minutes/v1` (ADR-0005 keeps v1, a page of Markdown, frozen), when its page is written, then it says an optional `title` in the front matter — one line, a few words in the meeting's language, at most 80 characters, never a key or a path — in a pull request of the contracts module alone, merged before the summary writes it; the shell reads `minutes/v1` and `minutes/v2` alike, with or without a title, before the summary writes v2"
       - "Given a transcript, when the summary writes its minutes, then their front matter carries the title the provider's answer gives, where it gives one — a real model's title is a scenario of the sheet; given a model that gives none, or one longer than 80 characters or on several lines, then the minutes are written whole without it, never refused for it"
       - "Given the list of meetings and a meeting's page, when a meeting's minutes carry a title, then the row and the page's heading show the title — the date beneath it in the list (board 1), above it on the page (board 2); without minutes, or minutes made before, the date as today"
       - "Given a title that holds markup — `<img src=x onerror=alert(1)>` —, when it shows, then it is shown as text, never as markup, held by a test (`security.md`)"
@@ -276,6 +276,12 @@ D44, D45, D47 and D50 all touch `words.rs` and the « Copié » status: one sess
 - *Transcript* or *Transcription* in French: see *Open questions*.
 
 ### D48
+
+- **`minutes/v2`, not `minutes/v1`**, on the decider's word, 2026-10-30, choosing « minutes/v2 » among
+  three: ADR-0005, accepted, keeps `minutes/v1` frozen — a page of Markdown, which the project's
+  comparator of JSON Schemas cannot judge. The title goes in a new version: `minutes/v2` is v1 and an
+  optional `title`; the shell reads v1 and v2, then the summary writes v2. #562, which gave v1's
+  front matter a schema to change it, is closed.
 
 **The title written by the minutes, rather than the review's cheap fix** *(framer, to confirm)*.
 The UX review weighed two forms (3.1):
