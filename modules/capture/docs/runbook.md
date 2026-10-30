@@ -26,15 +26,20 @@ Logs are one JSON line per event, never a word of a meeting:
 | macOS | `~/Library/Logs/Wholeheard/` |
 
 ```bash
-grep -E '"capture\.(failed|stream_error|unavailable|zeros|not_followed|silent)"' "${XDG_STATE_HOME:-$HOME/.local/state}"/wholeheard/logs/capture.*.jsonl
+grep -E '"capture\.(failed|stream_error|unavailable|zeros|not_followed|silent|me_lost|me_not_attached|me_not_closed|me_form_changed)"' "${XDG_STATE_HOME:-$HOME/.local/state}"/wholeheard/logs/capture.*.jsonl
 ```
 
 | Message | Means | Level |
 |---|---|---|
 | `capture.failed` | The recording ended on an error; `detail` says which | error |
 | `capture.stream_error` | A source's stream reported an error; `source` names it | warning |
-| `capture.unavailable` | A source could not be opened: the other is still recorded; if neither opens, `capture.failed` follows | warning |
+| `capture.unavailable` | A source could not be opened, or the microphone waits for a call on a headset (`reason` says which): the other is still recorded; if neither opens, `capture.failed` follows | warning |
 | `capture.not_followed` | The stream of the meeting's sound could not be kept on the output the call plays to; `detail` says why: it goes on from where it is | warning |
+| `capture.me_waits` | The microphone waits for a call to take it: normal on a headset, no stream open | info |
+| `capture.me_lost` | The call's microphone stream fell: the recording goes on, the gap in zeros | warning |
+| `capture.me_not_attached` | The microphone a call holds could not be opened; tried again, said once | warning |
+| `capture.me_not_closed` | A stream's thread had not ended when it was let go: it is left to end by itself; the recording goes on | warning |
+| `capture.me_form_changed` | The call's microphone came in another form than the track's: that stream ends, and the graph is asked again with the track's | warning |
 | `capture.zeros` | A track holds exact zeros at `at` seconds: a device sent nothing | warning |
 | `capture.silent` | A source stayed silent; `nothing` true: it sends nothing at all | info |
 
