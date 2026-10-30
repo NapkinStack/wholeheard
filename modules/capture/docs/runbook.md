@@ -46,9 +46,10 @@ written up to then is kept.
 
 ## Known failures
 
-- [#494](https://github.com/NapkinStack/wholeheard/issues/494): on Bluetooth earbuds, opening their
-  input can switch the card's profile and cut the call. Open: tell the user to choose another
-  microphone for that call.
+- [#494](https://github.com/NapkinStack/wholeheard/issues/494): a recording started during a call
+  on Bluetooth earbuds cut the call, the laptop's microphone as the input or not. Open, its cause
+  not settled, no remedy known. A way still to be tried, in the issue: the earbuds in A2DP and
+  `wpctl settings bluetooth.autoswitch-to-headset-profile false`.
 
 ## What a user is told
 
