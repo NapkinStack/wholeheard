@@ -109,7 +109,7 @@ impl Devices {
 /// Above this, a level is sound: about -40 dB of the loudest a side can be, under a voice and
 /// over the nothing of a side at rest (`recording/v1` says 0 is silence, and no more). The silence
 /// a user is told of stays capture's own measure (`silent`).
-const ABOVE_SILENCE: f32 = 0.01;
+const ABOVE_SILENCE: f32 = 0.33;
 
 /// What the small window says of a side being heard (D49).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -129,28 +129,52 @@ pub enum Check {
 
 /// Each side's check, the microphone then the output, as the recording said them.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct Checks([Check; 2]);
+pub struct Checks {
+    now: [Check; 2],
+    /// A silence capture said: it says it once per silence (`recording/v1`), and neither a device
+    /// changed nor a side back from waiting makes it say it again.
+    silence: [Option<Check>; 2],
+}
 
 impl Checks {
     pub fn heard(&mut self, said: &Said) {
         let side = |source: &Source| usize::from(*source == Source::Others);
         let (at, check) = match said {
             Said::Unavailable(source, _) | Said::Lost(source) => (side(source), Check::Waiting),
-            Said::Moved(source, _) => (side(source), Check::Listening),
-            // The zeros a recording keeps in the place of a side with no device are no news.
-            Said::Silent(source) if self.0[side(source)] != Check::Waiting => (side(source), Check::Silent),
-            Said::Nothing if self.0[0] != Check::Waiting => (0, Check::Nothing),
-            Said::Heard(source) if self.0[side(source)] != Check::Waiting => (side(source), Check::Heard),
-            Said::Level(source, level) if *level > ABOVE_SILENCE && self.0[side(source)] == Check::Listening => {
+            Said::Moved(source, _) => (side(source), self.silence[side(source)].unwrap_or(Check::Listening)),
+            // The zeros a recording keeps in the place of a side with no device are remembered
+            // for when it has one, and no news until then.
+            Said::Silent(source) => {
+                self.silence[side(source)] = Some(Check::Silent);
+                if self.now[side(source)] == Check::Waiting {
+                    return;
+                }
+                (side(source), Check::Silent)
+            }
+            Said::Nothing => {
+                self.silence[0] = Some(Check::Nothing);
+                if self.now[0] == Check::Waiting {
+                    return;
+                }
+                (0, Check::Nothing)
+            }
+            Said::Heard(source) => {
+                self.silence[side(source)] = None;
+                if self.now[side(source)] == Check::Waiting {
+                    return;
+                }
+                (side(source), Check::Heard)
+            }
+            Said::Level(source, level) if *level > ABOVE_SILENCE && self.now[side(source)] == Check::Listening => {
                 (side(source), Check::Heard)
             }
             _ => return,
         };
-        self.0[at] = check;
+        self.now[at] = check;
     }
 
     pub fn now(&self) -> [Check; 2] {
-        self.0
+        self.now
     }
 }
 

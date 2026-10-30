@@ -193,6 +193,19 @@ def panel_choice(browser, choices: str, index: int):
     return browser.find_elements(By.CSS_SELECTOR, choices)[index]
 
 
+def shot_themed(browser, name: str, theme: str) -> None:
+    """A screenshot in its theme: on a dark desktop, the light one's colours put on the page."""
+    css = (Path(__file__).parent.parent / "ui" / "window.css").read_text()
+    light = css[css.index(":root {") + len(":root {"):css.index("}", css.index(":root {"))].replace("\n", " ").strip()
+    forced = theme == "light" and browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
+    if forced:
+        browser.execute_script("document.documentElement.style.cssText = arguments[0] + '; color-scheme: light'", light)
+        time.sleep(0.3)
+    shot(browser, name)
+    if forced:
+        browser.execute_script("document.documentElement.style.cssText = ''")
+
+
 def stop_from_small(browser) -> None:
     """Arrêter in the small window: the window goes with the recording, sometimes before the
     driver has answered the click."""
@@ -1880,7 +1893,7 @@ def heard_checked(now: dt.datetime) -> None:
                 check("levels risen: ✓ on each side", rose and all("✓" in c for c in browser.execute_script(glyph)), browser.execute_script(glyph))
                 told = browser.execute_script("return [...document.querySelectorAll('.check-said')].map(s => [s.getAttribute('role') ?? s.parentElement.getAttribute('role'), s.textContent])")
                 check("✓ said to a screen reader, side by side", [t[1] for t in told] == [heard_me, heard_others] and all(t[0] == "status" for t in told), told)
-                shot(browser, f"d49-heard-{short}-{theme}")
+                shot_themed(browser, f"d49-heard-{short}-{theme}", theme)
                 # Capture's word: a silence's sentence under its check, D50's line still there, in place.
                 (taping / "nothing-me").touch()
                 (taping / "silent-others").touch()
@@ -1894,13 +1907,13 @@ def heard_checked(now: dt.datetime) -> None:
                 browser.execute_script("window.written = 0; const seen = new MutationObserver((m) => { window.written += m.length; }); for (const e of document.querySelectorAll('.check-says, .check-said')) seen.observe(e, {subtree: true, childList: true, characterData: true})")
                 time.sleep(1)
                 check("what does not change is not written again", browser.execute_script("return window.written") == 0, browser.execute_script("return window.written"))
-                shot(browser, f"d49-silent-{short}-{theme}")
+                shot_themed(browser, f"d49-silent-{short}-{theme}", theme)
                 browser.find_element(By.ID, "small-context-toggle").click()
                 opened = browser.execute_script(place)
                 fit(browser, "two silences, the context open")
                 room = browser.execute_script("return [...document.querySelectorAll('.meters .check')].map(c => getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().width > 0)")
                 check("the context open: each check still shown, each sentence too", room == [True, True] and browser.execute_script(said) == [nothing, silent], room)
-                shot(browser, f"d49-context-{short}-{theme}")
+                shot_themed(browser, f"d49-context-{short}-{theme}", theme)
                 (taping / "heard-me").touch()
                 back = wait_for(browser, lambda b: b.execute_script(state)[0] == "heard" and b.execute_script(said)[0] == "", 3)
                 check("heard again: ✓, its sentence gone, Arrêter still", back and browser.execute_script(place) == opened, browser.execute_script(said))

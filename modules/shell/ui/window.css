@@ -267,7 +267,7 @@ body.small-window .frame { display: none; }
 .slot.faded .check { opacity: 0; width: 0; margin-right: 0; border-width: 0; }
 @keyframes check-pop { from { transform: scale(0.4); } }
 .check-says { grid-column: 1 / -1; margin: -2px 0 0; font-size: 12px; line-height: 1.25; animation: check-says 300ms ease; }
-.check-says:empty { display: none; }
+.check-says:empty { height: 0; margin: 0; overflow: hidden; }
 @keyframes check-says { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .slot[data-check] .check { animation: none; transition: none; }

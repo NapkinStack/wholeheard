@@ -240,9 +240,9 @@ fn a_check_turns_when_a_side_rises_above_silence() {
         [Check::Listening, Check::Listening]
     );
     // Each side its own.
-    assert_eq!(checked(&[Said::Level(Others, 0.2)]), [Check::Listening, Check::Heard]);
+    assert_eq!(checked(&[Said::Level(Others, 0.4)]), [Check::Listening, Check::Heard]);
     assert_eq!(
-        checked(&[Said::Level(Me, 0.2), Said::Level(Me, 0.0)]),
+        checked(&[Said::Level(Me, 0.4), Said::Level(Me, 0.0)]),
         [Check::Heard, Check::Listening]
     );
 }
@@ -304,4 +304,24 @@ fn a_check_is_said_to_the_page_by_its_name() {
         serde_json::to_value([Check::Listening, Check::Heard, Check::Silent, Check::Nothing, Check::Waiting]).unwrap(),
         serde_json::json!(["listening", "heard", "silent", "nothing", "waiting"])
     );
+}
+
+#[test]
+fn a_silence_said_once_stays_said_after_a_device_changes() {
+    let silent = Said::Silent(Source::Me);
+    let moved = Said::Moved(Source::Me, Some("Autre".into()));
+    assert_eq!(checked(&[silent.clone(), moved.clone()])[0], Check::Silent);
+    assert_eq!(checked(&[Said::Nothing, moved.clone()])[0], Check::Nothing);
+    // Said while it waited: told when a device comes.
+    let lost = Said::Lost(Source::Me);
+    assert_eq!(checked(&[lost.clone(), silent.clone()])[0], Check::Waiting);
+    assert_eq!(checked(&[lost, silent.clone(), moved.clone()])[0], Check::Silent);
+    // Heard, the silence is over: a device changed listens again.
+    assert_eq!(checked(&[silent, Said::Heard(Source::Me), moved])[0], Check::Listening);
+}
+
+#[test]
+fn a_level_under_a_voice_is_no_sound_yet() {
+    assert_eq!(checked(&[Said::Level(Source::Me, 0.2)])[0], Check::Listening);
+    assert_eq!(checked(&[Said::Level(Source::Me, 0.4)])[0], Check::Heard);
 }
