@@ -2794,7 +2794,11 @@ fn retranscribe(app: &AppHandle, folder: PathBuf, again: Again) -> Result<(), St
         if here {
             return transcribe_next(&app);
         }
-        tell(&app, &words::made(&made, shell.language()));
+        // Made again and ready, its click opens the meeting as after a stop (D44).
+        match &made {
+            Made::Written(_) => tell_opening(&app, &words::made(&made, shell.language()), folder.clone()),
+            Made::Failed(_) => tell(&app, &words::made(&made, shell.language())),
+        }
         if let Some((name, not_put_back)) = kept_beside {
             tell(&app, &words::transcript_kept_beside(shell.language(), &name, not_put_back));
         }

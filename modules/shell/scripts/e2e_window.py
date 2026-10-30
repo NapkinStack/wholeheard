@@ -1823,6 +1823,20 @@ def meeting_told_once(now: dt.datetime) -> None:
                               and b.find_element(By.ID, "meeting").is_displayed(), 10)
             check("clicked: the full window opens on that meeting's page, never the file manager", opened,
                   browser.execute_script("return location.hash"))
+            # Its transcript made again (Refaire…): ready, its click opens the meeting too.
+            (meeting / "local.wav").write_bytes(b"\0" * 1000)
+            mark = len(notified.read_text())
+            browser.execute_script("window.__TAURI__.core.invoke('transcript_redo', {name: arguments[0], model: arguments[1]})",
+                                   meeting.name, str(model))
+            again = wait_for(browser, lambda b: "Transcription prête" in notified.read_text()[mark:], 15)
+            browser.execute_script("location.hash = '#/settings'")
+            wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed(), 5)
+            number = re.findall(r"^ +uint32 (\d+)", answered.read_text(), re.M)[-1]
+            subprocess.run(["gdbus", "emit", "--session", "--object-path", "/org/freedesktop/Notifications", "--signal",
+                            "org.freedesktop.Notifications.ActionInvoked", f"uint32 {number}", "'default'"], capture_output=True)
+            reopened = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/meeting/{meeting.name}", 10)
+            check("a transcript made again says the click opens it, and the click does",
+                  again and "Cliquez pour l’ouvrir." in notified.read_text()[mark:] and reopened, browser.execute_script("return location.hash"))
     finally:
         for monitor in monitors:
             monitor.terminate()
