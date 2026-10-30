@@ -276,10 +276,12 @@ fn a_session_listed_says_its_minutes_title() {
     write("old", Some(MINUTES));
     write("none", None);
     write("broken", Some(&titled("\"Un nom\"").replace("## Actions", "Actions")));
+    let long = format!("\"{}\"", "é".repeat(81));
+    write("long", Some(&titled(&long)));
     let listed = wholeheard_shell::sessions::list(sessions.path(), None);
     let title = |name: &str| listed.iter().find(|session| session.folder.ends_with(name)).unwrap().title.clone();
     assert_eq!(title("titled").as_deref(), Some("Un nom"));
-    for untitled in ["old", "none", "broken"] {
+    for untitled in ["old", "none", "broken", "long"] {
         assert_eq!(title(untitled), None, "{untitled}");
     }
 }
