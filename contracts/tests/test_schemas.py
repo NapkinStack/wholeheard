@@ -3,6 +3,7 @@ harmless changes and refuses its breaks, and that it says what its page says."""
 
 import copy
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -535,3 +536,38 @@ def test_a_schema_allows_what_its_page_shows_and_refuses_what_its_page_refuses(p
     page = (path.parent / "README.md").read_text()
     shown = [json.loads(line) for line in page.splitlines() if line.startswith("{") and line.endswith("}")]
     assert len(shown) >= 2 and [line for line in shown if not reads.is_valid(line)] == []
+
+
+def shown(page, heading):
+    """Each block of a contract's page that follows a paragraph starting with `heading`."""
+    text = (CONTRACTS / page).read_text()
+    assert heading in text, f"{page} does not show {heading!r}"
+    return re.findall(r"```\w*\n(.*?)```", text.split(heading, 1)[1].split("\n\nValid", 1)[0], re.DOTALL)
+
+
+def test_recording_v1_shows_a_microphone_that_waits_then_is_taken_and_let_go_repeatedly():
+    reads = jsonschema.Draft202012Validator(json.loads((CONTRACTS / "recording/v1/event.schema.json").read_text()))
+    lines = [
+        json.loads(line) for line in shown("recording/v1/README.md", "Valid — a microphone that waits")[0].splitlines()
+    ]
+    assert [line for line in lines if not reads.is_valid(line)] == []
+    me = [
+        line["device"] if line["event"] == "device" else line["event"] for line in lines if line.get("source") == "me"
+    ]
+    assert me[0] == "unavailable"
+    assert [name is None for name in me[1:]] == [False, True, False, True]
+
+
+def test_session_audio_v2_shows_a_track_gained_late_opening_on_zeros_its_clock_names():
+    session, clock = shown("session-audio/v2/README.md", "Valid, a microphone that waited")
+    schema = json.loads((CONTRACTS / "session-audio/v2/session.schema.json").read_text())
+    record = json.loads(session)
+    assert list(jsonschema.Draft202012Validator(schema).iter_errors(record)) == []
+    assert record["tracks"]["local"]["changed"][-1]["device"] is None
+    reads = jsonschema.Draft202012Validator(json.loads((CONTRACTS / "session-audio/v2/clock.schema.json").read_text()))
+    lines = [json.loads(line) for line in clock.splitlines()]
+    assert [line for line in lines if not reads.is_valid(line)] == []
+    local = [line for line in lines if line["track"] == "local"]
+    assert local[0]["silence"][0] == 0
+    assert local[1]["sample"] == local[0]["silence"][1]
+    assert "silence" in local[-1]
