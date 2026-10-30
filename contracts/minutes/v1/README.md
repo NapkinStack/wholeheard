@@ -28,6 +28,8 @@ flowchart LR
 | `model` | The model's name, as the provider knows it |
 | `context` | The text the provider received with the transcript, or `null` |
 
+Its keys and their values, as each line reads: [`front-matter.schema.json`](front-matter.schema.json).
+
 Then exactly three sections of second level, in this order, their titles in the meeting's
 language:
 

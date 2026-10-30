@@ -91,7 +91,9 @@ def test_a_schema_is_one_and_the_comparator_decides_its_harmless_changes(path, t
                 )
                 harmless["a kind added"] = more
     refused = {what: why for what, changed in harmless.items() if (why := verdict(tmp_path, schema, changed))}
-    assert len(harmless) > 5 and not refused, refused
+    # Never vacuous: a flat object, as minutes/v1's front matter, gives its two — a field added,
+    # added and required —; a schema of unions and enums, many more.
+    assert len(harmless) >= 2 and not refused, refused
 
 
 @pytest.mark.parametrize("path", SCHEMAS, ids=NAMES)
@@ -470,6 +472,50 @@ EXAMPLES = {
                 "tracks": {"local": {"device": "a", "changed": [{"at": 1.0, "device": 7}]}},
             },
             "a record that is no object",
+        ],
+    ),
+    "minutes/v1/front-matter.schema.json": (
+        [
+            {
+                "contract": "minutes/v1",
+                "made": "2026-10-13T15:12:40+02:00",
+                "provider": "local",
+                "model": "mistral",
+                "context": None,
+            },
+            {
+                "contract": "minutes/v1",
+                "made": "2026-10-28T10:00:00+01:00",
+                "provider": "openrouter.ai",
+                "model": "anthropic/claude-opus-5.5",
+                "context": "Budget du T4 avec Inès Durand.",
+            },
+        ],
+        [
+            {
+                "contract": "minutes/v2",
+                "made": "2026-10-13T15:12:40+02:00",
+                "provider": "local",
+                "model": "mistral",
+                "context": None,
+            },
+            {"contract": "minutes/v1", "made": "", "provider": "local", "model": "mistral", "context": None},
+            {
+                "contract": "minutes/v1",
+                "made": "2026-10-13T15:12:40+02:00",
+                "provider": "",
+                "model": "mistral",
+                "context": None,
+            },
+            {
+                "contract": "minutes/v1",
+                "made": "2026-10-13T15:12:40+02:00",
+                "provider": "local",
+                "model": "mistral",
+                "context": 3,
+            },
+            {"contract": "minutes/v1", "made": "2026-10-13T15:12:40+02:00", "provider": "local", "model": "mistral"},
+            "a front matter that is no object",
         ],
     ),
     "session-audio/v2/clock.schema.json": (

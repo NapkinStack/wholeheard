@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The front matter of minutes.md (minutes/v1)",
+  "description": "Each `key: value` line of the front matter, its value read as the page says — `null`, a plain value, or a JSON string in double quotes. What a schema cannot say is on the contract's page: the three sections that follow, whole or absent, made again replacing.",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "minutes/v1"
+    },
+    "made": {
+      "type": "string",
+      "format": "date-time",
+      "minLength": 1
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "contract",
+    "made",
+    "provider",
+    "model",
+    "context"
+  ]
+}
