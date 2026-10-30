@@ -1279,7 +1279,10 @@ fn a_stop_says_how_long_was_recorded_agreed_in_french_and_no_session_in_a_failur
 }
 
 fn main_rs() -> String {
-    std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs")).unwrap()
+    std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs"))
+        .unwrap()
+        // A checkout on Windows ends its lines otherwise.
+        .replace("\r\n", "\n")
 }
 
 /// Each `#[tauri::command…]` of the shell's `main.rs`, whatever its arguments: its signature, then
