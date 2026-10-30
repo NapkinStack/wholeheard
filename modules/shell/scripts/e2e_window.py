@@ -187,6 +187,12 @@ def press(browser, element_id: str) -> None:
     browser.find_element(By.ID, element_id).click()
 
 
+def panel_choice(browser, choices: str, index: int):
+    """A redo panel's choice: its models come after the panel, so they are waited for."""
+    wait_for(browser, lambda b: len(b.find_elements(By.CSS_SELECTOR, choices)) > index)
+    return browser.find_elements(By.CSS_SELECTOR, choices)[index]
+
+
 def stop_from_small(browser) -> None:
     """Arrêter in the small window: the window goes with the recording, sometimes before the
     driver has answered the click."""
@@ -3961,7 +3967,7 @@ def main() -> int:
             offered,
         )
         before = (asked / "minutes.md").read_text()
-        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        panel_choice(browser, "#redo-panel input[name=redo-with]", 1).click()
         browser.find_element(By.ID, "redo-do").click()
         def aside(folder):
             return sorted(folder.glob("minutes-before-*.md")) if folder.exists() else []
@@ -3992,7 +3998,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
         press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
-        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        panel_choice(browser, "#redo-panel input[name=redo-with]", 1).click()
         browser.find_element(By.ID, "redo-do").click()
         told = wait_for(browser, lambda b: "pas été refait" in heard.read_text(), 10)
         check("minutes made again that fail: the ones there stay, and the notice says a redo", told and (asked / "minutes.md").read_text() == before, heard.read_text()[-400:])
@@ -4034,9 +4040,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
         press(browser, "redo-minutes")
-        # The panel's models come after it: its choices are waited for, not only its button.
-        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]"))
-        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[0].click()
+        panel_choice(browser, "#redo-panel input[name=redo-with]", 0).click()
         time.sleep(1)
         since = len(heard.read_text())
         browser.find_element(By.ID, "redo-do").click()
@@ -4080,7 +4084,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
         press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
-        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        panel_choice(browser, "#redo-panel input[name=redo-with]", 1).click()
         browser.find_element(By.ID, "redo-do").click()
         written = wait_for(browser, lambda b: "model: mistral:7b" in (asked / "minutes.md").read_text(), 10)
         time.sleep(2)
@@ -4113,7 +4117,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-do"))
         offered = browser.execute_script("return [...document.querySelectorAll('#redo-transcript-panel .choice .name')].map(c => c.textContent)")
         check("Refaire offers the Whisper models of this computer, the one chosen first", offered == ["Whisper large v3 turbo", "Whisper small"], offered)
-        browser.find_elements(By.CSS_SELECTOR, "#redo-transcript-panel input")[1].click()
+        panel_choice(browser, "#redo-transcript-panel input", 1).click()
         browser.find_element(By.ID, "redo-transcript-do").click()
         redone = wait_for(browser, lambda b: sorted(trash_files.glob("transcript-before-*.jsonl")), 10)
         trashed = sorted(trash_files.glob("transcript-before-*.jsonl"))
@@ -4165,7 +4169,7 @@ def main() -> int:
         press(browser, "redo-transcript")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-do"))
         paths = [i.get_attribute("value") for i in browser.find_elements(By.CSS_SELECTOR, "#redo-transcript-panel input")]
-        browser.find_elements(By.CSS_SELECTOR, "#redo-transcript-panel input")[1].click()
+        panel_choice(browser, "#redo-transcript-panel input", 1).click()
         browser.find_element(By.ID, "redo-transcript-do").click()
         making_ = wait_for(browser, lambda b: "Transcription en cours" in heard_state(b), 3)
         shot(browser, "7-transcript-making")
