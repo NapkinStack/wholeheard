@@ -1,5 +1,5 @@
 //! What `summary` reads and writes, with no provider in sight: the transcript of a session as
-//! `contracts/transcript/v1` describes it, and its minutes as `contracts/minutes/v1` does.
+//! `contracts/transcript/v1` describes it, and its minutes as `contracts/minutes/v2` does.
 //!
 //! The minutes exist whole or not at all: an answer that is not minutes is refused before a
 //! byte is written, and the file takes its name only once it is complete.
@@ -12,7 +12,7 @@ pub mod provider;
 /// The contract this module reads, as the transcript's first line names it.
 pub const TRANSCRIPT: &str = "transcript/v1";
 /// The contract this module provides, as the minutes' front matter names it.
-pub const MINUTES: &str = "minutes/v1";
+pub const MINUTES: &str = "minutes/v2";
 
 /// A stretch of speech, as the transcript holds it.
 #[derive(Debug, Clone, PartialEq)]
@@ -139,7 +139,10 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
          it. A task said as \"I\" names nobody, and each side may hold several people: give it \
          an owner without doubt only when the meeting names them; otherwise write the likely \
          owner with \"probably\", or none.\n\n\
-         Answer with exactly three sections and nothing before, between or after them. Each \
+         Open your answer on one line that names the meeting: a title of first level — a line \
+         starting with one number sign and a space, in plain text —, a few words in the \
+         meeting's language saying what it was about, at most 80 characters, never a date, without a slash.\n\
+         Then answer with exactly three sections and nothing between or after them. Each \
          opens on a title of second level — a line starting with two number signs and a space, \
          in plain text — in this order:\n\
          1. What the meeting was for and what came out of it, in a few sentences.\n\
@@ -253,9 +256,10 @@ fn not_minutes(body: &str) -> Option<String> {
     said.contains(&false).then(|| "a section is empty".into())
 }
 
-/// An answer without the one title of first level a model may write above the minutes — the
-/// habit of local models (#353): left out, never judged. Any other title stays, and is judged.
-fn without_title(body: &str) -> &str {
+/// An answer without the one title of first level it opens on (#353, D48): never judged as a
+/// section; said apart, the meeting's name when `minutes/v2` lets it be one. Any other title
+/// stays, and is judged.
+fn without_title(body: &str) -> (Option<String>, &str) {
     use pulldown_cmark::{Event, HeadingLevel, Parser, Tag};
 
     match Parser::new(body).into_offset_iter().next() {
@@ -264,9 +268,37 @@ fn without_title(body: &str) -> &str {
                 level: HeadingLevel::H1, ..
             }),
             range,
-        )) if body[range.clone()].chars().any(char::is_alphanumeric) => body[range.end..].trim_start(),
-        _ => body,
+        )) if body[range.clone()].chars().any(char::is_alphanumeric) => (title(&body[range.clone()]), body[range.end..].trim_start()),
+        _ => (None, body),
     }
+}
+
+/// The most a title holds, in characters (`minutes/v2`).
+const TITLE_MOST: usize = 80;
+
+/// The words of a title of first level, its marks left out, when `minutes/v2` lets them name a
+/// meeting: on one line, at most 80 characters, no path. Otherwise none: the minutes are written
+/// without it, never refused for it. A key is the program's to refuse, in the whole answer.
+fn title(written: &str) -> Option<String> {
+    use pulldown_cmark::{Event, Parser};
+
+    let mut words = String::new();
+    for event in Parser::new(written) {
+        match event {
+            Event::Text(text) | Event::Code(text) | Event::Html(text) | Event::InlineHtml(text) => words.push_str(&text),
+            Event::SoftBreak | Event::HardBreak => return None,
+            _ => {}
+        }
+    }
+    let words = words.trim();
+    // Whether words name a path no rule can tell: a slash of any kind leaves the date to name it,
+    // « Q3/Q4 » too — a meeting loses a name, never shows a path (`minutes/v2`).
+    let path = words.contains(['/', '\\']);
+    let one_line = !words.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'));
+    let says = words
+        .chars()
+        .any(|c| c.is_alphanumeric() && !matches!(c, '\u{3164}' | '\u{115f}' | '\u{1160}' | '\u{ffa0}'));
+    (one_line && !path && says && words.chars().count() <= TITLE_MOST).then(|| words.to_string())
 }
 
 /// A text as one YAML string: quoted, on one line, with every character a YAML reader
@@ -293,7 +325,7 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
     // One way to end a line, before anything reads it: readers do not agree on a lone
     // carriage return, and the file is written with the line ends it was judged with.
     let unified = answer.replace("\r\n", "\n").replace('\r', "\n");
-    let body = without_title(unified.trim().trim_start_matches('\u{feff}').trim());
+    let (title, body) = without_title(unified.trim().trim_start_matches('\u{feff}').trim());
     if let Some(why) = not_minutes(body) {
         return refused("answer.not_minutes", format!("the provider's answer is not minutes: {why}"));
     }
@@ -302,8 +334,9 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
         .map(str::trim)
         .filter(|context| !context.is_empty())
         .map_or("null".into(), quoted);
+    let named = title.map_or(String::new(), |title| format!("title: {}\n", quoted(&title)));
     Ok(Minutes(format!(
-        "---\ncontract: {MINUTES}\nmade: {}\nprovider: {}\nmodel: {}\ncontext: {context}\n---\n\n{body}\n",
+        "---\ncontract: {MINUTES}\nmade: {}\nprovider: {}\nmodel: {}\ncontext: {context}\n{named}---\n\n{body}\n",
         made.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
         quoted(made.provider),
         quoted(made.model),
