@@ -167,6 +167,16 @@ deliverables:
       - "Given a service chosen, when Settings show it, then its transcription models are offered to choose from — OpenRouter's read from its public list, `models?output_modalities=transcription`, asked with no key and nothing of a meeting; the others' that give segments and their times named in the repository —, a model typed by hand still possible, and *Tester* says whether the one chosen gives segment times, the list not saying it; its key kept in the system's keyring as the minutes' is"
       - "Given a service and a model chosen, when the user tests it or a meeting is transcribed, then it is as D43 says — a sound of the test's own, the host agreed first, a model that gives no segment times refused and said —, with the service's own address"
       - "Given the shell's tests and the window's e2e, when they run, then a stand-in service listing its models is offered, chosen and tested, and its key never written in the settings"
+  - id: D66
+    title: "A recording holds the microphone the call holds, and never touches a Bluetooth headset's profile"
+    module: capture
+    state: ready
+    acceptance:
+      - "Given a call holding a microphone other than the default input, when a recording runs, then `me` records that one — its name in `session.json` and the `device` event — and, when the call changes it, follows it, the track going on; held on virtual devices by capture's e2e, a stand-in call on a source of its own"
+      - "Given a source carrying `bluez5.loopback=true`, when capture records it, then its stream says `node.passive=in-follow`, the source never runs from it alone and no profile switch comes from it; held by capture's e2e on a stand-in source, read in `pw-dump`, and `others` is unchanged. Given no call holding a microphone, then capture records the meeting's sound and says in one sentence that the microphone waits when the default input is such a source; records the default input, as today, when it is not"
+      - "Given a call that lets go of the microphone, when it leaves, then capture lets go of it too: within what WirePlumber's restore takes, it holds no HFP profile by a stream of its own and the source no longer runs — held by the same e2e, the source's state in `pw-dump`, and by the decider's trial, the card's profile"
+      - "Given a transport failure during a recording — a source taken away, on the e2e's stand-in —, when it fails, then the recording continues, the track's gap is marked as `session-audio/v2` allows (`clock.jsonl`'s `silence`, `changed` with `device: null`), and one sentence says it (`recording/v1`, an optional field, additive; the shell's words in its own pull request)"
+      - "Given the decider's AirPods and a real WhatsApp Web call, when they start and stop a recording during it, at least five times, then the call is never cut, no `Failure in Bluetooth audio transport` is logged within two seconds of capture opening or closing a stream, and `local.wav` holds their voice each time; an acceptance issue says what was seen"
 ---
 
 # Cycle 05 — The best day to day
@@ -230,7 +240,7 @@ everywhere · red: D54–D57, what a first submission waits on.
 ## Deliverables
 
 Each is the shell's but D48, whose minutes are written by the summary, D54, install's package, and
-D55, capture's, and D57, words outside the modules. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
+D55 and D66, capture's, and D57, words outside the modules. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
 another, after it: the order to build them in. **Cut first** if the breaker nears: D47's errors, then D49's live check. D54–D57 are not cut:
 they are what publishing waits on.
 D44, D45, D47 and D50 all touch `words.rs` and the « Copié » status: one session at a time on them.
@@ -393,6 +403,32 @@ to make room, the appetite unchanged — the framer's cut, the decider's to reve
 - The listing's words say what the README and PDR-0001 say; its screenshots are the window's, as
   the e2e takes them. No module: words only.
 
+### D66
+
+**Added on the decider's word, 2026-10-30**, « corriger de manière fiable et stable, durable », after
+the decider's call of that day on the laptop's muted microphone and #494. A defect that became a
+deliverable, for what its fix decides: [ADR-0015](../../adr/0015-the-local-side-records-the-microphone-the-call-holds-passively.md),
+proposed, holds the evidence and the options; the recommended build is the `pipewire` crate, for this
+stream, on Linux.
+
+- **Built in order**, in pull requests of one module each: the unknowns of ADR-0015 tried first —
+  a passive stream with no call above all; `recording/v1`'s optional field, alone; capture; the shell's
+  sentence. macOS and Windows: the same product contract, other adapters: **not in this deliverable**.
+- **The sentences**, *(framer, to confirm)*: « Votre micro attend l'appel : le son de la réunion est
+  enregistré, le micro le sera dès qu'un appel le prend. » / "Your microphone is waiting for the call: the
+  meeting's sound is recorded, and the microphone will be as soon as a call takes it." — a gap: « Le micro
+  a coupé un instant ; l'enregistrement continue. » / "The microphone cut out for a moment; the
+  recording goes on." Today's `device: null` says the computer has no microphone left: false here.
+- **Not built** (ADR-0015, *Rejected alternatives*): the user's configuration written or the autoswitch
+  off, a card's profile forced, `stream.monitor=true` set to hide from the script, heuristics per headset,
+  a modal on each device.
+- **If the appetite does not hold**: it does not move, and D66 comes before the cuts named above, a
+  recording that cuts a call being worse than any of them. Inside D66, the gap's sentence goes first —
+  the gap stays marked in the track — then the following of a microphone that changes mid-call; never
+  the second criterion.
+- **The criteria that need a person**: the fifth is the decider's; what a machine holds without Bluetooth
+  is the graph, never WirePlumber's script at work, which has no card to act on there.
+
 ### Moved from cycle 04
 
 D27, D38, D39, D41, D42, D53, D58 and D63 moved here on 2026-10-29, when the decider closed cycle 04.
@@ -462,6 +498,8 @@ And for this cycle:
 - Naming the other side by hand, once, everywhere; meeting types as contexts (market review 7, 8).
 - A notification's click on a Mac.
 - A meeting renamed by hand — the decider's [#504](https://github.com/NapkinStack/wholeheard/issues/504), a title given while recording or on its page.
+- The source chosen by hand beside *Auto*, as [Granola's](https://docs.granola.ai/help-center/troubleshooting/transcription-issues) (after D66).
+- A discreet indication when a new device arrives — never a dialog, as Discord's is criticised *(the decider's reading, no source read)*.
 - The rest of the UX review's ranked list: the full window's empty state and a caught `listed`
   failure (3.7), *Démarrer*'s instant feedback (3.3), *Refaire…*'s *Annuler* (4.4), playback
   speed (4.7), search highlighted (4.6), the tray's repair entries (6.3, departs from D34's board).
@@ -492,6 +530,7 @@ the two leads its comment names (cpal's one `node.group` for both streams, the v
 input's autoswitch) are not tried yet. It is a defect: a pull request labelled `out-of-cycle`, with
 the line `Out of cycle: <reason>` (`framing.md` §4). The `node.group` lead is read with `pw-dump`
 on virtual devices; the transport's failure itself needs the decider's AirPods and a test call.
+*(2026-10-30: the autoswitch lead read and tried, the `node.group` lead not isolated: [D66](#d66) and ADR-0015 replace this paragraph's way.)*
 
 ## Open questions
 
