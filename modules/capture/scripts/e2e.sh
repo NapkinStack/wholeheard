@@ -327,7 +327,9 @@ sleep 3
 folder=$(ls -d "$work"/v2-headset/*/ | head -1)
 check grep -q 'unavailable.*waits' "$work/m.events"
 check test ! -e "$folder/local.wav"
-check measure2 not-running wholeheard_e2e_headset 2
+# The stand-in runs whenever its sink is played to, unlike a real headset: what is judged is that
+# nothing of capture is on it. WirePlumber's own script is judged on real AirPods alone (D66).
+check measure2 not-following "$recorder"
 call_on wholeheard_e2e_headset; call=$!
 sleep 3
 check grep -q '"device":"wholeheard_e2e_headset"' "$work/m.events"
@@ -336,7 +338,9 @@ check test -e "$folder/local.wav"
 kill "$call" 2>/dev/null || true; wait "$call" 2>/dev/null || true
 sleep 3     # what WirePlumber's restore takes, 2 s, and a reading of the graph
 check measure2 not-following "$recorder"
-check measure2 not-running wholeheard_e2e_headset 2
+# The stand-in runs whenever its sink is played to, unlike a real headset: what is judged is that
+# nothing of capture is on it. WirePlumber's own script is judged on real AirPods alone (D66).
+check measure2 not-following "$recorder"
 check grep -q '"device":null' "$work/m.events"
 pw-play --target wholeheard_e2e_out "$work/880.wav"
 kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?

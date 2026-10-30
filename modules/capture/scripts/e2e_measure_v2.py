@@ -182,17 +182,6 @@ def graph_nodes():
     return nodes
 
 
-def not_running(name, seconds):
-    """The source is never `running`, read every tenth of a second for that long."""
-    until = time.time() + seconds
-    while time.time() < until:
-        states = [state for state, props in graph_nodes() if props.get("node.name") == name]
-        assert states, f"{name} is not in the graph"
-        assert states[0] != "running", f"{name} runs with nothing holding it"
-        time.sleep(0.1)
-    print(f"    {name}: not running, read for {seconds} s")
-
-
 def own_microphone(pid):
     return [props for _, props in graph_nodes() if props.get("media.class") == "Stream/Input/Audio"
             and str(props.get("application.process.id")) == str(pid) and props.get("stream.capture.sink") not in (True, "true")]
@@ -316,8 +305,6 @@ def main(what, folder, *args):
         return followed(folder, *args)
     if what == "moves-said":
         return moves_said(folder, *args)
-    if what == "not-running":
-        return not_running(folder, float(args[0]))
     if what == "in-follow":
         return in_follow(folder)
     if what == "not-following":
