@@ -136,6 +136,8 @@ main { padding: 28px 24px 56px; display: flex; flex-direction: column; gap: 26px
 .row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font: inherit; }
 .warn { padding: 12px 16px; color: var(--red); }
+/* In developer mode, a command's raw failure on the line under its sentence (D47). */
+.warn, #language-said, #context-said, #correction-said, #minutes-tested, #transcription-said, #free-said, #welcome-said { white-space: pre-line; }
 .fields { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
 .field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 200px; }
 .keys { padding: 6px 10px; border-radius: 8px; background: var(--raised); font: 13.5px ui-monospace, monospace; }
