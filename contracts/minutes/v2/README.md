@@ -78,8 +78,8 @@ Valid:
 ---
 contract: minutes/v2
 made: 2026-10-13T15:12:40+02:00
-provider: local
-model: mistral
+provider: "local"
+model: "mistral"
 context: null
 title: "Date de l'événement et intervenants"
 ---
