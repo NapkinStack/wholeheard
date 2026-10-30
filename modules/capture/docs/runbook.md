@@ -26,24 +26,35 @@ Logs are one JSON line per event, never a word of a meeting:
 | macOS | `~/Library/Logs/Wholeheard/` |
 
 ```bash
-grep -E '"capture\.(failed|stream_error|unavailable|zeros|not_followed)"' ~/.local/state/wholeheard/logs/capture.*.jsonl
+grep -E '"capture\.(failed|stream_error|unavailable|zeros|not_followed|silent)"' "${XDG_STATE_HOME:-$HOME/.local/state}"/wholeheard/logs/capture.*.jsonl
 ```
 
 | Message | Means | Level |
 |---|---|---|
 | `capture.failed` | The recording ended on an error; `detail` says which | error |
 | `capture.stream_error` | A source's stream reported an error; `source` names it | warning |
-| `capture.unavailable` | A source could not be opened: the other is still recorded | warning |
+| `capture.unavailable` | A source could not be opened: the other is still recorded; if neither opens, `capture.failed` follows | warning |
+| `capture.not_followed` | The stream of the meeting's sound could not be kept on the output the call plays to; `detail` says why: it goes on from where it is | warning |
 | `capture.zeros` | A track holds exact zeros at `at` seconds: a device sent nothing | warning |
 | `capture.silent` | A source stayed silent; `nothing` true: it sends nothing at all | info |
 
-A session left without its end (`stopped` absent in `session.json`) was cut: the machine went off,
-or the program was killed. What was written up to then is kept.
+Logs are kept fourteen days and under 50 MB; `WHOLEHEARD_LOG=off` turns them off.
+
+A session left without its end (`stopped` absent in `session.json`) is one being recorded, or one
+that was cut: the machine went off, the program was killed, or `capture.failed` ended it. What was
+written up to then is kept.
+
+## Known failures
+
+- [#494](https://github.com/NapkinStack/wholeheard/issues/494): on Bluetooth earbuds, opening their
+  input can switch the card's profile and cut the call. Open: tell the user to choose another
+  microphone for that call.
 
 ## What a user is told
 
 The shell says it, in the user's language (`modules/shell/src/words.rs`): a notification when the
-recording cannot start or ends on an error; a sentence when a side stays silent, with what to do;
+recording cannot start or ends on an error; a sentence when a side stays silent — for a microphone that sends nothing at all, what to check;
+otherwise, that the recording goes on;
 *Interrupted* on a meeting never stopped. A user asked for a report sends the lines above: they hold
 no word of a meeting.
 
