@@ -596,6 +596,9 @@ function sought() {
   document.getElementById("none-found").hidden = any || typed === "";
 }
 
+// How long the small window says the reminder, in seconds (D50).
+const ANNOUNCED_FOR = 15;
+
 const element = (tag, className, text) => {
   const made = document.createElement(tag);
   if (className) made.className = className;
@@ -2356,6 +2359,27 @@ function showSmall(words) {
     row.append(said, bar);
     return row;
   };
+  // The reminder where the user looks, the recording's first seconds, its announcement one click
+  // away (D50). Gone, its room stays: Arrêter never moves.
+  const announce = element("div", "small-announce");
+  announce.id = "small-announce";
+  const announced = element("button", "link", words.copy_announcement);
+  announced.type = "button";
+  announced.id = "small-announce-copy";
+  const said_copied = element("span", "says copied");
+  said_copied.id = "small-announce-copied";
+  said_copied.setAttribute("role", "status");
+  announce.append(element("span", "says", words.small_announce), announced, said_copied);
+  let announcement = null;
+  announced.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(announcement);
+      said_copied.textContent = words.minutes_copied;
+    } catch {
+      said_copied.textContent = words.announcement_not_copied;
+    }
+    setTimeout(() => (said_copied.textContent = ""), 2000);
+  });
   const stop = element("button", "danger", words.small_stop);
   stop.type = "button";
   stop.id = "small-stop";
@@ -2432,7 +2456,7 @@ function showSmall(words) {
     secret.row.classList.toggle("on", secret.box.checked);
     marked();
   });
-  live.append(top, meters, stop, secret.row, disclose, opened, note);
+  live.append(top, announce, meters, stop, secret.row, disclose, opened, note);
   live.hidden = true;
   page.replaceChildren(rest, live);
 
@@ -2512,6 +2536,9 @@ function showSmall(words) {
       // Its name hidden while the context is open: said on its meter still (D60).
       named.closest(".meter").title = now.devices[index] ?? "";
     }
+    announcement = now.announcement;
+    announce.hidden = announcement === null;
+    announce.classList.toggle("gone", now.seconds >= ANNOUNCED_FOR);
     stop.disabled = !now.recording;
     note.dataset.follows = String(now.transcript_follows);
     note.hidden = !now.transcript_follows || !opened.hidden;
