@@ -34,6 +34,8 @@ pub struct Listed {
     pub state: State,
     pub transcript: bool,
     pub minutes: bool,
+    /// The meeting's name, its minutes' title (D48); none: it is named by its date.
+    pub title: Option<String>,
     /// Said confidential: made on this computer alone (D60).
     pub confidential: bool,
     /// What its sound weighs on disk, the tracks and what was made from them, in bytes.
@@ -95,6 +97,7 @@ fn read(folder: &Path, recording: Option<&Path>) -> Option<Listed> {
         state,
         transcript: folder.join("transcript.jsonl").is_file(),
         minutes: folder.join("minutes.md").is_file(),
+        title: crate::minutes::title(folder),
         confidential: crate::confidential::marked(folder),
         audio,
         text,
