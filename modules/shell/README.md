@@ -77,7 +77,9 @@ from sessions whose transcript is whole; their transcript and minutes stay.
 **The small window** (D35, D34's board) opens first: *Démarrer un enregistrement* and the shortcut
 as the desktop granted it — or where to choose one —, the last meeting and where it stands, what
 the meetings weigh, and the way to the full window. A recording shows in it (board 6, D33), above
-the other windows until the stop; then it comes back to rest. One window at a time: going from one
+the other windows until the stop; then it comes back to rest. While recording, each side has its
+check (D49): a ring that turns ✓ when it is heard, then fades; a silence capture says is said under
+it, a side with no device too, and *Arrêter* stays where it is as they come. One window at a time: going from one
 to the other replaces it, and the one left — `window` in the settings, `small` or `full` — is the
 one reopened. A settings file that cannot be read opens the full window, where it is said.
 
@@ -158,8 +160,9 @@ the model is missing: in *Réglages*, and on a meeting waiting for it (D36). *R�
 the Whisper models of [`registry/models.json`](registry/models.json), the list shipped (D40,
 ADR-0010), and for the minutes `qwen3:8b` fetched by Ollama's own pull (`POST /api/pull`) —,
 one fetch at a time. The Whisper models are read again from `main` only on *Mettre à jour la
-liste (raw.githubusercontent.com)*, and offered then until Wholeheard quits; a list that cannot
-be read leaves the one offered, and says so; a model fetched joins those to choose, the choice staying the
+liste (raw.githubusercontent.com)*, and offered then until Wholeheard quits, only when the
+decider's minisign key signed them (D56). Until that key is built in, no list is read again and
+*Réglages* say it waits on it; a list that cannot be read, unsigned, signed by another key or changed since leaves the one offered, and says so; a model fetched joins those to choose, the choice staying the
 user's. With no Ollama answering, the row says where to get it: Wholeheard never installs it (D37). A model the settings name, and which is not
 there, is said with where it was looked for: it is the user's own, never fetched.
 

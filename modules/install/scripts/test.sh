@@ -90,6 +90,64 @@ with tempfile.TemporaryDirectory() as work:
     inside = sorted(zipfile.ZipFile(os.path.join(out, made[0])).namelist()) if made else []
     check("the four programs side by side in one folder, where the shell looks for them",
           inside == sorted(f"Wholeheard/{name.split('/')[1]}" for name in names), inside)
+# Windows' package (D54): made on Windows by windows/msix.py; its manifest and what it holds, read here.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(mac), "windows"))
+import msix
+from xml.etree import ElementTree
+ns = {"m": "http://schemas.microsoft.com/appx/manifest/foundation/windows10",
+      "uap": "http://schemas.microsoft.com/appx/manifest/uap/windows10",
+      "rescap": "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"}
+uap10 = "{http://schemas.microsoft.com/appx/manifest/uap/windows10/10}"
+identity = msix.identity()
+written = ElementTree.fromstring(msix.manifest("1.2.3", identity))
+said = written.find("m:Identity", ns).attrib
+check("the package's version in four parts, the last 0: the Store keeps it", said.get("Version") == "1.2.3.0", said)
+for wrong in ("1.2", "1.2.3.4", "1.2.3-rc1", "70000.0.0"):
+    try:
+        msix.four_parts(wrong)
+        check(f"a version not of three numbers under 65536 is refused: {wrong}", False)
+    except ValueError:
+        check(f"a version not of three numbers under 65536 is refused: {wrong}", True)
+check("the identity named is the one identity.json holds, for x64",
+      said.get("Name") == identity["name"] and said.get("Publisher") == identity["publisher"]
+      and said.get("ProcessorArchitecture") == "x64", said)
+check("Wholeheard is its name", written.findtext("m:Properties/m:DisplayName", namespaces=ns) == "Wholeheard")
+placeholder = {**identity, "placeholder": True}
+check("a placeholder identity is said, and that the package is not to be submitted",
+      any("placeholder" in line and "not submitted" in line for line in msix.notices("1.2.3", placeholder)))
+check("a reserved identity is not said to be one",
+      not any("placeholder" in line for line in msix.notices("1.2.3", {**identity, "placeholder": False})))
+check("a first part 0 is said: the Store refuses it", any("first part" in line for line in msix.notices("0.2.0", identity))
+      and not any("first part" in line for line in msix.notices("1.2.0", identity)))
+caps = written.find("m:Capabilities", ns)
+check("runFullTrust and the microphone, and nothing else",
+      [(c.tag.split("}")[1], c.get("Name")) for c in caps] == [("Capability", "runFullTrust"), ("DeviceCapability", "microphone")]
+      and caps.find("rescap:Capability", ns) is not None, ElementTree.tostring(caps))
+application = written.find("m:Applications/m:Application", ns).attrib
+check("the shell started with its window, full trust",
+      application.get("Executable") == "wholeheard.exe" and application.get(uap10 + "Parameters") == "--window"
+      and application.get(uap10 + "RuntimeBehavior") == "packagedClassicApp" and application.get(uap10 + "TrustLevel") == "mediumIL", application)
+family = written.find("m:Dependencies/m:TargetDeviceFamily", ns).attrib
+check("for desktops from the build that reads uap10", family.get("Name") == "Windows.Desktop" and family.get("MinVersion") == "10.0.19041.0", family)
+visual = written.find("m:Applications/m:Application/uap:VisualElements", ns).attrib
+sizes = {written.findtext("m:Properties/m:Logo", namespaces=ns): 50, visual.get("Square150x150Logo"): 150, visual.get("Square44x44Logo"): 44}
+with tempfile.TemporaryDirectory() as work:
+    artefacts, stage = os.path.join(work, "artefacts"), os.path.join(work, "stage")
+    for name in names:
+        os.makedirs(os.path.join(artefacts, os.path.dirname(name)), exist_ok=True)
+        open(os.path.join(artefacts, name), "wb").write(name.encode())
+    msix.stage(artefacts, "1.2.3", stage)
+    held = {os.path.relpath(os.path.join(folder, file), stage).replace(os.sep, "/") for folder, _, files in os.walk(stage) for file in files}
+    check("the four programs, the manifest and its logos are what it holds, and no more",
+          held == {name.split("/")[1] for name in names} | {"AppxManifest.xml"} | {logo.replace("\\", "/") for logo in sizes}, held)
+    for logo, side in sizes.items():
+        head = open(os.path.join(stage, logo.replace("\\", "/")), "rb").read(24) if logo else b""
+        check(f"{logo} is a PNG of {side}x{side}", head[:8] == b"\x89PNG\r\n\x1a\n"
+              and head[16:24] == side.to_bytes(4, "big") * 2, head)
+certification = open(os.path.join(os.path.dirname(mac), "windows", "certification.md"), encoding="utf-8").read()
+check("the notes for certification say why runFullTrust and the microphone, and what removal keeps",
+      all(word in certification for word in ("runFullTrust", "microphone", "both sides", "Documents", "removes")))
 print("test: passed" if not failed else "test: FAILED")
 sys.exit(failed)
 PY

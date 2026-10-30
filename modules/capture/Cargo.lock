@@ -1809,6 +1809,7 @@ dependencies = [
  "cpal",
  "ctrlc",
  "jsonschema",
+ "pipewire",
  "serde_json",
  "tempfile",
  "tracing",

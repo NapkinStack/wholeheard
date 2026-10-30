@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use wholeheard_shell::{
     recording::{Said, Source},
-    words::{self, Language, Notice, Refusal},
+    words::{self, Failure, Language, Notice, Refusal},
 };
 
 const BOTH: [Language; 2] = [Language::English, Language::French];
@@ -158,7 +158,7 @@ fn french_is_written_as_french_is_printed() {
     );
     assert_eq!(
         told(&Said::Stopped("/s".into(), 1912.4), false, Language::French).1,
-        "Durée\u{a0}: 32 min."
+        "32 min enregistrées."
     );
     // No straight apostrophe in a sentence of ours, in either language.
     let all = [
@@ -226,7 +226,7 @@ fn a_failure_never_says_what_the_program_said_of_it() {
         for language in BOTH {
             let body = said(sentence, language);
             assert!(
-                !body.contains('(') && (body.ends_with("session’s folder.") || body.ends_with("dossier de la session.")),
+                !body.contains('(') && (body.ends_with("session’s folder.") || body.ends_with("dossier de la réunion.")),
                 "{sentence:?}: {body}"
             );
         }
@@ -286,7 +286,7 @@ fn the_menu_and_the_shells_own_troubles_are_said_in_both_languages() {
     );
     assert_eq!(
         (french.start, french.stop),
-        ("Démarrer l’enregistrement", "Arrêter l’enregistrement")
+        ("Démarrer un enregistrement", "Arrêter l’enregistrement")
     );
     // No entry is the same in the two languages, and none is empty.
     for (one, other) in [
@@ -435,12 +435,12 @@ fn audio_sent_to_the_trash_is_said_with_its_counts_and_a_refusal_never_claims_to
     assert_eq!(
         said(Language::French, Ok((1, 1))),
         "Audio mis à la corbeille | L’audio d’une réunion gardé plus d’un jour est dans la corbeille\u{202f}; \
-         son transcript et son compte rendu restent."
+         sa transcription et son compte rendu restent."
     );
     assert_eq!(
         said(Language::French, Ok((3, 30))),
         "Audio mis à la corbeille | L’audio de 3 réunions gardé plus de 30 jours est dans la \
-         corbeille\u{202f}; leurs transcripts et leurs comptes rendus restent."
+         corbeille\u{202f}; leurs transcriptions et leurs comptes rendus restent."
     );
     // The trash may have taken some before it refused: what is said holds either way, in the
     // user's language, without the system's own wording.
@@ -726,7 +726,7 @@ fn a_device_changed_says_what_is_recorded_now_one_gone_says_that_side_and_one_ba
             Said::Lost(Source::Me),
             French,
             "Votre micro n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{202f}; l’enregistrement continue.",
         ),
         (
             Said::Lost(Source::Others),
@@ -738,7 +738,7 @@ fn a_device_changed_says_what_is_recorded_now_one_gone_says_that_side_and_one_ba
             Said::Lost(Source::Others),
             French,
             "Le son de la réunion n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{202f}; l’enregistrement continue.",
         ),
     ] {
         assert_eq!(
@@ -823,7 +823,7 @@ fn what_the_devices_are_decides_what_is_said_of_one_gone_and_one_back() {
     sides.told(&Said::Lost(Source::Me), false, French);
     assert_eq!(
         body(&mut sides, &lost, French).as_deref(),
-        Some("Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.")
+        Some("Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{202f}; l’enregistrement continue.")
     );
     // The microphone not opened at the start: the same.
     let mut sides = Sides::default();
@@ -972,4 +972,488 @@ fn every_french_word_of_the_window_is_typeset_as_french() {
         }
         assert!(!sentence.contains("« "), "{sentence}");
     }
+}
+
+#[test]
+fn the_announcement_is_in_the_meetings_language_when_it_says_french_or_english_else_the_windows() {
+    use wholeheard_shell::words::{Language, announcement};
+    let french = "J’enregistre cette réunion pour en faire le compte rendu. Dites-le-moi si vous préférez que je ne le fasse pas.";
+    let english = "I’m recording this meeting to write up its minutes. Tell me if you’d rather I didn’t.";
+    assert_eq!(announcement(Some("fr"), Language::English), french);
+    assert_eq!(announcement(Some("en"), Language::French), english);
+    assert_eq!(announcement(Some("de"), Language::French), french);
+    assert_eq!(announcement(None, Language::English), english);
+}
+
+/// The French sentences of `src/words.rs`, read from its structure: each string literal after the
+/// word `French` and before the next `English`, as every arm of the file is written. Its escapes
+/// (`\u{a0}`, `\u{202f}`, `\"`) are read as the compiler reads them. Also the literals after
+/// `English`, for the test to hold that the structure was read right.
+fn literals_by_language() -> (Vec<String>, Vec<String>) {
+    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/words.rs")).unwrap();
+    let (mut french, mut english) = (Vec::new(), Vec::new());
+    let mut in_french = false;
+    let mut word = String::new();
+    let mut chars = source.chars().peekable();
+    let mut previous = ' ';
+    while let Some(c) = chars.next() {
+        if c == '/' && chars.peek() == Some(&'/') {
+            chars.by_ref().find(|&d| d == '\n');
+            previous = '\n';
+            continue;
+        }
+        if c.is_alphanumeric() || c == '_' {
+            word.push(c);
+            previous = c;
+            continue;
+        }
+        match word.as_str() {
+            "French" => in_french = true,
+            "English" => in_french = false,
+            _ => {}
+        }
+        word.clear();
+        if c == '"' && previous != '\'' {
+            let mut text = String::new();
+            while let Some(d) = chars.next() {
+                match d {
+                    '\\' => match chars.next() {
+                        Some('u') => {
+                            let code: String = chars.by_ref().skip(1).take_while(|&e| e != '}').collect();
+                            text.push(char::from_u32(u32::from_str_radix(&code, 16).unwrap()).unwrap());
+                        }
+                        Some('n') => text.push('\n'),
+                        Some(other) => text.push(other),
+                        None => break,
+                    },
+                    '"' => break,
+                    other => text.push(other),
+                }
+            }
+            if in_french { &mut french } else { &mut english }.push(text);
+            previous = '"';
+            continue;
+        }
+        previous = c;
+    }
+    (french, english)
+}
+
+#[test]
+fn the_literals_of_each_language_are_read_as_the_file_arranges_them() {
+    let (french, english) = literals_by_language();
+    assert!(french.len() > 300 && english.len() > 300, "{} {}", french.len(), english.len());
+    let accented: Vec<_> = english
+        .iter()
+        .filter(|text| text.contains(|c: char| "éèêàâçùûîôœÉÈÀÇ".contains(c)))
+        .collect();
+    // Inès: a name in an English example.
+    assert_eq!(
+        accented,
+        ["E.g. the Q4 budget with Inès Durand and the purchasing team"],
+        "French read as English"
+    );
+    // An `expect`'s words, for the developer: no sentence the user reads.
+    let plain: Vec<_> = french.iter().filter(|text| format!(" {text} ").contains(" the ")).collect();
+    assert_eq!(plain, ["the minutes' end is always said"], "English read as French");
+}
+
+#[test]
+fn every_french_sentence_has_its_spaces_before_the_tall_signs() {
+    // D47: U+202F before « ? ! ; », U+00A0 before « : » — times (12:21) and addresses (https:)
+    // aside — in every French sentence the window and the notifications say.
+    let mut wrong = Vec::new();
+    for text in literals_by_language().0 {
+        // A program's name, as its own messages open: no sentence. What is filled in neither.
+        if matches!(text.as_str(), "wholeheard-capture:" | "wholeheard-transcription:") {
+            continue;
+        }
+        let chars: Vec<char> = text.chars().collect();
+        let mut filled = false;
+        for (at, &c) in chars.iter().enumerate() {
+            filled = (filled || c == '{') && c != '}';
+            if filled {
+                continue;
+            }
+            let before = if at == 0 { None } else { Some(chars[at - 1]) };
+            let bad = match c {
+                '?' | '!' | ';' => before != Some('\u{202f}'),
+                ':' => {
+                    // 12:21: two figures after; https:// : its own word before, two slashes after.
+                    let time = before.is_some_and(|b| b.is_ascii_digit())
+                        && chars[at + 1..].iter().take_while(|d| d.is_ascii_digit()).count() == 2;
+                    let word: String = chars[..at].iter().rev().take_while(|d| d.is_alphabetic()).collect();
+                    let address = matches!(word.as_str(), "sptth" | "ptth") && chars[at + 1..].starts_with(&['/', '/']);
+                    !time && !address && before != Some('\u{a0}')
+                }
+                _ => false,
+            };
+            if bad {
+                wrong.push(text.clone());
+                break;
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} French sentences without their space:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+}
+
+#[test]
+fn a_list_waiting_on_its_key_says_so_and_what_stays_offered() {
+    let (english, french) = (words::window(Language::English), words::window(Language::French));
+    assert!(english.offered_refresh_waits.contains("waits on the key") && english.offered_refresh_waits.contains("still offered"));
+    assert!(french.offered_refresh_waits.contains("attend la clé") && french.offered_refresh_waits.contains("restent proposés"));
+}
+
+#[test]
+fn the_small_window_says_a_silence_as_the_notifications_do() {
+    // D49: the same gesture as the notification's, in each language; the side's own.
+    let cases = [
+        (
+            Language::French,
+            "Votre micro",
+            "Le son de la réunion",
+            "pas coupé sur l’appareil lui-même, et qu’il est prêt",
+        ),
+        (
+            Language::English,
+            "Your microphone",
+            "The meeting’s sound",
+            "not muted on the device itself, and that it is ready",
+        ),
+    ];
+    for (language, me, others, gesture) in cases {
+        let page = words::window(language);
+        assert_eq!(page.small_mic, me);
+        assert_eq!(page.small_meeting, others);
+        let told = words::of(&Said::Nothing, true, language).unwrap();
+        assert!(told.body.contains(gesture), "{}", told.body);
+        assert!(page.small_nothing.contains(gesture), "{}", page.small_nothing);
+        for said in [
+            page.small_silent_me,
+            page.small_silent_others,
+            page.small_nothing,
+            page.small_waiting_me,
+            page.small_waiting_others,
+        ] {
+            assert!(
+                !said.is_empty() && said.chars().count() <= 110,
+                "too long for two lines of the small window: {said}"
+            );
+        }
+    }
+    assert!(words::window(Language::French).small_silent_me.contains("parlez"));
+    assert!(
+        words::window(Language::French)
+            .small_silent_others
+            .contains("jouer un son dans l’appel")
+    );
+    assert!(words::window(Language::English).small_silent_me.contains("say something"));
+    assert!(
+        words::window(Language::English)
+            .small_silent_others
+            .contains("play a sound in the call")
+    );
+}
+/// The wording table of the UX review, §10 (D47): its sentences, as they are read. A row left out
+/// here is one the table's sentence would make false: said in the pull request.
+#[test]
+fn the_review_s_wording_is_what_the_window_says_in_french() {
+    let french = words::window(Language::French);
+    for (said, wanted) in [
+        (french.transcript, "Transcription"),
+        (french.transcript_title, "Transcription"),
+        (french.chip_transcribing, "Transcription…"),
+        (french.ran_here, "sur cet ordinateur"),
+        (french.heard_by, "Transcrit par {}, sur cet ordinateur"),
+        (french.remote_described, "À distance — le son de l’ordinateur"),
+        (french.no_match, "Aucun passage ne correspond."),
+        (french.search, "Rechercher dans la transcription"),
+        (french.interrupted, "Interrompu"),
+        (french.undated, "Date inconnue"),
+        (french.chip_awaiting, "Accord requis"),
+        (french.minutes_waiting, "En file d’attente · {} avant"),
+        (french.minutes_unsaved, "Modification non enregistrée\u{a0}: {} reste utilisé."),
+        (french.test_sends, "Le test envoie une courte phrase à {} — rien de vos réunions."),
+        (french.test_answered, "Ça marche\u{a0}: le modèle répond."),
+        (
+            french.developer[1],
+            "Affiche le détail technique sous chaque erreur, pour aider au diagnostic.",
+        ),
+        (french.log_level[1], "S’applique au prochain lancement de Wholeheard."),
+        (french.playback, "Position de lecture"),
+        (french.not_playable, "Cette version de Wholeheard ne peut pas lire cet audio."),
+        (
+            french.not_played,
+            "Lecture impossible ici. Ouvrez le dossier pour l’écouter avec un autre lecteur.",
+        ),
+        (
+            french.no_player,
+            "L’audio a été supprimé pour faire de la place. La transcription et le compte rendu restent.",
+        ),
+        (french.small_no_keys, "Pas de raccourci clavier — en définir un"),
+        (french.shortcut_none, "Aucun raccourci défini"),
+        (french.shortcut_where, "Il se modifie dans les réglages clavier du système."),
+        (
+            french.ollama_silent,
+            "Ollama ne répond pas ou n’a aucun modèle\u{a0}: lancez Ollama, puis téléchargez un modèle.",
+        ),
+        (french.key, "Clé d’API"),
+        (french.agree_local_write, "Rédiger sur cet ordinateur"),
+    ] {
+        assert_eq!(said, wanted);
+    }
+    assert!(
+        french.ollama_lacks.ends_with("ou téléchargez-le avec Ollama."),
+        "{}",
+        french.ollama_lacks
+    );
+    let menu = words::menu(Language::French);
+    assert_eq!(menu.start, french.record_start);
+    assert_eq!(menu.minutes, "Rédiger le compte rendu de la dernière réunion");
+    assert_eq!(
+        words::minutes(&words::Minutes::Unchosen, Language::French).title,
+        "Aucun modèle choisi pour les comptes rendus"
+    );
+}
+
+#[test]
+fn the_review_s_english_sentences_are_rewritten() {
+    let english = words::window(Language::English);
+    assert_eq!(english.interrupted, "Interrupted");
+    assert_eq!(english.keep_not_days, "{} is not a number of days: from 1 to 36,500");
+}
+
+/// *Transcript* is the English word: French says *Transcription*, feminine, everywhere (D47).
+#[test]
+fn french_never_says_transcript() {
+    use words::Minutes;
+    let window = serde_json::to_value(words::window(Language::French)).unwrap();
+    let mut strings = vec![window];
+    while let Some(value) = strings.pop() {
+        match value {
+            serde_json::Value::Array(items) => strings.extend(items),
+            serde_json::Value::Object(fields) => strings.extend(fields.into_iter().map(|(_, value)| value)),
+            serde_json::Value::String(said) => {
+                assert!(
+                    !said.to_lowercase().contains("transcript") || said.to_lowercase().contains("transcription"),
+                    "{said}"
+                );
+                assert!(!said.contains("Le transcription") && !said.contains("le transcription"), "{said}");
+            }
+            _ => {}
+        }
+    }
+    for notice in [
+        words::minutes(&Minutes::Ready, Language::French),
+        words::minutes(&Minutes::NoTranscript, Language::French),
+        words::minutes(&Minutes::Failed(None), Language::French),
+        words::transcript_kept_beside(Language::French, "x", false),
+        words::transcript_kept_beside(Language::French, "x", true),
+        words::fetched(&Ok(()), false, Language::French),
+        words::audio_trashed(Language::French, &Ok((2, 30))),
+    ] {
+        let said = format!("{} {}", notice.title, notice.body);
+        assert!(
+            !said.contains("transcript ") && !said.contains("transcripts") && !said.contains("transcript."),
+            "{said}"
+        );
+    }
+}
+
+#[test]
+fn a_stop_says_how_long_was_recorded_agreed_in_french_and_no_session_in_a_failure() {
+    let stopped = |seconds| told(&Said::Stopped("/s".into(), seconds), false, Language::French).1;
+    assert_eq!(stopped(1.0), "1 s enregistrée.");
+    assert_eq!(stopped(60.0), "1 min enregistrée.");
+    assert_eq!(stopped(960.0), "16 min enregistrées.");
+    assert_eq!(stopped(5400.0), "1 h 30 enregistrées.");
+    for why in ["", "gone"] {
+        let failed = told(&Said::Failed(why.into()), false, Language::French).1;
+        assert!(failed.ends_with("est gardé dans le dossier de la réunion."), "{failed}");
+    }
+}
+
+fn main_rs() -> String {
+    std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs"))
+        .unwrap()
+        // A checkout on Windows ends its lines otherwise.
+        .replace("\r\n", "\n")
+}
+
+/// Each `#[tauri::command…]` of the shell's `main.rs`, whatever its arguments: its signature, then
+/// its body.
+fn commands() -> Vec<(String, String)> {
+    main_rs()
+        .split("#[tauri::command")
+        .skip(1)
+        .map(|command| {
+            let command = &command[command.find("]\n").expect("an attribute ends") + 2..];
+            let command = &command[..command.find("\n}\n").expect("a command ends")];
+            let (signature, body) = command.split_once(" {\n").expect("a command has a body");
+            (signature.to_string(), body.to_string())
+        })
+        .collect()
+}
+
+/// The structs of `main.rs` the page is handed: each with its fields, name and type.
+fn payloads() -> Vec<(String, Vec<(String, String)>)> {
+    let source = main_rs();
+    let mut found = Vec::new();
+    let mut lines = source.lines().peekable();
+    while let Some(line) = lines.next() {
+        if !(line.starts_with("#[derive(") && line.contains("Serialize")) {
+            continue;
+        }
+        while lines.peek().is_some_and(|next| next.starts_with("#[")) {
+            lines.next();
+        }
+        let Some(name) = lines.peek().and_then(|next| next.strip_prefix("struct ")) else {
+            continue;
+        };
+        let name = name.split([' ', '<']).next().unwrap().to_string();
+        let mut fields = Vec::new();
+        for field in lines.by_ref().skip(1).take_while(|field| *field != "}") {
+            if let Some((field, kind)) = field.trim().split_once(": ")
+                && !field.starts_with("//")
+            {
+                fields.push((field.to_string(), kind.trim_end_matches(',').to_string()));
+            }
+        }
+        found.push((name, fields));
+    }
+    found
+}
+
+#[test]
+fn a_command_hands_the_page_no_text_of_its_own_only_a_sentence_of_these_words() {
+    let commands = commands();
+    assert!(commands.len() > 30, "{} commands read", commands.len());
+    let structs: Vec<String> = payloads().into_iter().map(|(name, _)| name).collect();
+    assert!(structs.len() > 10, "{structs:?}");
+    for (signature, body) in &commands {
+        if let Some((_, answer)) = signature.rsplit_once("-> ") {
+            // Every name of its answer is known here: an alias could hide a text.
+            for name in answer
+                .split(|c: char| !c.is_alphanumeric() && c != '_')
+                .filter(|name| !name.is_empty())
+            {
+                assert!(
+                    ["Result", "Option", "Vec", "Told", "PathBuf", "String", "speech", "Status"].contains(&name)
+                        || structs.iter().any(|known| known == name),
+                    "{signature}: {name} is no type this test knows"
+                );
+            }
+            // A text alone is none of the page's answers, a list of names and the logs asked for aside.
+            assert!(
+                !answer.replace("Vec<String>", "").contains("String") || signature.starts_with("async fn diagnostic("),
+                "a command answers with a text: {signature}"
+            );
+            assert!(!answer.contains("Result") || answer.starts_with("Result<"), "{signature}");
+            if let Some(answer) = answer.strip_prefix("Result<") {
+                let error = answer.rsplit(", ").next().unwrap().trim();
+                assert!(
+                    error == "Told>" || error == "()>",
+                    "a command fails with a sentence of words.rs (Told), or says nothing: {signature}"
+                );
+            }
+        }
+        for text in ["Err(\"", "Err(format!", ".into())", "ok_or(\"", ".ok_or_else(|| format!"] {
+            assert!(!body.contains(text), "{signature} hands the page a text: {text}");
+        }
+        // An error kept as an answer's field: read by what `Ok` is made of, as far as a name tells.
+        for (at, _) in body.match_indices(".err()") {
+            assert!(
+                body[at + ".err()".len()..].trim_start().starts_with(".map(|why| shell.told("),
+                "{signature} keeps an error for its answer"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_answer_holds_a_failure_as_a_sentence_or_for_developer_mode_never_as_raw_text() {
+    // By the field's name: a raw error under another name, or within another type, is not seen.
+    const NAMES: [&str; 8] = ["unreadable", "error", "why", "failed", "refused", "detail", "reason", "problem"];
+    // Those of `makings`, the page's reading of the makings: what a program said, through
+    // `shown_detail`, and its cause's sentence.
+    const THROUGH_THE_WORDS: [&str; 3] = ["failed", "transcripts_failed", "failed_said"];
+    let payloads = payloads();
+    let mut read = 0;
+    for (name, fields) in &payloads {
+        for (field, kind) in fields {
+            if !NAMES.iter().any(|said| field.contains(said)) {
+                continue;
+            }
+            read += 1;
+            assert!(
+                !kind.contains("String") || (name == "Makings" && THROUGH_THE_WORDS.contains(&field.as_str())),
+                "{name}.{field}: {kind} hands the page raw text"
+            );
+        }
+    }
+    assert!(read >= 4, "{read} fields read: the structs are no longer read as written");
+    let source = main_rs();
+    assert!(source.contains("let said = |why: &String| words::shown_detail(why, developer);"));
+    assert_eq!(
+        source.matches("(named(folder), said(why))").count(),
+        2,
+        "failed, transcripts_failed"
+    );
+}
+
+#[test]
+fn the_settings_files_path_stays_out_of_what_a_command_keeps_of_a_failure() {
+    let source = main_rs();
+    let reread = &source[source.find("fn reread(&self)").unwrap()..];
+    let reread = &reread[..reread.find("\n    }\n").unwrap()];
+    // Every route starts here, the transcript's and the minutes' that keep it for developer mode.
+    assert!(reread.contains("settings::unnamed("), "{reread}");
+    // One place logs a command's failure: `log::command_failed`, which `tests/log.rs` reads.
+    assert!(!source.contains("\"shell.command_failed\""));
+    assert_eq!(source.matches("log::command_failed(").count(), 1);
+}
+
+#[test]
+fn a_settings_file_that_cannot_be_read_is_said_whole_its_raw_text_under_it_only_in_developer_mode() {
+    let raw = "settings.toml, line 1: keep_audio is \"always\" or a number of days";
+    let page = |language, developer| serde_json::to_value(words::told(Failure::SettingsLocked, raw, language, developer)).unwrap();
+    assert_eq!(
+        page(Language::French, false),
+        "Le fichier des réglages ne peut pas être lu\u{a0}: Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé."
+    );
+    assert_eq!(
+        page(Language::English, false),
+        "The settings file cannot be read: Wholeheard does not write over it until it is corrected."
+    );
+    assert_eq!(
+        page(Language::English, true),
+        format!("The settings file cannot be read: Wholeheard does not write over it until it is corrected.\n{raw}").as_str()
+    );
+}
+
+#[test]
+fn a_command_that_failed_says_its_sentence_and_the_raw_text_only_in_developer_mode() {
+    let raw = "os error 28";
+    let page = |language, developer| serde_json::to_string(&words::told(Failure::MeetingFile, raw, language, developer)).unwrap();
+    assert_eq!(
+        page(Language::French, false),
+        "\"son dossier n’a pas pu être écrit\u{a0}: vérifiez qu’il reste de la place et que vous pouvez y écrire, puis réessayez.\""
+    );
+    assert!(page(Language::English, false).starts_with("\"its folder could not be written to"));
+    assert!(!page(Language::English, false).contains(raw));
+    assert!(
+        page(Language::French, true).ends_with("réessayez.\\nos error 28\""),
+        "{}",
+        page(Language::French, true)
+    );
+    // A trash's refusal is the sentence its expiry says.
+    assert_eq!(
+        words::failure(Failure::Trash(Refusal::NoSpace), Language::French),
+        words::audio_trashed(Language::French, &Err(Refusal::NoSpace)).body
+    );
 }

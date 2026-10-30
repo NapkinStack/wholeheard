@@ -170,7 +170,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         ),
         (Said::Lost(Source::Me), French) => (
             "Votre micro n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{202f}; l’enregistrement continue.",
         ),
         (Said::Lost(Source::Others), English) => (
             "The meeting’s sound is not recorded for now",
@@ -178,7 +178,7 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
         ),
         (Said::Lost(Source::Others), French) => (
             "Le son de la réunion n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{202f}; l’enregistrement continue.",
         ),
         (Said::Nothing, _) => return sends_nothing(None, language),
         (Said::Silent(Source::Me), English) => (
@@ -198,19 +198,28 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
             "Rien n’a été entendu depuis dix secondes\u{a0}: l’appel passe-t-il par cet appareil\u{202f}? L’enregistrement continue.",
         ),
         (Said::Stopped(_, seconds), English) => return notice("Recording stopped", format!("{} recorded.", length(*seconds))),
-        (Said::Stopped(_, seconds), French) => return notice("Enregistrement arrêté", format!("Durée\u{a0}: {}.", length(*seconds))),
+        (Said::Stopped(_, seconds), French) => {
+            // A single second or minute is agreed as one: « 1 min enregistrée », « 16 min enregistrées ».
+            let said = length(*seconds);
+            let agreed = if matches!(said.as_str(), "0 s" | "1 s" | "1 min") {
+                "enregistrée"
+            } else {
+                "enregistrées"
+            };
+            return notice("Enregistrement arrêté", format!("{said} {agreed}."));
+        }
         (Said::Failed(why), English) if detail(why).is_empty() => (
             "The recording stopped by itself",
             "The program that records ended without saying why. What was recorded is in the session’s folder.",
         ),
         (Said::Failed(why), French) if detail(why).is_empty() => (
             "L’enregistrement s’est arrêté tout seul",
-            "Le programme d’enregistrement s’est terminé sans dire pourquoi. Ce qui a été enregistré se trouve dans le dossier de la session.",
+            "Le programme d’enregistrement s’est terminé sans dire pourquoi. Ce qui a été enregistré est gardé dans le dossier de la réunion.",
         ),
         (Said::Failed(_), English) => ("The recording stopped by itself", "What was recorded is in the session’s folder."),
         (Said::Failed(_), French) => (
             "L’enregistrement s’est arrêté tout seul",
-            "Ce qui a été enregistré se trouve dans le dossier de la session.",
+            "Ce qui a été enregistré est gardé dans le dossier de la réunion.",
         ),
     };
     notice(title, body.to_string())
@@ -261,7 +270,7 @@ pub fn menu(language: Language) -> Menu {
             minuting: "Writing the minutes…",
         },
         Language::French => Menu {
-            start: "Démarrer l’enregistrement",
+            start: "Démarrer un enregistrement",
             stop: "Arrêter l’enregistrement",
             stopping: "Arrêt en cours…",
             quit: "Quitter Wholeheard",
@@ -269,7 +278,7 @@ pub fn menu(language: Language) -> Menu {
             recording: "Wholeheard — enregistrement en cours",
             transcribe: "Transcrire le dernier enregistrement",
             transcribing: "Transcription en cours…",
-            minutes: "Faire le compte rendu du dernier enregistrement",
+            minutes: "Rédiger le compte rendu de la dernière réunion",
             minuting: "Compte rendu en cours…",
         },
     }
@@ -379,6 +388,7 @@ pub struct Window {
     /// what is said when it could not be.
     pub offered_refresh: &'static str,
     pub offered_refresh_failed: &'static str,
+    pub offered_refresh_waits: &'static str,
     /// Apple's SpeechAnalyzer among who hears, on a Mac with macOS 26 (D42): its name in the
     /// choice; its model not on the Mac yet; the gesture that has macOS fetch it, and from whom;
     /// while it comes; when it did not.
@@ -466,6 +476,18 @@ pub struct Window {
     pub small_meeting: &'static str,
     pub small_stop: &'static str,
     pub small_note: &'static str,
+    /// What the small window says of each side's check (D49): one heard, said to a screen reader;
+    /// a silence, as the notifications say it; a side with no device.
+    pub small_heard: &'static str,
+    pub small_silent_me: &'static str,
+    pub small_silent_others: &'static str,
+    pub small_nothing: &'static str,
+    pub small_waiting_me: &'static str,
+    pub small_waiting_others: &'static str,
+    /// The reminder said where the user looks, the first seconds of a recording (D50).
+    pub small_announce: &'static str,
+    pub copy_announcement: &'static str,
+    pub announcement_not_copied: &'static str,
     pub small_full: &'static str,
     /// The small window at rest (D35): no meeting yet, the last one, and the ways to the full window.
     pub small_none: &'static str,
@@ -563,7 +585,6 @@ pub struct Window {
     /// A number of days the audio is kept.
     pub keep_days: &'static str,
     /// The settings file could not be read: why.
-    pub settings_unreadable: &'static str,
     /// A change could not be saved: why.
     pub not_saved: &'static str,
     /// Who writes the minutes was saved, but the keyring did not keep the key: why.
@@ -701,7 +722,7 @@ pub fn window(language: Language) -> Window {
             audio: "Audio · {}",
             audio_freed: "Audio deleted",
             recording: "Recording now",
-            interrupted: "Interrupted — never stopped",
+            interrupted: "Interrupted",
             none: "No meeting in {} yet.",
             none_do: "Start a recording: its button, its shortcut, or the tray’s icon.",
             find_meetings: "Search the meetings",
@@ -756,6 +777,7 @@ pub fn window(language: Language) -> Window {
             offered_needs_ollama: "Needs Ollama — install it from ollama.com",
             offered_refresh: "Update the list ({})",
             offered_refresh_failed: "The list could not be updated: the models above are still offered.",
+            offered_refresh_waits: "The list cannot be updated yet: it waits on the key that signs it. The models above are still offered.",
             speech_option: "Apple's SpeechAnalyzer, on this Mac",
             speech_missing: "Apple's model is not on this Mac yet",
             speech_fetch: "Download Apple's model (macOS fetches it from Apple)",
@@ -777,7 +799,7 @@ pub fn window(language: Language) -> Window {
             service_model_named: "Nothing is saved: name the model the service hears with — for example whisper-large-v3.",
             installed: "installed, {}",
             keep_other: "Another number of days…",
-            keep_not_days: "{} is no number of days: from 1 to 36,500",
+            keep_not_days: "{} is not a number of days: from 1 to 36,500",
             builtin: "built into Wholeheard",
             home: "Home folder",
             transcription: "Transcription",
@@ -831,9 +853,18 @@ pub fn window(language: Language) -> Window {
             choose: "Choose…",
             small: "Small window",
             small_mic: "Your microphone",
-            small_meeting: "The meeting",
+            small_meeting: "The meeting’s sound",
             small_stop: "Stop",
             small_note: "Once stopped, the transcript writes itself. You will be told.",
+            small_heard: "{}: heard",
+            small_silent_me: "Nothing heard for ten seconds: say something to try it.",
+            small_silent_others: "Nothing heard for ten seconds: play a sound in the call.",
+            small_nothing: "Nothing comes from it: check it is not muted on the device itself, and that it is ready.",
+            small_waiting_me: "Your microphone is not recorded for now.",
+            small_waiting_others: "The meeting’s sound is not recorded for now.",
+            small_announce: "Tell the participants this meeting is being recorded.",
+            copy_announcement: "Copy the announcement",
+            announcement_not_copied: "Not copied.",
             small_full: "The whole window",
             small_none: "No meeting yet.",
             small_last: "Last meeting",
@@ -927,7 +958,6 @@ pub fn window(language: Language) -> Window {
             ],
             keep_always: "Always",
             keep_days: "{} days",
-            settings_unreadable: "The settings file cannot be read ({}): Wholeheard does not write over it until it is corrected.",
             not_saved: "The setting was not saved: {}",
             key_not_kept: "The choice is saved, but the key was not kept in the system's keyring: {}",
             minutes_step: "Minutes",
@@ -1045,18 +1075,18 @@ pub fn window(language: Language) -> Window {
             weight: "occupés par {} réunions · {} d’audio",
             weight_one: "occupés par {} réunion · {} d’audio",
             audio_kept: "Audio, tel qu’enregistré — {}",
-            text_kept: "Transcripts et comptes rendus — {}",
-            weight_described: "L’audio occupe {}\u{202f}; les transcripts et les comptes rendus, {}.",
+            text_kept: "Transcriptions et comptes rendus — {}",
+            weight_described: "L’audio occupe {}\u{202f}; les transcriptions et les comptes rendus, {}.",
             this_week: "Cette semaine",
             last_week: "La semaine dernière",
             earlier_in: "Plus tôt en {}",
-            undated: "Date illisible",
+            undated: "Date inconnue",
             minutes: "Compte rendu",
-            transcript: "Transcript",
+            transcript: "Transcription",
             audio: "Audio · {}",
             audio_freed: "Audio supprimé",
             recording: "Enregistrement en cours",
-            interrupted: "Interrompu — jamais arrêté",
+            interrupted: "Interrompu",
             none: "Aucune réunion dans {} pour l’instant.",
             none_do: "Démarrez un enregistrement\u{a0}: son bouton, son raccourci, ou l’icône de la barre système.",
             find_meetings: "Chercher dans les réunions",
@@ -1066,33 +1096,33 @@ pub fn window(language: Language) -> Window {
             back: "Réunions",
             open_folder: "Ouvrir le dossier",
             minutes_title: "Compte rendu",
-            transcript_title: "Transcript",
-            search: "Chercher dans la réunion",
+            transcript_title: "Transcription",
+            search: "Rechercher dans la transcription",
             written_by: "Écrit par {}",
             written_via: ", via {}",
             at: "à",
-            heard_by: "Écrit par {}, sur cet ordinateur",
+            heard_by: "Transcrit par {}, sur cet ordinateur",
             here: "Ici",
             remote: "À distance",
             voice: "voix {}",
             here_described: "Ici — votre micro",
-            remote_described: "À distance — ce que joue la machine",
+            remote_described: "À distance — le son de l’ordinateur",
             who_spoke: "Qui a parlé au fil de la réunion\u{a0}: ici en haut, à distance en bas",
-            no_transcript: "Pas encore de transcript.",
+            no_transcript: "Pas encore de transcription.",
             no_minutes: "Pas encore de compte rendu.",
             being_made: "En cours d’écriture — ce qui est là est vrai quand même.",
             unreadable: "Ce fichier ne peut pas être lu par cette version de Wholeheard.",
             unread: "{} ligne(s) du fichier n’ont pas pu être lues et sont laissées de côté.",
-            no_match: "Rien de ce qui a été dit ne correspond.",
+            no_match: "Aucun passage ne correspond.",
             settings: "Réglages",
             after_title: "Après un enregistrement",
             after_nothing: [
                 "Ne rien faire",
                 "L’audio est gardé\u{202f}; vous lancez la suite quand vous voulez.",
             ],
-            after_transcript: ["Écrire le transcript", "Sur cet ordinateur, sans réseau."],
+            after_transcript: ["Écrire la transcription", "Sur cet ordinateur, sans réseau."],
             after_minutes: [
-                "Écrire le transcript, puis le compte rendu",
+                "Écrire la transcription, puis le compte rendu",
                 "Tout s’enchaîne\u{202f}; une notification prévient quand le compte rendu est prêt.",
             ],
             models_title: "Modèles",
@@ -1114,6 +1144,7 @@ pub fn window(language: Language) -> Window {
             offered_needs_ollama: "Nécessite Ollama, à installer depuis ollama.com",
             offered_refresh: "Mettre à jour la liste ({})",
             offered_refresh_failed: "La liste n’a pas pu être mise à jour\u{a0}: les modèles ci-dessus restent proposés.",
+            offered_refresh_waits: "La liste ne peut pas encore être mise à jour\u{a0}: elle attend la clé qui la signe. Les modèles ci-dessus restent proposés.",
             speech_option: "SpeechAnalyzer d’Apple, sur ce Mac",
             speech_missing: "le modèle d’Apple n’est pas encore sur ce Mac",
             speech_fetch: "Télécharger le modèle d’Apple (macOS le télécharge depuis Apple)",
@@ -1156,7 +1187,7 @@ pub fn window(language: Language) -> Window {
             advanced_title: "Avancé",
             developer: [
                 "Mode développeur",
-                "Sous un échec, montre ce qu’en a dit le programme de Wholeheard — pour qui cherche sa cause.",
+                "Affiche le détail technique sous chaque erreur, pour aider au diagnostic.",
             ],
             program_said: "Ce qu’a dit le programme\u{a0}: {}",
             minutes_sections: ["Points saillants", "Actions", "Points clés"],
@@ -1165,14 +1196,11 @@ pub fn window(language: Language) -> Window {
             model_recommended: "{} — recommandé",
             play: "Écouter",
             pause: "Pause",
-            not_playable: "Son audio ne s’écoute pas ici\u{a0}: il ne contient aucune piste que cette version lit.",
-            not_played: "Cette réunion n’a pas pu être lue ici. «\u{a0}Ouvrir le dossier\u{a0}» montre ses pistes, qu’un autre lecteur lit.",
-            playback: "D’où la réunion est lue",
-            no_player: "Son audio a été libéré\u{a0}: la réunion ne s’écoute plus. Son transcript et son compte rendu restent.",
-            log_level: [
-                "Niveau des journaux",
-                "Pris en compte au prochain démarrage de Wholeheard, par lui et ses programmes.",
-            ],
+            not_playable: "Cette version de Wholeheard ne peut pas lire cet audio.",
+            not_played: "Lecture impossible ici. Ouvrez le dossier pour l’écouter avec un autre lecteur.",
+            playback: "Position de lecture",
+            no_player: "L’audio a été supprimé pour faire de la place. La transcription et le compte rendu restent.",
+            log_level: ["Niveau des journaux", "S’applique au prochain lancement de Wholeheard."],
             log_info: "Habituel",
             log_debug: "Détaillé",
             logs: [
@@ -1192,9 +1220,18 @@ pub fn window(language: Language) -> Window {
             choose: "Choisir…",
             small: "Petite fenêtre",
             small_mic: "Votre micro",
-            small_meeting: "La réunion",
+            small_meeting: "Le son de la réunion",
             small_stop: "Arrêter",
-            small_note: "À l’arrêt, le transcript s’écrit tout seul. Vous serez prévenu.",
+            small_heard: "{}\u{a0}: entendu",
+            small_silent_me: "Rien depuis dix secondes\u{a0}: parlez pour l’essayer.",
+            small_silent_others: "Rien depuis dix secondes\u{a0}: faites jouer un son dans l’appel.",
+            small_nothing: "Rien n’en arrive\u{a0}: vérifiez qu’il n’est pas coupé sur l’appareil lui-même, et qu’il est prêt.",
+            small_waiting_me: "Votre micro n’est pas enregistré pour l’instant.",
+            small_waiting_others: "Son de la réunion non enregistré pour l’instant.",
+            small_note: "À l’arrêt, la transcription s’écrit toute seule. Vous serez prévenu.",
+            small_announce: "Prévenez les participants que cette réunion est enregistrée.",
+            copy_announcement: "Copier l’annonce",
+            announcement_not_copied: "Pas copiée.",
             small_full: "Toute la fenêtre",
             small_none: "Aucune réunion pour l’instant.",
             small_last: "Dernière réunion",
@@ -1204,16 +1241,16 @@ pub fn window(language: Language) -> Window {
             small_count: "{} réunions · {}",
             small_count_one: "{} réunion · {}",
             small_keys: "ou {}, de n’importe où",
-            small_no_keys: "Aucun raccourci accordé par le bureau — le choisir dans les Réglages",
+            small_no_keys: "Pas de raccourci clavier — en définir un",
             free: "Faire de la place",
             free_what: "Que voulez-vous retirer\u{202f}?",
             free_audio: [
                 "L’audio seulement",
-                "Le compte rendu et le transcript restent lisibles. C’est l’audio qui pèse presque tout.",
+                "Le compte rendu et la transcription restent lisibles. C’est l’audio qui pèse presque tout.",
             ],
             free_whole: [
                 "La réunion entière",
-                "L’audio, le transcript et le compte rendu\u{a0}: il ne reste rien de la réunion.",
+                "L’audio, la transcription et le compte rendu\u{a0}: il ne reste rien de la réunion.",
             ],
             free_heaviest: "Les plus lourdes d’abord",
             free_older: "Cocher celles de plus de 30 jours",
@@ -1231,37 +1268,37 @@ pub fn window(language: Language) -> Window {
             redo_note: "Le compte rendu actuel reste en place tant que le nouveau n’est pas prêt, et se retrouve ensuite dans la corbeille.",
             redo_do: "Refaire",
             on_computer: "sur cet ordinateur",
-            redo_transcript_title: "Refaire le transcript",
-            redo_transcript_note: "Le transcript actuel est gardé tant que le nouveau n’est pas entier, puis part à la corbeille\u{202f}; si le nouveau échoue, l’actuel revient.",
+            redo_transcript_title: "Refaire la transcription",
+            redo_transcript_note: "La transcription actuelle est gardée tant que la nouvelle n’est pas entière, puis part à la corbeille\u{202f}; si la nouvelle échoue, l’actuelle revient.",
             make_minutes: "Faire le compte rendu",
-            make_transcript: "Faire le transcript",
+            make_transcript: "Faire la transcription",
             minutes_making: "Rédaction du compte rendu",
-            minutes_waiting: "En attente de son tour — {} avant",
+            minutes_waiting: "En file d’attente · {} avant",
             minutes_awaiting: "En attente de votre accord pour l’envoyer à {}",
             agree_open: "Voir et accepter",
-            minutes_not_made: "Le compte rendu n’a pas été fait. Le transcript est intact.",
+            minutes_not_made: "Le compte rendu n’a pas été fait. La transcription est intacte.",
             try_again: "Réessayer",
             chip_making: "Compte rendu…",
             chip_waiting: "En attente",
-            chip_awaiting: "Votre accord",
-            chip_transcribing: "Transcript…",
+            chip_awaiting: "Accord requis",
+            chip_transcribing: "Transcription…",
             chip_failed: "Compte rendu non fait",
             transcript_making: "Transcription en cours",
-            transcript_not_made: "Le transcript n’a pas été fait. L’enregistrement est intact.",
-            chip_transcript_failed: "Transcript non fait",
-            minutes_unsaved: "Pas encore enregistré — le compte rendu reste fait par {}.",
+            transcript_not_made: "La transcription n’a pas été faite. L’enregistrement est intact.",
+            chip_transcript_failed: "Transcription non faite",
+            minutes_unsaved: "Modification non enregistrée\u{a0}: {} reste utilisé.",
             minutes_unsaved_none: "Pas encore enregistré — aucun compte rendu n’est fait tant que ce n’est pas le cas.",
             transcript_model_needed: "En attente du modèle Whisper.",
             transcript_model_coming: "En attente du modèle Whisper, en cours de téléchargement.",
             ran_online: "en ligne",
-            ran_here: "sur cette machine",
+            ran_here: "sur cet ordinateur",
             record_start: "Démarrer un enregistrement",
             record_stop: "Arrêter l’enregistrement",
             agree_eyebrow: "Avant le premier compte rendu en ligne",
             agree_title: "Le texte de cette réunion va quitter votre ordinateur",
-            agree_lead: "Pour écrire le compte rendu, Wholeheard envoie le transcript au service que vous avez choisi. Voici exactement ce qui part.",
+            agree_lead: "Pour écrire le compte rendu, Wholeheard envoie la transcription au service que vous avez choisi. Voici exactement ce qui part.",
             agree_leaves: [
-                "Part\u{a0}: le transcript",
+                "Part\u{a0}: la transcription",
                 "Les mots prononcés, de votre côté et à distance — {} minutes, environ {} mots.",
             ],
             agree_context: ["Part\u{a0}: le contexte que vous avez joint", "Environ {} mots."],
@@ -1269,26 +1306,25 @@ pub fn window(language: Language) -> Window {
             agree_to: "Destinataire",
             agree_model: "Modèle",
             agree_remember: "Ne plus demander pour ce service",
-            agree_send: "Envoyer le transcript",
+            agree_send: "Envoyer la transcription",
             agree_not: "Ne pas envoyer",
             agree_local: "Écrire plutôt le compte rendu sur cet ordinateur",
-            agree_local_write: "Écrire ici",
+            agree_local_write: "Rédiger sur cet ordinateur",
             shortcut: ["Raccourci", "Démarre et arrête un enregistrement, où que vous soyez."],
-            shortcut_none: "Pas accordé par le bureau",
-            shortcut_where: "Le bureau l’accorde\u{a0}: il se change dans les réglages du clavier du bureau.",
+            shortcut_none: "Aucun raccourci défini",
+            shortcut_where: "Il se modifie dans les réglages clavier du système.",
             shortcut_open: "Réglages du clavier",
             test: "Tester",
-            test_sends: "Tester envoie à {} une phrase de Wholeheard, rien d’une réunion.",
+            test_sends: "Le test envoie une courte phrase à {} — rien de vos réunions.",
             testing: "Test en cours…",
-            test_answered: "Le modèle répond.",
+            test_answered: "Ça marche\u{a0}: le modèle répond.",
             test_failed: "Le modèle ne répond pas\u{a0}: {}",
             keep_audio: [
                 "Garder l’audio",
-                "Passé ce délai, l’audio part à la corbeille\u{202f}; le transcript et le compte rendu restent.",
+                "Passé ce délai, l’audio part à la corbeille\u{202f}; la transcription et le compte rendu restent.",
             ],
             keep_always: "Toujours",
             keep_days: "{} jours",
-            settings_unreadable: "Le fichier des réglages ne peut pas être lu ({})\u{a0}: Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé.",
             not_saved: "Le réglage n’a pas été enregistré\u{a0}: {}",
             key_not_kept: "Le choix est enregistré, mais la clé n’a pas été gardée dans le trousseau du système\u{a0}: {}",
             minutes_step: "Compte rendu",
@@ -1298,12 +1334,12 @@ pub fn window(language: Language) -> Window {
             custom: "Personnalisé…",
             address: "Adresse (compatible OpenAI)",
             model_name: "Modèle",
-            key: "Clé",
+            key: "Clé d’API",
             key_kept: "Une clé est gardée dans le trousseau du système\u{202f}; une nouvelle la remplace.",
             save: "Enregistrer",
-            where_online: "En ligne — le texte du transcript est envoyé",
-            ollama_lacks: "Ollama, sur cet ordinateur, n’a pas de modèle nommé {}\u{a0}: choisissez-en un dans la liste, ou récupérez-le avec Ollama.",
-            ollama_silent: "Ollama, sur cet ordinateur, ne répond pas, ou n’a aucun modèle\u{a0}: démarrez-le, ou récupérez un modèle avec lui.",
+            where_online: "En ligne — le texte de la transcription est envoyé",
+            ollama_lacks: "Ollama, sur cet ordinateur, n’a pas de modèle nommé {}\u{a0}: choisissez-en un dans la liste, ou téléchargez-le avec Ollama.",
+            ollama_silent: "Ollama ne répond pas ou n’a aucun modèle\u{a0}: lancez Ollama, puis téléchargez un modèle.",
             not_chosen: "Pas encore choisi",
             welcome_title: "Réglons Wholeheard en une question.",
             welcome_question: "Vos réunions parlent-elles de sujets confidentiels\u{202f}?",
@@ -1357,11 +1393,11 @@ pub fn window(language: Language) -> Window {
             context_most: "{} caractères au plus",
             context_left: ["{} restant", "{} restants"],
             context_script: "Dans cette écriture, Whisper peut n’en garder que la fin, un service le refuser.",
-            context_making: "Le contexte ne change pas pendant que le transcript ou le compte rendu se fait.",
-            context_unfinished: "Le transcript n’est pas terminé\u{a0}: terminez-le (Réessayer) avant de changer le contexte.",
+            context_making: "Le contexte ne change pas pendant que la transcription ou le compte rendu se fait.",
+            context_unfinished: "La transcription n’est pas terminée\u{a0}: terminez-la (Réessayer) avant de changer le contexte.",
             context_changed: [
-                "Le transcript a été fait avec un autre contexte.",
-                "Le transcript et le compte rendu ont été faits avec un autre contexte.",
+                "La transcription a été faite avec un autre contexte.",
+                "La transcription et le compte rendu ont été faits avec un autre contexte.",
             ],
             context_redo: "Refaire avec ce contexte",
             language_label: "Langue parlée",
@@ -1381,19 +1417,19 @@ pub fn window(language: Language) -> Window {
             corrected: "corrigé",
             correction_empty: "Une ligne ne reste pas vide\u{a0}: Échap la laisse comme elle était.",
             correction_failed: "La correction n’a pas été enregistrée\u{a0}: {}",
-            corrected_since: "Le transcript a été corrigé après ce compte rendu.",
+            corrected_since: "La transcription a été corrigée après ce compte rendu.",
             redo_corrections: "Refaire avec les corrections",
             copy_minutes: "Copier le compte rendu",
             minutes_copied: "Copié",
             minutes_not_copied: "Le compte rendu n’a pas pu être copié.",
-            redo_loses_corrections: "Vos corrections de ce transcript ne seront pas gardées.",
+            redo_loses_corrections: "Vos corrections de cette transcription ne seront pas gardées.",
             context_not_saved: "Le contexte n’a pas pu être enregistré.",
             confidential_name: "Réunion confidentielle",
             confidential_says: "Rien ne quitte cet ordinateur",
             confidential_chip: "Confidentielle",
             confidential_left: "Déjà parti avant\u{a0}: {}.",
             confidential_left_sound: "le son vers {}",
-            confidential_left_transcript: "le transcript vers {}",
+            confidential_left_transcript: "la transcription vers {}",
             confidential_not_saved: "Le réglage n’a pas pu être enregistré\u{a0}: réessayez.",
             confidential_ollama_empty: "Ollama n’a aucun modèle sur cet ordinateur\u{a0}: le compte rendu l’attend.",
             confidential_fetch: "Télécharger {}",
@@ -1424,6 +1460,124 @@ pub enum Trouble {
 /// else nothing — the page says the failure in plain words (D29).
 pub fn shown_detail(said: &str, developer: bool) -> String {
     if developer { said.to_string() } else { String::new() }
+}
+
+/// Why a command the page called failed: each is one sentence below. What no gesture of the user
+/// can reach — the page refuses it first, or offers nothing else — is `Unexpected`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Failure {
+    Unexpected,
+    NoMeeting,
+    Busy,
+    NotComplete,
+    MeetingFile,
+    Trash(Refusal),
+    Confidential,
+    NoneChosen,
+    NoTranscript,
+    ProviderChanged,
+    ModelUnnamed,
+    ModelAbsent,
+    BadAddress,
+    FolderUnnamed,
+    FolderNotWhole,
+    FolderUnmade,
+    Autostart,
+    SettingsUnread,
+    SettingsLocked,
+    SettingsUnwritten,
+    FolderNotOpened,
+    KeyboardSettings,
+    Keyring,
+    ProgramNotStarted,
+    TestRefused,
+}
+
+/// A failure's sentence. Most follow the page's own « not saved: » and so start in lower case; those
+/// the page shows alone, `FolderNotOpened`, `KeyboardSettings` and `SettingsLocked`, are whole.
+pub fn failure(failure: Failure, language: Language) -> String {
+    use Language::*;
+    match (failure, language) {
+        (Failure::Trash(refusal), _) => return audio_trashed(language, &Err(refusal)).body,
+        (Failure::Unexpected, English) => "Wholeheard could not do this: try again, and restart it if it happens again.",
+        (Failure::Unexpected, French) => "Wholeheard n’a pas pu le faire\u{a0}: réessayez, et redémarrez-le si cela se reproduit.",
+        (Failure::NoMeeting, English) => "this meeting is no longer in the meetings’ folder: go back to the list.",
+        (Failure::NoMeeting, French) => "cette réunion n’est plus dans le dossier des réunions\u{a0}: revenez à la liste.",
+        (Failure::Busy, English) => "this meeting is being recorded or made: try again once that is done.",
+        (Failure::Busy, French) => "cette réunion est en cours d’enregistrement ou de préparation\u{a0}: réessayez une fois cela terminé.",
+        (Failure::NotComplete, English) => "its transcript is not complete: make it again first.",
+        (Failure::NotComplete, French) => "sa transcription n’est pas complète\u{a0}: refaites-la d’abord.",
+        (Failure::MeetingFile, English) => {
+            "its folder could not be written to: check that the disk has room and that you may write there, then try again."
+        }
+        (Failure::MeetingFile, French) => {
+            "son dossier n’a pas pu être écrit\u{a0}: vérifiez qu’il reste de la place et que vous pouvez y écrire, puis réessayez."
+        }
+        (Failure::Confidential, English) => "this meeting is confidential: nothing is sent.",
+        (Failure::Confidential, French) => "cette réunion est confidentielle\u{a0}: rien n’est envoyé.",
+        (Failure::NoneChosen, English) => "nothing is chosen yet: choose it in Settings, then try again.",
+        (Failure::NoneChosen, French) => "aucun modèle choisi\u{a0}: choisissez-en un dans les réglages, puis réessayez.",
+        (Failure::NoTranscript, English) => "this meeting has no transcript to send: make it first.",
+        (Failure::NoTranscript, French) => "cette réunion n’a pas de transcription à envoyer\u{a0}: faites-la d’abord.",
+        (Failure::ProviderChanged, English) => "who writes the minutes has changed: look at this page again.",
+        (Failure::ProviderChanged, French) => "le modèle qui rédige le compte rendu a changé\u{a0}: revoyez cette page.",
+        (Failure::ModelUnnamed, English) => "name a model, then try again.",
+        (Failure::ModelUnnamed, French) => "nommez un modèle, puis réessayez.",
+        (Failure::ModelAbsent, English) => "this model is not on this computer: fetch it in Settings.",
+        (Failure::ModelAbsent, French) => "ce modèle n’est pas sur cet ordinateur\u{a0}: téléchargez-le dans les réglages.",
+        (Failure::BadAddress, English) => "this address cannot be used: write it whole, starting with https://.",
+        (Failure::BadAddress, French) => "cette adresse n’est pas utilisable\u{a0}: écrivez-la en entier, en commençant par https://.",
+        (Failure::FolderUnnamed, English) => "name a folder, then try again.",
+        (Failure::FolderUnnamed, French) => "nommez un dossier, puis réessayez.",
+        (Failure::FolderNotWhole, English) => "write the folder’s whole path, from / or from ~.",
+        (Failure::FolderNotWhole, French) => "écrivez le chemin entier du dossier, depuis / ou depuis ~.",
+        (Failure::FolderUnmade, English) => "this folder could not be made: check that you may write there.",
+        (Failure::FolderUnmade, French) => "ce dossier n’a pas pu être créé\u{a0}: vérifiez que vous pouvez y écrire.",
+        (Failure::Autostart, English) => "starting at login could not be changed: check that your home folder can be written to.",
+        (Failure::Autostart, French) => {
+            "le démarrage à l’ouverture de session n’a pas pu être changé\u{a0}: vérifiez que votre dossier personnel peut être écrit."
+        }
+        (Failure::SettingsUnread, English) => "the settings file cannot be read: correct it, then try again.",
+        (Failure::SettingsUnread, French) => "le fichier des réglages ne peut pas être lu\u{a0}: corrigez-le, puis réessayez.",
+        (Failure::SettingsLocked, English) => "The settings file cannot be read: Wholeheard does not write over it until it is corrected.",
+        (Failure::SettingsLocked, French) => {
+            "Le fichier des réglages ne peut pas être lu\u{a0}: Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé."
+        }
+        (Failure::SettingsUnwritten, English) => "the settings file could not be written: check that the disk has room, then try again.",
+        (Failure::SettingsUnwritten, French) => {
+            "le fichier des réglages n’a pas pu être écrit\u{a0}: vérifiez qu’il reste de la place, puis réessayez."
+        }
+        (Failure::FolderNotOpened, English) => "The folder could not be opened: open it from your file manager.",
+        (Failure::FolderNotOpened, French) => "Le dossier n’a pas pu être ouvert\u{a0}: ouvrez-le depuis votre gestionnaire de fichiers.",
+        (Failure::KeyboardSettings, English) => "The keyboard settings cannot be opened from here: open them from your system’s settings.",
+        (Failure::KeyboardSettings, French) => {
+            "Les réglages du clavier ne s’ouvrent pas d’ici\u{a0}: ouvrez-les depuis ceux de votre système."
+        }
+        (Failure::Keyring, English) => "the system’s keyring does not answer: unlock it, then try again.",
+        (Failure::Keyring, French) => "le trousseau du système ne répond pas\u{a0}: déverrouillez-le, puis réessayez.",
+        (Failure::ProgramNotStarted, English) => "a program of Wholeheard’s could not be started: install Wholeheard again.",
+        (Failure::ProgramNotStarted, French) => "un programme de Wholeheard n’a pas pu démarrer\u{a0}: réinstallez Wholeheard.",
+        (Failure::TestRefused, English) => "check its address, its name and its key, then try again.",
+        (Failure::TestRefused, French) => "vérifiez son adresse, son nom et sa clé, puis réessayez.",
+    }
+    .to_string()
+}
+
+/// What a command that failed hands the page: a sentence of these words, and only here made — and,
+/// in developer mode, the raw text on the line under it (D47).
+#[derive(Debug, PartialEq, serde::Serialize)]
+#[serde(transparent)]
+pub struct Told(String);
+
+/// A failure as the page is told it.
+pub fn told(which: Failure, detail: &str, language: Language, developer: bool) -> Told {
+    let sentence = failure(which, language);
+    let shown = shown_detail(detail, developer);
+    Told(if shown.is_empty() {
+        sentence
+    } else {
+        format!("{sentence}\n{shown}")
+    })
 }
 
 /// Why minutes were not made, and what to do, as wholeheard-summary coded it (summarising/v1).
@@ -1463,9 +1617,11 @@ pub fn cause(cause: Cause, language: Language) -> &'static str {
             "Le modèle n’a pas écrit de compte rendu\u{a0}: réessayez, ou choisissez un autre modèle dans les réglages de Wholeheard."
         }
         (Cause::TranscriptUnusable, English) => "The transcript cannot be read: make it again first.",
-        (Cause::TranscriptUnusable, French) => "Le transcript ne peut pas être lu\u{a0}: refaites-le d’abord.",
+        (Cause::TranscriptUnusable, French) => "La transcription ne peut pas être lue\u{a0}: refaites-la d’abord.",
         (Cause::NoSpeech, English) => "The transcript holds no speech: there is nothing to write minutes of. Check the recording.",
-        (Cause::NoSpeech, French) => "Le transcript ne contient aucune parole\u{a0}: il n’y a rien à résumer. Vérifiez l’enregistrement.",
+        (Cause::NoSpeech, French) => {
+            "La transcription ne contient aucune parole\u{a0}: il n’y a rien à résumer. Vérifiez l’enregistrement."
+        }
         (Cause::Settings, English) => {
             "The provider’s address, model or key cannot be used as given: correct them in Wholeheard’s settings."
         }
@@ -1559,7 +1715,7 @@ pub fn trouble(trouble: &Trouble, language: Language) -> Notice {
         ),
         (Trouble::NoTranscriber(_), French) => (
             "Wholeheard ne peut pas transcrire",
-            "Son programme de transcription n’a pas pu démarrer. L’enregistrement est conservé\u{a0}; réinstaller Wholeheard remet le programme en place.",
+            "Son programme de transcription n’a pas pu démarrer. L’enregistrement est conservé\u{202f}; réinstaller Wholeheard remet le programme en place.",
         ),
     };
     said(title, body.to_string())
@@ -1660,7 +1816,7 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
             if CLICKED {
                 "Cliquez pour l’ouvrir."
             } else {
-                "Il est dans la fenêtre de Wholeheard, à côté du transcript."
+                "Il est dans la fenêtre de Wholeheard, à côté de la transcription."
             }
             .to_string(),
         ),
@@ -1671,7 +1827,7 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         ),
         (Minutes::Failed(Some(cause)), French) => (
             "Le compte rendu n’a pas été fait",
-            format!("Le transcript est intact. {}", self::cause(*cause, language)),
+            format!("La transcription est intacte. {}", self::cause(*cause, language)),
         ),
         (Minutes::Failed(None), English) => (
             "The minutes were not written",
@@ -1679,7 +1835,7 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
         ),
         (Minutes::Failed(None), French) => (
             "Le compte rendu n’a pas été fait",
-            format!("Le transcript est intact. «\u{a0}{entry}\u{a0}», dans le menu de Wholeheard, le refait."),
+            format!("La transcription est intacte. «\u{a0}{entry}\u{a0}», dans le menu de Wholeheard, le refait."),
         ),
         (Minutes::RedoFailed(cause), English) => (
             "The minutes were not made again",
@@ -1708,7 +1864,7 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
             "Choose in Wholeheard’s settings.".to_string(),
         ),
         (Minutes::Unchosen, French) => (
-            "Personne n’est choisi pour écrire le compte rendu",
+            "Aucun modèle choisi pour les comptes rendus",
             "Choisissez-le dans les réglages de Wholeheard.".to_string(),
         ),
         (Minutes::NoProvider(address), English) => (
@@ -1726,9 +1882,9 @@ pub fn minutes(said: &Minutes, language: Language) -> Notice {
             format!("The last recording has no whole transcript: “{}” first.", menu(language).transcribe),
         ),
         (Minutes::NoTranscript, French) => (
-            "Pas de compte rendu sans transcript",
+            "Pas de compte rendu sans transcription",
             format!(
-                "Le dernier enregistrement n’a pas de transcript entier\u{a0}: «\u{a0}{}\u{a0}» d’abord.",
+                "Le dernier enregistrement n’a pas de transcription entière\u{a0}: «\u{a0}{}\u{a0}» d’abord.",
                 menu(language).transcribe
             ),
         ),
@@ -1767,16 +1923,16 @@ pub fn transcript_kept_beside(language: Language, name: &str, not_put_back: bool
             format!("It could not go to the trash: it is beside the new one, as {name}."),
         ),
         (Language::French, false) => (
-            "L’ancien transcript est gardé",
-            format!("Il n’a pas pu aller à la corbeille\u{a0}: il est à côté du nouveau, sous {name}."),
+            "L’ancienne transcription est gardée",
+            format!("Elle n’a pas pu aller à la corbeille\u{a0}: elle est à côté de la nouvelle, sous {name}."),
         ),
         (Language::English, true) => (
             "The transcript could not be put back",
             format!("It is in the meeting’s folder, as {name}."),
         ),
         (Language::French, true) => (
-            "Le transcript n’a pas pu être remis en place",
-            format!("Il est dans le dossier de la réunion, sous {name}."),
+            "La transcription n’a pas pu être remise en place",
+            format!("Elle est dans le dossier de la réunion, sous {name}."),
         ),
     };
     Notice { title: title.into(), body }
@@ -1980,14 +2136,14 @@ pub fn audio_trashed(language: Language, outcome: &Result<(usize, u32), Refusal>
         (Language::French, Ok((1, days))) => (
             "Audio mis à la corbeille".to_string(),
             format!(
-                "L’audio d’une réunion gardé plus {} est dans la corbeille\u{202f}; son transcript et son compte rendu restent.",
+                "L’audio d’une réunion gardé plus {} est dans la corbeille\u{202f}; sa transcription et son compte rendu restent.",
                 french_days(*days)
             ),
         ),
         (Language::French, Ok((meetings, days))) => (
             "Audio mis à la corbeille".to_string(),
             format!(
-                "L’audio de {meetings} réunions gardé plus {} est dans la corbeille\u{202f}; leurs transcripts et leurs comptes rendus restent.",
+                "L’audio de {meetings} réunions gardé plus {} est dans la corbeille\u{202f}; leurs transcriptions et leurs comptes rendus restent.",
                 french_days(*days)
             ),
         ),
@@ -2041,7 +2197,7 @@ pub fn carried_over(language: Language) -> Notice {
         ),
         Language::French => (
             "Summit s’appelle maintenant Wholeheard",
-            "Vos réglages, vos réunions et le modèle de transcription sont repris\u{a0}; le raccourci clavier peut être redemandé une fois.",
+            "Vos réglages, vos réunions et le modèle de transcription sont repris\u{202f}; le raccourci clavier peut être redemandé une fois.",
         ),
     };
     Notice {
@@ -2131,7 +2287,7 @@ pub fn fetched(outcome: &Result<(), String>, chosen: bool, language: Language) -
         ),
         (Ok(()), false, French) => (
             "Modèle prêt",
-            "Vérifié par son empreinte publiée. Choisissez-le dans les Réglages pour vos prochains transcripts.",
+            "Vérifié par son empreinte publiée. Choisissez-le dans les Réglages pour vos prochaines transcriptions.",
         ),
         (Err(_), _, English) => ("The model was not downloaded", "Nothing of it is used. It is offered again."),
         (Err(_), _, French) => (
@@ -2140,4 +2296,20 @@ pub fn fetched(outcome: &Result<(), String>, chosen: bool, language: Language) -
         ),
     };
     notice(title, body.to_string()).expect("always said")
+}
+
+/// The sentence « Copier l'annonce » puts on the clipboard, for the call's chat (D50): in the
+/// meeting's language when it says French or English, else in the window's.
+pub fn announcement(meeting: Option<&str>, window: Language) -> &'static str {
+    let language = match meeting {
+        Some("fr") => Language::French,
+        Some("en") => Language::English,
+        _ => window,
+    };
+    match language {
+        Language::French => {
+            "J’enregistre cette réunion pour en faire le compte rendu. Dites-le-moi si vous préférez que je ne le fasse pas."
+        }
+        Language::English => "I’m recording this meeting to write up its minutes. Tell me if you’d rather I didn’t.",
+    }
 }

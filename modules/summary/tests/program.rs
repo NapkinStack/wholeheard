@@ -61,7 +61,7 @@ fn the_minutes_are_written_from_the_transcript_the_context_and_the_providers_ans
     );
 
     let minutes = fs::read_to_string(folder.path().join("minutes.md")).unwrap();
-    assert!(minutes.starts_with("---\ncontract: minutes/v1\nmade: "), "{minutes}");
+    assert!(minutes.starts_with("---\ncontract: minutes/v2\nmade: "), "{minutes}");
     assert!(
         minutes.contains("\nprovider: \"local\"\nmodel: \"a-model\"\ncontext: \"Quatre personnes, réunion d'organisation.\"\n---\n"),
         "{minutes}"
@@ -205,6 +205,18 @@ fn a_proxy_named_by_the_environment_is_never_used() {
     assert!(output.status.success(), "{}", said(&output).1);
     assert!(received.recv().is_ok());
     assert!(seen_by_proxy.try_recv().is_err(), "the proxy of the environment was contacted");
+}
+
+#[test]
+fn a_key_spelled_through_a_titles_marks_is_never_written() {
+    for above in ["# a-key-**for**-the-test", "# a-key-for&#45;the-test", "# a-key\\-for-the-test"] {
+        let folder = session(None);
+        let (address, _received) = provider("200 OK", answering(&format!("{above}\n\n{MINUTES}"), "stop"));
+        let output = run(folder.path(), &address, Some("a-key-for-the-test"));
+        let (_, err) = said(&output);
+        assert!(!output.status.success() && err.contains("sent the key back"), "{above}: {err}");
+        assert!(!folder.path().join("minutes.md").exists(), "{above}");
+    }
 }
 
 #[test]
