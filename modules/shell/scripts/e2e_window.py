@@ -117,10 +117,23 @@ RECORDER.write_text(
     """#!/bin/bash
 folder="$2/2026-10-18_12-00"; mkdir -p "$folder"
 printf '{"contract":"session-audio/v2","started":"2026-10-18T12:00:00+02:00","tracks":{}}' > "$folder/session.json"
-echo '{"event":"started","folder":"'"$folder"'","sources":{"me":"Mic","others":"Speaker"}}'
+me='"Mic"'
+# No microphone to open, when the scenario says so (D49).
+if [ -e "$2/waiting-me" ]; then echo '{"event":"unavailable","source":"me","reason":"none"}'; me='"unavailable"'; fi
+echo '{"event":"started","folder":"'"$folder"'","sources":{"me":'"$me"',"others":"Speaker"}}'
 n=0
 while ! read -t 0.1 line; do
-  n=$((n + 1)); echo '{"event":"level","source":"me","level":0.'$((n % 9 + 1))'}'; echo '{"event":"level","source":"others","level":0.5}'
+  n=$((n + 1))
+  # Levels at silence as long as the scenario says so; what capture says of a silence, when it does (D49).
+  if [ -e "$2/hush" ]; then echo '{"event":"level","source":"me","level":0}'; echo '{"event":"level","source":"others","level":0}'
+  else
+    [ -e "$2/waiting-me" ] || echo '{"event":"level","source":"me","level":0.'$((n % 9 + 1))'}'
+    echo '{"event":"level","source":"others","level":0.5}'
+  fi
+  if [ -e "$2/nothing-me" ]; then rm "$2/nothing-me"; echo '{"event":"silent","source":"me","nothing":true}'; fi
+  if [ -e "$2/silent-others" ]; then rm "$2/silent-others"; echo '{"event":"silent","source":"others"}'; fi
+  if [ -e "$2/heard-me" ]; then rm "$2/heard-me"; echo '{"event":"heard","source":"me"}'; fi
+  if [ -e "$2/heard-others" ]; then rm "$2/heard-others"; echo '{"event":"heard","source":"others"}'; fi
   # A device changed, or gone, when the scenario says so (D31, D33).
   if [ -e "$2/move" ]; then rm "$2/move"; echo '{"event":"device","source":"me","device":"AirPods Pro"}'; fi
   if [ -e "$2/lose" ]; then rm "$2/lose"; echo '{"event":"device","source":"others","device":null}'; fi
@@ -172,6 +185,25 @@ def press(browser, element_id: str) -> None:
         except (StaleElementReferenceException, ElementNotInteractableException):
             time.sleep(0.2)
     browser.find_element(By.ID, element_id).click()
+
+
+def panel_choice(browser, choices: str, index: int):
+    """A redo panel's choice: its models come after the panel, so they are waited for."""
+    wait_for(browser, lambda b: len(b.find_elements(By.CSS_SELECTOR, choices)) > index)
+    return browser.find_elements(By.CSS_SELECTOR, choices)[index]
+
+
+def shot_themed(browser, name: str, theme: str) -> None:
+    """A screenshot in its theme: on a dark desktop, the light one's colours put on the page."""
+    css = (Path(__file__).parent.parent / "ui" / "window.css").read_text()
+    light = css[css.index(":root {") + len(":root {"):css.index("}", css.index(":root {"))].replace("\n", " ").strip()
+    forced = theme == "light" and browser.execute_script("return matchMedia('(prefers-color-scheme: dark)').matches")
+    if forced:
+        browser.execute_script("document.documentElement.style.cssText = arguments[0] + '; color-scheme: light'", light)
+        time.sleep(0.3)
+    shot(browser, name)
+    if forced:
+        browser.execute_script("document.documentElement.style.cssText = ''")
 
 
 def stop_from_small(browser) -> None:
@@ -620,23 +652,19 @@ def models_listed(now: dt.datetime) -> None:
 
 
 def list_refreshed(now: dt.datetime) -> None:
-    """W. Settings read the list of models again on the user's click, its host shown (D40)."""
-    print("W. Settings: the list of models read again on the user's click, its host shown (D40)")
-    shipped = json.loads((Path(__file__).resolve().parent.parent / "registry" / "models.json").read_text())
-    more = json.loads(json.dumps(shipped))
-    # A model of a test's, never fetched: offered, its host shown.
-    more["whisper"].append({"address": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q8_0.bin",
-                            "bytes": 1000, "sha256": "0" * 64, "good": "faster"})
-    answers, asked = [(200, json.dumps(more)), (404, "Not Found")], []
+    """W. The list of models is read again only signed by the decider's key: until it is built in, none is (D40, D56)."""
+    print("W. Settings: no list of models read again until the decider's key is built in, and it is said (D40, D56)")
+    # When registry::PUBLIC_KEY is set, this scenario changes: the button is back, its host shown,
+    # and an unsigned list served here is refused. The signed path is the shell's tests'
+    # (tests/registry_fetch.rs), with a key of their own: no window can hold a key a test made.
+    asked = []
 
     class List(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             asked.append(self.path)
-            status, body = answers.pop(0)
-            self.send_response(status)
-            self.send_header("Content-Length", str(len(body.encode())))
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
             self.end_headers()
-            self.wfile.write(body.encode())
 
         def log_message(self, *_):
             pass
@@ -646,31 +674,23 @@ def list_refreshed(now: dt.datetime) -> None:
     at = f"127.0.0.1:{server.server_address[1]}"
     meetings = WORK / "refreshed"
     meetings.mkdir()
-    base = "return document.querySelector('[data-offered=\"ggml-base-q8_0.bin\"]')?.innerText || ''"
     said = "return document.getElementById('offered-refreshed')?.innerText || ''"
-    for answered in ("a list", "a page not found"):
-        window = Window(meetings, "fr_FR.UTF-8")
-        window.env.update(WHOLEHEARD_REGISTRY=f"http://{at}/models.json")
-        with window as browser:
-            browser.find_element(By.ID, "settings-link").click()
-            wait_for(browser, lambda b: b.find_elements(By.ID, "offered-refresh"))
-            label = browser.find_element(By.ID, "offered-refresh").text
-            if answered == "a list":
-                check("opening Settings reads nothing of the list", asked == [], asked)
-                check("the button says where the list is read from", label == f"Mettre à jour la liste ({at})", label)
-            browser.execute_script("document.getElementById('offered-refresh').click()")
-            if answered == "a list":
-                listed = wait_for(browser, lambda b: b.execute_script(base), 10)
-                check("read on the click, its models are offered, each with its size, its host and what it is good for",
-                      listed and asked == ["/models.json"] and "huggingface.co" in browser.execute_script(base)
-                      and "1 ko" in browser.execute_script(base)
-                      and "ordinateur modeste" in browser.execute_script(base), (asked, browser.execute_script(base)))
-            else:
-                refused = wait_for(browser, lambda b: "n’a pas pu être mise à jour" in b.execute_script(said), 10)
-                check("refused, it is said, and the list shipped stays offered",
-                      refused and len(asked) == 2 and not browser.execute_script(base)
-                      and browser.find_elements(By.CSS_SELECTOR, '[data-offered="ggml-small-q8_0.bin"]'),
-                      (asked, browser.execute_script(said)))
+    window = Window(meetings, "fr_FR.UTF-8")
+    window.env.update(WHOLEHEARD_REGISTRY=f"http://{at}/models.json")
+    with window as browser:
+        browser.find_element(By.ID, "settings-link").click()
+        waits = wait_for(browser, lambda b: "attend la clé qui la signe" in b.execute_script(said), 10)
+        check("Settings say the list waits on the key that signs it, and the models stay offered",
+              waits and "restent proposés" in browser.execute_script(said)
+              and browser.find_elements(By.CSS_SELECTOR, '[data-offered="ggml-small-q8_0.bin"]'),
+              browser.execute_script(said))
+        check("no button offers to read it again", not browser.find_elements(By.ID, "offered-refresh"))
+        # Asked all the same, it is refused, and logged so, with nothing asked of anyone.
+        browser.execute_script("window.__TAURI__.core.invoke('registry_refresh').then(() => { window.listRead = 'read'; }, () => { window.listRead = 'refused'; })")
+        answered = wait_for(browser, lambda b: b.execute_script("return window.listRead || ''"), 10)
+        check("asked all the same, it is refused, and nothing crosses the network",
+              answered and browser.execute_script("return window.listRead") == "refused" and asked == [],
+              (browser.execute_script("return window.listRead"), asked))
     server.shutdown()
 
 
@@ -1781,8 +1801,9 @@ def announced(now: dt.datetime) -> None:
     with Window(speaking, "fr_FR.UTF-8", 'after = "nothing"\nmeeting_language = "en"\n', small=True) as browser:
         browser.find_element(By.ID, "small-record").click()
         wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(line)[0], 10)
+        # By script: a slow machine may be past the fifteen seconds, and what is judged here is the sentence.
         browser.execute_script("window.copied_for_test = null; Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async (t) => { window.copied_for_test = t; }}})")
-        browser.find_element(By.ID, "small-announce-copy").click()
+        browser.execute_script("document.getElementById('small-announce-copy').click()")
         wait_for(browser, lambda b: b.execute_script("return window.copied_for_test"), 3)
         text = browser.execute_script("return window.copied_for_test")
         check("a meeting said in English: the announcement in English, the window in French", text == "I’m recording this meeting to write up its minutes. Tell me if you’d rather I didn’t.", text)
@@ -1791,14 +1812,14 @@ def announced(now: dt.datetime) -> None:
         (folder / "language").write_text("fr\n")
         browser.execute_script("window.copied_for_test = null")
         time.sleep(0.5)
-        browser.find_element(By.ID, "small-announce-copy").click()
+        browser.execute_script("document.getElementById('small-announce-copy').click()")
         wait_for(browser, lambda b: b.execute_script("return window.copied_for_test"), 3)
         text = browser.execute_script("return window.copied_for_test")
         check("the meeting's own language comes first", text.startswith("J’enregistre"), text)
         # Refused: said of the announcement, in place, nothing moved.
         before = browser.execute_script(place)
         browser.execute_script("Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: () => Promise.reject(new Error('refused'))}})")
-        browser.find_element(By.ID, "small-announce-copy").click()
+        browser.execute_script("document.getElementById('small-announce-copy').click()")
         refused = wait_for(browser, lambda b: b.find_element(By.ID, "small-announce-copied").text == "Pas copiée.", 3)
         check("a clipboard refused: said of the announcement, Arrêter where it was", refused and browser.execute_script(place) == before, browser.find_element(By.ID, "small-announce-copied").text)
         stop_from_small(browser)
@@ -1810,6 +1831,107 @@ def announced(now: dt.datetime) -> None:
         time.sleep(1.5)
         check("the reminder off: neither the line nor the button shows", not browser.execute_script(line)[0], browser.execute_script(line))
         stop_from_small(browser)
+
+
+def heard_checked(now: dt.datetime) -> None:
+    """AN. Each side's check, its silence's sentence, in the small window (D49)."""
+    print("AN. each side checked live, ✓ then gone; a silence said under its check; a side with no device said, no check; all inside 380 × 400, Arrêter still (D49)")
+    place = "return document.getElementById('small-stop').getBoundingClientRect().top"
+    state = "return [...document.querySelectorAll('.meters .slot')].map(s => s.dataset.check)"
+    glyph = "return [...document.querySelectorAll('.meters .check')].map(c => getComputedStyle(c, '::before').content)"
+    said = "return [...document.querySelectorAll('.check-says')].map(s => s.textContent)"
+    # Nothing cut or out of the window: every line of the live view inside it and inside its own box,
+    # the meters' sentences above Arrêter. The note a transcript adds forced on, closed.
+    fits = ("const n = document.getElementById('small-note'); const open = document.querySelector('.small-live').classList.contains('context-open'); n.hidden = open;"
+            "const e = document.scrollingElement; const stop = document.getElementById('small-stop').getBoundingClientRect();"
+            "const outside = [...document.querySelectorAll('.small-live > *, .small-live .says, .small-live .side')].filter(x => { const b = x.getBoundingClientRect();"
+            " return b.height > 0 && getComputedStyle(x).position !== 'absolute' && (b.right > innerWidth + 0.5 || b.bottom > innerHeight + 0.5 || x.scrollHeight > x.clientHeight + 1 && x.matches('.says, .small-announce')); }).map(x => x.className);"
+            "const says = [...document.querySelectorAll('.check-says')].map(s => s.getBoundingClientRect().bottom);"
+            "const line = document.getElementById('small-announce').getBoundingClientRect(); const meters = document.querySelector('.meters').getBoundingClientRect();"
+            "return {scroll: [e.scrollHeight, e.clientHeight, e.scrollWidth, e.clientWidth], outside, under: says.every(b => b <= stop.top + 0.5), line: line.height === 0 || line.bottom <= meters.top + 0.5, size: [innerWidth, innerHeight]}")
+    def fit(browser, what: str) -> None:
+        got = browser.execute_script(fits)
+        ok = got["scroll"][0] <= got["scroll"][1] and got["scroll"][2] <= got["scroll"][3] and not got["outside"] and got["under"] and got["line"]
+        check(f"{what}: nothing overflows or is cut, at {got['size']}", ok, got)
+    expected = {
+        "fr_FR.UTF-8": ("fr", "Votre micro\u00a0: entendu", "Le son de la réunion\u00a0: entendu",
+                        "Rien n’en arrive\u00a0: vérifiez qu’il n’est pas coupé sur l’appareil lui-même, et qu’il est prêt.",
+                        "Rien depuis dix secondes\u00a0: faites jouer un son dans l’appel.", "Votre micro n’est pas enregistré pour l’instant."),
+        "en_US.UTF-8": ("en", "Your microphone: heard", "The meeting’s sound: heard",
+                        "Nothing comes from it: check it is not muted on the device itself, and that it is ready.",
+                        "Nothing heard for ten seconds: play a sound in the call.", "Your microphone is not recorded for now."),
+    }
+    for language, (short, heard_me, heard_others, nothing, silent, waiting) in expected.items():
+        for theme in ("light", "dark"):
+            taping = WORK / f"checks-{short}-{theme}"
+            taping.mkdir()
+            (taping / "hush").touch()
+            window = Window(taping, language, 'after = "nothing"\n', small=True)
+            if theme == "dark":
+                window.env.update(GTK_THEME="Adwaita:dark")
+            with window as browser:
+                browser.find_element(By.ID, "small-record").click()
+                wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(state) == ["listening", "listening"], 10)
+                time.sleep(0.5)
+                check("levels at silence: no ✓ on either side", browser.execute_script(state) == ["listening", "listening"] and "✓" not in "".join(browser.execute_script(glyph)), browser.execute_script(glyph))
+                before = browser.execute_script(place)
+                fit(browser, "listening")
+                (taping / "hush").unlink()
+                rose = wait_for(browser, lambda b: b.execute_script(state) == ["heard", "heard"], 3)
+                check("levels risen: ✓ on each side", rose and all("✓" in c for c in browser.execute_script(glyph)), browser.execute_script(glyph))
+                told = browser.execute_script("return [...document.querySelectorAll('.check-said')].map(s => [s.getAttribute('role') ?? s.parentElement.getAttribute('role'), s.textContent])")
+                check("✓ said to a screen reader, side by side", [t[1] for t in told] == [heard_me, heard_others] and all(t[0] == "status" for t in told), told)
+                shot_themed(browser, f"d49-heard-{short}-{theme}", theme)
+                # Capture's word: a silence's sentence under its check, D50's line still there, in place.
+                (taping / "nothing-me").touch()
+                (taping / "silent-others").touch()
+                silenced = wait_for(browser, lambda b: b.execute_script(said) == [nothing, silent], 3)
+                check("a silence said under its check, as the notifications say it", silenced and browser.execute_script(state) == ["nothing", "silent"], browser.execute_script(said))
+                line = browser.execute_script("const a = document.getElementById('small-announce'); return !a.hidden && getComputedStyle(a).visibility")
+                check("with D50's line", line == "visible", line)
+                fit(browser, "two silences with D50's line")
+                check("Arrêter has not moved", browser.execute_script(place) == before, [before, browser.execute_script(place)])
+                # Nothing rewritten at each tick: a button or a line rewritten ten times a second loses clicks.
+                browser.execute_script("window.written = 0; const seen = new MutationObserver((m) => { window.written += m.length; }); for (const e of document.querySelectorAll('.check-says, .check-said')) seen.observe(e, {subtree: true, childList: true, characterData: true})")
+                time.sleep(1)
+                check("what does not change is not written again", browser.execute_script("return window.written") == 0, browser.execute_script("return window.written"))
+                shot_themed(browser, f"d49-silent-{short}-{theme}", theme)
+                browser.find_element(By.ID, "small-context-toggle").click()
+                opened = browser.execute_script(place)
+                fit(browser, "two silences, the context open")
+                room = browser.execute_script("return [...document.querySelectorAll('.meters .check')].map(c => getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().width > 0)")
+                check("the context open: each check still shown, each sentence too", room == [True, True] and browser.execute_script(said) == [nothing, silent], room)
+                shot_themed(browser, f"d49-context-{short}-{theme}", theme)
+                (taping / "heard-me").touch()
+                back = wait_for(browser, lambda b: b.execute_script(state)[0] == "heard" and b.execute_script(said)[0] == "", 3)
+                check("heard again: ✓, its sentence gone, Arrêter still", back and browser.execute_script(place) == opened, browser.execute_script(said))
+                browser.find_element(By.ID, "small-context-toggle").click()
+                wait_for(browser, lambda b: b.execute_script(place) == before, 2)
+                check("the context closed: Arrêter where it was", browser.execute_script(place) == before, [before, browser.execute_script(place)])
+                # ✓ then gone, its device's name left where it was.
+                faded = wait_for(browser, lambda b: b.execute_script("const s = document.querySelector('.meters .slot'); const c = s.querySelector('.check'); return s.classList.contains('faded') && getComputedStyle(c).opacity === '0' && c.getBoundingClientRect().width === 0"), 6)
+                name = browser.execute_script("const d = document.getElementById('device-me'); return [d.textContent, d.getBoundingClientRect().width > 0]")
+                check("✓ fades, the device's name stays", faded and name == ["Mic", True], name)
+                check("Arrêter has not moved as it faded", browser.execute_script(place) == before, browser.execute_script(place))
+                stop_from_small(browser)
+        # The microphone waiting (D66): said truthfully, no check.
+        taping = WORK / f"checks-waiting-{short}"
+        taping.mkdir()
+        (taping / "waiting-me").touch()
+        with Window(taping, language, 'after = "nothing"\n', small=True) as browser:
+            browser.find_element(By.ID, "small-record").click()
+            shown = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(state) == ["waiting", "heard"], 10)
+            check("no microphone: waiting, the other side heard", shown, browser.execute_script(state))
+            mark = browser.execute_script("const c = document.querySelector('.meters .check'); return [getComputedStyle(c).display, c.textContent, getComputedStyle(c, '::before').content]")
+            check("no check for it, nor ✓", mark[0] == "none" and mark[1] == "" and "✓" not in mark[2], mark)
+            check("said truthfully under its meter", browser.execute_script(said) == [waiting, ""], browser.execute_script(said))
+            fit(browser, "a side waiting")
+            shot(browser, f"d49-waiting-{short}")
+            stop_from_small(browser)
+    # What a user who asked for less motion is given: asked of the page's own rules.
+    with Window(WORK / "checks-waiting-fr", "fr_FR.UTF-8", 'after = "nothing"\n', small=True) as browser:
+        still = browser.execute_script("const found = []; for (const sheet of document.styleSheets) for (const rule of sheet.cssRules) if (rule.media && rule.media.mediaText.includes('prefers-reduced-motion')) found.push(rule.cssText); return found.join(' ')")
+        check("less motion asked: neither pulse, pop nor fade", ".slot[data-check] .check" in still and ".check-says" in still, still)
 
 
 def meeting_named(now: dt.datetime) -> None:
@@ -3847,7 +3969,7 @@ def main() -> int:
             offered,
         )
         before = (asked / "minutes.md").read_text()
-        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        panel_choice(browser, "#redo-panel input[name=redo-with]", 1).click()
         browser.find_element(By.ID, "redo-do").click()
         def aside(folder):
             return sorted(folder.glob("minutes-before-*.md")) if folder.exists() else []
@@ -3878,7 +4000,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
         press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
-        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        panel_choice(browser, "#redo-panel input[name=redo-with]", 1).click()
         browser.find_element(By.ID, "redo-do").click()
         told = wait_for(browser, lambda b: "pas été refait" in heard.read_text(), 10)
         check("minutes made again that fail: the ones there stay, and the notice says a redo", told and (asked / "minutes.md").read_text() == before, heard.read_text()[-400:])
@@ -3920,9 +4042,7 @@ def main() -> int:
         browser.execute_script("location.hash = '#/meeting/2026-10-18_11-00'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
         press(browser, "redo-minutes")
-        # The panel's models come after it: its choices are waited for, not only its button.
-        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]"))
-        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[0].click()
+        panel_choice(browser, "#redo-panel input[name=redo-with]", 0).click()
         time.sleep(1)
         since = len(heard.read_text())
         browser.find_element(By.ID, "redo-do").click()
@@ -3966,7 +4086,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"))
         press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-do"))
-        browser.find_elements(By.CSS_SELECTOR, "#redo-panel input[name=redo-with]")[1].click()
+        panel_choice(browser, "#redo-panel input[name=redo-with]", 1).click()
         browser.find_element(By.ID, "redo-do").click()
         written = wait_for(browser, lambda b: "model: mistral:7b" in (asked / "minutes.md").read_text(), 10)
         time.sleep(2)
@@ -3999,7 +4119,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-do"))
         offered = browser.execute_script("return [...document.querySelectorAll('#redo-transcript-panel .choice .name')].map(c => c.textContent)")
         check("Refaire offers the Whisper models of this computer, the one chosen first", offered == ["Whisper large v3 turbo", "Whisper small"], offered)
-        browser.find_elements(By.CSS_SELECTOR, "#redo-transcript-panel input")[1].click()
+        panel_choice(browser, "#redo-transcript-panel input", 1).click()
         browser.find_element(By.ID, "redo-transcript-do").click()
         redone = wait_for(browser, lambda b: sorted(trash_files.glob("transcript-before-*.jsonl")), 10)
         trashed = sorted(trash_files.glob("transcript-before-*.jsonl"))
@@ -4051,7 +4171,7 @@ def main() -> int:
         press(browser, "redo-transcript")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-do"))
         paths = [i.get_attribute("value") for i in browser.find_elements(By.CSS_SELECTOR, "#redo-transcript-panel input")]
-        browser.find_elements(By.CSS_SELECTOR, "#redo-transcript-panel input")[1].click()
+        panel_choice(browser, "#redo-transcript-panel input", 1).click()
         browser.find_element(By.ID, "redo-transcript-do").click()
         making_ = wait_for(browser, lambda b: "Transcription en cours" in heard_state(b), 3)
         shot(browser, "7-transcript-making")
@@ -4520,6 +4640,7 @@ def main() -> int:
     minutes_copied(now)
     actions_rows(now)
     announced(now)
+    heard_checked(now)
     meeting_named(now)
     return 1 if FAILED else 0
 
