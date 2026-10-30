@@ -577,7 +577,7 @@ the decider (`framing.md` §4 and §5), and a deliverable's acceptance too. Thei
 « avance les cycle de maniere pro … ce que tu ne PEUX pas realiser en autonomie est reporté dans le
 cycle suivant » — says what moves; it names no state and no closure. So `status` stays `accepted`, and
 no deliverable is set `accepted` by this page. What the closure would write is below, for one
-sentence of theirs; the front matter follows then, in that pull request.
+sentence of theirs; the front matter follows then, in that pull request: `status: closed`, `outcome: shipped`, `ended_on` that day, 7 of 20 accepted, the other 13 `deferred`.
 
 ```mermaid
 flowchart LR
@@ -602,15 +602,15 @@ it said `ready`, behind its holds.
 
 | Deliverable | Pull requests | Built and verified | Left, and whose |
 |---|---|---|---|
-| D44 notifications | #561 | Sheet passed. A desktop's real click stood in by the signal it sends | **The decider's word** |
-| D45 copy | #559 | Sheet passed. The clipboard stood in | **The decider's word**; a real paste on Linux is theirs, no criterion waits on it |
+| D44 notifications | #561 | Sheet passed. A desktop's real click stood in by the signal it sends. **Not checked**: `is_minimized()` under GNOME Wayland, the decider's own session, may leave a stop unsaid (#561's verifier) | **The decider's word** |
+| D45 copy | #559 | Sheet passed. The clipboard stood in. At 420 px the refusal's sentence moves the buttons under the pointer (#559's verifier) | **The decider's word**; a real paste on Linux is theirs, no criterion waits on it |
 | D46 actions as rows | #560 | Sheet passed | **The decider's word** |
-| D47 French | #563, #570, #577 | Sheets passed. A verifier's remarks left to cycle 06: D67, D72 | **The decider's word** |
-| D48 title | #564, #565, #567, #571 | Sheets passed, `qwen3:8b` by Ollama writing titles; an online model not tried | **The decider's word** |
+| D47 French | Criterion 1 #570, 2 #563, 3 #577 | Sheets passed. A verifier's remarks left to cycle 06: D67, D72 | **The decider's word** |
+| D48 title | Criterion 1 #564, #565; 2 #571; 3, 4, 5 #567 | Sheets passed, `qwen3:8b` by Ollama writing titles; an online model not tried | **The decider's word** |
 | D49 live check | #575 | Sheet passed. Below -40 dB and above capture's silence, a side says nothing (*Later*, cycle 06) | **The decider's word** |
-| D50 reminder | #569 | Sheet passed. The clipboard stood in | **The decider's word** |
+| D50 reminder | #569 | Sheet passed. The clipboard stood in; S5 passed by a probe, scenario AM having drawn the dark theme twice (#569's verifier) | **The decider's word** |
 | D54 package | #576 | Criteria 1–3, sheet passed, on the runner. **Criterion 4 not done** | The colleague's real call from the package, #482 |
-| D55 capture critical | #568 **open** | Sheet passed, 5 of 5; the rollback tried on a Fedora container | **The decider merges**: its `CODEOWNERS` line is theirs |
+| D55 capture critical | #568 **open**, head 485fad7, blocked | Sheet passed at bd84ed6, S5 read, not run; the rollback tried on a Fedora container. **Owed at the head: every scenario re-run by the verifier (`critical`: `05-workflow.md` §7), attest, green checks** | An agent, then **the decider merges**: its `CODEOWNERS` line is theirs |
 | D56 list signed | #578 | Sheet passed with a key made for the tests. **No list is read again until the key comes**, and the colleagues' builds lose it from the next build: said here, as its criterion asks | **The decider's key** |
 | D57 listing, privacy | #566 | Both written, FR and EN | **The decider's reading** of `docs/store/listing.md` |
 | D66 microphone | #572, #579, #574; #580 **open** | Sheets passed on virtual devices; #580's S3 and S4 fail on their stale *expected*, not on the code | **The decider**: S3 and S4's words; the AirPods trial; ADR-0015 |
@@ -629,9 +629,9 @@ is merged; the list of models waits on a key; GPL-3.0 beside the Store's licence
 
 | Record | Its criterion | Read today |
 |---|---|---|
-| ADR-0015, the microphone the call holds | Before 2026-11-19, the decider's call on AirPods | Not yet: moves with D66. Still *Proposed* |
-| ADR-0011, the other side where the call plays | By 2026-11-02, the call of #436 | Not yet: moves with D41. Still *Proposed* |
-| ADR-0012, SpeechAnalyzer | By 2026-11-02, a colleague's call | Not yet: moves with D42. Still *Proposed* |
+| ADR-0015, the microphone the call holds | Before the end of cycle 05, the decider's call on AirPods | **Due at this closure, not met: the trial was not run. The decider answers in the closing sentence: a new date by amending the record (default: cycle 06's end), or *missed*** |
+| ADR-0011, the other side where the call plays | By 2026-11-02, the call of #436 | Its date falls before cycle 06, no call recorded. **The decider answers in the same sentence: a new date (default: cycle 06's end), or *missed*** |
+| ADR-0012, SpeechAnalyzer | By 2026-11-02, a colleague's call | The same: **a new date (default: cycle 06's end), or *missed*** |
 | ADR-0010, the list of models | By 2027-06-30 | Its date not reached; option 4 adopted by #578 |
 | ADR-0014, PDR-0002, PDR-0004 | 2026-12-31, 2026-12-31, 2027-06-30 | Their dates not reached |
 
@@ -641,5 +641,6 @@ is merged; the list of models waits on a key; GPL-3.0 beside the Store's licence
 **Where the next framing starts**: [cycle 06](06-the-minutes-you-can-check.md), from
 [the market as read on 2026-10-30](../reviews/2026-10-30-market.md).
 
-**Documents brought current:** the front page in #571, #572, #574, #575, #576, #578; the module map
-unchanged — no module was added; contracts' pages in #565 and #579.
+**Documents brought current:** the modules' pages in #571, #574, #575, #576, #578; the decisions' index
+in #572; contracts' pages in #565 and #579; the module map unchanged — no module was added. The front
+page, last touched by #428 on 2026-10-26, is brought current by this closure's pull request, #581.

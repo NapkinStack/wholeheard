@@ -1,5 +1,5 @@
 ---
-goal: "A meeting's minutes can be checked at the very second they came from, and the window feels finished: nothing fails in silence, each gesture answers at once, the microphone can be chosen — with what people still have to try kept ready for them"
+goal: "A meeting's minutes can be checked at the very second they came from, and the window feels finished: nothing fails in silence, each gesture answers at once, the microphone can be chosen at the start — with what people still have to try kept ready for them"
 status: proposed          # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 2         # the time the decider WANTS to spend, not an estimate
 start: 2026-11-19         # YYYY-MM-DD — cycle 05's end; accepted earlier, both dates move in that pull request
@@ -123,7 +123,7 @@ deliverables:
     state: proposed
     acceptance:
       - "Given `minutes_again` or `transcript_again` on a meeting gone, `hearing_models` refused, or the sidebar's fold not kept, when each fails, then the page says it in a sentence of `words.rs`, in the user's language, the raw text in the log and in developer mode; held by the window's e2e, the command stood in to fail"
-      - "Given `window.js`, when the shell's tests run, then a test refuses `.catch(() => {})` and an empty `catch` on a command that can fail; those that stay — `page_failed`, commands returning nothing — are named in the test, each with its reason"
+      - "Given `window.js`, when the shell's tests run, then a test refuses any `.catch` or `catch` whose handler neither says nor logs the failure of a command that can fail, whatever it returns (`() => []`, `() => null`); those that stay — `page_failed`, commands returning nothing — are named in the test, each with its reason"
       - "Given the list of meetings that cannot be read, when the full window opens, then it says so and offers to try again; given no meeting, then it says what to do first, never only a path (UX review 3.7); in either theme, at the smallest size, screenshots in the sheet"
   - id: D68
     title: "Every gesture answers at once"
@@ -132,14 +132,14 @@ deliverables:
     acceptance:
       - "Given *Démarrer* or *Arrêter*, its command stood in to take two seconds, when the user clicks, then the button shows its new state before the command answers, and a second click during that time starts or stops nothing; held by the window's e2e (UX review 3.3)"
       - "Given the *Refaire…* panel open, when the user chooses *Annuler* or presses Escape, then it closes, nothing changed, the focus back on *Refaire…* (UX review 4.4)"
-      - "Given a setting changed, when it is written, then « Enregistré » is said in place (`role=status`) for a moment, and a write refused is said as D67 says (UX review 5.2)"
+      - "Given a setting changed, when it is written, then « Enregistré » is said in place (`role=status`) for 1.5 s, and a write refused is said as D67 says (UX review 5.2)"
   - id: D69
-    title: "The window looks finished on every system: crisp icons, checked contrast, a little motion"
+    title: "The window looks finished: crisp icons, checked contrast, a little motion"
     module: shell
     state: proposed
     acceptance:
       - "Given `window.js` and `window.css`, when the shell's tests run, then a test refuses the glyphs used as icons (› ⤢ ✓ → ×) outside the words: each is an inline SVG, none fetched, no dependency added (UX review §8)"
-      - "Given the tokens of each theme, when the shell's tests run, then each pair of text and background the window uses reaches WCAG AA, 4.5:1, 3:1 for large text; a pair below it fails"
+      - "Given the tokens of each theme and the pairs of text and background `window.css` declares, read from the file itself, when the shell's tests run, then each reaches WCAG AA, 4.5:1, 3:1 for large text; a pair below it fails"
       - "Given the small window going between rest and recording, and a chip turning from *Compte rendu…* to *Compte rendu*, when it happens, then it moves for at most 200 ms; with `prefers-reduced-motion`, it does not move; held by the window's e2e"
       - "Given the full window, when its screenshots are taken in both themes, then the header shows one primary action and *Petite fenêtre* as an icon with its name for assistive technology, before and after shots in the sheet (UX review 3.2)"
   - id: D70
@@ -147,7 +147,8 @@ deliverables:
     module: shell
     state: proposed
     acceptance:
-      - "Given a meeting's page, while recording or after, when the user clicks its heading, types a name and presses Enter, then the list and the page show it at once; Escape leaves it as it was (#504)"
+      - "Given `contracts/session-audio/v2`, when its page is changed, in the contracts' own pull request, merged first, then it says an optional file holding the name the user gave, written by the shell, additive; absent reads as today"
+      - "Given a meeting's page, while recording or after, when the user clicks its heading, types a name and presses Enter, then the list, the page and *Libérer de l'espace* show it at once; Escape leaves it as it was (#504)"
       - "Given a name given by hand, when the minutes are made again, then the name stays; given none, the minutes' title as D48 says; given the name emptied, the minutes' title or the date comes back"
       - "Given a name holding `<img src=x onerror=alert(1)>`, or a path, when it shows, then it is shown as text, and the meeting's folder keeps its name; held by a test (`security.md`)"
   - id: D71
@@ -156,32 +157,24 @@ deliverables:
     state: proposed
     acceptance:
       - "Given a made-up session whose `local.wav` has a `device: null` gap in `clock.jsonl`, zeros stopping short of the next point as `session-audio/v2` says, when `meeting::tracks` and the mix place it, then a tone at a known second on the clock is heard within 50 ms of that second, on each side of the gap; the test seen failing first, today's drift then written in the sheet (by reading today, 0.5 to 1.5 s a gap)"
-      - "Given that session, when a transcript line after the gap is clicked, then the sound played is that line's within 0.2 s, or the sheet names which step's time is wrong"
+      - "Given that session, when a transcript line after the gap is clicked, then the sound played is that line's within 0.2 s. If the wrong time is the transcription's, a second module, this criterion is not met: D71 stops, reports it, and it moves to a deliverable of that module"
       - "Given the tracks as recorded, when the player plays them, then their files are unchanged (ADR-0004)"
   - id: D72
     title: "*Tester* says what is wrong, not one sentence for every cause"
     module: shell
     state: proposed
     acceptance:
-      - "Given `--test` of the summary and of the transcription, when it fails, then it says a code its contract lists — `summarising/v1` for the first; for the second, a contract page first, in the contracts' own pull request, additive —, merged before the shell reads it; a code unknown is read as no code"
+      - "Given `--test` of the summary and of the transcription, when it fails, then it says a code its contract lists — `summarising/v1` already says `failed` with a `code` on a test, what is missing is read when built; for the transcription, a contract page first, in the contracts' own pull request, additive —, merged before the shell reads it; a code unknown is read as no code"
       - "Given *Tester*, a stand-in service for each cause, when it answers — key refused, model unknown, no segment times, quota or payment, service down, no network —, then each gets its own sentence of `words.rs` saying what to do, in the user's language; today's sentence only for no code; the raw text in the log and in developer mode"
       - "Given the e2e's check that says « and why », when it runs, then it asserts the cause's sentence for each of the above"
-  - id: D73
-    title: "A microphone that stopped says why, when capture knows"
-    module: capture
-    state: proposed
-    acceptance:
-      - "Given `contracts/recording/v1`, when its page is changed, in the contracts' own pull request, merged first, then `device: null` may carry an optional reason — the call left, the source was taken away, nothing known —, additive; absent reads as today"
-      - "Given capture's e2e, a stand-in source taken away and a stand-in call leaving, when each happens, then each says its reason, and a stall that names no cause says none"
-      - "Given the shell reading it, when a gap comes, then the small window says the reason's sentence, without a notification beyond D66's one a recording, and without flashing on a `null` of a few tens of milliseconds (#574's verifier: 21 ms); held by tests"
   - id: D74
     title: "A microphone is chosen by hand beside Auto, on Linux"
     module: capture
     state: proposed
     acceptance:
       - "Given `contracts/recording/v1`, when its page is changed, in the contracts' own pull request, merged first, then the start may name a microphone, additive; absent, Auto as D66 built it — the call's microphone, else the default"
-      - "Given a microphone named at the start, or changed during a recording, when capture records on virtual devices, then `me` records that one, and a call holding another does not move it; a source carrying `bluez5.loopback=true` stays passive as ADR-0015 says, the sentence saying the microphone waits; a name gone says so and falls back to Auto, the track going on; held by capture's e2e"
-      - "Given the small window, at rest and recording, on Linux, when the user opens the microphone's name, then *Auto* and the system's microphones are listed — keyboard alone, either theme, inside 380×400 —, the choice applying to this recording and kept for the next; on macOS and Windows no list is offered; held by the window's e2e on stand-in devices"
+      - "Given a microphone named at the start, when capture records on virtual devices, then `me` records that one, and a call holding another does not move it; a source carrying `bluez5.loopback=true` stays passive as ADR-0015 says, the sentence saying the microphone waits; a name gone says so and falls back to Auto, the track going on; held by capture's e2e"
+      - "Given the small window at rest, on Linux, when the user opens the microphone's name, then *Auto* and the system's microphones are listed — keyboard alone, either theme, inside 380×400, nothing cut, the context open —, the choice applying to the next recording and kept; on macOS and Windows no list is offered; held by the window's e2e on stand-in devices"
       - "Given a new device arriving, when it arrives, then no dialog opens"
   - id: D51
     title: "Minutes written by an online service show what the call cost, as the service reported it"
@@ -197,18 +190,18 @@ deliverables:
     module: summary
     state: proposed
     acceptance:
+      - "Before `minutes/v3` is written: given made-up transcripts of at least 30 minutes whose decisions and actions are annotated beforehand with their second, and `qwen3:8b` by Ollama — the recommended local model —, when it writes minutes three times, then the sheet records, per run, the share of times inside the annotated passage ±30 s, and whether each run finished. Read against: at least 90 % on each finished run *(framer's, no source)*. Below it, D75 stops there: no field, no link; a refuted result is a delivered one. A service's result is recorded beside it and decides nothing"
       - "Given `contracts/minutes/v3`, when its page is written, then a decision or an action may end with the time of the passage it came from, in a form the page defines, optional and additive; minutes without it read as today"
       - "Given a transcript and a stand-in provider, when the summary writes the minutes, then each time that falls inside no segment of the transcript is removed, the line kept, one warning logged; the prompt asks for times from the transcript and nothing else"
-      - "Given minutes with times, when their page shows, then a line's time is a small quiet link; a click brings its passage into view in the transcript and plays from that second, keyboard alone as well; D26 holds: the page does not follow what plays; held by the window's e2e"
+      - "Given minutes with times, when their page shows, then a line's time is a small quiet link, an action's row keeping its three cells (D46); a click brings its passage into view in the transcript and plays from that second, keyboard alone as well; D26 holds: the page does not follow what plays; held by the window's e2e"
       - "Given « Copier le compte rendu », when it copies, then the times are not in the text (D45's body, unchanged for the reader)"
-      - "Given a real model, `qwen3:8b` by Ollama or a service the framer may use, and made-up transcripts of at least 30 minutes, when it writes minutes three times, then the sheet records for each decision and action whether its passage says it. Read against 70 %: below it, no time is shown, the field stays optional and unwritten, and the sheet says so"
   - id: D76
     title: "Spike — does Parakeet v3 hear a French meeting better than today's Whisper, on our own recordings?"
     module: transcription
     state: proposed
     acceptance:
-      - "Given today's default Whisper and Parakeet TDT 0.6B v3 INT8 through sherpa-onnx, in a spike outside the shipped program, the input diffed first against what the step really reads, when each hears the module's bench, the trial meeting and the decider's call kept in `temp/real-calls` — nothing of which leaves the machine or is published —, then the module's log issue records for each: word errors where a reference exists, inventions on a silent track, duplicated words, time against the recording's length, peak memory, and whether its word times can write `transcript/v1`'s segments"
-      - "Given that record, when it is read against the threshold — fewer word errors on the trial meeting, no more than one point worse on the bench, fewer inventions on silence, faster than the call lasted on this machine's CPU —, then the framer proposes an ADR to offer it in Settings beside Whisper; below it, what was missing is recorded for the next framing. A refuted result is a delivered one"
+      - "Given today's default Whisper and Parakeet TDT 0.6B v3 INT8 through sherpa-onnx, in a spike outside the shipped program, the input diffed first against what the step really reads, when each hears the module's bench, the trial meeting and the decider's call kept in `temp/real-calls` — nothing of which leaves the machine or is published —, then the module's log issue records for each: word errors where a reference exists, inventions on a silent track, duplicated words, time against the recording's length, peak memory, whether its word times can write `transcript/v1`'s segments, and whether it can be told the meeting's language (D65)"
+      - "Given that record, when it is read against the threshold — at least two points fewer word errors on the trial meeting *(framer's, no source)*, no more than one point worse on the bench, fewer inventions on silence, faster than the call lasted on this machine's CPU, and word times that write `transcript/v1`'s segments —, then the framer proposes an ADR to offer it in Settings beside Whisper; below it, what was missing is recorded for the next framing. A refuted result is a delivered one"
   - id: D77
     title: "The certification kit reads Windows' package before the Store does"
     module: install
@@ -234,15 +227,15 @@ deliverables:
 
 The market, [read on 2026-10-30](../reviews/2026-10-30-market.md), shows leaders widening away from
 the minutes — dictation, briefs, agents — and two pressures on the rest: notice, in court, and
-Whisper no longer ahead in French on read speech. Wholeheard's own ground is narrower and stronger:
-the audio stays, so a line of the minutes can be proved at its second. Beside it, what makes a tool
+Whisper behind in French on read speech, by its rival's figures. Wholeheard's own ground is narrower and stronger:
+the audio stays on the machine, so a line of the minutes may be proved at its second: D75's first criterion finds out whether a local model can say which. If it refutes it, the goal is read as: the player exact after a gap, and the window finished. Beside it, what makes a tool
 feel high-end is mostly the absence of small betrayals, and the verifiers of cycle 05 named them.
 
 ```mermaid
 flowchart LR
     M["Moved: people's gestures<br/>D66 D54–D57 D38 D39 D42<br/>D53 D27 D41 D58 D63"]:::wait
     F["The finish<br/>D67 no silent failure<br/>D68 answers at once<br/>D69 looks finished<br/>D70 renamed by hand"]:::ux
-    L["What verifiers named<br/>D71 the player after a gap<br/>D72 Tester's cause<br/>D73 a gap's reason"]:::fix
+    L["What verifiers named<br/>D71 the player after a gap<br/>D72 Tester's cause"]:::fix
     C["D74 the microphone,<br/>chosen beside Auto"]:::src
     Q["Trust and quality<br/>D51 what it cost<br/>D75 a line plays its second<br/>D76 spike: Parakeet"]:::qual
     S["D77 the kit reads<br/>the package"]:::pub
@@ -263,9 +256,9 @@ red: the Store. Left to right, the order to build them in.
 ## Deliverables
 
 Value over cost, from [the market's §6](../reviews/2026-10-30-market.md#6-recommendations-by-value-over-cost)
-and the [UX review's §11](../reviews/2026-10-26-ux.md). **Cut first** if the breaker nears: D73, then
-D70, then D74's list during a recording. Never D67, D71, or D76's record. **All new deliverables are
-built, verified and held by agents: none needs a person** (*What needs a person*). D67–D69 touch
+and the [UX review's §11](../reviews/2026-10-26-ux.md). **Cut first** if the breaker nears: D77, then
+D72's transcription half, then D74. Never D67, D70 (the decider's own ask), D71, D75's first criterion or D76's record. **None of the new
+waits on a person to be built; D77's kit may, and D74 costs `critical`'s rows if #568 is merged first.** D67–D69 touch
 `window.js` and `words.rs`: one session at a time on them.
 
 ### Moved from cycle 05
@@ -281,16 +274,17 @@ Nothing else in this cycle waits on these. If D55 or D56 is done before the acce
 
 | Deliverable | Who | The literal gesture |
 |---|---|---|
-| Cycle 05 and D44–D50 | The decider | Say it, in a session: « 05 fermé ; D44 à D50 acceptés ; 06 accepté, défauts du cadreur » — or amend any of it |
-| D55 | The decider | Open [#568](https://github.com/NapkinStack/wholeheard/pull/568) and press *Merge*: its `CODEOWNERS` line is theirs |
+| Cycle 05 and D44–D50 | The decider | Say it, in a session: « 05 fermé ; D44 à D50 acceptés ; ADR-0015, 0011, 0012 repoussées à la fin du 06 ; 06 accepté, défauts du cadreur » — or amend any of it, *missed* for a record |
+| D55 | The decider | Once an agent says #568 is green at its head: open [#568](https://github.com/NapkinStack/wholeheard/pull/568) and press *Merge*: its `CODEOWNERS` line is theirs |
 | D66, sheet | The decider | Say « S3 et S4 comme proposés », the wording in [#580](https://github.com/NapkinStack/wholeheard/pull/580)'s remark 1, or amend; then an agent merges it |
-| D66, trial | The decider | On Fedora, AirPods connected: start a WhatsApp Web call with someone, in Wholeheard press *Démarrer* then *Arrêter*, five times, the call going on. After: `journalctl --user -b --since "-30 min" \| grep 'Failure in Bluetooth audio transport'`. Listen to each `local.wav`. Answer on [#494](https://github.com/NapkinStack/wholeheard/issues/494): call cut or not, lines found, your voice heard or not |
-| D56 | The decider | `minisign -G -p wholeheard-models.pub -s ~/.minisign/wholeheard-models.key`, a passphrase of your own, the private key never in a repository. Give an agent the file `wholeheard-models.pub`. Sign when asked: `minisign -Sm modules/shell/registry/models.json -s ~/.minisign/wholeheard-models.key` |
+| D66, trial | The decider | On Fedora: `sudo dnf reinstall ../wholeheard-d66s/dist/install/wholeheard-*.x86_64.rpm` (#580's branch, built there); once #580 is merged, `nstack release` at the root of `main`, then the same from `./dist/install/`. AirPods connected, a WhatsApp Web call with someone. Five times, the call going on: *Démarrer*, say a sentence, *Arrêter*, noting both times to the second. After each *Arrêter*, a few seconds later: `pactl list cards \| grep 'Active Profile'`. After: `journalctl --user -b --since "-30 min" \| grep 'Failure in Bluetooth audio transport'`, its times against yours. `ls -t "$(xdg-user-dir DOCUMENTS)/Wholeheard" \| head -5`, and listen to `local.wav` in each. Answer on [#494](https://github.com/NapkinStack/wholeheard/issues/494): call cut or not, each profile, lines within two seconds or not, your voice heard or not |
+| ADR-0015 | The decider | After that trial, say « ADR-0015 acceptée », or what falls. D74 builds on it |
+| D56 | The decider | `sudo dnf install minisign`, then, at the root of a checkout of `main`: `minisign -G -p wholeheard-models.pub -s ~/.minisign/wholeheard-models.key`, a passphrase of your own, the private key never in a repository. Give an agent the file `wholeheard-models.pub`. Sign when asked: `minisign -Sm modules/shell/registry/models.json -s ~/.minisign/wholeheard-models.key`, and give an agent `models.json.minisig`: it commits it |
 | D57 | The decider | Read [`docs/store/listing.md`](../../store/listing.md); say « l'annonce ne promet rien de faux », or which line does |
 | D54, submission | The decider | In [Partner Center](https://partner.microsoft.com/dashboard), with a company's account: reserve the name Wholeheard, give an agent the identity it shows. Read the Store's licence terms beside GPL-3.0; answer the age questionnaire. Say which version submits (open questions) |
-| D54, D53 | The colleague on Windows 11 | [#482](https://github.com/NapkinStack/wholeheard/issues/482), plus: install the package signed for the run, record a real call of five minutes, answer there |
-| D38, D39, D42, D58 on a Mac | The colleague on a Mac | [#426](https://github.com/NapkinStack/wholeheard/issues/426): open the app, record a real call, answer there |
-| D27 | The colleague on Ubuntu 24.04 | [#255](https://github.com/NapkinStack/wholeheard/issues/255): `sudo apt install ./wholeheard_<version>_amd64.deb`, answer there |
+| D53, D54, D58 on Windows | The colleague on Windows 11 | [#482](https://github.com/NapkinStack/wholeheard/issues/482), updated first by an agent with the run's link. Unpack `wholeheard-windows-x64-msix`, then in PowerShell, as administrator: `Import-Certificate -FilePath .\Wholeheard-this-run.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople`, then `Add-AppxPackage .\Wholeheard-<version>-x64.msix` ([Microsoft](https://learn.microsoft.com/en-us/windows/msix/package/create-certificate-package-signing): the store; remove the certificate afterwards). The first run's assistant opens (D58). A real call of five minutes; answer there |
+| D38, D39, D42, D58 on a Mac | The colleague on a Mac | [#426](https://github.com/NapkinStack/wholeheard/issues/426), updated first by an agent: open the app, the first run's assistant, ⌘B on the sidebar (D61), record a real call, answer there |
+| D27 | The colleague on Ubuntu 24.04, whom the charter's three do not name: the decider says who | [#255](https://github.com/NapkinStack/wholeheard/issues/255): `sudo apt install ./wholeheard_<version>_amd64.deb`, answer there |
 | D41 | The decider | [#449](https://github.com/NapkinStack/wholeheard/issues/449): a call on the earbuds, the default on the speaker |
 | D63 | The decider | [#463](https://github.com/NapkinStack/wholeheard/issues/463): a real service heard, with their key |
 
@@ -307,7 +301,7 @@ Nothing else in this cycle waits on these. If D55 or D56 is done before the acce
 
 ### D69
 
-- Lucide's five icons (ISC), inline: the UX review's choice. No board: an amendment of D34's header
+- Lucide's five icons (ISC, its notice kept in the repository), inline: the UX review's choice. No board: an amendment of D34's header
   only for *Petite fenêtre*, the UX review's 3.2, named here as a departure for the decider.
 - The direction is [Linear's](https://linear.app/now/behind-the-latest-design-refresh): "Don't compete for
   attention you haven't earned". What the review proposed, **nothing more**: not a redesign. Playful is one
@@ -316,7 +310,7 @@ Nothing else in this cycle waits on these. If D55 or D56 is done before the acce
 ### D70
 
 - The decider's [#504](https://github.com/NapkinStack/wholeheard/issues/504). Kept the way a meeting's
-  language is kept (D65): which file, read when it is built. A folder is never renamed: others read it.
+  language is kept (D65): a file of the meeting, as #504 proposes, a `session-audio` expand. A folder is never renamed: others read it.
 
 ### D71
 
@@ -328,21 +322,16 @@ Nothing else in this cycle waits on these. If D55 or D56 is done before the acce
 ### D72
 
 - #577's verifier: « vérifiez son adresse, son nom et sa clé » is said to a service with no times, a
-  service down, a quota. No code exists on `--test`: `summarising/v1` lists codes for its failures,
-  the transcription's step has no page for them. Expand first, one pull request a module:
+  service down, a quota. `summarising/v1` lists codes, a test's included *(assumption: read, not run)*;
+  the shell does not say them, and the transcription's step has no page for them. Expand first, one pull request a module:
   contracts, each step, the shell (`.nstack/handbook/03-contracts.md`).
 - Never a parse of the program's English.
-
-### D73
-
-- #579 corrected D66: no field says why, and the sentence says what is true whatever the reason. This
-  deliverable is that field, as D66's fourth criterion first imagined it. Where capture cannot tell, it says
-  nothing: a link that never forms cannot be told from a call that never runs (#574's verifier).
 
 ### D74
 
 - **Prior Art Gate.** The convention is [Granola's](https://docs.granola.ai/help-center/troubleshooting/transcription-issues):
   *Auto*, then a list where the transcript is. It covers the need: adopted. No device management of ours.
+- At the start only: capture's input takes `stop` alone, and a change during a recording would be a new command: *Later*. Built on ADR-0015, whose only proof on a real headset is D66's trial: that gesture first if it comes in time, no formal block.
 - Linux only: on macOS and Windows capture has its other adapters, and D66 left them. The list's place
   departs from D34's small window; D49's third criterion is the bar: nothing overflows.
 - ADR-0015's rejections stand: a card's profile is never forced, even by hand.
@@ -352,16 +341,16 @@ Nothing else in this cycle waits on these. If D55 or D56 is done before the acce
 - **The decider chose it on 2026-10-26**; it went to *Later* on 2026-10-27 to make room for the Store.
   Its criteria are those of [#461](https://github.com/NapkinStack/wholeheard/pull/461), brought to
   `minutes/v3`, ADR-0005 keeping each version frozen. Its section at that commit still holds. See [#503](https://github.com/NapkinStack/wholeheard/issues/503).
-- It and D75 share `minutes/v3`: one contract pull request, merged before either.
+- It and D75 share `minutes/v3`: one contract pull request after D75's first criterion is read, merged before either; refuted, v3 holds the cost alone.
 
 ### D75
 
 - **Prior Art Gate.** [Notion](https://www.notion.com/help/ai-meeting-notes) cites transcript lines; Granola
-  points to the transcript. Both stop at text. The convention is adopted, its form extended by what
+  points to the transcript. Those two stop at text; Otter, Fathom and tl;dv jump to a recording's moment from a transcript or a highlight, kept in their cloud. The convention is adopted, its form extended by what
   ADR-0004 already keeps, with nothing to build but a link to a player that exists. The deviation is
   paid by a named value: checking a line in one click, by ear.
 - **What is not known** *(assumption)*: whether a small local model gives a time that is right. Hence the
-  fifth criterion's threshold. A wrong time costs the user a click and a doubt. Below the threshold it is shown
+  first criterion, read before anything is frozen (ADR-0005). `qwen3:8b` already ran past 280 s on a short transcript (#571): a run that does not finish is recorded. Below the threshold it is shown
   for none, rather than a link that lies.
 - No confidence score, no checking of a claim. The review of 2026-10-26 refused them.
 - A line corrected (D62) leaves earlier minutes' times as they were: they point to a time, never to a line.
@@ -379,8 +368,18 @@ Nothing else in this cycle waits on these. If D55 or D56 is done before the acce
 ### D77
 
 - [Microsoft](https://learn.microsoft.com/en-us/windows/uwp/debug-test-perf/windows-app-certification-kit)
-  ships the kit in the Windows SDK, with a command line, and asks for "an active user session": whether a
-  hosted runner offers one is unknown, and a refusal recorded answers the deliverable. Named by D54's verifier.
+  ships the kit in the Windows SDK, with a command line (administrator, `appcert.exe reset` first). The page says both "an active user session" and integration where none is available: whether a
+  hosted runner suits is unknown, and a refusal recorded answers the deliverable. Named by D54's verifier.
+
+## Dependency with a date
+
+From the day cycle 06 is accepted, as cycle 05's intervals; a date missed leaves a deliverable where it is at the end date.
+
+- **An agent remakes the forge's builds from `main` and updates #426, #482, #255, #449 and #463 within 48 hours of the acceptance**, their dates with them (#426 and #482 say « by 2026-10-31 », their artifacts expire on 2026-11-05), and again whenever an artifact is about to expire.
+- **The colleagues' trials**, and the name of D27's: 14 days after the acceptance.
+- **The decider's Partner Center account and the name reserved; the minisign key**: 11 days after.
+- **The decider's reading of the Store's terms beside GPL-3.0; the age rating**: 15 days after, or the end date if sooner.
+- **D66's trial and ADR-0015**: before D74 is built, if it can be; at the latest the date the decider sets at the closure.
 
 ## Out of scope
 
@@ -395,7 +394,9 @@ As cycle 05, the market's refusals beside it (§4):
 
 ## Later
 
-- **Spoken notice**: playing the announcement into the call, as [Notion](https://www.notion.com/help/ai-meeting-notes)'s voice message.
+- **Spoken notice**, as [Notion](https://www.notion.com/help/ai-meeting-notes)'s voice message: **against the charter's constraint, a PDR first, the decider's.**
+- **D73, a microphone that stopped says why**: `recording/v1`'s optional reason, in no ranking of the market, and capture cannot always tell (#574, #580). **A microphone changed during a recording**, after D74.
+- A trial and a licence key, a merchant of record; the Mac App Store after a spike; SpeechAnalyzer's live results (cycle 05's *Later*).
 - **D52, the spike on a live transcript**, and what depends on it (cycle 05's *Later*).
 - Naming the other side by hand, once, everywhere; meeting types as contexts; export to a file or Notion (market review of 2026-10-26, 7, 8, 9).
 - Search highlighted, with a count; playback at 1×, 1,5×, 2× (UX review 4.6, 4.7).
@@ -410,13 +411,14 @@ As cycle 05, the market's refusals beside it (§4):
 **Not blocking**, each *(framer, to confirm)*:
 
 - **Closing cycle 05 now, or at 2026-11-19?** Default: now, D44–D50 accepted on their sheets, as #547 closed cycle 04 for the same reason. Later: cycle 06 waits, against the decider's word of 2026-10-29.
-- **The appetite**: two weeks, modest, thirteen moved and twelve new, the cuts named. Default: two; never stretched.
-- **D66's fourth criterion** still names « an optional field », which #579 removed from D66 and D73 takes up. Default: amended at the acceptance to read as `recording/v1` says now. **Its second criterion's window**: a default turning into a headset mid-recording, the switch came 4 of 10 measured. Default: taken knowingly, as already written.
+- **The appetite**: two weeks, modest, thirteen moved and eleven new, the cuts named. Default: two; never stretched.
+- **D66's fourth criterion** still names « an optional field », which #579 removed from D66 (*Later* keeps it as D73). Default: amended at the acceptance to read as `recording/v1` says now. **Its second criterion's window**: a default turning into a headset mid-recording, the switch came 4 of 10 measured. Default: taken knowingly, as already written.
 - **The version submitted**: `0.2.0` has a first part the Store refuses. Default: 1.0.0 for the first submission, not before it — a version says what was tried.
 - **The reminder's setting** (charter, 2026-10-13: a setting removes it): read again against [*Chamberlain v. Granola*](../reviews/2026-10-30-market.md#3-consent-and-law)? Default: unchanged, a lawyer's reading before strangers install it; changing it takes a PDR.
 - **`minutes/v3`, one version for D51 and D75.** Default: yes, a page per version being ADR-0005's price.
-- **D75's threshold, 70 %**: the framer's, with no source: a read of what a user would forgive. Default: kept; amend at will.
-- **D76's threshold**: default as written. It compares only with today's model.
+- **D75's threshold, 90 %**: the framer's, with no source: a link that lies is what the feature cannot afford. Default: kept; amend at will.
+- **D76's threshold**: the framer's, with no source, default as written. It compares only with today's model, `ggml-large-v3-turbo-q8_0`.
+- **D27**: its colleague on Ubuntu is not one of the charter's three, and it moves for the fourth time. Default: no name by the date below, it goes to *Later*.
 - **D74's list where**: on the microphone's line of the small window. Default: there; Settings none, for the choice is a meeting's.
 
 ## Closure

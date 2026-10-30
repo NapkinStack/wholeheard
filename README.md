@@ -28,8 +28,7 @@ that you are recording**: Wholeheard shows them nothing.
 
 ## Install it
 
-On Fedora and Ubuntu, from a package built from this repository — none is published yet, and
-nothing on Windows:
+On Fedora and Ubuntu, from a package built from this repository — none is published yet:
 
 ```bash
 nstack release                                        # Fedora: every program, then the rpm
@@ -41,12 +40,14 @@ sudo apt install ./dist/install/wholeheard_*_amd64.deb
 
 Needs `podman` ([`modules/install`](modules/install/)). Ubuntu's package is being tried on a
 colleague's machine. On macOS, GitHub's runner makes the app on every change to a program on `main`, signed ad
-hoc, not by Apple: it is being tried on a colleague's Mac, and is not published either
-([cycle 04](docs/project/cycles/04-wholeheard-on-macos.md)).
+hoc, not by Apple. On Windows, it makes a zip and an MSIX package for the Microsoft Store, not submitted yet. Each
+waits on a colleague's trial and is not published either
+([cycle 05](docs/project/cycles/05-best-of-its-kind-to-use.md)). What a build holds and what leaves your
+machine: [`docs/privacy.md`](docs/privacy.md).
 
 | What runs | Its page |
 |---|---|
-| Wholeheard, started with your session: a small window to record, and a call in another application offered to be recorded; the window lists your meetings and what they weigh, shows one's minutes beside its transcript, plays it with its words following, frees space to the system's trash, from where it comes back, and holds the settings — each step's model, fetched on your word | [`modules/shell`](modules/shell/) |
+| Wholeheard, started with your session: a small window to record, and a call in another application offered to be recorded; the window lists your meetings and what they weigh, names each meeting by its minutes' title, shows one's minutes beside its transcript, its actions as rows and a copy in one click, plays it with its words following, frees space to the system's trash, from where it comes back, and holds the settings — each step's model, fetched on your word | [`modules/shell`](modules/shell/) |
 | A recording, from a terminal: `wholeheard-capture record <folder>` | [`modules/capture`](modules/capture/) |
 | The transcript of a session, on the machine: `wholeheard-transcription <session> --model <file>` | [`modules/transcription`](modules/transcription/) |
 | The minutes of a transcript, from the provider you chose: `wholeheard-summary <session> --provider <address> --model <name>` | [`modules/summary`](modules/summary/) |
