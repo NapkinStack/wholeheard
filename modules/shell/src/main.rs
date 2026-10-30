@@ -91,6 +91,8 @@ struct Shell {
     hearing: Mutex<Option<PathBuf>>,
     /// The recording's meter, for the small window: when it started, and each source's level now.
     meter: Mutex<(Option<Instant>, [f32; 2])>,
+    /// Whether each side of the recording was heard (D49).
+    checks: Mutex<recording::Checks>,
     /// What the recording running is recorded from, for the small window (D33).
     devices: Mutex<recording::Devices>,
     /// The list's small reliefs, by transcript, kept until it changes.
@@ -361,6 +363,7 @@ fn main() {
                 minuting: Mutex::new(None),
                 shapes: Mutex::new(HashMap::new()),
                 meter: Mutex::new((None, [0.0, 0.0])),
+                checks: Mutex::default(),
                 devices: Mutex::new(recording::Devices::default()),
                 redoing: Mutex::new(None),
                 hearing: Mutex::new(None),
@@ -851,6 +854,8 @@ struct Now {
     levels: [f32; 2],
     /// The microphone and the output recorded now, as the system names them (D33).
     devices: [Option<String>; 2],
+    /// Whether each side was heard, or why not (D49).
+    checks: [recording::Check; 2],
     /// Whether the transcript is made at the stop, by itself: the small window says so then only.
     transcript_follows: bool,
     /// The meeting being recorded, once its folder holds its session: its context can be written
@@ -882,6 +887,7 @@ fn recording_now(shell: State<'_, Shell>) -> Now {
         seconds: started.map_or(0.0, |started| started.elapsed().as_secs_f64()),
         levels,
         devices: shell.devices.lock().unwrap().names(),
+        checks: shell.checks.lock().unwrap().now(),
         transcript_follows: shell.settings.lock().unwrap().after != settings::After::Nothing,
         meeting,
         confidential,
@@ -2560,6 +2566,7 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     for event in said {
         started |= matches!(event, Said::Started(..));
         shell.devices.lock().unwrap().heard(&event);
+        shell.checks.lock().unwrap().heard(&event);
         if let Said::Started(folder, ..) = &event {
             *shell.recorded.lock().unwrap() = Some(folder.clone());
             *shell.meter.lock().unwrap() = (Some(Instant::now()), [0.0, 0.0]);
@@ -2594,6 +2601,7 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
     shell.recorded.lock().unwrap().take();
     *shell.meter.lock().unwrap() = (None, [0.0, 0.0]);
     *shell.devices.lock().unwrap() = recording::Devices::default();
+    *shell.checks.lock().unwrap() = recording::Checks::default();
     // The small window comes back to rest, below the other windows again (D35).
     small_recording(app, false);
     let ended = shell.recording.lock().unwrap().take();

@@ -117,10 +117,23 @@ RECORDER.write_text(
     """#!/bin/bash
 folder="$2/2026-10-18_12-00"; mkdir -p "$folder"
 printf '{"contract":"session-audio/v2","started":"2026-10-18T12:00:00+02:00","tracks":{}}' > "$folder/session.json"
-echo '{"event":"started","folder":"'"$folder"'","sources":{"me":"Mic","others":"Speaker"}}'
+me='"Mic"'
+# No microphone to open, when the scenario says so (D49).
+if [ -e "$2/waiting-me" ]; then echo '{"event":"unavailable","source":"me","reason":"none"}'; me='"unavailable"'; fi
+echo '{"event":"started","folder":"'"$folder"'","sources":{"me":'"$me"',"others":"Speaker"}}'
 n=0
 while ! read -t 0.1 line; do
-  n=$((n + 1)); echo '{"event":"level","source":"me","level":0.'$((n % 9 + 1))'}'; echo '{"event":"level","source":"others","level":0.5}'
+  n=$((n + 1))
+  # Levels at silence as long as the scenario says so; what capture says of a silence, when it does (D49).
+  if [ -e "$2/hush" ]; then echo '{"event":"level","source":"me","level":0}'; echo '{"event":"level","source":"others","level":0}'
+  else
+    [ -e "$2/waiting-me" ] || echo '{"event":"level","source":"me","level":0.'$((n % 9 + 1))'}'
+    echo '{"event":"level","source":"others","level":0.5}'
+  fi
+  if [ -e "$2/nothing-me" ]; then rm "$2/nothing-me"; echo '{"event":"silent","source":"me","nothing":true}'; fi
+  if [ -e "$2/silent-others" ]; then rm "$2/silent-others"; echo '{"event":"silent","source":"others"}'; fi
+  if [ -e "$2/heard-me" ]; then rm "$2/heard-me"; echo '{"event":"heard","source":"me"}'; fi
+  if [ -e "$2/heard-others" ]; then rm "$2/heard-others"; echo '{"event":"heard","source":"others"}'; fi
   # A device changed, or gone, when the scenario says so (D31, D33).
   if [ -e "$2/move" ]; then rm "$2/move"; echo '{"event":"device","source":"me","device":"AirPods Pro"}'; fi
   if [ -e "$2/lose" ]; then rm "$2/lose"; echo '{"event":"device","source":"others","device":null}'; fi
@@ -1810,6 +1823,107 @@ def announced(now: dt.datetime) -> None:
         time.sleep(1.5)
         check("the reminder off: neither the line nor the button shows", not browser.execute_script(line)[0], browser.execute_script(line))
         stop_from_small(browser)
+
+
+def heard_checked(now: dt.datetime) -> None:
+    """AN. Each side's check, its silence's sentence, in the small window (D49)."""
+    print("AN. each side checked live, ✓ then gone; a silence said under its check; a side with no device said, no check; all inside 380 × 400, Arrêter still (D49)")
+    place = "return document.getElementById('small-stop').getBoundingClientRect().top"
+    state = "return [...document.querySelectorAll('.meters .slot')].map(s => s.dataset.check)"
+    glyph = "return [...document.querySelectorAll('.meters .check')].map(c => getComputedStyle(c, '::before').content)"
+    said = "return [...document.querySelectorAll('.check-says')].map(s => s.textContent)"
+    # Nothing cut or out of the window: every line of the live view inside it and inside its own box,
+    # the meters' sentences above Arrêter. The note a transcript adds forced on, closed.
+    fits = ("const n = document.getElementById('small-note'); const open = document.querySelector('.small-live').classList.contains('context-open'); n.hidden = open;"
+            "const e = document.scrollingElement; const stop = document.getElementById('small-stop').getBoundingClientRect();"
+            "const outside = [...document.querySelectorAll('.small-live > *, .small-live .says, .small-live .side')].filter(x => { const b = x.getBoundingClientRect();"
+            " return b.height > 0 && getComputedStyle(x).position !== 'absolute' && (b.right > innerWidth + 0.5 || b.bottom > innerHeight + 0.5 || x.scrollHeight > x.clientHeight + 1 && x.matches('.says, .small-announce')); }).map(x => x.className);"
+            "const says = [...document.querySelectorAll('.check-says')].map(s => s.getBoundingClientRect().bottom);"
+            "const line = document.getElementById('small-announce').getBoundingClientRect(); const meters = document.querySelector('.meters').getBoundingClientRect();"
+            "return {scroll: [e.scrollHeight, e.clientHeight, e.scrollWidth, e.clientWidth], outside, under: says.every(b => b <= stop.top + 0.5), line: line.height === 0 || line.bottom <= meters.top + 0.5, size: [innerWidth, innerHeight]}")
+    def fit(browser, what: str) -> None:
+        got = browser.execute_script(fits)
+        ok = got["scroll"][0] <= got["scroll"][1] and got["scroll"][2] <= got["scroll"][3] and not got["outside"] and got["under"] and got["line"]
+        check(f"{what}: nothing overflows or is cut, at {got['size']}", ok, got)
+    expected = {
+        "fr_FR.UTF-8": ("fr", "Votre micro\u00a0: entendu", "Le son de la réunion\u00a0: entendu",
+                        "Rien n’en arrive\u00a0: vérifiez qu’il n’est pas coupé sur l’appareil lui-même, et qu’il est prêt.",
+                        "Rien depuis dix secondes\u00a0: faites jouer un son dans l’appel.", "Votre micro n’est pas enregistré pour l’instant."),
+        "en_US.UTF-8": ("en", "Your microphone: heard", "The meeting’s sound: heard",
+                        "Nothing comes from it: check it is not muted on the device itself, and that it is ready.",
+                        "Nothing heard for ten seconds: play a sound in the call.", "Your microphone is not recorded for now."),
+    }
+    for language, (short, heard_me, heard_others, nothing, silent, waiting) in expected.items():
+        for theme in ("light", "dark"):
+            taping = WORK / f"checks-{short}-{theme}"
+            taping.mkdir()
+            (taping / "hush").touch()
+            window = Window(taping, language, 'after = "nothing"\n', small=True)
+            if theme == "dark":
+                window.env.update(GTK_THEME="Adwaita:dark")
+            with window as browser:
+                browser.find_element(By.ID, "small-record").click()
+                wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(state) == ["listening", "listening"], 10)
+                time.sleep(0.5)
+                check("levels at silence: no ✓ on either side", browser.execute_script(state) == ["listening", "listening"] and "✓" not in "".join(browser.execute_script(glyph)), browser.execute_script(glyph))
+                before = browser.execute_script(place)
+                fit(browser, "listening")
+                (taping / "hush").unlink()
+                rose = wait_for(browser, lambda b: b.execute_script(state) == ["heard", "heard"], 3)
+                check("levels risen: ✓ on each side", rose and all("✓" in c for c in browser.execute_script(glyph)), browser.execute_script(glyph))
+                told = browser.execute_script("return [...document.querySelectorAll('.check-said')].map(s => [s.getAttribute('role') ?? s.parentElement.getAttribute('role'), s.textContent])")
+                check("✓ said to a screen reader, side by side", [t[1] for t in told] == [heard_me, heard_others] and all(t[0] == "status" for t in told), told)
+                shot(browser, f"d49-heard-{short}-{theme}")
+                # Capture's word: a silence's sentence under its check, D50's line still there, in place.
+                (taping / "nothing-me").touch()
+                (taping / "silent-others").touch()
+                silenced = wait_for(browser, lambda b: b.execute_script(said) == [nothing, silent], 3)
+                check("a silence said under its check, as the notifications say it", silenced and browser.execute_script(state) == ["nothing", "silent"], browser.execute_script(said))
+                line = browser.execute_script("const a = document.getElementById('small-announce'); return !a.hidden && getComputedStyle(a).visibility")
+                check("with D50's line", line == "visible", line)
+                fit(browser, "two silences with D50's line")
+                check("Arrêter has not moved", browser.execute_script(place) == before, [before, browser.execute_script(place)])
+                # Nothing rewritten at each tick: a button or a line rewritten ten times a second loses clicks.
+                browser.execute_script("window.written = 0; const seen = new MutationObserver((m) => { window.written += m.length; }); for (const e of document.querySelectorAll('.check-says, .check-said')) seen.observe(e, {subtree: true, childList: true, characterData: true})")
+                time.sleep(1)
+                check("what does not change is not written again", browser.execute_script("return window.written") == 0, browser.execute_script("return window.written"))
+                shot(browser, f"d49-silent-{short}-{theme}")
+                browser.find_element(By.ID, "small-context-toggle").click()
+                opened = browser.execute_script(place)
+                fit(browser, "two silences, the context open")
+                room = browser.execute_script("return [...document.querySelectorAll('.meters .check')].map(c => getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().width > 0)")
+                check("the context open: each check still shown, each sentence too", room == [True, True] and browser.execute_script(said) == [nothing, silent], room)
+                shot(browser, f"d49-context-{short}-{theme}")
+                (taping / "heard-me").touch()
+                back = wait_for(browser, lambda b: b.execute_script(state)[0] == "heard" and b.execute_script(said)[0] == "", 3)
+                check("heard again: ✓, its sentence gone, Arrêter still", back and browser.execute_script(place) == opened, browser.execute_script(said))
+                browser.find_element(By.ID, "small-context-toggle").click()
+                wait_for(browser, lambda b: b.execute_script(place) == before, 2)
+                check("the context closed: Arrêter where it was", browser.execute_script(place) == before, [before, browser.execute_script(place)])
+                # ✓ then gone, its device's name left where it was.
+                faded = wait_for(browser, lambda b: b.execute_script("const s = document.querySelector('.meters .slot'); const c = s.querySelector('.check'); return s.classList.contains('faded') && getComputedStyle(c).opacity === '0' && c.getBoundingClientRect().width === 0"), 6)
+                name = browser.execute_script("const d = document.getElementById('device-me'); return [d.textContent, d.getBoundingClientRect().width > 0]")
+                check("✓ fades, the device's name stays", faded and name == ["Mic", True], name)
+                check("Arrêter has not moved as it faded", browser.execute_script(place) == before, browser.execute_script(place))
+                stop_from_small(browser)
+        # The microphone waiting (D66): said truthfully, no check.
+        taping = WORK / f"checks-waiting-{short}"
+        taping.mkdir()
+        (taping / "waiting-me").touch()
+        with Window(taping, language, 'after = "nothing"\n', small=True) as browser:
+            browser.find_element(By.ID, "small-record").click()
+            shown = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(state) == ["waiting", "heard"], 10)
+            check("no microphone: waiting, the other side heard", shown, browser.execute_script(state))
+            mark = browser.execute_script("const c = document.querySelector('.meters .check'); return [getComputedStyle(c).display, c.textContent, getComputedStyle(c, '::before').content]")
+            check("no check for it, nor ✓", mark[0] == "none" and mark[1] == "" and "✓" not in mark[2], mark)
+            check("said truthfully under its meter", browser.execute_script(said) == [waiting, ""], browser.execute_script(said))
+            fit(browser, "a side waiting")
+            shot(browser, f"d49-waiting-{short}")
+            stop_from_small(browser)
+    # What a user who asked for less motion is given: asked of the page's own rules.
+    with Window(WORK / "checks-waiting-fr", "fr_FR.UTF-8", 'after = "nothing"\n', small=True) as browser:
+        still = browser.execute_script("const found = []; for (const sheet of document.styleSheets) for (const rule of sheet.cssRules) if (rule.media && rule.media.mediaText.includes('prefers-reduced-motion')) found.push(rule.cssText); return found.join(' ')")
+        check("less motion asked: neither pulse, pop nor fade", ".slot[data-check] .check" in still and ".check-says" in still, still)
 
 
 def meeting_named(now: dt.datetime) -> None:
@@ -4520,6 +4634,7 @@ def main() -> int:
     minutes_copied(now)
     actions_rows(now)
     announced(now)
+    heard_checked(now)
     meeting_named(now)
     return 1 if FAILED else 0
 
