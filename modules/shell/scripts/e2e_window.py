@@ -367,6 +367,12 @@ def remembered() -> str | None:
     return next((line for line in REMEMBERED.read_text().splitlines() if line.startswith("Output/Audio:application.name:wholeheard=")), None)
 
 
+def same_volume(one: str | None, other: str | None) -> bool:
+    """The same volume remembered: the system writes the line's keys in no fixed order."""
+    read = lambda line: line and json.loads(line.split("=", 1)[1])
+    return read(one) == read(other)
+
+
 def played_to(window: "Window") -> set[str]:
     """The outputs the sound of this window — its web view, under its driver — is linked to."""
     def under(pid: int) -> bool:
@@ -1649,7 +1655,10 @@ def confidential_every_way(now: dt.datetime) -> None:
             made = wait_for(browser, lambda b: hearing.exists() and header().get("engine") == "whisper.cpp", 15)
             check("from the tray: Whisper hears it here, the service named in the settings asked nothing",
                   clicked and made and heard_here() and counted["hear"] == 0, (hearing.read_text() if hearing.exists() else "", counted))
-            # By Réessayer: a making that failed, asked again.
+            # By Réessayer: a making that failed, asked again — once the tray's is over: one being
+            # made is refused, as the page's button would be.
+            wait_for(browser, lambda b: b.execute_script(
+                "return window.__TAURI__.core.invoke('makings').then(m => m.transcript === null && m.transcripts_waiting.length === 0)"), 15)
             (WORK / "fail-hearing").touch()
             hearing.unlink(missing_ok=True)
             browser.execute_script("window.__TAURI__.core.invoke('context_redo', {name: arguments[0]})", meeting.name)
@@ -4351,7 +4360,7 @@ def main() -> int:
         there = wait_for(browser, lambda b: "ne s’écoute pas ici" in b.execute_script(no_player), 10)
         check("a meeting whose audio is there but not playable is not said freed",
               there and "libéré" not in browser.execute_script(no_player), browser.execute_script(no_player))
-    check("the volume the system remembers for the user's Wholeheard is left as it was", remembered() == kept, remembered())
+    check("the volume the system remembers for the user's Wholeheard is left as it was", same_volume(remembered(), kept), [remembered(), kept])
     model_offered(now)
     models_listed(now)
     list_refreshed(now)

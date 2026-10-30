@@ -726,7 +726,7 @@ fn a_device_changed_says_what_is_recorded_now_one_gone_says_that_side_and_one_ba
             Said::Lost(Source::Me),
             French,
             "Votre micro n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{202f}; l’enregistrement continue.",
         ),
         (
             Said::Lost(Source::Others),
@@ -738,7 +738,7 @@ fn a_device_changed_says_what_is_recorded_now_one_gone_says_that_side_and_one_ba
             Said::Lost(Source::Others),
             French,
             "Le son de la réunion n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.",
+            "Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{202f}; l’enregistrement continue.",
         ),
     ] {
         assert_eq!(
@@ -823,7 +823,7 @@ fn what_the_devices_are_decides_what_is_said_of_one_gone_and_one_back() {
     sides.told(&Said::Lost(Source::Me), false, French);
     assert_eq!(
         body(&mut sides, &lost, French).as_deref(),
-        Some("Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{a0}; l’enregistrement continue.")
+        Some("Votre ordinateur n’a plus de sortie audio. Une sortie branchée est enregistrée aussitôt\u{202f}; l’enregistrement continue.")
     );
     // The microphone not opened at the start: the same.
     let mut sides = Sides::default();
@@ -972,4 +972,121 @@ fn every_french_word_of_the_window_is_typeset_as_french() {
         }
         assert!(!sentence.contains("« "), "{sentence}");
     }
+}
+
+/// The French sentences of `src/words.rs`, read from its structure: each string literal after the
+/// word `French` and before the next `English`, as every arm of the file is written. Its escapes
+/// (`\u{a0}`, `\u{202f}`, `\"`) are read as the compiler reads them. Also the literals after
+/// `English`, for the test to hold that the structure was read right.
+fn literals_by_language() -> (Vec<String>, Vec<String>) {
+    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/words.rs")).unwrap();
+    let (mut french, mut english) = (Vec::new(), Vec::new());
+    let mut in_french = false;
+    let mut word = String::new();
+    let mut chars = source.chars().peekable();
+    let mut previous = ' ';
+    while let Some(c) = chars.next() {
+        if c == '/' && chars.peek() == Some(&'/') {
+            chars.by_ref().find(|&d| d == '\n');
+            previous = '\n';
+            continue;
+        }
+        if c.is_alphanumeric() || c == '_' {
+            word.push(c);
+            previous = c;
+            continue;
+        }
+        match word.as_str() {
+            "French" => in_french = true,
+            "English" => in_french = false,
+            _ => {}
+        }
+        word.clear();
+        if c == '"' && previous != '\'' {
+            let mut text = String::new();
+            while let Some(d) = chars.next() {
+                match d {
+                    '\\' => match chars.next() {
+                        Some('u') => {
+                            let code: String = chars.by_ref().skip(1).take_while(|&e| e != '}').collect();
+                            text.push(char::from_u32(u32::from_str_radix(&code, 16).unwrap()).unwrap());
+                        }
+                        Some('n') => text.push('\n'),
+                        Some(other) => text.push(other),
+                        None => break,
+                    },
+                    '"' => break,
+                    other => text.push(other),
+                }
+            }
+            if in_french { &mut french } else { &mut english }.push(text);
+            previous = '"';
+            continue;
+        }
+        previous = c;
+    }
+    (french, english)
+}
+
+#[test]
+fn the_literals_of_each_language_are_read_as_the_file_arranges_them() {
+    let (french, english) = literals_by_language();
+    assert!(french.len() > 300 && english.len() > 300, "{} {}", french.len(), english.len());
+    let accented: Vec<_> = english
+        .iter()
+        .filter(|text| text.contains(|c: char| "éèêàâçùûîôœÉÈÀÇ".contains(c)))
+        .collect();
+    // Inès: a name in an English example.
+    assert_eq!(
+        accented,
+        ["E.g. the Q4 budget with Inès Durand and the purchasing team"],
+        "French read as English"
+    );
+    // An `expect`'s words, for the developer: no sentence the user reads.
+    let plain: Vec<_> = french.iter().filter(|text| format!(" {text} ").contains(" the ")).collect();
+    assert_eq!(plain, ["the minutes' end is always said"], "English read as French");
+}
+
+#[test]
+fn every_french_sentence_has_its_spaces_before_the_tall_signs() {
+    // D47: U+202F before « ? ! ; », U+00A0 before « : » — times (12:21) and addresses (https:)
+    // aside — in every French sentence the window and the notifications say.
+    let mut wrong = Vec::new();
+    for text in literals_by_language().0 {
+        // A program's name, as its own messages open: no sentence. What is filled in neither.
+        if matches!(text.as_str(), "wholeheard-capture:" | "wholeheard-transcription:") {
+            continue;
+        }
+        let chars: Vec<char> = text.chars().collect();
+        let mut filled = false;
+        for (at, &c) in chars.iter().enumerate() {
+            filled = (filled || c == '{') && c != '}';
+            if filled {
+                continue;
+            }
+            let before = if at == 0 { None } else { Some(chars[at - 1]) };
+            let bad = match c {
+                '?' | '!' | ';' => before != Some('\u{202f}'),
+                ':' => {
+                    // 12:21: two figures after; https:// : its own word before, two slashes after.
+                    let time = before.is_some_and(|b| b.is_ascii_digit())
+                        && chars[at + 1..].iter().take_while(|d| d.is_ascii_digit()).count() == 2;
+                    let word: String = chars[..at].iter().rev().take_while(|d| d.is_alphabetic()).collect();
+                    let address = matches!(word.as_str(), "sptth" | "ptth") && chars[at + 1..].starts_with(&['/', '/']);
+                    !time && !address && before != Some('\u{a0}')
+                }
+                _ => false,
+            };
+            if bad {
+                wrong.push(text.clone());
+                break;
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} French sentences without their space:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }
