@@ -3605,8 +3605,8 @@ def main() -> int:
         held = window.file.read_text()
         lines = [line for line in held.splitlines() if not line.startswith("keep_audio")] + ["keep_audio = 0"]
         broken = "\n".join(lines) + "\n"
-        refused = "Le réglage n’a pas été enregistré\u00a0: le fichier des réglages ne peut pas être lu\u00a0: corrigez-le, puis réessayez."
-        locked_said = "Le fichier des réglages ne peut pas être lu\u00a0: Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé."
+        refused = "Le réglage n’a pas été enregistré\u00a0: le fichier des réglages ne peut pas être lu\u00a0: corrigez-le, puis réessayez.".replace("\xa0", " ")  # WebDriver's `.text` reads U+00A0 as a space
+        locked_said = "Le fichier des réglages ne peut pas être lu\u00a0: Wholeheard ne l’écrit pas tant qu’il n’est pas corrigé.".replace("\xa0", " ")  # WebDriver's `.text` reads U+00A0 as a space
         unreadable = lambda: browser.find_element(By.ID, "settings-unreadable").text  # noqa: E731
         window.file.write_text(broken)
         changed(lambda: browser.find_element(By.ID, "reminder").click())
