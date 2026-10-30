@@ -170,6 +170,59 @@ def playing(pid):
     raise AssertionError(f"process {pid} has no playing stream")
 
 
+def graph_nodes():
+    """The nodes of the graph, each with its client's properties beneath its own."""
+    dump = json.loads(subprocess.run(["pw-dump"], capture_output=True, text=True, check=True).stdout)
+    clients = {o["id"]: o["info"].get("props", {}) for o in dump if o["type"].endswith(":Client")}
+    nodes = []
+    for o in dump:
+        if o["type"].endswith(":Node"):
+            props = o["info"].get("props", {})
+            nodes.append((o["info"].get("state"), {**clients.get(props.get("client.id"), {}), **props}))
+    return nodes
+
+
+def not_running(name, seconds):
+    """The source is never `running`, read every tenth of a second for that long."""
+    until = time.time() + seconds
+    while time.time() < until:
+        states = [state for state, props in graph_nodes() if props.get("node.name") == name]
+        assert states, f"{name} is not in the graph"
+        assert states[0] != "running", f"{name} runs with nothing holding it"
+        time.sleep(0.1)
+    print(f"    {name}: not running, read for {seconds} s")
+
+
+def own_microphone(pid):
+    return [props for _, props in graph_nodes() if props.get("media.class") == "Stream/Input/Audio"
+            and str(props.get("application.process.id")) == str(pid) and props.get("stream.capture.sink") not in (True, "true")]
+
+
+def in_follow(pid):
+    """capture's local stream is passive, and its remote stream is not (ADR-0015)."""
+    local = own_microphone(pid)
+    assert local, f"process {pid} has no local stream"
+    assert local[0].get("node.passive") == "in-follow", f"the local stream says node.passive={local[0].get('node.passive')}"
+    remote = [props for _, props in graph_nodes() if str(props.get("application.process.id")) == str(pid) and props.get("stream.capture.sink") in (True, "true")]
+    assert remote and "node.passive" not in remote[0], "the remote stream changed"
+    print("    the local stream says node.passive=in-follow; the remote does not")
+
+
+def waited(folder):
+    """The track of a microphone that waited: zeros said from its first frame, the note after."""
+    read, one = session(folder), track(folder, "local")
+    assert "local" in read["tracks"], "session.json holds no local track"
+    assert read["tracks"]["local"]["device"] == "wholeheard_e2e_headset", f"local recorded from {read['tracks']['local']['device']}"
+    assert read["tracks"]["local"]["changed"][-1]["device"] is None, "the call left, and no change says so"
+    lines = [line for line in clock(folder) if line["track"] == "local"]
+    silences = [line["silence"] for line in lines if "silence" in line]
+    points = [line["sample"] for line in lines if "sample" in line]
+    assert silences and silences[0][0] == 0, "the track opens on zeros no line of the clock names"
+    assert points and points[0] >= silences[0][1], "a point inside the zeros"
+    assert abs(pitch(one) - 660) < 40, f"local holds {pitch(one):.0f} Hz, not the call's 660"
+    print(f"    local opens on {silences[0][1] / one['rate']:.1f} s of zeros said, then the call's note")
+
+
 def notes(one):
     """The note each whole second of a track holds, in Hz — 0 for a second of silence."""
     rate, first, found = one["rate"], one["first"], []
@@ -263,6 +316,15 @@ def main(what, folder, *args):
         return followed(folder, *args)
     if what == "moves-said":
         return moves_said(folder, *args)
+    if what == "not-running":
+        return not_running(folder, float(args[0]))
+    if what == "in-follow":
+        return in_follow(folder)
+    if what == "not-following":
+        assert not own_microphone(folder), "capture still has a local stream, after the call left"
+        return print("    capture holds no local stream")
+    if what == "waited":
+        return waited(folder)
     if what == "playing":
         # Not a measure: the stand-in call's playing stream, as the sound server numbers it.
         return print(playing(int(folder)))

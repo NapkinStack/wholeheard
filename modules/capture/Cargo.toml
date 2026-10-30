@@ -16,6 +16,8 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
 # PipeWire is how a Linux desktop exposes what plays; the other systems need no feature.
 [target.'cfg(target_os = "linux")'.dependencies]
 cpal = { version = "0.18.2", features = ["pipewire"] }
+# The same one cpal is built on: its -sys crate allows one version in a build (ADR-0015).
+pipewire = "0.10.1"
 
 [dev-dependencies]
 jsonschema = { version = "0.58", default-features = false }

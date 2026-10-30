@@ -142,6 +142,11 @@ impl Track {
         self.rate
     }
 
+    /// Channels of a frame, as the source said them.
+    pub fn channels(&self) -> u16 {
+        self.channels
+    }
+
     /// The loudest sound delivered since the last call, as a share of full scale, measured
     /// from where the source rests.
     pub fn loudest(&mut self) -> f32 {
@@ -264,6 +269,14 @@ impl Held {
             track: track.into(),
             device: device.into(),
             changed: Vec::new(),
+        }
+    }
+
+    /// The track is recorded from `name` from `at` on. The device it opened on, said as it opens
+    /// — a microphone the track waited for — is no change.
+    pub fn moved(&mut self, at: f64, name: Option<&str>) {
+        if !(self.changed.is_empty() && name == Some(self.device.as_str())) {
+            self.changed.push((at, name.map(str::to_string)));
         }
     }
 }

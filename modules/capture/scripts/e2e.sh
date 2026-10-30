@@ -54,7 +54,7 @@ restore() {
   pactl unload-module "$out" 2>/dev/null || true
   pactl unload-module "$mic" 2>/dev/null || true
   # Scenario J's own, when it was stopped before it took them away.
-  for module in ${mic_b:-} ${out_b:-} ${out_c:-}; do pactl unload-module "$module" 2>/dev/null || true; done
+  for module in ${mic_b:-} ${out_b:-} ${out_c:-} ${mic_c:-}; do pactl unload-module "$module" 2>/dev/null || true; done
   rm -rf "$work"
 }
 trap restore EXIT
@@ -284,6 +284,73 @@ sed 's/^/    /' "$work/k.errors" >> .evidence/e2e.txt
 check test "$stopped_as" = 0 -a ! -s "$work/k.errors"
 check measure2 call-followed "$(ls -d "$work"/v2-call/*/ | head -1)" "$work/k.events" wholeheard_e2e_call wholeheard_e2e_out 1100 660 440
 check logged e2e-k capture.started capture.device capture.device capture.stopped
+
+say "L. the microphone a call holds, and a headset's never opened actively (D66, ADR-0015)"
+# A source of the run's, fed by a device of the run's, made as WirePlumber makes a headset's virtual
+# input: stand_in NAME [more properties of the source]. No Bluetooth card: its script is not at work.
+mic_c=$(pactl load-module module-null-sink sink_name=wholeheard_e2e_mic_c)
+stand_in() {
+  pw-loopback --name="$1-loopback" \
+    --capture-props="{ node.name=$1_in media.class=Stream/Input/Audio/Internal target.object=wholeheard_e2e_mic_c stream.capture.sink=true node.passive=true node.dont-fallback=true node.linger=true ${2:-} }" \
+    --playback-props="{ node.name=$1 node.description=$1 media.class=Audio/Source ${2:-} }" &
+}
+call_on() { pw-record --target "$1" "$work/call-$$.wav" & }
+tone 660 30 "$work/660-long.wav"
+pw-play --target wholeheard_e2e_mic_c "$work/660-long.wav" & mic_player=$!
+
+# A call on a microphone other than the default: recorded, named, and left when it leaves.
+stand_in wholeheard_e2e_other; other=$!
+sleep 1
+WHOLEHEARD_TRACE=e2e-l "$bin" record "$work/v2-mic" --as v2 > "$work/l.events" 2> "$work/l.errors" &
+recorder=$!
+sleep 2; call_on wholeheard_e2e_other; call=$!
+sleep 4; folder=$(ls -d "$work"/v2-mic/*/ | head -1); cp "$folder/session.json" "$work/l-during.json"
+kill "$call" 2>/dev/null || true; wait "$call" 2>/dev/null || true
+sleep 3
+kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
+kill "$other" 2>/dev/null || true; wait "$other" 2>/dev/null || true
+grep -v '"level"' "$work/l.events" | sed 's/^/    /' >> .evidence/e2e.txt
+sed 's/^/    /' "$work/l.errors" >> .evidence/e2e.txt
+check test "$stopped_as" = 0 -a ! -s "$work/l.errors"
+check grep -q '"device":"wholeheard_e2e_other"' "$work/l.events"
+check grep -q 'wholeheard_e2e_other' "$work/l-during.json"
+check grep -q '"device":"wholeheard_e2e_mic' "$work/l.events"    # back on the default when it left
+
+# The default is a headset's, and no call: the microphone waits, nothing opens it. A call takes it:
+# a passive stream, which it carries. It leaves: capture lets go, and the source no longer runs.
+stand_in wholeheard_e2e_headset "bluez5.loopback=true"; headset=$!
+sleep 1
+pactl set-default-source wholeheard_e2e_headset
+WHOLEHEARD_TRACE=e2e-m "$bin" record "$work/v2-headset" --as v2 > "$work/m.events" 2> "$work/m.errors" &
+recorder=$!
+sleep 3
+folder=$(ls -d "$work"/v2-headset/*/ | head -1)
+check grep -q 'unavailable.*waits' "$work/m.events"
+check test ! -e "$folder/local.wav"
+check measure2 not-running wholeheard_e2e_headset 2
+call_on wholeheard_e2e_headset; call=$!
+sleep 3
+check grep -q '"device":"wholeheard_e2e_headset"' "$work/m.events"
+check measure2 in-follow "$recorder"
+check test -e "$folder/local.wav"
+kill "$call" 2>/dev/null || true; wait "$call" 2>/dev/null || true
+sleep 3     # what WirePlumber's restore takes, 2 s, and a reading of the graph
+check measure2 not-following "$recorder"
+check measure2 not-running wholeheard_e2e_headset 2
+check grep -q '"device":null' "$work/m.events"
+pw-play --target wholeheard_e2e_out "$work/880.wav"
+kill -INT "$recorder"; stopped_as=0; wait "$recorder" || stopped_as=$?
+kill "$mic_player" 2>/dev/null || true; wait "$mic_player" 2>/dev/null || true
+kill "$headset" 2>/dev/null || true; wait "$headset" 2>/dev/null || true
+pactl set-default-source wholeheard_e2e_mic.monitor
+pactl unload-module "$mic_c"; mic_c=
+grep -v '"level"' "$work/m.events" | sed 's/^/    /' >> .evidence/e2e.txt
+sed 's/^/    /' "$work/m.errors" >> .evidence/e2e.txt
+check test "$stopped_as" = 0 -a ! -s "$work/m.errors"
+check measure2 waited "$folder"
+check logged e2e-m capture.unavailable capture.started capture.opened capture.device capture.me_waits capture.stopped
+# Never an address, in a line of the output, a session or a log: a stand-in has none, this holds the path.
+check test -z "$(grep -lE '([0-9A-Fa-f]{2}[:_-]){5}[0-9A-Fa-f]{2}' "$work/m.events" "$folder/session.json" "$WHOLEHEARD_LOG_DIR"/capture.*.jsonl 2>/dev/null)"
 
 [ "$failed" = 0 ] && say "e2e: passed" || say "e2e: FAILED"
 exit "$failed"

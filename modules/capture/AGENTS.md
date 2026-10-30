@@ -28,9 +28,17 @@ Records the audio sources of a conversation into a session.
   of 21 ms from a piece to the next, and was wrong for the first.
 - An output is opened as an input: what it delivers is what it plays.
 - The host is chosen by what the system offers, never by the system's name: no code written
-  for one system (ADR-0002's success criterion).
+  for one system (ADR-0002's success criterion). `src/passive.rs` and `src/call.rs` are the
+  exceptions the ADRs name (ADR-0011, ADR-0015), and the first is the only file that knows the
+  `pipewire` crate.
+- `src/call.rs` decides from the graph, nothing else; `Following` in `src/main.rs` applies it, on
+  the main loop, closing before it opens. `Me` and `Step` are tested in `tests/call.rs`.
 
 ## Business invariants
+
+- A `bluez5.loopback=true` source, or a filter fed by one, is never opened actively: `me` is
+  passive on it (`node.passive=in-follow`) while a call holds it, and has no stream otherwise
+  (ADR-0015). A Bluetooth address reaches no log, event or session: `call::without_address`.
 
 - What was heard is on disk when `Track::push` returns: no buffer between a sample and the file.
 - A sample once written never changes; the header's lengths are true only after a clean stop.
@@ -44,6 +52,10 @@ Records the audio sources of a conversation into a session.
   beyond its folder's name (`tests/program.rs`, `scripts/e2e.sh`).
 
 ## Known traps
+
+- A system default that becomes a headset's moves the open cpal stream there, actively, until the
+  next reading of the graph closes it: a second at most, against the script's 500 ms.
+- `--as v1` does not follow a call's microphone: it refuses a headset's default at its start only.
 
 - A microphone rested at a third of full scale and opened on a click at full scale (cycle 01,
   D1): measured from zero, a silent room is sound. Tested.

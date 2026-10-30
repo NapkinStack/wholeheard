@@ -69,8 +69,24 @@ A recording follows the user's devices (D31): when the default changes — anoth
 unplugged — the system moves the stream, and the track goes on in the form it opened with, the
 system converting the new device's sound to it. The program says `device` with the new one's name,
 or `null` when the system names none, and `session.json` keeps each change with when
-(`recording/v1`, `session-audio/v2`). A microphone chosen inside a call's own application is not
-the system's default, and is not followed.
+(`recording/v1`, `session-audio/v2`).
+
+The local side records the microphone the call holds (D66, ADR-0015), on Linux where PipeWire's tools
+answer, read from the same reading of the graph as below:
+
+| In the graph | `me` records | Said |
+|---|---|---|
+| An application other than Wholeheard holds a source, not simply the default | That source, under the track's form; of several, the one running, then the oldest stream | `device`, with its description |
+| That source is a headset's virtual input (`bluez5.loopback=true`), or a filter fed by one | The same, on a stream that says `node.passive=in-follow` (`src/passive.rs`): it never makes the source run, so never asks for the headset's profile | `device` |
+| Nobody, and another default input | The default, as above | As above |
+| Nobody, and the default is a headset's | Nothing: no stream at all, until a call takes it | `unavailable` at the start; `device: null` later |
+
+A track that waits from the start has no file until it is taken, in the form then negotiated, opening on
+zeros the clock names; never taken, it has no track, as a source that could not be opened. Taken back, it
+goes on in its form, the system converting; the gap is zeros the clock names. A graph that does not read
+leaves what is open as it is; at the start, a default named `bluez_…` waits and any other opens. `--as v1`
+follows nothing, and records no microphone with a headset's default. macOS and Windows: the default, as
+above.
 
 The other side follows the call (D41, ADR-0011), where PipeWire's tools answer: once a second capture
 reads the graph (`pw-dump`); when an application other than capture holds a microphone and all its
@@ -103,4 +119,5 @@ These lines are a contract: [`recording/v1`](../../contracts/recording/v1/README
 ## Decisions
 
 [ADR-0002](../../docs/adr/0002-a-rust-core-of-programs-and-a-web-view-shell.md): a program
-of its own, in Rust, on one audio library.
+of its own, in Rust, on one audio library. ADR-0015, in its own pull request: the local side, and the
+`pipewire` crate for one stream.
