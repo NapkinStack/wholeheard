@@ -598,6 +598,8 @@ function sought() {
 
 // How long the small window says the reminder, in seconds (D50).
 const ANNOUNCED_FOR = 15;
+// How long a side's ✓ shows before it fades, in milliseconds (D49).
+const CHECK_SHOWN = 2500;
 
 const element = (tag, className, text) => {
   const made = document.createElement(tag);
@@ -2343,8 +2345,10 @@ function showSmall(words) {
   const time = element("span", "time", "00:00:00");
   const top = element("div", "small-top");
   top.append(element("span", "live-dot"), time, toFull("small-full-live"));
-  // Each level under what it is recorded from, as the system names it (D33).
-  const meter = (label, id, device) => {
+  // Each level under what it is recorded from, as the system names it (D33); before that name, a
+  // check that turns ✓ when the side is heard, then fades; under it, what a silence asks (D49).
+  const checks = [];
+  const meter = (label, id, device, says) => {
     const row = element("div", "meter");
     const bar = element("span", "track");
     bar.setAttribute("role", "meter");
@@ -2357,8 +2361,17 @@ function showSmall(words) {
     const said = element("span", "said");
     const named = element("span", "device");
     named.id = device;
-    said.append(element("span", "side", label), named);
-    row.append(said, bar);
+    const mark = element("span", "check");
+    const status = element("span", "check-said");
+    status.setAttribute("role", "status");
+    mark.append(status);
+    const slot = element("span", "slot");
+    slot.append(mark, named);
+    said.append(element("span", "side", label), slot);
+    const sentence = element("p", "says check-says");
+    sentence.setAttribute("role", "status");
+    row.append(said, bar, sentence);
+    checks.push({ slot, status, sentence, says, heard: fill(words.small_heard, label), since: 0 });
     return row;
   };
   // The reminder where the user looks, the recording's first seconds, its announcement one click
@@ -2387,7 +2400,10 @@ function showSmall(words) {
   stop.id = "small-stop";
   stop.addEventListener("click", () => invoke("record"));
   const meters = element("div", "meters");
-  meters.append(meter(words.small_mic, "level-me", "device-me"), meter(words.small_meeting, "level-others", "device-others"));
+  meters.append(
+    meter(words.small_mic, "level-me", "device-me", { silent: words.small_silent_me, nothing: words.small_nothing, waiting: words.small_waiting_me }),
+    meter(words.small_meeting, "level-others", "device-others", { silent: words.small_silent_others, waiting: words.small_waiting_others }),
+  );
   const note = element("p", "says", words.small_note);
   note.id = "small-note";
   note.hidden = true;
@@ -2537,6 +2553,17 @@ function showSmall(words) {
       named.title = now.devices[index] ?? "";
       // Its name hidden while the context is open: said on its meter still (D60).
       named.closest(".meter").title = now.devices[index] ?? "";
+    }
+    // Written when it changes alone: a tick that rewrites text under a click loses it in WebKitGTK.
+    for (const [index, check] of checks.entries()) {
+      const state = now.checks[index];
+      if (check.slot.dataset.check !== state) {
+        check.slot.dataset.check = state;
+        check.since = performance.now();
+        check.status.textContent = state === "heard" ? check.heard : "";
+        check.sentence.textContent = check.says[state] ?? "";
+      }
+      check.slot.classList.toggle("faded", state === "heard" && performance.now() - check.since >= CHECK_SHOWN);
     }
     announcement = now.announcement;
     announce.hidden = announcement === null;
