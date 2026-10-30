@@ -466,6 +466,9 @@ pub struct Window {
     pub small_meeting: &'static str,
     pub small_stop: &'static str,
     pub small_note: &'static str,
+    /// The reminder said where the user looks, the first seconds of a recording (D50).
+    pub small_announce: &'static str,
+    pub copy_announcement: &'static str,
     pub small_full: &'static str,
     /// The small window at rest (D35): no meeting yet, the last one, and the ways to the full window.
     pub small_none: &'static str,
@@ -834,6 +837,8 @@ pub fn window(language: Language) -> Window {
             small_meeting: "The meeting",
             small_stop: "Stop",
             small_note: "Once stopped, the transcript writes itself. You will be told.",
+            small_announce: "Tell the participants this meeting is being recorded.",
+            copy_announcement: "Copy the announcement",
             small_full: "The whole window",
             small_none: "No meeting yet.",
             small_last: "Last meeting",
@@ -1195,6 +1200,8 @@ pub fn window(language: Language) -> Window {
             small_meeting: "La réunion",
             small_stop: "Arrêter",
             small_note: "À l’arrêt, le transcript s’écrit tout seul. Vous serez prévenu.",
+            small_announce: "Prévenez les participants que cette réunion est enregistrée.",
+            copy_announcement: "Copier l’annonce",
             small_full: "Toute la fenêtre",
             small_none: "Aucune réunion pour l’instant.",
             small_last: "Dernière réunion",
@@ -2140,4 +2147,20 @@ pub fn fetched(outcome: &Result<(), String>, chosen: bool, language: Language) -
         ),
     };
     notice(title, body.to_string()).expect("always said")
+}
+
+/// The sentence « Copier l'annonce » puts on the clipboard, for the call's chat (D50): in the
+/// meeting's language when it says French or English, else in the window's.
+pub fn announcement(meeting: Option<&str>, window: Language) -> &'static str {
+    let language = match meeting {
+        Some("fr") => Language::French,
+        Some("en") => Language::English,
+        _ => window,
+    };
+    match language {
+        Language::French => {
+            "J’enregistre cette réunion pour en faire le compte rendu. Dites-le-moi si vous préférez que je ne le fasse pas."
+        }
+        Language::English => "I’m recording this meeting to write up its minutes. Tell me if you’d rather I didn’t.",
+    }
 }

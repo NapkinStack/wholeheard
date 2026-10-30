@@ -1732,6 +1732,60 @@ def minutes_copied(now: dt.datetime) -> None:
             wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').dataset.name") == folder.name
                      and b.find_elements(By.CSS_SELECTOR, "#meeting .minutes .none"), 10)
             check(f"a meeting {why} offers no copy", not browser.find_elements(By.ID, "copy-minutes"))
+def announced(now: dt.datetime) -> None:
+    """AM. The reminder said in the small window, the announcement one click away (D50)."""
+    print("AM. the reminder under the timer for fifteen seconds, its announcement copied; the reminder off, neither (D50)")
+    line = "const a = document.getElementById('small-announce'); return [!!a && !a.hidden, a && getComputedStyle(a).visibility, a && a.textContent]"
+    place = "return document.getElementById('small-stop').getBoundingClientRect().top"
+    for theme in ("light", "dark"):
+        taping = WORK / f"announcing-{theme}"
+        taping.mkdir()
+        window = Window(taping, "fr_FR.UTF-8", 'after = "nothing"\n', small=True)
+        # The dark theme asked of GTK; the other, the desktop's own.
+        if theme == "dark":
+            window.env.update(GTK_THEME="Adwaita:dark")
+        with window as browser:
+            browser.find_element(By.ID, "small-record").click()
+            wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(line)[0], 10)
+            shown = browser.execute_script(line)
+            check("recording, the reminder says it under the timer", shown[0] and shown[1] == "visible" and "Prévenez les participants que cette réunion est enregistrée." in shown[2], shown)
+            order = browser.execute_script("const l = [...document.querySelector('.small-live').children]; return [l.indexOf(document.querySelector('.small-live .small-top')), l.indexOf(document.getElementById('small-announce')), l.indexOf(document.querySelector('.meters'))]")
+            check("under the timer, above the levels", order == sorted(order) and order[1] == order[0] + 1, order)
+            # With the note a transcript that follows adds, read at once: the next tick hides it again here.
+            fits = browser.execute_script("document.getElementById('small-note').hidden = false; const e = document.scrollingElement; return [e.scrollHeight, e.clientHeight];")
+            check("nothing to scroll with it, nor with the note", fits[0] <= fits[1], fits)
+            shot(browser, f"d50-announce-{theme}")
+            browser.execute_script("window.copied_for_test = null; Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async (t) => { window.copied_for_test = t; }}})")
+            browser.find_element(By.ID, "small-announce-copy").click()
+            copied = wait_for(browser, lambda b: b.find_element(By.ID, "small-announce-copied").text == "Copié", 3)
+            text = browser.execute_script("return window.copied_for_test")
+            check("Copier l’annonce: the sentence on the clipboard, « Copié » in place", copied and text == "J’enregistre cette réunion pour en faire le compte rendu. Dites-le-moi si vous préférez que je ne le fasse pas.", text)
+            before = browser.execute_script(place)
+            gone = wait_for(browser, lambda b: b.execute_script(line)[1] == "hidden", 20)
+            check("after fifteen seconds it is gone", gone, browser.execute_script(line))
+            check("Arrêter has not moved", browser.execute_script(place) == before, [before, browser.execute_script(place)])
+            stop_from_small(browser)
+    speaking = WORK / "announcing-en"
+    speaking.mkdir()
+    with Window(speaking, "fr_FR.UTF-8", 'after = "nothing"\nmeeting_language = "en"\n', small=True) as browser:
+        browser.find_element(By.ID, "small-record").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(line)[0], 10)
+        browser.execute_script("window.copied_for_test = null; Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async (t) => { window.copied_for_test = t; }}})")
+        browser.find_element(By.ID, "small-announce-copy").click()
+        wait_for(browser, lambda b: b.execute_script("return window.copied_for_test"), 3)
+        text = browser.execute_script("return window.copied_for_test")
+        check("a meeting said in English: the announcement in English, the window in French", text == "I’m recording this meeting to write up its minutes. Tell me if you’d rather I didn’t.", text)
+        stop_from_small(browser)
+    quiet = WORK / "announcing-off"
+    quiet.mkdir()
+    with Window(quiet, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        browser.find_element(By.ID, "small-record").click()
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop"), 10)
+        time.sleep(1.5)
+        check("the reminder off: neither the line nor the button shows", not browser.execute_script(line)[0], browser.execute_script(line))
+        stop_from_small(browser)
+
+
 def actions_rows(now: dt.datetime) -> None:
     """AK. A meeting's actions as rows: Qui · Quoi · Pour quand (D46)."""
     print("AK. the minutes' actions as rows — who in its colour, by when in monospace, an item that does not split shown as written (D46)")
@@ -4372,6 +4426,7 @@ def main() -> int:
     meeting_told_once(now)
     minutes_copied(now)
     actions_rows(now)
+    announced(now)
     return 1 if FAILED else 0
 
 
