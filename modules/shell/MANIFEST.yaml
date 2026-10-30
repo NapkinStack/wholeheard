@@ -233,6 +233,10 @@ evidence:
     - pattern: '"message":"shell\.recording_lost"'
       level: warning
       scenario: A
+    # The window's AN starts a recording with no microphone to open, its side said waiting (D49).
+    - pattern: '"message":"shell\.recording_unavailable"'
+      level: warning
+      scenario: AN
     # No recorder where Wholeheard looks for one.
     - pattern: '"message":"shell\.recording_failed"'
       level: error

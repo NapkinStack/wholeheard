@@ -106,6 +106,78 @@ impl Devices {
     }
 }
 
+/// Above this, a level is sound: about -40 dB of the loudest a side can be, under a voice and
+/// over the nothing of a side at rest (`recording/v1` says 0 is silence, and no more). The silence
+/// a user is told of stays capture's own measure (`silent`).
+const ABOVE_SILENCE: f32 = 0.33;
+
+/// What the small window says of a side being heard (D49).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Check {
+    /// Nothing heard yet of what it is recorded from now.
+    #[default]
+    Listening,
+    Heard,
+    /// Capture says it has given no sound for a while.
+    Silent,
+    /// Capture says the microphone sends nothing at all (`Said::Nothing`).
+    Nothing,
+    /// No device: nothing of it is recorded now, so there is nothing to check.
+    Waiting,
+}
+
+/// Each side's check, the microphone then the output, as the recording said them.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Checks {
+    now: [Check; 2],
+    /// A silence capture said: it says it once per silence (`recording/v1`), and neither a device
+    /// changed nor a side back from waiting makes it say it again.
+    silence: [Option<Check>; 2],
+}
+
+impl Checks {
+    pub fn heard(&mut self, said: &Said) {
+        let side = |source: &Source| usize::from(*source == Source::Others);
+        let (at, check) = match said {
+            Said::Unavailable(source, _) | Said::Lost(source) => (side(source), Check::Waiting),
+            Said::Moved(source, _) => (side(source), self.silence[side(source)].unwrap_or(Check::Listening)),
+            // The zeros a recording keeps in the place of a side with no device are remembered
+            // for when it has one, and no news until then.
+            Said::Silent(source) => {
+                self.silence[side(source)] = Some(Check::Silent);
+                if self.now[side(source)] == Check::Waiting {
+                    return;
+                }
+                (side(source), Check::Silent)
+            }
+            Said::Nothing => {
+                self.silence[0] = Some(Check::Nothing);
+                if self.now[0] == Check::Waiting {
+                    return;
+                }
+                (0, Check::Nothing)
+            }
+            Said::Heard(source) => {
+                self.silence[side(source)] = None;
+                if self.now[side(source)] == Check::Waiting {
+                    return;
+                }
+                (side(source), Check::Heard)
+            }
+            Said::Level(source, level) if *level > ABOVE_SILENCE && self.now[side(source)] == Check::Listening => {
+                (side(source), Check::Heard)
+            }
+            _ => return,
+        };
+        self.now[at] = check;
+    }
+
+    pub fn now(&self) -> [Check; 2] {
+        self.now
+    }
+}
+
 /// A device's name made fit to show: on one line, its spaces collapsed, and short. A name
 /// that says nothing of which device it is gives none: a desktop's default named for itself,
 /// the capture's own words for a device it could not open or name.
