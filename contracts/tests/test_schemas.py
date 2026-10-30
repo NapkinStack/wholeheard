@@ -563,11 +563,19 @@ def test_session_audio_v2_shows_a_track_gained_late_opening_on_zeros_its_clock_n
     schema = json.loads((CONTRACTS / "session-audio/v2/session.schema.json").read_text())
     record = json.loads(session)
     assert list(jsonschema.Draft202012Validator(schema).iter_errors(record)) == []
-    assert record["tracks"]["local"]["changed"][-1]["device"] is None
+    changed = record["tracks"]["local"]["changed"]
+    assert [change["device"] is None for change in changed] == [True, False, True, False]
     reads = jsonschema.Draft202012Validator(json.loads((CONTRACTS / "session-audio/v2/clock.schema.json").read_text()))
     lines = [json.loads(line) for line in clock.splitlines()]
     assert [line for line in lines if not reads.is_valid(line)] == []
     local = [line for line in lines if line["track"] == "local"]
     assert local[0]["silence"][0] == 0
     assert local[1]["sample"] == local[0]["silence"][1]
-    assert "silence" in local[-1]
+    # A gap over 1.5 s: zeros that stop 0.5 to 1.5 s short of the clock, placed again by the next point.
+    points = [line for line in local if "sample" in line]
+    behind = [line["at"] - line["sample"] / 48000 for line in points]
+    assert 0.5 <= behind[2] - behind[1] <= 1.5
+    assert points[2]["sample"] == [line for line in local if "silence" in line][-1]["silence"][1]
+    # A gap under 1.5 s: no silence at all, the point alone says it.
+    assert "sample" in local[-2] and "sample" in local[-1]
+    assert changed[2]["at"] < local[-1]["at"] and local[-1]["at"] - local[-2]["at"] > 1
