@@ -2595,7 +2595,10 @@ fn listen(app: &AppHandle, said: &Receiver<Said>) {
                     ..notice
                 })
             }
-            _ => sides.told(&event, shell.settings().reminder, shell.language()),
+            _ => {
+                sides.seen(small_seen(app));
+                sides.told(&event, shell.settings().reminder, shell.language())
+            }
         };
         if let Some(notice) = notice {
             tell(app, &notice);
@@ -3301,6 +3304,12 @@ fn window_seen(app: &AppHandle) -> bool {
         .iter()
         .filter_map(|label| app.get_webview_window(label))
         .any(|window| window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false))
+}
+
+/// Whether the small window is seen: it says a side that waits (D49, D66).
+fn small_seen(app: &AppHandle) -> bool {
+    app.get_webview_window("small")
+        .is_some_and(|window| window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false))
 }
 
 /// Quits Wholeheard. A recording in progress is stopped first, as the user would stop it: its

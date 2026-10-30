@@ -102,7 +102,7 @@ fn a_source_that_is_silent_or_refused_is_named_and_the_recording_is_said_to_go_o
     assert_eq!(
         told(&refused, false, Language::English),
         (
-            "Your microphone is not recorded".into(),
+            "Your microphone is not recorded for now".into(),
             "The meeting’s sound is still recorded.".into()
         )
     );
@@ -715,18 +715,18 @@ fn a_device_changed_says_what_is_recorded_now_one_gone_says_that_side_and_one_ba
             "Le son de la réunion est toujours enregistré, depuis la sortie qu’utilise maintenant votre ordinateur.",
         ),
         // None left: that side is not recorded for now — nothing said of the other, which may
-        // have none either — and one plugged in is recorded at once.
+        // have none either. The microphone: never why, a call may simply have let go (D66).
         (
             Said::Lost(Source::Me),
             English,
             "Your microphone is not recorded for now",
-            "Your computer has no microphone left. A microphone plugged in is recorded at once; the recording goes on.",
+            "The recording goes on.",
         ),
         (
             Said::Lost(Source::Me),
             French,
             "Votre micro n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{202f}; l’enregistrement continue.",
+            "L’enregistrement continue.",
         ),
         (
             Said::Lost(Source::Others),
@@ -836,10 +836,101 @@ fn what_the_devices_are_decides_what_is_said_of_one_gone_and_one_back() {
     let mut sides = Sides::default();
     assert_eq!(
         body(&mut sides, &Said::Lost(Source::Me), French).as_deref(),
-        Some(
-            "Votre ordinateur n’a plus de micro. Le son de la réunion est toujours enregistré, et un micro branché est enregistré aussitôt."
-        )
+        Some("Le son de la réunion est toujours enregistré.")
     );
+}
+
+#[test]
+fn a_microphone_not_recorded_says_nothing_of_why_and_no_gesture() {
+    use Language::{English, French};
+    use words::Sides;
+    for (said, language, title, body) in [
+        (
+            Said::Unavailable(Source::Me, "the call holds it".into()),
+            English,
+            "Your microphone is not recorded for now",
+            "The meeting’s sound is still recorded.",
+        ),
+        (
+            Said::Unavailable(Source::Me, "the call holds it".into()),
+            French,
+            "Votre micro n’est pas enregistré pour l’instant",
+            "Le son de la réunion est toujours enregistré.",
+        ),
+        (
+            Said::Lost(Source::Me),
+            English,
+            "Your microphone is not recorded for now",
+            "The meeting’s sound is still recorded.",
+        ),
+        (
+            Said::Lost(Source::Me),
+            French,
+            "Votre micro n’est plus enregistré pour l’instant",
+            "Le son de la réunion est toujours enregistré.",
+        ),
+    ] {
+        let notice = Sides::default().told(&said, false, language).unwrap();
+        assert_eq!((notice.title.as_str(), notice.body.as_str()), (title, body), "{said:?}");
+    }
+}
+
+#[test]
+fn a_call_taking_and_leaving_the_microphone_is_said_once_a_recording() {
+    use Language::French;
+    use words::Sides;
+    let (lost, taken) = (Said::Lost(Source::Me), Said::Moved(Source::Me, Some("AirPods".into())));
+    let title = |sides: &mut Sides, said: &Said| sides.told(said, false, French).map(|notice| notice.title);
+
+    // It waited from the start: said once, its first take is no « de nouveau ».
+    let mut sides = Sides::default();
+    assert!(title(&mut sides, &Said::Unavailable(Source::Me, String::new())).is_some());
+    assert_eq!(title(&mut sides, &taken).as_deref(), Some("Votre micro est enregistré"));
+    assert_eq!(title(&mut sides, &lost), None);
+    assert_eq!(title(&mut sides, &taken), None);
+    assert_eq!(title(&mut sides, &lost), None);
+
+    // It was recorded: gone, then back, each said once however often the call comes.
+    let mut sides = Sides::default();
+    assert_eq!(
+        title(&mut sides, &lost).as_deref(),
+        Some("Votre micro n’est plus enregistré pour l’instant")
+    );
+    assert_eq!(title(&mut sides, &taken).as_deref(), Some("Votre micro est de nouveau enregistré"));
+    assert_eq!(title(&mut sides, &lost), None);
+    assert_eq!(title(&mut sides, &taken), None);
+
+    // A default the call leaves for and comes back to: each microphone named once.
+    let mut sides = Sides::default();
+    let default = Said::Moved(Source::Me, Some("Micro du portable".into()));
+    sides.told(&Said::Started("/s".into(), Some("Micro du portable".into()), None), false, French);
+    assert_eq!(title(&mut sides, &taken).as_deref(), Some("Micro changé"));
+    assert_eq!(title(&mut sides, &default), None);
+    assert_eq!(title(&mut sides, &taken), None);
+
+    // The meeting's side is not a call's to take: each said, as before (D31).
+    let (gone, back) = (Said::Lost(Source::Others), Said::Moved(Source::Others, Some("Casque".into())));
+    let mut sides = Sides::default();
+    for _ in 0..2 {
+        assert!(title(&mut sides, &gone).is_some());
+        assert!(title(&mut sides, &back).is_some());
+    }
+}
+
+#[test]
+fn the_small_window_seen_says_it_and_no_notification_does() {
+    use Language::French;
+    let lost = Said::Lost(Source::Me);
+    let mut sides = words::Sides::default();
+    sides.seen(true);
+    assert_eq!(sides.told(&Said::Unavailable(Source::Me, String::new()), false, French), None);
+    assert_eq!(sides.told(&Said::Moved(Source::Me, Some("AirPods".into())), false, French), None);
+    assert_eq!(sides.told(&lost, false, French), None);
+    // Not said there, it is still owed once the window is gone.
+    sides.seen(false);
+    sides.told(&Said::Moved(Source::Me, Some("AirPods".into())), false, French);
+    assert!(sides.told(&lost, false, French).is_some());
+    assert_eq!(sides.told(&lost, false, French), None);
 }
 
 #[test]
