@@ -14,6 +14,23 @@ use crate::Refused;
 /// How long reaching the provider may take, before any answer is awaited.
 const CONNECT: Duration = Duration::from_secs(15);
 
+/// Ollama's window grows by this, and an answer may take this much of it, its thinking counted:
+/// a model that runs away is cut, and said to be, rather than waited for.
+const WINDOW: usize = 4096;
+
+/// How much of a window a request needs: Ollama's OpenAI route keeps 4096 tokens unless told at
+/// its server, and drops the rest in silence, the rules first (the request is cut from its head).
+/// Two bytes to a token at the very least; French measured 2.7 characters.
+pub fn window(request: &str) -> usize {
+    (request.len() / 2 + WINDOW).div_ceil(WINDOW) * WINDOW
+}
+
+/// The patience Ollama is given: what any provider gets, and a second for each 20 bytes it has to
+/// read, a laptop's processor taking some 14 tokens a second (measured on `qwen3:8b`, 2026-10-31).
+pub fn patience(given: Duration, request: &str) -> Duration {
+    given + Duration::from_secs((request.len() / 20) as u64)
+}
+
 fn refused<T>(code: &'static str, why: impl Into<String>) -> Result<T, Refused> {
     Err(Refused(why.into(), Some(code)))
 }
@@ -161,6 +178,25 @@ impl Provider {
         }
     }
 
+    /// Where Ollama takes a request with its window, when it is Ollama that listens at this
+    /// address: an address of OpenAI's form, no key, and its own answer to its own question.
+    /// Whatever else answers, the address is asked as it was given.
+    fn ollama(&self, agent: &ureq::Agent) -> Option<Uri> {
+        let root = self.uri.to_string();
+        let root = root.strip_suffix("/v1/chat/completions").filter(|_| self.key.is_none())?;
+        let mut response = agent
+            .get(format!("{root}/api/version"))
+            .config()
+            .timeout_global(Some(CONNECT.min(self.patience)))
+            .build()
+            .call()
+            .ok()?;
+        let said = response.body_mut().read_json::<serde_json::Value>().ok()?;
+        (response.status() == 200 && said["version"].is_string())
+            .then(|| format!("{root}/api/chat").parse().ok())
+            .flatten()
+    }
+
     /// Asks once, and gives the answer's text — or what failed, in one sentence.
     pub fn ask(&self, request: &str) -> Result<String, Refused> {
         let host = self.named();
@@ -168,16 +204,30 @@ impl Provider {
             .max_redirects(0)
             .proxy(None)
             .http_status_as_error(false)
-            .timeout_global(Some(self.patience))
             // A host that answers nothing at all is not reached, rather than slow (summarising/v1).
             .timeout_connect(Some(CONNECT.min(self.patience)))
             .build()
             .into();
-        let mut call = agent.post(&self.uri);
+        let ollama = self.ollama(&agent);
+        // An Ollama that did not say what it is goes the cut way: the logs say which way it went.
+        tracing::info!(ollama = ollama.is_some(), "summary.route");
+        let waited = if ollama.is_some() {
+            patience(self.patience, request)
+        } else {
+            self.patience
+        };
+        let mut call = agent
+            .post(ollama.as_ref().unwrap_or(&self.uri))
+            .config()
+            .timeout_global(Some(waited))
+            .build();
         if let Some(key) = &self.key {
             call = call.header("Authorization", format!("Bearer {key}"));
         }
-        let body = serde_json::json!({ "model": self.model, "stream": false, "messages": [{ "role": "user", "content": request }] });
+        let mut body = serde_json::json!({ "model": self.model, "stream": false, "messages": [{ "role": "user", "content": request }] });
+        if ollama.is_some() {
+            body["options"] = serde_json::json!({ "num_ctx": window(request), "num_predict": WINDOW });
+        }
         let mut response = match call.send_json(&body) {
             Ok(response) => response,
             Err(ureq::Error::Timeout(ureq::Timeout::Resolve | ureq::Timeout::Connect)) => {
@@ -187,10 +237,7 @@ impl Provider {
                 );
             }
             Err(ureq::Error::Timeout(_)) => {
-                return refused(
-                    "provider.too_slow",
-                    format!("{host} did not answer within {} s", self.patience.as_secs()),
-                );
+                return refused("provider.too_slow", format!("{host} did not answer within {} s", waited.as_secs()));
             }
             Err(error) => return refused("provider.unreachable", format!("{host} could not be reached: {error}")),
         };
@@ -230,9 +277,14 @@ impl Provider {
                 format!("{host} sent an answer that could not be read to its end"),
             );
         };
-        let choice = &answer["choices"][0];
+        let (reason, said) = if ollama.is_some() {
+            (&answer["done_reason"], &answer["message"]["content"])
+        } else {
+            let choice = &answer["choices"][0];
+            (&choice["finish_reason"], &choice["message"]["content"])
+        };
         // An answer is whole when the provider says it stopped by itself, or says nothing.
-        match &choice["finish_reason"] {
+        match reason {
             serde_json::Value::Null => {}
             reason if reason == "stop" => {}
             reason if reason == "length" => {
@@ -243,7 +295,7 @@ impl Provider {
             }
             _ => return refused("provider.failed", format!("{host} stopped before the end of its answer")),
         }
-        match choice["message"]["content"].as_str() {
+        match said.as_str() {
             Some(text) if !text.trim().is_empty() => Ok(text.to_string()),
             _ => refused("provider.failed", format!("{host} answered without any text")),
         }
