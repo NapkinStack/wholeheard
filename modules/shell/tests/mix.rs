@@ -409,6 +409,22 @@ fn every_run_after_it_stops_a_run_never_two_sounds_and_a_run_with_nothing_left_c
 }
 
 #[test]
+fn the_earliest_run_after_it_stops_a_run_wherever_it_stands_in_the_clock() {
+    let folder = tempfile::tempdir().unwrap();
+    let rate = 48_000u32;
+    // The first run holds 10 s; the second starts at 5 s of the clock, the last at 20 s.
+    let lines = point(0, 0.0) + &point(480_000, 5.0) + &point(720_000, 20.0);
+    let long = tone(1000.0, rate, 16.0, 0.5, 2);
+    wav(&folder.path().join("local.wav"), rate, 2, 24, &long, false);
+    fs::write(folder.path().join("session.json"), STARTED).unwrap();
+    fs::write(folder.path().join("clock.jsonl"), lines).unwrap();
+    assert!(
+        samples(&mixed(folder.path())).iter().all(|s| s.unsigned_abs() <= 16_400),
+        "never two sounds added"
+    );
+}
+
+#[test]
 fn a_clock_read_in_any_order_a_frame_said_twice_a_point_beyond_any_meeting_or_the_file_change_nothing() {
     let folder = tempfile::tempdir().unwrap();
     let clean = point(0, 0.0) + &point(96_000, 3.0);
@@ -434,7 +450,13 @@ fn the_same_track_placed_otherwise_is_another_mix_and_an_empty_track_still_is_on
     let one = Mix::placed(&[(path.clone(), vec![(0, 0.0), (96_000, 3.0)])]).unwrap();
     let other = Mix::placed(&[(path.clone(), vec![(0, 0.0), (48_000, 3.0), (144_000, 4.0)])]).unwrap();
     assert!(!one.same(&other));
-    assert!(one.same(&Mix::placed(&[(path, vec![(0, 0.0), (96_000, 3.0)])]).unwrap()));
+    assert!(one.same(&Mix::placed(&[(path.clone(), vec![(0, 0.0), (96_000, 3.0)])]).unwrap()));
+    // Each run in the same place and as long, one read from another frame: a clock written again.
+    timed(folder.path(), 9.0, &[], "");
+    let path = folder.path().join("local.wav");
+    let here = Mix::placed(&[(path.clone(), vec![(0, 0.0), (96_000, 1.0), (200_000, 2.0)])]).unwrap();
+    let there = Mix::placed(&[(path, vec![(0, 0.0), (72_000, 1.0), (200_000, 2.0)])]).unwrap();
+    assert!(!here.same(&there));
     let empty = folder.path().join("empty.wav");
     wav(&empty, 48_000, 1, 16, &[], false);
     assert_eq!(Mix::placed(&[(empty, vec![(0, 0.0)])]).unwrap().frames(), 0);
