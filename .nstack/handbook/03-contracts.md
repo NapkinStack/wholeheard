@@ -142,6 +142,18 @@ as that version consumed, and B6 refuses a consumer declared before its producer
 that names v2 before step 1 is merged — even in a test that shows v2 refused — fails B1 in
 every pull request, and cannot declare it. Write the name after step 1.
 
+**Declaring a version is not writing it.** Where a consumer must read a format before its
+producer writes it — a file, a message, anything already stored — two modules still have an
+order, in separate pull requests, within the four steps above:
+
+- first the producer declares v2 in its `provides`, the page beside it and v1's removal date
+  set, and goes on writing v1;
+- then the consumer declares v2 beside v1, and reads both;
+- last the producer writes v2.
+
+Each step passes B1 and B6 on its own: no consumer names a version before it is declared, and
+nothing asks both manifests in one pull request.
+
 ### The three guardrails
 
 **① The deprecation date is a check.** From PR 1 onwards, v1 carries a removal date. A
