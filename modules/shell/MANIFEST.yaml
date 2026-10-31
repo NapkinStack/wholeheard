@@ -196,6 +196,15 @@ dependencies:
       One function, verify in src/registry.rs, and a format that is public: any Ed25519 library
       and the few lines that read a .minisig replace it; dropping the reading again leaves the
       shipped list as it is.
+  - name: oxc_parser
+    purpose: >
+      For the tests only (a dev-dependency, with oxc_allocator, oxc_ast, oxc_ast_visit and oxc_span;
+      0.156, MIT) — reads window.js in tests/silence.rs (D67), where a reading of its text was shown
+      blind; none of it reaches the program built
+    adr: null
+    exit_strategy: >
+      One test file: any JavaScript parser's visitor replaces it, or ESLint's rule if the module comes
+      to hold Node. Removing it loses the test, not the program.
   - name: minisign
     purpose: >
       For the tests only (a dev-dependency) — makes a key at each run and signs with it, so that

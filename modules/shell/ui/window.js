@@ -2440,7 +2440,7 @@ function showSmall(words) {
   // The meeting's context (D59): closed by default, opened in place of the note — Arrêter never
   // moves. Kept as it is typed, once the meeting's folder holds its session.
   const meeting = { name: null, saved: null, typed: null, refused: null };
-  // What could not be kept: under both states, for it outlasts the recording, and *Arrêter* stays where it is (D67, D49).
+  // What could not be kept: it outlasts the recording (D67).
   const unkept = new Map();
   const unkeptSaid = element("p", "note warn small-said");
   unkeptSaid.id = "small-said";
@@ -2504,7 +2504,7 @@ function showSmall(words) {
   // Said confidential (D60): under Arrêter, above the context; kept as it is turned, once the
   // meeting's folder holds its session.
   const secret = confidentialSwitch(words, "small-confidential");
-  const mark = { wanted: null };
+  const mark = { wanted: null, refused: 0 };
   const marked = async () => {
     if (meeting.name === null || mark.wanted === null) return;
     const wanted = mark.wanted;
@@ -2512,18 +2512,18 @@ function showSmall(words) {
       await invoke("confidential_set", { name: meeting.name, on: wanted });
       if (mark.wanted === wanted) mark.wanted = null;
       smallSaid("mark", null);
+      secret.row.classList.toggle("on", secret.box.checked);
     } catch {
-      // Said, and the switch put back, as the full window's: on with nothing kept would promise what is not so.
+      // Said, its lock off: on with nothing kept would promise what is not so. Asked again every
+      // five seconds, not every tick: each try is a line in the log.
+      mark.refused = Date.now();
+      secret.row.classList.remove("on");
       smallSaid("mark", words.confidential_not_saved);
-      if (mark.wanted === wanted) {
-        mark.wanted = null;
-        secret.box.checked = !wanted;
-        secret.row.classList.toggle("on", !wanted);
-      }
     }
   };
   secret.box.addEventListener("change", () => {
     mark.wanted = secret.box.checked;
+    mark.refused = 0;
     secret.row.classList.toggle("on", secret.box.checked);
     marked();
   });
@@ -2575,12 +2575,20 @@ function showSmall(words) {
     if (now.recording !== recording) {
       const first = recording === null;
       // What was typed last, kept before the field is emptied for the next recording.
-      if (recording) await keep(true);
+      if (recording) {
+        await keep(true);
+        await marked();
+        // Refused to the end: at rest no switch is left, and what remains is said as it is.
+        smallSaid("mark", mark.wanted === true ? words.small_not_confidential : null);
+      }
       // A new recording starts clean; one that ended keeps saying what it could not keep.
       if (now.recording) {
         smallSaid("context", null);
         smallSaid("mark", null);
       }
+      // Under the switch while recording, *Arrêter* staying where it is; first of all at rest.
+      if (now.recording) secret.row.after(unkeptSaid);
+      else page.prepend(unkeptSaid);
       recording = now.recording;
       // Each recording its own context: nothing of the one before.
       Object.assign(meeting, { name: null, saved: null, typed: null, refused: null });
@@ -2650,7 +2658,7 @@ function showSmall(words) {
       secret.box.checked = now.confidential;
       secret.row.classList.toggle("on", now.confidential);
     }
-    marked();
+    if (Date.now() - mark.refused >= 5000) marked();
   };
   setInterval(tick, 100);
   setInterval(() => recording === false && drawRest(), 1500);

@@ -3298,37 +3298,56 @@ def nothing_silent(now: dt.datetime) -> None:
         made = wait_for(browser, lambda b: list(recorded.glob("*/session.json")) and shown(b, "small-confidential"), 15)
         folder = next(recorded.glob("*/session.json")).parent if made else recorded
         folder.chmod(0o555)
+        click = "document.getElementById('small-confidential').click()"
+        top = "return document.getElementById('small-stop').getBoundingClientRect().top"
         try:
-            browser.execute_script("document.getElementById('small-confidential').click()")
-            before = browser.execute_script("return document.getElementById('small-stop').getBoundingClientRect().top")
+            before = browser.execute_script(top)
+            browser.execute_script(click)
             said = wait_for(browser, lambda b: shown(b, "small-said"), 8)
-            check("said, Arrêter stays where it is", browser.execute_script("return document.getElementById('small-stop').getBoundingClientRect().top") == before)
-            check("confidential refused in the small window: said, and the switch back off, never promising what is not so",
-                  said and "n’a pas pu être dite confidentielle" in text(browser, "small-said")
-                  and not browser.find_element(By.ID, "small-confidential").is_selected(), text(browser, "small-said"))
+            check("said, Arrêter stays where it is", browser.execute_script(top) == before)
+            check("confidential refused in the small window: said, its lock off, never promising what is not so",
+                  said and "n’a pas pu être marquée confidentielle" in text(browser, "small-said")
+                  and "on" not in browser.execute_script("return document.getElementById('small-confidential').closest('.confidential').className").split(),
+                  text(browser, "small-said"))
         finally:
             folder.chmod(0o755)
-        browser.execute_script("document.getElementById('small-confidential').click()")
-        check("given back and asked again, it is kept and the sentence goes",
+        check("given back, it is kept at the next try and the sentence goes",
               wait_for(browser, lambda b: not shown(b, "small-said") and (folder / "confidential").exists(), 8), sorted(p.name for p in folder.glob("*")))
-        browser.execute_script("document.getElementById('small-confidential').click()")
+        browser.execute_script(click)
         wait_for(browser, lambda b: not (folder / "confidential").exists(), 5)
         folder.chmod(0o555)
         try:
-            browser.execute_script("document.getElementById('small-confidential').click()")
+            browser.execute_script(click)
             wait_for(browser, lambda b: shown(b, "small-said"), 8)
         finally:
             folder.chmod(0o755)
-        # Given back first: a refused mark is not tried again, and the recording stops with its folder
-        # writable. A press within half a second of the last is taken for the same one.
+        # A press within half a second of the last is taken for the same one.
         time.sleep(0.6)
         press(browser, "small-stop")
-        at_rest = wait_for(browser, lambda b: shown(b, "small-record") and shown(b, "small-said"), 10)
-        check("stopped with the mark refused: still said at rest, and nothing marked", at_rest and not (folder / "confidential").exists(), text(browser, "small-said"))
-        # The stop ended, its seconds apart from the next one's folder.
+        check("stopped before the next try: tried once more, and kept",
+              wait_for(browser, lambda b: shown(b, "small-record") and (folder / "confidential").exists() and not shown(b, "small-said"), 10))
+        # The clock stood in: the next recording is the same folder, its mark taken away.
+        (folder / "confidential").unlink()
+        time.sleep(2)
+        press(browser, "small-record")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 15)
+        time.sleep(0.6)
+        folder.chmod(0o555)
+        try:
+            browser.execute_script(click)
+            wait_for(browser, lambda b: shown(b, "small-said"), 8)
+            time.sleep(0.6)
+            press(browser, "small-stop")
+            at_rest = wait_for(browser, lambda b: shown(b, "small-record") and "n’est pas confidentielle" in text(b, "small-said"), 10)
+            first = browser.execute_script("return document.getElementById('small').firstElementChild.id")
+            check("stopped with the mark refused: said at rest as it is, first of all, and nothing marked",
+                  at_rest and first == "small-said" and not (folder / "confidential").exists(), (text(browser, "small-said"), first))
+        finally:
+            folder.chmod(0o755)
         time.sleep(2)
         press(browser, "small-record")
         check("the next recording starts clean", wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed() and not shown(b, "small-said"), 15))
+        time.sleep(0.6)
         press(browser, "small-stop")
     for language, raw in (("fr_FR.UTF-8", False), ("en_US.UTF-8", True)):
         with Window(meetings, language, "reminder = false\n" + ("developer = true\n" if raw else ""), ) as browser:
