@@ -43,7 +43,7 @@ session is lives in it; nothing in it points outside it.
 | `context.txt` | The user, at any time; optional | A few lines of plain text, UTF-8, handed to the steps that follow |
 | `confidential` | The shell, on the user's word; optional | Nothing: an empty file. Present, it asks that the meeting be transcribed and summarised on this computer alone. Only the shell reads it, and chooses who transcribes and who writes accordingly; the steps that follow need not read it |
 | `language` | The shell, on the user's word; optional | One line, UTF-8: the language the meeting is spoken in, a code of ISO 639-1 — `fr`, `en`. Absent, or a line that is not one such code, the meeting names no language of its own. Only the shell reads it, and tells the transcription the language spoken; the steps that follow need not read it |
-| `title.txt` | The shell, on the user's word; optional | One line, UTF-8, at most 80 characters: the name the user gave the meeting, plain text, never markup or a path. Absent, blank, or anything else, the meeting has no name given. It is the name shown before any other: the folder keeps its own. Only the shell reads it; the steps that follow need not read it |
+| `title.txt` | The shell, on the user's word; optional | One line, UTF-8, at most 80 characters: the name the user gave the meeting, plain text, shown as text, never read as markup or as a path. Absent, blank, or more than that one line, the meeting has no name given. It is the name shown before any other: the folder keeps its own. Only the shell reads it; the steps that follow need not read it |
 
 **`session.json`**, UTF-8:
 
