@@ -1451,7 +1451,7 @@ pub fn window(language: Language) -> Window {
             confidential_left: "Déjà parti avant\u{a0}: {}.",
             confidential_left_sound: "le son vers {}",
             confidential_left_transcript: "la transcription vers {}",
-            confidential_not_saved: "Le réglage n’a pas pu être enregistré\u{a0}: réessayez.",
+            confidential_not_saved: "La réunion n’a pas pu être dite confidentielle\u{a0}: réessayez.",
             confidential_ollama_empty: "Ollama n’a aucun modèle sur cet ordinateur\u{a0}: le compte rendu l’attend.",
             confidential_fetch: "Télécharger {}",
         },

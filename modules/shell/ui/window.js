@@ -2439,7 +2439,7 @@ function showSmall(words) {
   note.hidden = true;
   // The meeting's context (D59): closed by default, opened in place of the note — Arrêter never
   // moves. Kept as it is typed, once the meeting's folder holds its session.
-  const meeting = { name: null, saved: null, typed: null };
+  const meeting = { name: null, saved: null, typed: null, refused: null };
   // What could not be kept: above both states, for it outlasts the recording (D67).
   const unkept = new Map();
   const unkeptSaid = element("p", "note warn small-said");
@@ -2452,15 +2452,17 @@ function showSmall(words) {
     unkeptSaid.textContent = [...unkept.values()].join("\n");
     unkeptSaid.hidden = unkept.size === 0;
   };
-  const keep = async () => {
+  const keep = async (last = false) => {
     const { name, typed } = meeting;
     if (name === null || typed === null || typed === meeting.saved) return;
+    // Refused: tried again when it changes, and when the recording stops; each try is a line in the log.
+    if (typed === meeting.refused && !last) return;
     try {
       await invoke("context_saved", { name, text: typed });
       meeting.saved = typed;
       smallSaid("context", null);
     } catch {
-      // Said, and tried again at the next tick.
+      meeting.refused = typed;
       smallSaid("context", words.context_not_saved);
     }
   };
@@ -2511,8 +2513,13 @@ function showSmall(words) {
       if (mark.wanted === wanted) mark.wanted = null;
       smallSaid("mark", null);
     } catch {
-      // Said, and tried again at the next tick: staying on with nothing kept would promise what is not so.
+      // Said, and the switch put back, as the full window's: on with nothing kept would promise what is not so.
       smallSaid("mark", words.confidential_not_saved);
+      if (mark.wanted === wanted) {
+        mark.wanted = null;
+        secret.box.checked = !wanted;
+        secret.row.classList.toggle("on", !wanted);
+      }
     }
   };
   secret.box.addEventListener("change", () => {
@@ -2568,10 +2575,7 @@ function showSmall(words) {
     if (now.recording !== recording) {
       const first = recording === null;
       // What was typed last, kept before the field is emptied for the next recording.
-      if (recording) {
-        await keep();
-        await marked();
-      }
+      if (recording) await keep(true);
       // A new recording starts clean; one that ended keeps saying what it could not keep.
       if (now.recording) {
         smallSaid("context", null);
@@ -2579,7 +2583,7 @@ function showSmall(words) {
       }
       recording = now.recording;
       // Each recording its own context: nothing of the one before.
-      Object.assign(meeting, { name: null, saved: null, typed: null });
+      Object.assign(meeting, { name: null, saved: null, typed: null, refused: null });
       mark.wanted = null;
       secret.box.checked = false;
       secret.row.classList.remove("on");

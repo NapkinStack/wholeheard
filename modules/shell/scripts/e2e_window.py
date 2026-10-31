@@ -3301,12 +3301,30 @@ def nothing_silent(now: dt.datetime) -> None:
         try:
             browser.execute_script("document.getElementById('small-confidential').click()")
             said = wait_for(browser, lambda b: shown(b, "small-said"), 8)
-            check("confidential refused in the small window: said, never a switch promising what is not so",
-                  said and "n’a pas pu être enregistré" in text(browser, "small-said"), text(browser, "small-said"))
+            check("confidential refused in the small window: said, and the switch back off, never promising what is not so",
+                  said and "n’a pas pu être dite confidentielle" in text(browser, "small-said")
+                  and not browser.find_element(By.ID, "small-confidential").is_selected(), text(browser, "small-said"))
         finally:
             folder.chmod(0o755)
-        check("given back, it is kept at the next tick and the sentence goes",
+        browser.execute_script("document.getElementById('small-confidential').click()")
+        check("given back and asked again, it is kept and the sentence goes",
               wait_for(browser, lambda b: not shown(b, "small-said") and (folder / "confidential").exists(), 8), sorted(p.name for p in folder.glob("*")))
+        browser.execute_script("document.getElementById('small-confidential').click()")
+        wait_for(browser, lambda b: not (folder / "confidential").exists(), 5)
+        folder.chmod(0o555)
+        try:
+            browser.execute_script("document.getElementById('small-confidential').click()")
+            wait_for(browser, lambda b: shown(b, "small-said"), 8)
+        finally:
+            folder.chmod(0o755)
+        # Given back first: a refused mark is not tried again, and the recording stops with its folder writable.
+        press(browser, "small-stop")
+        at_rest = wait_for(browser, lambda b: shown(b, "small-record") and shown(b, "small-said"), 10)
+        check("stopped with the mark refused: still said at rest, and nothing marked", at_rest and not (folder / "confidential").exists(), text(browser, "small-said"))
+        # The stop ended, its seconds apart from the next one's folder.
+        time.sleep(2)
+        press(browser, "small-record")
+        check("the next recording starts clean", wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed() and not shown(b, "small-said"), 15))
         press(browser, "small-stop")
     for language, raw in (("fr_FR.UTF-8", False), ("en_US.UTF-8", True)):
         with Window(meetings, language, "reminder = false\n" + ("developer = true\n" if raw else ""), ) as browser:

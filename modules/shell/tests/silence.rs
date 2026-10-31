@@ -1,9 +1,16 @@
-//! D67: a command of the page that fails says so, or is named here with why it says nothing.
+//! D67: a handler of the page that says nothing of a failure is named here, with why. `window.js` is
+//! read by a JavaScript parser: a reading of its text was shown blind twice (#594, #595).
 
 use std::collections::BTreeMap;
 
-/// The handlers that stay silent: what the page asked — the command, or the name of what it asked —,
-/// how many times, and why.
+use oxc_allocator::Allocator;
+use oxc_ast::ast::*;
+use oxc_ast_visit::{Visit, walk};
+use oxc_parser::Parser;
+use oxc_span::{GetSpan, SourceType};
+
+/// The handlers that stay silent: what they answer — a command, or the first thing their `try` or
+/// promise calls —, how many times, and why.
 const SILENT: &[(&str, usize, &str)] = &[
     ("page_failed", 1, "the log itself: nowhere left to say it"),
     ("makings", 2, "returns no `Result`: it cannot fail"),
@@ -43,202 +50,235 @@ const SILENT: &[(&str, usize, &str)] = &[
     (
         "context_shown",
         2,
-        "a meeting gone, logged by `told`: its flag and its text stay as they were",
+        "a meeting gone, logged by `told`; it answers no gesture: its flag and its text stay as they were",
     ),
     (
         "opened",
         1,
         "a meeting gone, logged by `told`: most often sent to the trash here, and the list shows it",
     ),
+    ("URL", 6, "no command: an address that does not parse is shown as it was typed"),
+    ("audio.play", 1, "no command: its handler is the player's own"),
 ];
 
-/// Where the bracket opened at `open` closes.
-fn closing(text: &[u8], open: usize) -> usize {
-    let (up, down) = (text[open], if text[open] == b'(' { b')' } else { b'}' });
-    let mut depth = 0;
-    for (at, &byte) in text.iter().enumerate().skip(open) {
-        if byte == up {
-            depth += 1;
-        } else if byte == down {
-            depth -= 1;
-            if depth == 0 {
-                return at;
+/// The command asked for in what it visits, the last one.
+#[derive(Default)]
+struct Asked(Option<String>);
+
+impl<'a> Visit<'a> for Asked {
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        walk::walk_call_expression(self, call);
+        let invoked = match &call.callee {
+            Expression::Identifier(name) => name.name == "invoke",
+            Expression::StaticMemberExpression(member) => member.property.name == "invoke",
+            _ => false,
+        };
+        if invoked && let Some(Argument::StringLiteral(name)) = call.arguments.first() {
+            self.0 = name.value.as_str().map(str::to_string);
+        }
+    }
+}
+
+/// The first thing it visits calls: what a handler answers when no command is there to name it.
+struct FirstCall<'s> {
+    source: &'s str,
+    found: Option<String>,
+}
+
+impl<'a> Visit<'a> for FirstCall<'_> {
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        walk::walk_call_expression(self, call);
+        if self.found.is_none() {
+            self.found = Some(call.callee.span().source_text(self.source).to_string());
+        }
+    }
+
+    fn visit_new_expression(&mut self, new: &NewExpression<'a>) {
+        if self.found.is_none() {
+            self.found = Some(new.callee.span().source_text(self.source).to_string());
+        }
+    }
+}
+
+/// Whether a handler uses a sentence: the page's words or what it caught, given to a call or
+/// assigned — never only held in a declaration, a test or a value thrown away — or logs it.
+#[derive(Default)]
+struct Says {
+    caught: Option<String>,
+    using: bool,
+    held: bool,
+    says: bool,
+}
+
+impl Says {
+    fn using<F: FnOnce(&mut Self)>(&mut self, visit: F) {
+        let was = self.using;
+        self.using = !self.held;
+        visit(self);
+        self.using = was;
+    }
+}
+
+impl<'a> Visit<'a> for Says {
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        if let Expression::Identifier(name) = &call.callee
+            && name.name == "pageFailed"
+        {
+            self.says = true;
+        }
+        self.visit_expression(&call.callee);
+        self.using(|says| {
+            for argument in &call.arguments {
+                says.visit_argument(argument);
             }
+        });
+    }
+
+    fn visit_assignment_expression(&mut self, assignment: &AssignmentExpression<'a>) {
+        self.using(|says| says.visit_expression(&assignment.right));
+    }
+
+    fn visit_variable_declarator(&mut self, declarator: &VariableDeclarator<'a>) {
+        let was = self.held;
+        self.held = true;
+        walk::walk_variable_declarator(self, declarator);
+        self.held = was;
+    }
+
+    fn visit_identifier_reference(&mut self, name: &IdentifierReference<'a>) {
+        if self.using && (name.name == "words" || self.caught.as_deref() == Some(name.name.as_str())) {
+            self.says = true;
         }
     }
-    panic!("a bracket at byte {open} never closes");
 }
 
-/// The statement ending at `end`: back to the `;`, a block closed, or the bracket opened, outside its own brackets.
-fn statement(text: &str, end: usize) -> &str {
-    let mut depth = 0;
-    for (at, byte) in text.as_bytes()[..end].iter().enumerate().rev() {
-        match byte {
-            // A block closed before this statement: it ended there.
-            b'}' if depth == 0 => return &text[at + 1..end],
-            b')' | b'}' => depth += 1,
-            b'(' | b'{' if depth > 0 => depth -= 1,
-            b'(' | b'{' => return &text[at + 1..end],
-            b';' if depth == 0 => return &text[at + 1..end],
-            _ => {}
-        }
+/// Every handler of `page`.
+struct Reading<'s> {
+    source: &'s str,
+    silent: BTreeMap<String, usize>,
+}
+
+impl Reading<'_> {
+    fn found(&mut self, name: String) {
+        *self.silent.entry(name).or_insert(0) += 1;
     }
-    &text[..end]
-}
 
-/// The last command `text` asks for.
-fn command(text: &str) -> Option<String> {
-    let start = text.rfind("invoke(")? + "invoke(".len();
-    let rest = &text[start..];
-    let end = rest.find([',', ')'])?;
-    Some(rest[..end].trim().trim_matches('"').to_string())
-}
-
-/// `page` without its comments, its length unchanged. A string holding `//` — an address — keeps it.
-fn without_comments(page: &str) -> String {
-    let mut bytes = page.as_bytes().to_vec();
-    let mut at = 0;
-    let mut quote = None;
-    while at + 1 < bytes.len() {
-        match (quote, bytes[at], bytes[at + 1]) {
-            (Some(open), byte, _) => {
-                if byte == b'\\' {
-                    at += 1;
-                } else if byte == open {
-                    quote = None;
+    /// The answer of `receiver`, by the command in it, or else what it is.
+    fn promise<'a>(&mut self, receiver: &Expression<'a>, handler: &Argument<'a>) {
+        let mut asked = Asked::default();
+        asked.visit_expression(receiver);
+        let name = asked.0.unwrap_or_else(|| {
+            let text = receiver.span().source_text(self.source);
+            text.split('(').next().unwrap_or(text).to_string()
+        });
+        let says = match handler {
+            Argument::ArrowFunctionExpression(arrow) => {
+                let mut says = Says {
+                    caught: first_parameter(&arrow.params),
+                    ..Default::default()
+                };
+                says.visit_arrow_function_expression(arrow);
+                says.says
+            }
+            Argument::FunctionExpression(function) => {
+                let mut says = Says {
+                    caught: first_parameter(&function.params),
+                    ..Default::default()
+                };
+                if let Some(body) = &function.body {
+                    says.visit_function_body(body);
                 }
+                says.says
             }
-            (None, b'"' | b'\'' | b'`', _) => quote = Some(bytes[at]),
-            (None, b'/', b'/') => {
-                while at < bytes.len() && bytes[at] != b'\n' {
-                    bytes[at] = b' ';
-                    at += 1;
-                }
-            }
-            (None, b'/', b'*') => {
-                while at + 1 < bytes.len() && !(bytes[at] == b'*' && bytes[at + 1] == b'/') {
-                    bytes[at] = b' ';
-                    at += 1;
-                }
-                bytes[at] = b' ';
-                bytes[at + 1] = b' ';
-            }
-            _ => {}
-        }
-        at += 1;
-    }
-    String::from_utf8_lossy(&bytes).into_owned()
-}
-
-/// A handler says it when it uses a sentence — its words, or the one the command told — or logs it.
-/// Holding one is not using it: `const said = words.none`, `void why`.
-fn says(handler: &str) -> bool {
-    let body = handler.split_once("=>").map_or(handler, |(_, body)| body);
-    body.contains("pageFailed(")
-        || body
-            .split([';', '{', '}'])
-            .map(str::trim)
-            .any(|step| !step.starts_with("const ") && !step.starts_with("void ") && (step.contains("words.") || step.contains("why")))
-}
-
-/// The second argument of a `.then(`, when it has one.
-fn second_argument(arguments: &str) -> Option<&str> {
-    let mut depth = 0;
-    for (at, byte) in arguments.bytes().enumerate() {
-        match byte {
-            b'(' | b'{' | b'[' => depth += 1,
-            b')' | b'}' | b']' => depth -= 1,
-            b',' if depth == 1 => return Some(arguments[at + 1..arguments.len() - 1].trim()),
-            _ => {}
+            Argument::Identifier(name) => name.name == "pageFailed",
+            _ => false,
+        };
+        if !says {
+            self.found(name);
         }
     }
-    None
 }
 
-/// What the page asks whose failure says nothing, and how many times.
+fn first_parameter(params: &FormalParameters) -> Option<String> {
+    params.items.first()?.pattern.get_identifier_name().map(|name| name.to_string())
+}
+
+impl<'a> Visit<'a> for Reading<'_> {
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        if let Expression::StaticMemberExpression(member) = &call.callee {
+            let handler = match member.property.name.as_str() {
+                "catch" => call.arguments.first(),
+                "then" => call.arguments.get(1),
+                _ => None,
+            };
+            if let Some(handler) = handler {
+                self.promise(&member.object, handler);
+            }
+        }
+        walk::walk_call_expression(self, call);
+    }
+
+    fn visit_try_statement(&mut self, statement: &TryStatement<'a>) {
+        if let Some(handler) = &statement.handler {
+            let caught = handler
+                .param
+                .as_ref()
+                .and_then(|param| param.pattern.get_identifier_name())
+                .map(|name| name.to_string());
+            let mut says = Says {
+                caught,
+                ..Default::default()
+            };
+            says.visit_block_statement(&handler.body);
+            if !says.says {
+                let mut asked = Asked::default();
+                asked.visit_block_statement(&statement.block);
+                let name = asked.0.unwrap_or_else(|| {
+                    let mut first = FirstCall {
+                        source: self.source,
+                        found: None,
+                    };
+                    first.visit_block_statement(&statement.block);
+                    first.found.unwrap_or_default()
+                });
+                self.found(name);
+            }
+        }
+        walk::walk_try_statement(self, statement);
+    }
+}
+
+/// What the page handles without a word, and how many times.
 fn silent(page: &str) -> BTreeMap<String, usize> {
-    let page = without_comments(page);
-    let page = page.as_str();
-    let bytes = page.as_bytes();
-    let mut found = BTreeMap::new();
-    let mut count = |name: String, handler: &str| {
-        if !says(handler) {
-            *found.entry(name).or_insert(0) += 1;
-        }
+    let allocator = Allocator::default();
+    let parsed = Parser::new(&allocator, page, SourceType::mjs()).parse();
+    assert!(parsed.diagnostics.is_empty(), "the page does not parse: {:?}", parsed.diagnostics);
+    let mut reading = Reading {
+        source: page,
+        silent: BTreeMap::new(),
     };
-    for (at, _) in page.match_indices(".catch(") {
-        let open = at + ".catch".len();
-        let handler = &page[open..=closing(bytes, open)];
-        let asked = statement(page, at);
-        match command(asked) {
-            Some(name) => count(name, handler),
-            // A function by its name, a media element's own: not a command's answer.
-            None if handler.contains("=>") => count(
-                asked
-                    .trim()
-                    .trim_start_matches("await ")
-                    .split(['.', ' '])
-                    .next()
-                    .unwrap_or_default()
-                    .to_string(),
-                handler,
-            ),
-            None => {}
-        }
-    }
-    for (at, _) in page.match_indices(".then(") {
-        let open = at + ".then".len();
-        let arguments = &page[open..=closing(bytes, open)];
-        if let (Some(handler), Some(name)) = (second_argument(arguments), command(statement(page, at))) {
-            count(name, handler);
-        }
-    }
-    let catches = page.match_indices("catch").filter(|(at, _)| page[..*at].trim_end().ends_with('}'));
-    for (at, _) in catches {
-        // The body of its `try`, read back from the bracket that closes it.
-        let close = page[..at].trim_end().len() - 1;
-        let mut depth = 0;
-        let start = (0..=close)
-            .rev()
-            .find(|&back| {
-                match bytes[back] {
-                    b'}' => depth += 1,
-                    b'{' => depth -= 1,
-                    _ => {}
-                }
-                depth == 0
-            })
-            .expect("a try's bracket");
-        // No command in it: the parse of an address, the clipboard.
-        let Some(name) = command(&page[start..close]) else { continue };
-        // After `catch {`, or `catch (why) {`.
-        let open = at + page[at..].find('{').expect("a catch's bracket");
-        count(name, &page[open..=closing(bytes, open)]);
-    }
-    found
+    reading.visit_program(&parsed.program);
+    reading.silent
 }
 
 #[test]
 fn a_command_that_fails_says_so_or_is_named_here_with_why() {
     let found = silent(include_str!("../ui/window.js"));
     let named: BTreeMap<String, usize> = SILENT.iter().map(|(name, count, _)| (name.to_string(), *count)).collect();
-    assert_eq!(
-        found, named,
-        "a command's failure that says nothing: say it, or name it in SILENT with why"
-    );
+    assert_eq!(found, named, "a failure that says nothing: say it, or name it in SILENT with why");
 }
 
 #[test]
 fn the_reading_tells_what_says_from_what_does_not() {
     let page = r#"
-        const a = await invoke("quiet", { x }).catch(() => []);
-        const b = await invoke("told").catch((why) => { said.textContent = fill(words.no, why); });
+        await invoke("quiet", { x }).catch(() => []);
+        await invoke("told").catch((why) => { said.textContent = fill(words.no, why); });
         try { await invoke("hushed", { y: {} }); } catch { }
         try { await invoke("spoken"); } catch (why) { said.textContent = words.no; }
         try { new URL(text); } catch {}
-        audio.play().catch(failed);
         await invoke("ignored").catch((why) => {});
         await invoke("drawn").catch((why) => { said.textContent = why; });
+        await invoke("logged").catch((why) => pageFailed(why));
         invoke("then1").then(ok, () => {});
         invoke("then2").then(null, () => []);
         invoke("thenSaid").then(ok, (why) => { said.textContent = why; });
@@ -251,22 +291,47 @@ fn the_reading_tells_what_says_from_what_does_not() {
         try { await invoke("voided"); } catch (why) { void why; }
         invoke("commented").catch(() => { /* why not */ });
         invoke("held").catch(() => { const q = words.none; });
+        invoke("held2").catch(() => { let q = words.none; });
+        try { await invoke("bare"); } catch (why) { why; }
+        try { await invoke("tested"); } catch (why) { if (why) {} }
+        invoke ("spaced") . catch (() => {});
+        invoke("returned").catch((why) => why);
+        invoke("thrown").catch(() => words.none);
+        invoke("near").catch(() => { said.textContent = whyNot + keywords.x; });
+        const p = invoke("kept");
+        p.then(ok, () => {});
+        p.catch(noop);
+        ask("mine").catch(noop);
+        try { await helper(); } catch {}
+        const quoted = /'/; invoke("regex").catch(() => {});
     "#;
     let expected: BTreeMap<String, usize> = [
-        "commented",
-        "function",
-        "held",
-        "hushed",
-        "ignored",
-        "named",
-        "newline",
-        "quiet",
-        "then1",
-        "then2",
-        "tight",
-        "voided",
+        ("URL", 1),
+        ("ask", 1),
+        ("bare", 1),
+        ("commented", 1),
+        ("function", 1),
+        ("held", 1),
+        ("held2", 1),
+        ("helper", 1),
+        ("hushed", 1),
+        ("ignored", 1),
+        ("named", 1),
+        ("near", 1),
+        ("newline", 1),
+        ("p", 2),
+        ("quiet", 1),
+        ("regex", 1),
+        ("returned", 1),
+        ("spaced", 1),
+        ("tested", 1),
+        ("then1", 1),
+        ("then2", 1),
+        ("thrown", 1),
+        ("tight", 1),
+        ("voided", 1),
     ]
-    .map(|name| (name.to_string(), 1))
+    .map(|(name, count)| (name.to_string(), count))
     .into();
     assert_eq!(silent(page), expected);
 }

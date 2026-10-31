@@ -699,7 +699,10 @@ async fn listed(app: AppHandle) -> Result<Listing, Told> {
             recording: shell.recording.lock().unwrap().is_some(),
             shortcut: shell.shortcut.lock().unwrap().clone(),
             folded: shell.settings().folded,
-            unreadable: sessions::unreadable(&shell.settings().sessions),
+            unreadable: {
+                let folder = shell.settings().sessions.clone();
+                sessions::unreadable(&folder, folder == settings::Settings::default().sessions)
+            },
         }
     })
     .await

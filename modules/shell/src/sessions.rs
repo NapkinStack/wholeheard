@@ -64,15 +64,16 @@ pub fn list(sessions: &Path, recording: Option<&Path>) -> Vec<Listed> {
 /// Whether the sessions' folder cannot be read: no empty list, a failure to say (D67). Not made yet,
 /// beside a parent that is there, is an empty list: nothing was recorded. Its parent gone too — a disk
 /// unplugged, its mount point with it —, a link to nowhere, a folder that lists but opens nothing: not.
+/// The default folder's parent may simply not exist yet: `made_here` says the shell makes it itself.
 /// A disk whose mount point stays looks like a folder not made yet, and cannot be told from one.
-pub fn unreadable(sessions: &Path) -> bool {
+pub fn unreadable(sessions: &Path, made_here: bool) -> bool {
     match fs::read_dir(sessions) {
         Ok(mut entries) => entries
             .next()
             .and_then(Result::ok)
             .is_some_and(|entry| fs::metadata(entry.path()).is_err_and(|error| error.kind() == ErrorKind::PermissionDenied)),
         Err(error) if error.kind() == ErrorKind::NotFound => {
-            fs::symlink_metadata(sessions).is_ok() || sessions.parent().is_some_and(|parent| !parent.exists())
+            fs::symlink_metadata(sessions).is_ok() || (!made_here && sessions.parent().is_some_and(|parent| !parent.exists()))
         }
         Err(_) => true,
     }
