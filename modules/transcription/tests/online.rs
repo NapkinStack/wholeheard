@@ -292,3 +292,65 @@ fn a_refusal_the_service_explains_is_said_in_its_words_on_one_line() {
         .to_string();
     assert!(error.contains("choose a model that gives each segment's times"), "{error}");
 }
+
+fn tested(address: &str) -> (bool, String, String) {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+        .args(["--test", "--provider", address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"))
+        .output()
+        .unwrap();
+    (
+        output.status.success(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+#[test]
+fn a_test_that_fails_says_its_cause_on_the_output_s_last_line() {
+    for (status, answered, code) in [
+        (401, "{}", "provider.refused_key"),
+        (403, "{}", "provider.refused_key"),
+        (402, "{}", "provider.no_credit"),
+        (404, "{}", "provider.unknown_model"),
+        (429, "{}", "provider.too_many"),
+        (500, "{}", "provider.down"),
+        (503, "{}", "provider.down"),
+        (418, "{}", "provider.failed"),
+        (400, "{}", "provider.no_times"),
+        (200, r#"{"text":"no times"}"#, "provider.no_times"),
+        (200, "not json", "provider.failed"),
+    ] {
+        let (address, _asked) = served(status, answered);
+        let (passed, out, err) = tested(&address);
+        assert!(!passed, "{status}");
+        let last: serde_json::Value = serde_json::from_str(out.lines().last().unwrap_or("{}")).unwrap();
+        assert_eq!(
+            (last["event"].as_str(), last["code"].as_str()),
+            (Some("failed"), Some(code)),
+            "{status} {answered}"
+        );
+        assert!(err.starts_with("wholeheard-transcription: "), "{err}");
+    }
+}
+
+#[test]
+fn a_test_that_passes_says_nothing_and_one_in_the_service_s_own_words_names_no_cause() {
+    let (address, _asked) = served(200, SEGMENTS);
+    let (passed, out, _) = tested(&address);
+    assert!(passed && out.is_empty(), "{out}");
+    let (address, _asked) = served(400, r#"{"error":{"message":"model not found"}}"#);
+    let (passed, out, err) = tested(&address);
+    assert!(!passed && out.is_empty(), "{out}");
+    assert!(err.contains("model not found"), "{err}");
+}
+
+#[test]
+fn a_test_of_no_address_or_nobody_there_says_its_cause() {
+    let (_, out, _) = tested("not an address");
+    assert!(out.contains("settings.invalid"), "{out}");
+    // A port nobody listens on, on this machine.
+    let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+    let (_, out, _) = tested(&format!("http://{free}/v1"));
+    assert!(out.contains("provider.unreachable"), "{out}");
+}
