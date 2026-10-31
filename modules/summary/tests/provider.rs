@@ -212,7 +212,7 @@ fn ollama_failures_are_called_as_any_providers() {
         (
             "500 Internal Server Error",
             r#"{"error":"model requires more system memory"}"#.to_string(),
-            "provider.failed",
+            "provider.down",
         ),
     ] {
         let (address, _received) = ollama(vec![(status, body)]);
