@@ -56,6 +56,27 @@ fn a_name_is_one_line_not_blank_within_its_length_counted_in_characters() {
         "\u{61c}",
         "\u{fff9}",
         "\u{1d173}",
+        "\u{34f}",
+        "\u{115f}",
+        "\u{1160}",
+        "\u{17b4}",
+        "\u{17b5}",
+        "\u{180b}",
+        "\u{180f}",
+        "\u{200f}",
+        "\u{202a}",
+        "\u{202e}",
+        "\u{2060}",
+        "\u{206f}",
+        "\u{fe00}",
+        "\u{fff0}",
+        "\u{fffb}",
+        "\u{ffa0}",
+        "\u{1bca0}",
+        "\u{1bca3}",
+        "\u{1d17a}",
+        "\u{e0000}",
+        "\u{e0fff}",
         "",
         "  \n",
         "two\nlines",
@@ -134,4 +155,16 @@ fn the_name_comes_before_the_minutes_title_which_comes_back_when_it_goes() {
     fs::remove_file(dir.join("minutes.md")).unwrap();
     assert_eq!(listed(&all), None);
     assert!(all.join("2026-10-28_14-00").is_dir(), "the folder keeps its name");
+}
+
+#[test]
+fn marks_that_show_nothing_take_the_name_away_as_an_empty_field_does() {
+    let all = folder("marks");
+    let dir = all.join("2026-10-28_14-00");
+    fs::create_dir(&dir).unwrap();
+    session(&dir);
+    write(&dir, "De la main").unwrap();
+    write(&dir, "\u{feff}\u{200b} ").unwrap();
+    assert!(!dir.join(FILE).exists());
+    assert_eq!(write(&dir, "a\nb").unwrap_err().kind(), std::io::ErrorKind::InvalidInput);
 }

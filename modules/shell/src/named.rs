@@ -14,14 +14,17 @@ pub const MOST: usize = 80;
 pub fn within(text: &str) -> Option<&str> {
     let name = text.trim();
     let one_line = !name.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'));
-    // A name that shows nothing would leave an empty row: marks that take no room are no name.
-    let shows = name.chars().any(|c| !c.is_whitespace() && !unseen(c));
-
-    (one_line && shows && name.chars().count() <= MOST).then_some(name)
+    // A name that shows nothing would leave an empty row.
+    (one_line && !blank(name) && name.chars().count() <= MOST).then_some(name)
 }
 
-/// A character that takes no room of its own: Unicode's default-ignorable code points, and the two
-/// blank letters and the blank pattern fonts draw as nothing.
+/// What names nothing: nothing typed, or only marks that show nothing.
+pub fn blank(text: &str) -> bool {
+    text.chars().all(|c| c.is_whitespace() || unseen(c))
+}
+
+/// A character that takes no room of its own: Unicode's default-ignorable code points, and the
+/// blank pattern and the interlinear annotation marks fonts draw as nothing.
 fn unseen(c: char) -> bool {
     matches!(c,
         '\u{ad}' | '\u{34f}' | '\u{61c}' | '\u{115f}' | '\u{1160}' | '\u{17b4}' | '\u{17b5}'
@@ -46,7 +49,7 @@ pub fn write(folder: &Path, text: &str) -> io::Result<()> {
         ));
     }
     let file = folder.join(FILE);
-    if text.trim().is_empty() {
+    if blank(text) {
         return match fs::remove_file(&file) {
             Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
             _ => Ok(()),
