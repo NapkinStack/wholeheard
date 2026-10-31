@@ -4,7 +4,7 @@
 
 use std::{f64::consts::TAU, fs, path::Path};
 
-use wholeheard_shell::mix::Mix;
+use wholeheard_shell::{meeting, mix::Mix};
 
 /// A WAV file: PCM of `bits` (16, 24 or 32), or 32-bit float when `bits` is 0; `frames`
 /// interleaved; its lengths said as given, or as a recording killed leaves them.
@@ -239,4 +239,225 @@ fn what_no_track_is_gives_no_mix_and_no_read_breaks_it() {
     let mix = Mix::of(&[(good, 0.0)]).unwrap();
     assert!(mix.read(mix.size() + 10, 5).unwrap().is_empty());
     assert!(mix.read(3, 0).unwrap().is_empty());
+}
+
+/// A session of one track at 48 kHz: zeros, but for a tone 0.2 s long at each of `tones`, frames
+/// of the file; `lines`, its `clock.jsonl`.
+fn gapped(folder: &Path, rate: u32, frames: usize, tones: &[usize], lines: &str) {
+    let mut sound = vec![vec![0.0; 2]; frames];
+    for &at in tones {
+        for (n, frame) in tone(1000.0, rate, 0.2, 0.5, 2).into_iter().enumerate() {
+            sound[at + n] = frame;
+        }
+    }
+    wav(&folder.join("local.wav"), rate, 2, 24, &sound, false);
+    fs::write(
+        folder.join("session.json"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-14T14:05:12+02:00","tracks":{"local":{"device":"Mic","changed":[{"at":12.0,"device":null},{"at":20.0,"device":"Mic"}]}}}"#,
+    )
+    .unwrap();
+    fs::write(folder.join("clock.jsonl"), lines).unwrap();
+}
+
+/// Each second at which the sound starts, in the mix.
+fn onsets(mix: &Mix) -> Vec<f64> {
+    let mut found = Vec::new();
+    let mut quiet = true;
+    let mut last = -1.0;
+    for (n, sample) in samples(mix).iter().enumerate() {
+        let at = n as f64 / f64::from(mix.rate());
+        let loud = sample.unsigned_abs() > 3000;
+        if loud && quiet && at - last > 0.1 {
+            found.push(at);
+        }
+        if loud {
+            last = at;
+        }
+        quiet = !loud;
+    }
+    found
+}
+
+fn mixed(folder: &Path) -> Mix {
+    let tracks: Vec<_> = meeting::tracks(folder).into_iter().map(|track| (track.path, track.runs)).collect();
+    Mix::placed(&tracks).unwrap()
+}
+
+#[test]
+fn after_a_gap_a_sound_is_heard_where_the_clock_puts_it_and_the_track_is_left_as_it_was() {
+    let folder = tempfile::tempdir().unwrap();
+    let rate = 48_000;
+    // Stopped at 12 s, frame 576 000; zeros up to 7 s of the 8 s the clock leaves, as the contract
+    // says they stop short; its next point at 20 s, frame 912 000. The tones: at 5 s and at 26 s, not as
+    // far into its run as the first is into the file, so that a run read from the file's start is seen.
+    let lines = "{\"track\":\"local\",\"sample\":0,\"at\":0.0}\n\
+                 {\"track\":\"local\",\"sample\":480000,\"at\":10.0}\n\
+                 {\"track\":\"local\",\"silence\":[576000,912000]}\n\
+                 {\"track\":\"local\",\"sample\":912000,\"at\":20.0}\n\
+                 {\"track\":\"local\",\"sample\":1392000,\"at\":30.0}\n";
+    gapped(folder.path(), rate, 1_440_000, &[240_000, 1_200_000], lines);
+    let before = fs::read(folder.path().join("local.wav")).unwrap();
+    let heard = onsets(&mixed(folder.path()));
+    assert_eq!(heard.len(), 2, "{heard:?}");
+    assert!((heard[0] - 5.0).abs() < 0.05, "before the gap: {heard:?}");
+    assert!((heard[1] - 26.0).abs() < 0.05, "after the gap: {heard:?}");
+    assert_eq!(
+        fs::read(folder.path().join("local.wav")).unwrap(),
+        before,
+        "a track is never changed (ADR-0004)"
+    );
+}
+
+#[test]
+fn a_track_of_a_lower_rate_is_placed_again_too() {
+    let folder = tempfile::tempdir().unwrap();
+    let rate = 16_000;
+    let lines = "{\"track\":\"local\",\"sample\":0,\"at\":0.0}\n\
+                 {\"track\":\"local\",\"silence\":[64000,96000]}\n\
+                 {\"track\":\"local\",\"sample\":96000,\"at\":7.0}\n";
+    gapped(folder.path(), rate, 160_000, &[16_000, 120_000], lines);
+    // Its rate raised to that of a second track, silent.
+    fs::write(folder.path().join("session.json"), r#"{"contract":"session-audio/v2","started":"2026-10-14T14:05:12+02:00","tracks":{"local":{"device":"Mic"},"remote":{"device":"Speaker"}}}"#).unwrap();
+    wav(&folder.path().join("remote.wav"), 48_000, 1, 16, &vec![vec![0.0]; 48_000], false);
+    let heard = onsets(&mixed(folder.path()));
+    assert!((heard[0] - 1.0).abs() < 0.05 && (heard[1] - 8.5).abs() < 0.05, "{heard:?}");
+}
+
+#[test]
+fn a_clock_moved_by_little_leaves_the_sound_whole_and_one_put_back_is_never_heard_twice() {
+    let folder = tempfile::tempdir().unwrap();
+    let rate = 48_000;
+    // 10 ms off the line: no hole of 10 ms to hear; the frames sit one after the other.
+    let lines = "{\"track\":\"local\",\"sample\":0,\"at\":0.0}\n{\"track\":\"local\",\"sample\":96000,\"at\":2.01}\n";
+    let long = tone(1000.0, rate, 3.9, 0.5, 2);
+    wav(&folder.path().join("local.wav"), rate, 2, 24, &long, false);
+    fs::write(
+        folder.path().join("session.json"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-14T14:05:12+02:00","tracks":{"local":{"device":"Mic"}}}"#,
+    )
+    .unwrap();
+    fs::write(folder.path().join("clock.jsonl"), lines).unwrap();
+    let whole = samples(&mixed(folder.path()));
+    assert_eq!(whole.len(), long.len(), "nothing added");
+    assert!(whole[95_000..97_000].iter().any(|s| s.unsigned_abs() > 3000));
+    let quiet = whole[95_000..97_000]
+        .windows(48)
+        .filter(|w| w.iter().all(|s| s.unsigned_abs() < 100))
+        .count();
+    assert_eq!(quiet, 0, "no hole");
+
+    // Put 1 s back: the second run takes its place from there, the first stops; never added.
+    let lines = "{\"track\":\"local\",\"sample\":0,\"at\":0.0}\n{\"track\":\"local\",\"sample\":96000,\"at\":1.0}\n";
+    fs::write(folder.path().join("clock.jsonl"), lines).unwrap();
+    let back = samples(&mixed(folder.path()));
+    assert_eq!(back.len(), long.len() - 48_000, "ends where the clock ends it");
+    assert!(back.iter().all(|s| s.unsigned_abs() <= 16_400), "never two sounds added");
+}
+
+const STARTED: &str = r#"{"contract":"session-audio/v2","started":"2026-10-14T14:05:12+02:00","tracks":{"local":{"device":"Mic"}}}"#;
+
+/// A session of one track of `rate` 48 kHz whose tones are at these file seconds, its clock as given.
+fn timed(folder: &Path, seconds: f64, tones: &[f64], lines: &str) {
+    let rate = 48_000u32;
+    let at = |s: f64| (s * f64::from(rate)) as usize;
+    gapped(folder, rate, at(seconds), &tones.iter().map(|s| at(*s)).collect::<Vec<_>>(), lines);
+    fs::write(folder.join("session.json"), STARTED).unwrap();
+}
+
+fn point(frame: u64, at: f64) -> String {
+    format!("{{\"track\":\"local\",\"sample\":{frame},\"at\":{at}}}\n")
+}
+
+#[test]
+fn a_point_off_by_more_than_twenty_milliseconds_places_its_frames_one_by_less_does_not() {
+    // A tone at file second 3, one run from file second 2 on. Off by 30 ms: heard 30 ms later.
+    let folder = tempfile::tempdir().unwrap();
+    let off = |seconds: f64| point(0, 0.0) + &point(96_000, 2.0 + seconds);
+    timed(folder.path(), 4.0, &[3.0], &off(0.030));
+    let heard = onsets(&mixed(folder.path()));
+    assert!((heard[0] - 3.03).abs() < 0.002, "{heard:?}");
+    // Off by 10 ms: where it was.
+    timed(folder.path(), 4.0, &[3.0], &off(0.010));
+    let heard = onsets(&mixed(folder.path()));
+    assert!((heard[0] - 3.0).abs() < 0.002, "{heard:?}");
+}
+
+#[test]
+fn a_gap_under_a_second_leaves_no_silence_in_the_clock_and_is_placed_all_the_same() {
+    // Under 1.5 s the contract says no `silence`: the next point alone shows it. What comes after is
+    // the next run's, never played by the run before it in the hole.
+    let folder = tempfile::tempdir().unwrap();
+    timed(folder.path(), 4.0, &[2.1], &(point(0, 0.0) + &point(96_000, 2.4)));
+    let heard = onsets(&mixed(folder.path()));
+    assert_eq!(heard.len(), 1, "{heard:?}");
+    assert!((heard[0] - 2.5).abs() < 0.002, "{heard:?}");
+}
+
+#[test]
+fn every_run_after_it_stops_a_run_never_two_sounds_and_a_run_with_nothing_left_counts_for_nothing() {
+    let folder = tempfile::tempdir().unwrap();
+    let rate = 48_000u32;
+    let lines = point(0, 1.0) + &point(480_000, 21.0) + &point(528_000, 6.0);
+    let long = tone(1000.0, rate, 14.0, 0.5, 2);
+    wav(&folder.path().join("local.wav"), rate, 2, 24, &long, false);
+    fs::write(folder.path().join("session.json"), STARTED).unwrap();
+    fs::write(folder.path().join("clock.jsonl"), lines).unwrap();
+    let all = samples(&mixed(folder.path()));
+    assert!(all.iter().all(|s| s.unsigned_abs() <= 16_400), "never two sounds added");
+    // The first stops at 6 s of the clock, the last plays 3 s from there: nothing plays at 21 s.
+    assert_eq!(all.len(), 9 * 48_000, "ends with the last sound the clock keeps");
+}
+
+#[test]
+fn the_earliest_run_after_it_stops_a_run_wherever_it_stands_in_the_clock() {
+    let folder = tempfile::tempdir().unwrap();
+    let rate = 48_000u32;
+    // The first run holds 10 s; the second starts at 5 s of the clock, the last at 20 s.
+    let lines = point(0, 0.0) + &point(480_000, 5.0) + &point(720_000, 20.0);
+    let long = tone(1000.0, rate, 16.0, 0.5, 2);
+    wav(&folder.path().join("local.wav"), rate, 2, 24, &long, false);
+    fs::write(folder.path().join("session.json"), STARTED).unwrap();
+    fs::write(folder.path().join("clock.jsonl"), lines).unwrap();
+    assert!(
+        samples(&mixed(folder.path())).iter().all(|s| s.unsigned_abs() <= 16_400),
+        "never two sounds added"
+    );
+}
+
+#[test]
+fn a_clock_read_in_any_order_a_frame_said_twice_a_point_beyond_any_meeting_or_the_file_change_nothing() {
+    let folder = tempfile::tempdir().unwrap();
+    let clean = point(0, 0.0) + &point(96_000, 3.0);
+    timed(folder.path(), 4.0, &[2.5], &clean);
+    let expected = samples(&mixed(folder.path()));
+    for lines in [
+        point(96_000, 3.0) + &point(0, 0.0),
+        clean.clone() + &point(96_000, 9.0),
+        clean.clone() + &point(144_000, 9e9),
+        clean.clone() + &point(9_000_000, 3.0 + 9_000_000.0 / 48_000.0 + 5.0),
+    ] {
+        fs::write(folder.path().join("clock.jsonl"), &lines).unwrap();
+        assert_eq!(samples(&mixed(folder.path())), expected, "{lines}");
+    }
+}
+
+#[test]
+fn the_same_track_placed_otherwise_is_another_mix_and_an_empty_track_still_is_one() {
+    let folder = tempfile::tempdir().unwrap();
+    timed(folder.path(), 4.0, &[], "");
+    let path = folder.path().join("local.wav");
+    // The same run's place on the clock and length, from another frame of the file.
+    let one = Mix::placed(&[(path.clone(), vec![(0, 0.0), (96_000, 3.0)])]).unwrap();
+    let other = Mix::placed(&[(path.clone(), vec![(0, 0.0), (48_000, 3.0), (144_000, 4.0)])]).unwrap();
+    assert!(!one.same(&other));
+    assert!(one.same(&Mix::placed(&[(path.clone(), vec![(0, 0.0), (96_000, 3.0)])]).unwrap()));
+    // Each run in the same place and as long, one read from another frame: a clock written again.
+    timed(folder.path(), 9.0, &[], "");
+    let path = folder.path().join("local.wav");
+    let here = Mix::placed(&[(path.clone(), vec![(0, 0.0), (96_000, 1.0), (200_000, 2.0)])]).unwrap();
+    let there = Mix::placed(&[(path, vec![(0, 0.0), (72_000, 1.0), (200_000, 2.0)])]).unwrap();
+    assert!(!here.same(&there));
+    let empty = folder.path().join("empty.wav");
+    wav(&empty, 48_000, 1, 16, &[], false);
+    assert_eq!(Mix::placed(&[(empty, vec![(0, 0.0)])]).unwrap().frames(), 0);
 }
