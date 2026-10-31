@@ -148,6 +148,23 @@ with tempfile.TemporaryDirectory() as work:
 certification = open(os.path.join(os.path.dirname(mac), "windows", "certification.md"), encoding="utf-8").read()
 check("the notes for certification say why runFullTrust and the microphone, and what removal keeps",
       all(word in certification for word in ("runFullTrust", "microphone", "both sides", "Documents", "removes")))
+# The certification kit's report (D77): written on Windows by appcert.exe, read here from a report it wrote.
+import appcert
+said = appcert.said(os.path.join(os.path.dirname(mac), "tests", "appcert-report.xml"))
+check("the kit's verdict first: its version, the overall result, how many tests and how many failed",
+      said[0] == "certification kit 10.0.26100.9457: PASS overall, 2 tests, 1 failed", said)
+check("each failed test named, its number, whether the Store requires it, and what the kit saw first",
+      any(line.startswith("  FAIL  Blocked executables (test 88, optional): 3 messages, the first:")
+          and "CreateProcessW" in line for line in said), said)
+check("a test that passed is not named", not any("App manifest" in line for line in said), said)
+with tempfile.TemporaryDirectory() as work:
+    broken = os.path.join(work, "report.xml")
+    open(broken, "w").write("<html>not the kit's</html>")
+    for path, why in ((broken, "a file that is not the kit's report"), (os.path.join(work, "none.xml"), "no file")):
+        got = appcert.said(path)
+        check(f"{why}: one line, saying no report was read", len(got) == 1 and got[0].startswith("certification kit: no report read"), got)
+check("the notes for certification say what stands between the package and a submission, the kit's failure in it",
+      "## What stands between the package and a submission" in certification and "Blocked executables" in certification)
 print("test: passed" if not failed else "test: FAILED")
 sys.exit(failed)
 PY

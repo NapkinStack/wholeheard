@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cut from the report the Windows App Certification Kit 10.0.26100.9457 wrote on GitHub's
+     windows-latest runner for Wholeheard 0.2.0's package, 2026-10-31 (D77): two of its 24 tests,
+     one passed and the one that failed, three of that one's 16 messages. -->
+<REPORT xml:lang="en-US" OVERALL_RESULT="PASS" VERSION="10.0.26100.9457" APP_TYPE="Centennial" APP_NAME="NapkinStack.Wholeheard.Placeholder" APP_VERSION="0.2.0.0" OS="Microsoft Windows Server 2025 Datacenter" PARTIAL_RUN="FALSE" VALIDATION_TYPE="CommandLine">
+  <REQUIREMENTS>
+    <REQUIREMENT NUMBER="12" TITLE="Package compliance test" RATIONALE="The package does not satisfy Store compliance rules.">
+      <TEST INDEX="31" NAME="App manifest" DESCRIPTION="App manifest must include valid entries for all required fields." EXECUTIONTIME="00h:00m:00s.87ms" OPTIONAL="FALSE">
+        <MESSAGES />
+        <RESULT><![CDATA[PASS]]></RESULT>
+      </TEST>
+    </REQUIREMENT>
+    <REQUIREMENT NUMBER="25" TITLE="Package sanity test" RATIONALE="Validation of the app package contents to ensure correctness.">
+      <TEST INDEX="88" NAME="Blocked executables" DESCRIPTION="Detects if there are references to process launch APIs and blocked executables" EXECUTIONTIME="00h:00m:02s.08ms" OPTIONAL="TRUE">
+        <MESSAGES>
+          <MESSAGE TEXT="File wholeheard.exe contains a reference to a &quot;Launch Process&quot; related API kernel32.dll!CreateProcessW" />
+          <MESSAGE TEXT="File wholeheard-capture.exe contains a blocked executable reference to &quot;cmd.exe&quot;." />
+          <MESSAGE TEXT="File wholeheard.exe contains a blocked executable reference to &quot;\WindowsPowerShell\v1.0\powershell.exe&quot;." />
+        </MESSAGES>
+        <RESULT><![CDATA[FAIL]]></RESULT>
+      </TEST>
+    </REQUIREMENT>
+  </REQUIREMENTS>
+</REPORT>
