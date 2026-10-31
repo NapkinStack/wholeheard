@@ -457,7 +457,7 @@ function savedSaid(saved) {
   savedSentence.setAttribute("role", "status");
   const changed = lastChanged ? document.querySelector(`#settings ${lastChanged}`) : null;
   const row = changed?.closest("label, .row, .field");
-  if (row) row.after(savedSentence);
+  if (changed) (row ?? changed).after(savedSentence);
   else document.getElementById("settings").prepend(savedSentence);
   savedSentence.scrollIntoView({ block: "nearest" });
   savedFor = setTimeout(() => savedSentence.remove(), 1500);
@@ -537,13 +537,21 @@ function row(session, shape, words) {
 // The header's button, as the shell says the recording is — or as the user just asked it to be,
 // until the command has answered (D68).
 let recordAsked = null;
+let recordRefocus = false;
 function paintRecord(recording, stopping) {
   const live = recordAsked ?? recording;
   // Ending, it waits: *Arrêt…*, a click then would ask nothing.
   const ending = recordAsked === false || (recordAsked === null && stopping);
   document.getElementById("record-said").textContent = ending ? words.record_stopping : live ? words.record_stop : words.record_start;
   document.getElementById("record").classList.toggle("live", live);
-  document.getElementById("record").disabled = ending;
+  // Disabled, it loses the focus: given back with the button, for whoever stopped by the keyboard.
+  const button = document.getElementById("record");
+  if (ending && document.activeElement === button) recordRefocus = true;
+  button.disabled = ending;
+  if (!ending && recordRefocus) {
+    recordRefocus = false;
+    if (document.activeElement === document.body) button.focus();
+  }
 }
 
 function show({ words, folder, sessions, shapes, recording, stopping, shortcut, folded, unreadable }) {

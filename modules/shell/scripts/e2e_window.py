@@ -3439,6 +3439,17 @@ def gestures_answer(now: dt.datetime) -> None:
         wait_for(browser, here, 3)
         check("said under a radio with no id, in view", here(browser) and browser.execute_script(
             "const r = document.getElementById('saved-said').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && document.getElementById('saved-said').previousElementSibling.querySelector('input[name=after]') !== null"))
+        wait_for(browser, lambda b: not here(b), 3)
+        # A button in no row: said beside it, the page not sent to its top.
+        browser.execute_script("const p = document.getElementById('minutes'); p.scrollIntoView({block: 'center'}); p.value = 'custom'; p.dispatchEvent(new Event('change', {bubbles: true}))")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-address"), 5)
+        browser.find_element(By.ID, "minutes-address").send_keys("http://127.0.0.1:9/v1")
+        browser.find_element(By.ID, "minutes-model").send_keys("mistral")
+        browser.execute_script("document.getElementById('minutes-save').click()")
+        wait_for(browser, here, 5)
+        check("the minutes' Enregistrer: said beside its button, in view", here(browser) and browser.execute_script(
+            "const s = document.getElementById('saved-said'), r = s.getBoundingClientRect(); return s.previousElementSibling?.id === 'minutes-save' && r.top >= 0 && r.top + r.height / 2 <= innerHeight"),
+              browser.execute_script("const s = document.getElementById('saved-said'); return [s?.previousElementSibling?.id, s?.getBoundingClientRect().top]"))
         browser.set_window_size(1100, 800)
         browser.execute_script("location.hash = '#/'")
         time.sleep(0.5)
