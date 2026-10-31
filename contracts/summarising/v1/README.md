@@ -64,6 +64,8 @@ read, an output that closed, and a provider that sends the key back in its answe
 | `provider.too_slow` | The provider did not answer in time | Try again later, or choose a faster model |
 | `provider.refused_key` | The provider refused the key (HTTP 401 or 403) | Give the provider's key again |
 | `provider.no_credit` | The provider refused for lack of credit (HTTP 402) | Add credit with the provider |
+| `provider.too_many` | The provider refused for too many requests, or a quota used up (HTTP 429) | Wait, or check the plan with the provider |
+| `provider.down` | The provider answered that it is failing (HTTP 500 to 599), a model too large for this machine's memory among the reasons | Try again later, or choose a smaller model |
 | `provider.unknown_model` | The provider does not know this model or this address (HTTP 404) | Choose the model or the address again |
 | `provider.redirected` | The provider sent the request elsewhere (HTTP 300, 301, 302, 303, 307 or 308: RFC 9110 §15.4), which is not followed | Check the address, or give the one it sends to |
 | `provider.failed` | Any other refusal by the provider (another HTTP status), or an answer it left unreadable, stopped, or empty | Try again later |
