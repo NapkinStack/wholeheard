@@ -3365,6 +3365,82 @@ def nothing_silent(now: dt.datetime) -> None:
             shot_themed(browser, f"d67-none-{theme}", theme)
 
 
+def gestures_answer(now: dt.datetime) -> None:
+    """AQ. Each gesture answers at once, its command stood in to take two seconds (D68)."""
+    print("AQ. Démarrer and Arrêter answer before their command, a second click asks nothing; Refaire… closes; a setting says Enregistré (D68)")
+    meetings = WORK / "answering"
+    written = meetings / "2026-10-28_09-00"
+    session(written, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+    (written / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n{"type":"complete","duration":1.0}\n')
+    (written / "minutes.md").write_text(
+        "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
+        "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    slow = ("const real = window.__TAURI__.core; window.__asked = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record'"
+            " ? (window.__asked++, new Promise((done) => setTimeout(done, 2000)).then(() => real.invoke(asked, ...rest))) : real.invoke(asked, ...rest) };")
+    shown = lambda b, id_: b.find_element(By.ID, id_).is_displayed()
+    said = lambda b: b.find_element(By.ID, "record-said").get_attribute("textContent")
+    running = lambda b: b.execute_async_script("const d = arguments[arguments.length - 1]; window.__TAURI__.core.invoke('recording_now').then((n) => d(n.recording))")
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        browser.set_window_size(1100, 800)
+        browser.execute_script(f"location.hash = '#/meeting/{written.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"), 10)
+        # Refaire…: Annuler, then Escape, each giving the focus back, nothing changed.
+        before = (written / "minutes.md").read_text()
+        for way in ("cancel", "escape"):
+            press(browser, "redo-minutes")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "redo-panel"), 5)
+            if way == "cancel":
+                press(browser, "redo-panel-cancel")
+            else:
+                browser.switch_to.active_element.send_keys(Keys.ESCAPE)
+            closed = wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-panel"), 3)
+            check(f"Refaire… closed by {way}: the focus back on it, nothing changed", closed
+                  and browser.execute_script("return document.activeElement.id") == "redo-minutes" and (written / "minutes.md").read_text() == before,
+                  (closed, browser.execute_script("return document.activeElement.outerHTML.slice(0, 80)")))
+        press(browser, "redo-transcript")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-panel"), 5)
+        browser.switch_to.active_element.send_keys(Keys.ESCAPE)
+        check("the transcript's too", wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-transcript-panel"), 3)
+              and browser.execute_script("return document.activeElement.id") == "redo-transcript")
+        # The setting's word, a moment.
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "reminder"), 10)
+        time.sleep(0.5)
+        browser.execute_script("document.getElementById('reminder').click()")
+        told = wait_for(browser, lambda b: shown(b, "saved-said"), 3)
+        check("a setting written says Enregistré", told and browser.find_element(By.ID, "saved-said").text == "Enregistré"
+              and browser.find_element(By.ID, "saved-said").get_attribute("role") == "status")
+        check("for a moment", wait_for(browser, lambda b: not shown(b, "saved-said"), 3))
+        browser.execute_script("location.hash = '#/'")
+        time.sleep(0.5)
+        # Its command two seconds long: the header answers first.
+        browser.execute_script(slow)
+        browser.execute_script("const r = document.getElementById('record'); r.click(); r.click();")
+        check("Démarrer: the button says its new state before the command answers, a second click asks nothing",
+              said(browser) == "Arrêter l’enregistrement" and browser.execute_script("return window.__asked") == 1, said(browser))
+        check("the recording did start, once", wait_for(browser, running, 8))
+        time.sleep(1.5)
+        browser.execute_script("const r = document.getElementById('record'); r.click(); r.click();")
+        check("Arrêter: the same", said(browser) == "Démarrer un enregistrement" and browser.execute_script("return window.__asked") == 2, said(browser))
+        check("the recording did stop, once", wait_for(browser, lambda b: not running(b), 15))
+        check("and the button stays as it was asked", said(browser) == "Démarrer un enregistrement", said(browser))
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        browser.execute_script(slow)
+        browser.execute_script("const r = document.getElementById('small-record'); r.click(); r.click();")
+        start = browser.find_element(By.ID, "small-record")
+        check("the small window's Démarrer: at once, disabled", start.text == "Démarrage…" and not start.is_enabled()
+              and browser.execute_script("return window.__asked") == 1, start.text)
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        time.sleep(1)
+        browser.execute_script("const r = document.getElementById('small-stop'); r.click(); r.click();")
+        stop = browser.find_element(By.ID, "small-stop")
+        check("its Arrêter: the same", stop.text == "Arrêt…" and not stop.is_enabled() and browser.execute_script("return window.__asked") == 2, stop.text)
+        back = wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed() and b.find_element(By.ID, "small-record").is_enabled(), 15)
+        check("at rest again, its Démarrer back", back and browser.find_element(By.ID, "small-record").text == "Démarrer un enregistrement")
+
+
 def main() -> int:
     now = dt.datetime.now().astimezone()
     sessions = WORK / "sessions"
@@ -4813,6 +4889,7 @@ def main() -> int:
     meeting_told_once(now)
     minutes_copied(now)
     nothing_silent(now)
+    gestures_answer(now)
     actions_rows(now)
     announced(now)
     heard_checked(now)

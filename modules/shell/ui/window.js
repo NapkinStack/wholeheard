@@ -437,6 +437,16 @@ async function askAgain(of, said, again) {
   readMakings();
 }
 
+// « Enregistré », a moment: outside the settings' page, which is drawn again by what it says (D68).
+let savedFor = null;
+function savedSaid(saved) {
+  const said = document.getElementById("saved-said");
+  clearTimeout(savedFor);
+  said.textContent = saved ? words.saved : "";
+  said.hidden = !saved;
+  if (saved) savedFor = setTimeout(() => { said.hidden = true; }, 1500);
+}
+
 async function readMakings() {
   makings = await window.__TAURI__.core.invoke("makings").catch(() => null);
   // Only the meeting shown: its page hidden, the last one opened is no longer in front.
@@ -508,6 +518,16 @@ function row(session, shape, words) {
   return item;
 }
 
+// The header's button, as the recording is — or as the user just asked it to be (D68): a recording
+// is said stopped once it has ended, some seconds after the click.
+let recordAsked = null;
+function paintRecord(recording) {
+  if (recordAsked && recordAsked.to !== recording && Date.now() < recordAsked.until) recording = recordAsked.to;
+  else recordAsked = null;
+  document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
+  document.getElementById("record").classList.toggle("live", recording);
+}
+
 function show({ words, folder, sessions, shapes, recording, shortcut, folded, unreadable }) {
   document.documentElement.lang = words.locale;
   // The header's gesture, as the board has it: start or stop, with the shortcut beside.
@@ -516,8 +536,7 @@ function show({ words, folder, sessions, shapes, recording, shortcut, folded, un
   small.textContent = words.small;
   // At rest too: the small window is the user's to choose (D35).
   small.hidden = false;
-  document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
-  document.getElementById("record").classList.toggle("live", recording);
+  paintRecord(recording);
   const keys = document.getElementById("header-keys");
   keys.textContent = shortcut ?? "";
   keys.hidden = !shortcut;
@@ -783,6 +802,25 @@ function offer(card, label, id, command, session, words) {
   card.append(button);
 }
 
+// A panel of *Refaire…* closes on *Annuler* or Escape: nothing changed, the focus back on *Refaire…* (D68).
+function closes(panel, go, button, words) {
+  const cancel = element("button", "open", words.redo_cancel);
+  cancel.type = "button";
+  cancel.id = `${panel.id}-cancel`;
+  const close = () => {
+    panel.replaceWith(button);
+    button.focus();
+  };
+  cancel.addEventListener("click", close);
+  panel.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") close();
+  });
+  const row = element("div", "redo-actions");
+  go.replaceWith(row);
+  row.append(go, cancel);
+  return panel;
+}
+
 function redoPanel(choices, session, words, button) {
   const panel = element("section", "redo");
   panel.id = "redo-panel";
@@ -824,7 +862,7 @@ function redoPanel(choices, session, words, button) {
     }
   });
   panel.append(list, element("p", "says", words.redo_note), go);
-  return panel;
+  return closes(panel, go, button, words);
 }
 
 function redoTranscriptPanel(shown, session, words, button, corrected) {
@@ -870,7 +908,7 @@ function redoTranscriptPanel(shown, session, words, button, corrected) {
     panel.append(lost);
   }
   panel.append(go);
-  return panel;
+  return closes(panel, go, button, words);
 }
 
 function minutesCard(read, words, session, transcript) {
@@ -901,7 +939,9 @@ function minutesCard(read, words, session, transcript) {
   redo.id = "redo-minutes";
   redo.addEventListener("click", async () => {
     const choices = await window.__TAURI__.core.invoke("minutes_shown");
-    redo.replaceWith(redoPanel(choices, session, words, redo));
+    const panel = redoPanel(choices, session, words, redo);
+    redo.replaceWith(panel);
+    panel.querySelector("input, button:enabled").focus();
   });
   // Copied in one click, as written, to paste where the user writes (D45): said in place, a moment.
   const copy = element("button", "open", words.copy_minutes);
@@ -1046,7 +1086,9 @@ function transcriptCard(read, words, session) {
   redo.id = "redo-transcript";
   redo.addEventListener("click", async () => {
     const shown = await window.__TAURI__.core.invoke("settings_shown");
-    redo.replaceWith(redoTranscriptPanel(shown, session, words, redo, read.segments.some((segment) => segment.edited)));
+    const panel = redoTranscriptPanel(shown, session, words, redo, read.segments.some((segment) => segment.edited));
+    redo.replaceWith(panel);
+    panel.querySelector("input, button:enabled").focus();
   });
   // Beside who heard it, as board 2 has it: the head keeps its search whole.
   const heard = element("div", "made");
@@ -1515,6 +1557,7 @@ function minutesRow(minutes, words, locked) {
     }
     notSaved = failed;
     await refresh();
+    savedSaid(failed === null);
   };
   // Chosen, not yet saved: who writes them meanwhile is said — going through the list, with the
   // keyboard's arrows too, never changes who does (D25).
@@ -1671,6 +1714,7 @@ function showSettings(shown, minutes, words) {
     }
     notSaved = failed;
     await refresh();
+    savedSaid(failed === null);
   };
   const parts = [];
   if (locked) {
@@ -2360,10 +2404,23 @@ function showSmall(words) {
   const rest = element("div", "small-rest");
   const restTop = element("div", "small-top");
   restTop.append(element("span", "small-brand", "Wholeheard"), toFull("small-full"));
+  // Its new state at once, disabled until the recording's own says otherwise (D68). A start that
+  // failed has answered by then, and is told: its button comes back.
+  const asking = async (button, said, back) => {
+    button.disabled = true;
+    button.textContent = said;
+    await window.__TAURI__.core.invoke("record");
+    if (back && recording !== true) setTimeout(rested, 1500);
+  };
+  const rested = () => {
+    if (recording === true) return;
+    start.disabled = false;
+    start.textContent = words.record_start;
+  };
   const start = element("button", "primary", words.record_start);
   start.type = "button";
   start.id = "small-record";
-  start.addEventListener("click", () => invoke("record"));
+  start.addEventListener("click", () => asking(start, words.record_starting, true));
   const keys = element("button", "hint");
   keys.type = "button";
   keys.id = "small-keys";
@@ -2428,7 +2485,7 @@ function showSmall(words) {
   const stop = element("button", "danger", words.small_stop);
   stop.type = "button";
   stop.id = "small-stop";
-  stop.addEventListener("click", () => invoke("record"));
+  stop.addEventListener("click", () => asking(stop, words.record_stopping, false));
   const meters = element("div", "meters");
   meters.append(
     meter(words.small_mic, "level-me", "device-me", { silent: words.small_silent_me, nothing: words.small_nothing, waiting: words.small_waiting_me }),
@@ -2590,6 +2647,10 @@ function showSmall(words) {
       if (now.recording) secret.row.after(unkeptSaid);
       else page.prepend(unkeptSaid);
       recording = now.recording;
+      start.disabled = false;
+      start.textContent = words.record_start;
+      stop.disabled = false;
+      stop.textContent = words.small_stop;
       // Each recording its own context: nothing of the one before.
       Object.assign(meeting, { name: null, saved: null, typed: null, refused: null });
       mark.wanted = null;
@@ -3171,8 +3232,21 @@ document.getElementById("groups").addEventListener("keydown", (event) => {
 // The empty pane's own gesture (D61's board 5): the sidebar's, offered where the eye is.
 document.getElementById("empty-record").addEventListener("click", () => document.getElementById("record").click());
 document.getElementById("empty-again").addEventListener("click", () => refresh());
+// Its new state at once, the command answering after it; a second click meanwhile asks nothing (D68).
+let recordAsking = false;
 document.getElementById("record").addEventListener("click", async () => {
-  await window.__TAURI__.core.invoke("record");
+  if (recordAsking) return;
+  recordAsking = true;
+  const live = document.getElementById("record").classList.contains("live");
+  recordAsked = { to: !live, until: Date.now() + 10000 };
+  paintRecord(live);
+  try {
+    await window.__TAURI__.core.invoke("record");
+  } finally {
+    recordAsking = false;
+    // A start that failed has answered by now, and is told: the button says so at the next reading.
+    if (!live) recordAsked = null;
+  }
   // The recording says it started, or stopped, a moment later: then the header follows.
   setTimeout(refresh, 1200);
 });
@@ -3184,8 +3258,7 @@ setInterval(async () => {
   if (asked === null) return;
   readMakings();
   const { recording, shortcut } = asked;
-  document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
-  document.getElementById("record").classList.toggle("live", recording);
+  paintRecord(recording);
   const keys = document.getElementById("header-keys");
   keys.textContent = shortcut ?? "";
   keys.hidden = !shortcut;
