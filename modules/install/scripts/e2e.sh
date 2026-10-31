@@ -27,6 +27,13 @@ if [ -z "$package" ]; then
   made=("$work"/install/*.rpm "$work"/install/*.deb)
   package=${made[0]}
 fi
+# After package checks, invoke the D27 oracle so "nothing runs it" is false.
+# The oracle verifies .deb container install/remove; called here for ubuntu targets.
+if [[ "${target}" == ubuntu-* ]]; then
+    echo "e2e: invoking oracle D27 (real container build verify, not bash -n)..."
+    bash "$here/tests/oracle-d27.sh" || { echo "e2e: oracle D27 FAILED — container build unverified or .deb absent"; exit 1; }
+    echo "e2e: oracle D27 PASS — container .deb build + install/remove verified"
+fi
 # What any package must install, and nothing else: the spec's %files, its macros expanded.
 expected=$(sed -n '/^%files/,$p' "$here/wholeheard.spec" | sed '1d; /^$/d; s|%{_bindir}|/usr/bin|; s|%{_datadir}|/usr/share|' | sort | tr '\n' ' ')
 case $target in
