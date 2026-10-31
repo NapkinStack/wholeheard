@@ -4430,6 +4430,7 @@ def main() -> int:
             told = browser.find_element(By.ID, "minutes-tested").get_attribute("textContent")
             check("Tester in developer mode: the cause, then the raw line alone", raw and told.startswith(TEST_CAUSES[-1][1]) and "wholeheard-summary:" not in told and "earlier line" not in told, told)
             changed(lambda: browser.find_element(By.ID, "developer").click())
+            text = window.file.read_text()
         finally:
             code.unlink(missing_ok=True)
         press(browser, "minutes-test")
