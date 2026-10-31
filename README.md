@@ -42,7 +42,7 @@ Needs `podman` ([`modules/install`](modules/install/)). Ubuntu's package is bein
 colleague's machine. On macOS, GitHub's runner makes the app on every change to a program on `main`, signed ad
 hoc, not by Apple. On Windows, it makes a zip and an MSIX package for the Microsoft Store, not submitted yet. Each
 waits on a colleague's trial and is not published either
-([cycle 05](docs/project/cycles/05-best-of-its-kind-to-use.md)). What a build holds and what leaves your
+([cycle 06](docs/project/cycles/06-the-minutes-you-can-check.md)). What a build holds and what leaves your
 machine: [`docs/privacy.md`](docs/privacy.md).
 
 | What runs | Its page |
