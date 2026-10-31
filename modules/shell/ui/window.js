@@ -2695,7 +2695,7 @@ function showSmall(words) {
     announcement = now.announcement;
     announce.hidden = announcement === null;
     announce.classList.toggle("gone", now.seconds >= ANNOUNCED_FOR);
-    stop.disabled = !now.recording;
+    stop.disabled ||= !now.recording;
     note.dataset.follows = String(now.transcript_follows);
     note.hidden = !now.transcript_follows || !opened.hidden;
     // The meeting's folder there: what it holds already is shown, what was typed before is kept.

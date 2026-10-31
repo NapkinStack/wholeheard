@@ -434,7 +434,7 @@ body.small-window .frame { display: none; }
 .foot nav .open { min-height: 32px; padding: 0 10px; font-size: 13px; white-space: nowrap; }
 .foot nav a[aria-current="page"] { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); }
 .pane { flex: 1; min-width: 0; container: pane / inline-size; }
-.saved-said { position: fixed; right: 20px; bottom: 16px; margin: 0; padding: 6px 12px; border-radius: 8px; background: var(--ink); color: var(--ground, #fff); font-size: 13px; z-index: 5; }
+.saved-said { pointer-events: none; position: fixed; right: 20px; bottom: 16px; margin: 0; padding: 6px 12px; border-radius: 8px; background: var(--ink); color: var(--ground, #fff); font-size: 13px; z-index: 5; }
 .redo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .pane > .back { display: none; }
 /* Folding the sidebar (D61): its button at its top, the one that brings it back at the pane's. */

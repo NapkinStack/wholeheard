@@ -3436,7 +3436,7 @@ def gestures_answer(now: dt.datetime) -> None:
         time.sleep(1)
         browser.execute_script("const r = document.getElementById('small-stop'); r.click(); r.click();")
         stop = browser.find_element(By.ID, "small-stop")
-        check("its Arrêter: the same", stop.text == "Arrêt…" and not stop.is_enabled() and browser.execute_script("return window.__asked") == 2, stop.text)
+        check("its Arrêter: the same", stop.text == "Arrêt…" and not stop.is_enabled() and browser.execute_script("return window.__asked") == 2, (stop.text, stop.is_enabled(), browser.execute_script("return window.__asked")))
         back = wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed() and b.find_element(By.ID, "small-record").is_enabled(), 15)
         check("at rest again, its Démarrer back", back and browser.find_element(By.ID, "small-record").text == "Démarrer un enregistrement")
 
