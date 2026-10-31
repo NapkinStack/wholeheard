@@ -391,6 +391,7 @@ fn the_log_says_each_step_under_the_makings_id_and_nothing_of_the_meeting() {
             "summary.started",
             "summary.read",
             "summary.sending",
+            "summary.route",
             "summary.answered",
             "summary.written"
         ]
@@ -468,7 +469,7 @@ fn a_level_asked_shows_more_and_a_library_says_nothing() {
         .unwrap();
     assert!(output.status.success(), "{}", said(&output).1);
     let lines = logged(logs.path());
-    assert_eq!(steps(&lines), ["summary.testing", "summary.answered"]);
+    assert_eq!(steps(&lines), ["summary.testing", "summary.route", "summary.answered"]);
 }
 
 #[test]
@@ -525,7 +526,7 @@ fn a_run_removes_the_day_files_of_more_than_fourteen_days() {
         .unwrap();
     assert!(output.status.success());
     assert!(!logs.path().join("shell.2026-01-01.jsonl").exists());
-    assert_eq!(logged(logs.path()).len(), 2);
+    assert_eq!(logged(logs.path()).len(), 3);
 }
 
 /// A log folder whose day file cannot take a byte: every write to it fails.
