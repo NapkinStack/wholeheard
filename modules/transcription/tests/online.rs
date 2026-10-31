@@ -378,6 +378,41 @@ fn a_key_a_request_cannot_carry_is_said_before_anything_leaves() {
 }
 
 #[test]
+fn an_empty_key_sends_no_key() {
+    let (address, asked) = served(200, SEGMENTS);
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+        .args(["--test", "--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_PROVIDER_KEY", "")
+        .env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"))
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let (head, _) = asked.recv().unwrap();
+    assert!(!head.to_lowercase().contains("authorization"), "{head}");
+}
+
+#[test]
+fn an_output_closed_takes_no_line_and_the_sentence_is_still_said() {
+    use std::process::Stdio;
+    let (address, _asked) = served(500, "{}");
+    let mut program = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+        .args(["--test", "--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(program.stdout.take());
+    let output = program.wait_with_output().unwrap();
+    let said = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{said}");
+    assert!(
+        said.starts_with("wholeheard-transcription: ") && said.contains("HTTP 500"),
+        "{said}"
+    );
+}
+
+#[test]
 fn a_test_of_no_address_or_nobody_there_says_its_cause() {
     let (_, out, _) = tested("not an address");
     assert!(out.contains("settings.invalid"), "{out}");
