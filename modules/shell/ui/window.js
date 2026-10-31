@@ -1522,8 +1522,13 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   columns.append(minutesCard(minutes, words, session, transcript), transcriptCard(transcript, words, session));
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
-  // A name being typed is kept the same way (D70).
-  const typing = page.dataset.name === nameOf(session) ? document.querySelector("#naming:not([data-saving])")?.value : undefined;
+  // A name being typed is kept the same way, with its refusal and where the caret was (D70); another
+  // meeting drawn over a refusal says it in the pane.
+  const naming = document.querySelector("#naming:not([data-saving])");
+  const namingRefused = document.getElementById("naming-said")?.textContent ?? "";
+  const same = page.dataset.name === nameOf(session);
+  const typing = same && naming ? { value: naming.value, caret: naming.selectionStart, end: naming.selectionEnd, focused: document.activeElement === naming } : null;
+  if (!same && namingRefused) paneSays(namingRefused);
   page.dataset.name = nameOf(session);
   const kept = confidentialCard(session, confidential, words);
   kept.append(languageRow(session, language, languages, words, meeting_language, apple, system_language));
@@ -1550,11 +1555,21 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
     search.value = searching;
     search.dispatchEvent(new Event("input"));
   }
-  if (typing !== undefined) {
+  if (typing) {
     const button = document.getElementById("rename");
-    nameField(button.parentElement, button, session, words, typing);
-    document.getElementById("naming").setSelectionRange(typing.length, typing.length);
+    const elsewhere = document.activeElement;
+    nameField(button.parentElement, button, session, words, typing.value, namingRefused);
+    document.getElementById("naming").setSelectionRange(typing.caret, typing.end);
+    // Typed in, it stays there; the user gone elsewhere, they are not brought back.
+    if (!typing.focused) elsewhere?.focus?.();
   }
+}
+
+// A sentence in the pane, until the next address.
+function paneSays(sentence) {
+  const said = document.getElementById("pane-said");
+  said.textContent = sentence;
+  said.hidden = false;
 }
 
 // The meeting's heading (D70): clicked, a field. Enter or leaving it keeps what is typed, emptied
@@ -1570,7 +1585,7 @@ function meetingName(session, words) {
   return heading_;
 }
 
-function nameField(heading_, button, session, words, typed) {
+function nameField(heading_, button, session, words, typed, refused = "") {
   const field = element("input", "naming");
   field.type = "text";
   field.id = "naming";
@@ -1581,7 +1596,8 @@ function nameField(heading_, button, session, words, typed) {
   const said = element("p", "says");
   said.id = "naming-said";
   said.setAttribute("role", "status");
-  said.hidden = true;
+  said.textContent = refused;
+  said.hidden = refused === "";
   let done = false;
   const leave = () => {
     done = true;
@@ -1602,8 +1618,12 @@ function nameField(heading_, button, session, words, typed) {
     } catch (why) {
       done = false;
       delete field.dataset.saving;
-      said.textContent = fill(words.name_not_saved, why);
-      said.hidden = false;
+      const sentence = fill(words.name_not_saved, why);
+      // Its page gone meanwhile: said where it stays, never to no one.
+      if (field.isConnected) {
+        said.textContent = sentence;
+        said.hidden = false;
+      } else paneSays(sentence);
     }
   };
   field.addEventListener("keydown", (event) => {

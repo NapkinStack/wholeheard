@@ -48,6 +48,8 @@ fn a_name_is_one_line_not_blank_within_its_length_counted_in_characters() {
     let longest = "é".repeat(MOST);
     assert_eq!(within(&longest), Some(longest.as_str()));
     for not in [
+        "\u{200b}",
+        "\u{feff}\u{200b}",
         "",
         "  \n",
         "two\nlines",
@@ -77,6 +79,25 @@ fn written_whole_read_back_removed_blank_refused_before_session_json_or_for_no_l
     assert_eq!(read(&dir), None);
     let names: Vec<_> = fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name()).collect();
     assert_eq!(names, ["session.json"], "nothing is left beside it");
+}
+
+#[cfg(unix)]
+#[test]
+fn it_is_renamed_over_the_old_one_never_written_in_place_and_a_failure_leaves_nothing_beside() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = folder("whole");
+    session(&dir);
+    write(&dir, "Avant").unwrap();
+    // Refused to anyone writing in place; a rename does not ask the file.
+    fs::set_permissions(dir.join(FILE), fs::Permissions::from_mode(0o444)).unwrap();
+    write(&dir, "Après").unwrap();
+    assert_eq!(read(&dir).as_deref(), Some("Après"));
+    fs::remove_file(dir.join(FILE)).unwrap();
+    // The rename refused: a folder in its place, that holds something.
+    fs::create_dir(dir.join(FILE)).unwrap();
+    fs::write(dir.join(FILE).join("x"), "").unwrap();
+    assert!(write(&dir, "Encore").is_err());
+    assert!(!dir.join(".title.part").exists(), "nothing is left beside it");
 }
 
 #[test]

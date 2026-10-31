@@ -14,7 +14,11 @@ pub const MOST: usize = 80;
 pub fn within(text: &str) -> Option<&str> {
     let name = text.trim();
     let one_line = !name.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'));
-    (one_line && !name.is_empty() && name.chars().count() <= MOST).then_some(name)
+    // A name that shows nothing would leave an empty row: marks that take no room are no name.
+    let shows = name.chars().any(|c| {
+        !c.is_whitespace() && !matches!(c, '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{2069}' | '\u{feff}')
+    });
+    (one_line && shows && name.chars().count() <= MOST).then_some(name)
 }
 
 /// The name the user gave the meeting, if they gave one.
