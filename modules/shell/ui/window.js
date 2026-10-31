@@ -1501,7 +1501,7 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   const named = element("div", "named");
   // Named by its minutes (D48): the date above the name.
   if (session.title) named.append(element("span", "on", heading(session, words)));
-  named.append(element("h1", "", session.title ?? heading(session, words)));
+  named.append(meetingName(session, words));
   if (session.seconds !== null) named.append(element("span", "length", length(session.seconds)));
   // Where the minutes were written, from their own front matter: unread, or naming none, not said.
   const minutesHere = minutes.state === "present" && minutes.provider ? minutes.provider === "local" : undefined;
@@ -1522,6 +1522,8 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   columns.append(minutesCard(minutes, words, session, transcript), transcriptCard(transcript, words, session));
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
+  // A name being typed is kept the same way (D70).
+  const typing = page.dataset.name === nameOf(session) ? document.querySelector("#naming:not([data-saving])")?.value : undefined;
   page.dataset.name = nameOf(session);
   const kept = confidentialCard(session, confidential, words);
   kept.append(languageRow(session, language, languages, words, meeting_language, apple, system_language));
@@ -1548,6 +1550,80 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
     search.value = searching;
     search.dispatchEvent(new Event("input"));
   }
+  if (typing !== undefined) {
+    const button = document.getElementById("rename");
+    nameField(button.parentElement, button, session, words, typing);
+    document.getElementById("naming").setSelectionRange(typing.length, typing.length);
+  }
+}
+
+// The meeting's heading (D70): clicked, a field. Enter or leaving it keeps what is typed, emptied
+// its minutes' title or its date comes back; Escape leaves it as it was.
+function meetingName(session, words) {
+  const heading_ = element("h1");
+  const button = element("button", "rename", session.title ?? heading(session, words));
+  button.type = "button";
+  button.id = "rename";
+  button.title = words.rename_meeting;
+  button.addEventListener("click", () => nameField(heading_, button, session, words, session.title ?? ""));
+  heading_.append(button);
+  return heading_;
+}
+
+function nameField(heading_, button, session, words, typed) {
+  const field = element("input", "naming");
+  field.type = "text";
+  field.id = "naming";
+  field.maxLength = 80;
+  field.value = typed;
+  field.placeholder = words.name_meeting;
+  field.setAttribute("aria-label", words.name_meeting);
+  const said = element("p", "says");
+  said.id = "naming-said";
+  said.setAttribute("role", "status");
+  said.hidden = true;
+  let done = false;
+  const leave = () => {
+    done = true;
+    said.remove();
+    field.replaceWith(button);
+  };
+  const keep = async () => {
+    if (done) return;
+    if (field.value.trim() === (session.title ?? "")) return leave();
+    done = true;
+    // Being saved, no longer being typed: a reading of the page meanwhile does not open it again.
+    field.dataset.saving = "";
+    try {
+      await window.__TAURI__.core.invoke("title_saved", { name: nameOf(session), title: field.value });
+      button.textContent = field.value.trim() || heading(session, words);
+      leave();
+      await refresh();
+    } catch (why) {
+      done = false;
+      delete field.dataset.saving;
+      said.textContent = fill(words.name_not_saved, why);
+      said.hidden = false;
+    }
+  };
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      keep().then(() => document.getElementById("rename")?.focus());
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      leave();
+      button.focus();
+    }
+  });
+  // Another window come forward leaves the field where it was: only a click or a tab elsewhere keeps it.
+  field.addEventListener("blur", () => {
+    if (document.activeElement !== field) keep();
+  });
+  button.replaceWith(field);
+  heading_.after(said);
+  field.focus();
+  field.select();
 }
 
 // The settings' page: each change saved at once; nothing offered over a file that cannot be read.
@@ -2867,7 +2943,9 @@ function showFree(listing, busy, words) {
         draw();
       });
       const said = element("span", "said");
-      said.append(element("span", "name", heading(s, words)), element("span", "length", s.seconds !== null ? length(s.seconds) : ""));
+      // Named (D70): the date stays beside the length, what tells two of one name apart.
+      const lasted = s.seconds !== null ? length(s.seconds) : "";
+      said.append(element("span", "name", s.title ?? heading(s, words)), element("span", "length", s.title ? `${heading(s, words)} · ${lasted}` : lasted));
       row.append(box, said, element("span", "weighs", size(weight(s), words)));
       item.append(row);
       list.append(item);
@@ -2876,7 +2954,7 @@ function showFree(listing, busy, words) {
       const item = element("li");
       const row = element("div", "card freeable busy");
       const said = element("span", "said");
-      said.append(element("span", "name", heading(s, words)), element("span", "length", words.free_busy));
+      said.append(element("span", "name", s.title ?? heading(s, words)), element("span", "length", s.title ? `${heading(s, words)} · ${words.free_busy}` : words.free_busy));
       row.append(said);
       item.append(row);
       list.append(item);

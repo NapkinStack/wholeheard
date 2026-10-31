@@ -103,6 +103,8 @@ made, or a transcript is left unfinished. Changed after they were made, *Refaire
 makes the transcript again with whoever the settings name to hear, then the minutes with whoever
 they name to write — each kept in place until the new one is whole, put back if it is not.
 
+**A meeting's name** (D70): its heading clicked, a name typed, Enter — shown first in the list, its page and *Libérer de l'espace*, as text. It is kept as the meeting's `title.txt` (`contracts/session-audio/v2`), written whole through a file beside it, before the minutes' title (D48), which comes back when the name is emptied; made again, the minutes leave it. A folder is never renamed.
+
 **A meeting said confidential** (D60, [its board](../../docs/project/drawings/d60-confidential/)) is
 made on this computer alone, whatever the settings name.
 
