@@ -58,7 +58,10 @@ fn no_glyph_stands_for_an_icon_in_the_page() {
 fn nothing_is_fetched_for_an_icon() {
     for file in [PAGE, STYLE, HTML] {
         for line in file.lines().filter(|line| line.contains("<svg") || line.contains("url(")) {
-            assert!(!line.contains("url(\"http") && !line.contains("href=\"http") && !line.contains("src=\"http"), "{line}");
+            assert!(
+                !line.contains("url(\"http") && !line.contains("href=\"http") && !line.contains("src=\"http"),
+                "{line}"
+            );
         }
     }
     assert!(include_str!("../ui/LUCIDE-LICENSE").contains("ISC License"));
@@ -84,7 +87,16 @@ fn tokens(block: &str) -> BTreeMap<String, Rgb> {
 /// Each theme's tokens, read from the file.
 fn themes(style: &str) -> [BTreeMap<String, Rgb>; 2] {
     let light = style.split_once(":root {").unwrap().1.split_once('}').unwrap().0;
-    let dark = style.split_once("prefers-color-scheme: dark").unwrap().1.split_once(":root {").unwrap().1.split_once('}').unwrap().0;
+    let dark = style
+        .split_once("prefers-color-scheme: dark")
+        .unwrap()
+        .1
+        .split_once(":root {")
+        .unwrap()
+        .1
+        .split_once('}')
+        .unwrap()
+        .0;
     [tokens(light), tokens(dark)]
 }
 
@@ -125,10 +137,17 @@ fn too_faint(style: &str) -> Vec<String> {
         for rule in style.split('}') {
             let Some((selector, body)) = rule.rsplit_once('{') else { continue };
             let property = |name: &str| {
-                body.split(';').filter_map(|one| one.split_once(':')).find(|(key, _)| key.trim() == name).map(|(_, found)| found.trim().to_string())
+                body.split(';')
+                    .filter_map(|one| one.split_once(':'))
+                    .find(|(key, _)| key.trim() == name)
+                    .map(|(_, found)| found.trim().to_string())
             };
-            let Some(colour) = property("color").and_then(|text| value(&text, theme)) else { continue };
-            let large = property("font-size").and_then(|size| size.strip_suffix("px").and_then(|px| px.parse::<f64>().ok())).is_some_and(|px| px >= 24.0);
+            let Some(colour) = property("color").and_then(|text| value(&text, theme)) else {
+                continue;
+            };
+            let large = property("font-size")
+                .and_then(|size| size.strip_suffix("px").and_then(|px| px.parse::<f64>().ok()))
+                .is_some_and(|px| px >= 24.0);
             let need = if large { 3.0 } else { 4.5 };
             let grounds: Vec<Rgb> = match property("background").and_then(|text| value(&text, theme)) {
                 Some(own) => vec![own],
@@ -165,10 +184,18 @@ fn a_pair_below_aa_is_refused() {
 fn what_moves_moves_shortly_and_not_for_who_asked_it_not_to() {
     let style = without_css_comments(STYLE);
     for (selector, longest) in [(".small-rest, .small-live {", 200), (".chip.turned {", 200)] {
-        let rule = style.split(selector).skip(1).map(|part| part.split('}').next().unwrap()).find(|rule| rule.contains("animation")).unwrap_or_else(|| panic!("{selector}"));
+        let rule = style
+            .split(selector)
+            .skip(1)
+            .map(|part| part.split('}').next().unwrap())
+            .find(|rule| rule.contains("animation"))
+            .unwrap_or_else(|| panic!("{selector}"));
         let ms: u32 = rule.split("ms").next().unwrap().rsplit(' ').next().unwrap().parse().unwrap();
         assert!(ms <= longest, "{selector} {ms} ms");
     }
-    let reduced = style.split("prefers-reduced-motion").filter(|part| part.contains(".chip.turned")).count();
+    let reduced = style
+        .split("prefers-reduced-motion")
+        .filter(|part| part.contains(".chip.turned"))
+        .count();
     assert!(reduced >= 1 && style.contains(".small-rest, .small-live, .chip.turned { animation: none; }"));
 }

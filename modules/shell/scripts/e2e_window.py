@@ -3525,6 +3525,9 @@ def window_looks(now: dt.datetime) -> None:
         small = browser.find_element(By.ID, "small-link")
         check("Petite fenêtre: an icon, named for assistive technology and to the pointer", small.text == "" and small.get_attribute("aria-label") == "Petite fenêtre"
               and small.get_attribute("title") == "Petite fenêtre" and small.find_elements(By.CSS_SELECTOR, "svg"), small.text)
+        # Drawn, and seen: stroked in the text's colour, the size of the text; a rule of another name once hid it.
+        drawn = browser.execute_script("const v = document.querySelector('#small-link svg'), c = getComputedStyle(v), p = getComputedStyle(v.parentElement); return [c.stroke === p.color, c.fill, parseFloat(c.width) === parseFloat(p.fontSize), parseFloat(c.height) === parseFloat(p.fontSize)]")
+        check("the icon is stroked, the size of its text", drawn == [True, "none", True, True], drawn)
         primaries = browser.execute_script("return [...document.querySelectorAll('#sidebar .primary')].filter(b => b.offsetParent).length")
         check("the header shows one primary action", primaries == 1, primaries)
         for theme in ("light", "dark"):

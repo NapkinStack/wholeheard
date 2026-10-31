@@ -94,7 +94,7 @@ function icon(name) {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("class", "drawn");
+  svg.setAttribute("class", "glyph");
   svg.setAttribute("aria-hidden", "true");
   for (const d of ICONS[name]) {
     const path = document.createElementNS(ns, "path");

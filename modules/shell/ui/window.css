@@ -17,7 +17,7 @@ body {
   font: 15px/1.45 system-ui, sans-serif;
 }
 /* An icon drawn (D69), the size of the text it stands beside. */
-.drawn { width: 1em; height: 1em; vertical-align: -0.125em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.glyph { width: 1em; height: 1em; vertical-align: -0.125em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
 .mark { fill: var(--ink); }
 .peaks { stroke: var(--surface); }
