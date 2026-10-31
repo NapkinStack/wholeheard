@@ -69,7 +69,7 @@ if [ "$1" != --test ]; then
   echo '{"event": "written", "file": "x"}'
   exit 0
 fi
-[ -e "$here/test-code" ] && { echo '{"event": "failed", "code": "'"$(cat "$here/test-code")"'"}'; echo "wholeheard-summary: raw words of the provider" >&2; exit 1; }
+[ -e "$here/test-code" ] && { echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'; echo '{"event": "failed", "code": "'"$(cat "$here/test-code")"'"}'; echo; echo "an earlier line" >&2; echo "wholeheard-summary: raw words of the provider" >&2; exit 1; }
 case "$*" in *openrouter.ai*) echo "wholeheard-summary: the provider at openrouter.ai refused the key" >&2; exit 1;; esac
 echo '{"event": "sending"}'
 echo '{"event": "answered"}'
@@ -86,7 +86,7 @@ printf '%s\\n' "$*" > "$(dirname "$0")/hearing-args"
 # Tester (D43, D63): the key it was given kept beside; a model that gives no times refused, as the real one says it.
 if [ "$1" = --test ]; then
   printf '%s' "${WHOLEHEARD_PROVIDER_KEY:-none}" > "$(dirname "$0")/hearing-key"
-  [ -e "$(dirname "$0")/test-code" ] && { echo '{"event": "failed", "code": "'"$(cat "$(dirname "$0")/test-code")"'"}'; echo "wholeheard-transcription: raw words of the service" >&2; exit 1; }
+  [ -e "$(dirname "$0")/test-code" ] && { echo '{"event": "started"}'; echo '{"event": "failed", "code": "'"$(cat "$(dirname "$0")/test-code")"'"}'; echo; echo "an earlier line" >&2; echo "wholeheard-transcription: raw words of the service" >&2; exit 1; }
   exit 0
 fi
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
@@ -153,7 +153,7 @@ TEST_CAUSES = [
     ("provider.no_times", "Ce modèle ne donne pas les temps de ce qu’il entend\u00a0: choisissez-en un qui donne ceux de chaque segment dans les réglages de Wholeheard."),
     ("provider.no_credit", "Le fournisseur a refusé faute de crédit\u00a0: ajoutez du crédit chez lui, puis réessayez."),
     ("provider.too_many", "Le fournisseur refuse pour trop de demandes, ou un quota épuisé\u00a0: patientez, ou vérifiez votre forfait chez lui."),
-    ("provider.down", "Le fournisseur répond qu’il est en panne, ou que ce modèle est trop gros pour la mémoire\u00a0: réessayez plus tard, ou choisissez un modèle plus petit."),
+    ("provider.down", "Le fournisseur répond qu’il est en panne\u00a0: réessayez plus tard. Sur cet ordinateur, ce modèle est peut-être trop gros pour la mémoire\u00a0: choisissez-en un plus petit."),
     ("provider.unreachable", "Le fournisseur n’a pas pu être joint\u00a0: vérifiez qu’il tourne, ou le réseau, puis réessayez."),
 ]
 MONTHS_FR = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
@@ -4423,6 +4423,13 @@ def main() -> int:
                 press(browser, "minutes-test")
                 held = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").get_attribute("textContent") == sentence, 10)
                 check(f"Tester of the minutes, {cause}: its own sentence, what to do, no raw text", held, browser.find_element(By.ID, "minutes-tested").get_attribute("textContent"))
+            # In developer mode, the sentence and the program's last line, its name off.
+            changed(lambda: browser.find_element(By.ID, "developer").click())
+            press(browser, "minutes-test")
+            raw = wait_for(browser, lambda b: "raw words of the provider" in b.find_element(By.ID, "minutes-tested").get_attribute("textContent"), 10)
+            told = browser.find_element(By.ID, "minutes-tested").get_attribute("textContent")
+            check("Tester in developer mode: the cause, then the raw line alone", raw and told.startswith(TEST_CAUSES[-1][1]) and "wholeheard-summary:" not in told and "earlier line" not in told, told)
+            changed(lambda: browser.find_element(By.ID, "developer").click())
         finally:
             code.unlink(missing_ok=True)
         press(browser, "minutes-test")

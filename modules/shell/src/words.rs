@@ -1668,10 +1668,10 @@ pub fn cause(cause: Cause, language: Language) -> &'static str {
             "Le fournisseur refuse pour trop de demandes, ou un quota épuisé\u{a0}: patientez, ou vérifiez votre forfait chez lui."
         }
         (Cause::Down, English) => {
-            "The provider answers that it is failing, or that this model is too large for the memory: try again later, or choose a smaller model."
+            "The provider answers that it is failing: try again later. On this computer, this model may be too large for the memory: choose a smaller one."
         }
         (Cause::Down, French) => {
-            "Le fournisseur répond qu’il est en panne, ou que ce modèle est trop gros pour la mémoire\u{a0}: réessayez plus tard, ou choisissez un modèle plus petit."
+            "Le fournisseur répond qu’il est en panne\u{a0}: réessayez plus tard. Sur cet ordinateur, ce modèle est peut-être trop gros pour la mémoire\u{a0}: choisissez-en un plus petit."
         }
         (Cause::NoTimes, English) => {
             "This model gives no times for what it hears: choose one that gives each segment’s times in Wholeheard’s settings."

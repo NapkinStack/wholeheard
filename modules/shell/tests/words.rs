@@ -1468,6 +1468,19 @@ fn a_command_that_failed_says_its_sentence_and_the_raw_text_only_in_developer_mo
 #[test]
 fn a_test_with_a_cause_says_it_alone_the_raw_text_only_in_developer_mode() {
     use wholeheard_shell::{summarising::Cause, words};
+    for (cause, advice) in [
+        (Cause::TooMany, "wait, or check your plan with it"),
+        (
+            Cause::Down,
+            "try again later. On this computer, this model may be too large for the memory: choose a smaller one",
+        ),
+        (
+            Cause::NoTimes,
+            "choose one that gives each segment’s times in Wholeheard’s settings",
+        ),
+    ] {
+        assert!(words::cause(cause, Language::English).contains(advice), "{cause:?}");
+    }
     let plain = serde_json::to_string(&words::test_caused(Cause::Down, "raw", Language::French, false)).unwrap();
     assert!(
         plain.contains("en panne") && !plain.contains("raw") && !plain.contains("ne répond pas"),
