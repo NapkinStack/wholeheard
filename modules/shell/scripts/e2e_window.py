@@ -1459,7 +1459,8 @@ def meeting_language(now: dt.datetime) -> None:
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
         browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
-        said = Select(browser.find_element(By.ID, "meeting-language")).first_selected_option.text
+        # By script, in one step: the page may be drawn again between finding the list and reading it.
+        said = browser.execute_script("const p = document.getElementById('meeting-language'); return p.options[p.selectedIndex].text")
         check("the settings detecting it, the page says « détectée »", said == "Celle des Réglages — détectée", said)
     # SpeechAnalyzer hears (a program in its place, as X has it): it detects none, and hears French
     # and English alone — the system's when nothing names another (D64).
