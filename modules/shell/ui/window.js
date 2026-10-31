@@ -449,7 +449,7 @@ function savedSaid(saved) {
   const savedSentence = element("p", "says saved-said", words.saved);
   savedSentence.id = "saved-said";
   savedSentence.setAttribute("role", "status");
-  const changed = lastChanged && document.getElementById(lastChanged);
+  const changed = lastChanged ? document.getElementById(lastChanged) : null;
   const row = changed?.closest("label, .row, .field");
   if (row) row.after(savedSentence);
   else document.getElementById("settings").prepend(savedSentence);
