@@ -3,7 +3,10 @@
 
 mod common;
 
-use std::time::Duration;
+use std::{
+    io::{BufRead, BufReader, Read, Write},
+    time::Duration,
+};
 
 use common::{MINUTES, answering, answering_natively, ollama, played, provider};
 use wholeheard_summary::{
@@ -158,8 +161,14 @@ fn ollama_is_asked_on_its_own_route_with_room_for_the_whole_request() {
         .unwrap()
         .ask(&request);
     assert_eq!(answer.unwrap(), MINUTES);
-    assert!(received.recv().unwrap().0.starts_with("GET /api/version "));
-    let (head, body) = received.recv().unwrap();
+    assert!(
+        received
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .0
+            .starts_with("GET /api/version ")
+    );
+    let (head, body) = received.recv_timeout(Duration::from_secs(5)).unwrap();
     assert!(head.starts_with("POST /api/chat "), "{head}");
     let body: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(
@@ -244,6 +253,70 @@ fn an_address_not_ending_in_v1_is_never_asked_what_it_is() {
 fn ollama_is_waited_for_according_to_what_it_has_to_read() {
     assert_eq!(patience(Duration::from_secs(600), ""), Duration::from_secs(600));
     assert_eq!(patience(Duration::from_secs(600), &"a".repeat(20_000)), Duration::from_secs(1600));
+}
+
+/// Answers the version question with this status, then whatever it is asked, this much later, as Ollama would.
+fn ollama_by_hand(version: &'static str, after: Duration) -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("http://{}/v1", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        while let Ok((stream, _)) = listener.accept() {
+            std::thread::spawn(move || {
+                let mut reader = BufReader::new(stream);
+                let (mut first, mut length) = (String::new(), 0);
+                reader.read_line(&mut first).unwrap();
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                        break;
+                    }
+                    if let Some(value) = line.to_lowercase().strip_prefix("content-length:") {
+                        length = value.trim().parse().unwrap_or(0);
+                    }
+                }
+                let mut asked = vec![0; length];
+                reader.read_exact(&mut asked).unwrap();
+                let (status, body) = if first.starts_with("GET /api/version ") {
+                    (version, r#"{"version":"0.12.0"}"#.to_string())
+                } else {
+                    std::thread::sleep(after);
+                    let body = if first.starts_with("POST /api/chat ") {
+                        answering_natively("from its own route", "stop")
+                    } else {
+                        answering("from the openai route", "stop")
+                    };
+                    ("200 OK", body)
+                };
+                let answer = format!(
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = reader.get_mut().write_all(answer.as_bytes());
+            });
+        }
+    });
+    address
+}
+
+#[test]
+fn ollama_is_waited_for_beyond_the_patience_given_as_long_as_it_has_to_read() {
+    // One second given, five more for these 100 bytes: an answer after two comes.
+    let address = ollama_by_hand("200 OK", Duration::from_secs(2));
+    let provider = Provider::new(&address, "m", None, Duration::from_secs(1)).unwrap();
+    assert_eq!(provider.ask(&"a".repeat(100)).unwrap(), "from its own route");
+
+    // And what is said is what was waited: one given, one for these 20 bytes.
+    let address = ollama_by_hand("200 OK", Duration::from_secs(4));
+    let provider = Provider::new(&address, "m", None, Duration::from_secs(1)).unwrap();
+    let refused = provider.ask(&"a".repeat(20)).unwrap_err();
+    assert_eq!(refused.1, Some("provider.too_slow"));
+    assert!(refused.0.contains("within 2 s"), "{}", refused.0);
+}
+
+#[test]
+fn a_failure_with_a_version_in_it_is_not_ollama() {
+    let address = ollama_by_hand("500 Internal Server Error", Duration::ZERO);
+    assert_eq!(asking(&address, None).unwrap(), "from the openai route");
 }
 
 #[test]

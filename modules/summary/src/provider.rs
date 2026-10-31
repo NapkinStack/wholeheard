@@ -209,6 +209,8 @@ impl Provider {
             .build()
             .into();
         let ollama = self.ollama(&agent);
+        // An Ollama that did not say what it is goes the cut way: the logs say which way it went.
+        tracing::info!(ollama = ollama.is_some(), "summary.route");
         let waited = if ollama.is_some() {
             patience(self.patience, request)
         } else {
