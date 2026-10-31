@@ -185,6 +185,8 @@ pub fn tracks(folder: &Path) -> Vec<Track> {
                 .iter()
                 .filter(|point| point["track"] == name)
                 .filter_map(|point| Some((point["sample"].as_u64()?, point["at"].as_f64()?)))
+                // An instant beyond any meeting is no point: its line says nothing, as the transcription reads it.
+                .filter(|(_, at)| at.abs() < 43_200.0)
                 .collect();
             placed.sort_by_key(|(frame, _)| *frame);
             placed.dedup_by_key(|(frame, _)| *frame);
@@ -212,8 +214,6 @@ fn runs(points: &[(u64, f64)], rate: f64) -> Vec<(u64, f64)> {
     for &(frame, at) in points {
         match runs.last() {
             None => runs.push((0, at - frame as f64 / rate)),
-            // An instant beyond any meeting is no point: its line says nothing.
-            Some(_) if !at.is_finite() || at.abs() >= 1e6 => {}
             Some(&(from, then)) if (at - then - (frame - from) as f64 / rate).abs() > OFF => runs.push((frame, at)),
             Some(_) => {}
         }

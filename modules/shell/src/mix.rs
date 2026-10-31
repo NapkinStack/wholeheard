@@ -61,18 +61,24 @@ impl Mix {
             let block = (whole.channels * whole.width) as u64;
             let frames_of = |seconds: f64| (seconds * f64::from(whole.rate)).round() as i64;
             for (index, &(from, at)) in runs.iter().enumerate() {
-                if from >= whole.frames {
-                    break;
+                let later = &runs[index + 1..];
+                let held = later
+                    .first()
+                    .map_or(whole.frames, |(next, _)| (*next).min(whole.frames))
+                    .saturating_sub(from);
+                // Up to the earliest run the clock puts after it: any of them, not only the next.
+                let room = later.iter().map(|(_, then)| frames_of(then - at).max(0)).min().unwrap_or(i64::MAX);
+                let frames = held.min(u64::try_from(room).unwrap_or(u64::MAX));
+                // A run with nothing left to play is no part of the sound; an empty track stays one.
+                if frames > 0 || (index == 0 && whole.frames == 0) {
+                    tracks.push(Track {
+                        path: whole.path.clone(),
+                        data: whole.data + from * block,
+                        frames,
+                        at: (at * f64::from(rate)).round() as i64,
+                        ..whole
+                    });
                 }
-                let held = runs.get(index + 1).map_or(whole.frames, |(next, _)| (*next).min(whole.frames)) - from;
-                let room = runs.get(index + 1).map_or(i64::MAX, |(_, then)| frames_of(then - at).max(0));
-                tracks.push(Track {
-                    path: whole.path.clone(),
-                    data: whole.data + from * block,
-                    frames: held.min(u64::try_from(room).unwrap_or(u64::MAX)),
-                    at: (at * f64::from(rate)).round() as i64,
-                    ..whole
-                });
             }
         }
         let end = tracks
