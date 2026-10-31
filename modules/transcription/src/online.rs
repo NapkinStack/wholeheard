@@ -63,12 +63,7 @@ impl Service {
     }
 
     /// A second of a sound of the program's own, sent as a span is: the service answers, and its
-    /// answer reads — nothing of a meeting.
-    pub fn test(&self) -> Result<(), String> {
-        self.tested().map_err(|refused| refused.why)
-    }
-
-    /// The same, with the cause (`transcript/v1`, *A test of a service*).
+    /// answer reads — nothing of a meeting. What failed has its cause (`transcript/v1`, *A test of a service*).
     pub fn tested(&self) -> Result<(), Refused> {
         let tone: Vec<f32> = (0..RATE)
             .map(|n| 0.2 * (std::f32::consts::TAU * 440.0 * n as f32 / RATE as f32).sin())
@@ -175,6 +170,9 @@ impl Service {
         let Ok(answer) = response.body_mut().read_json::<serde_json::Value>() else {
             return refused("provider.failed", format!("{host} sent an answer that could not be read"));
         };
+        if !answer.is_object() {
+            return refused("provider.failed", format!("{host} sent an answer that could not be read"));
+        }
         let Some(segments) = answer["segments"].as_array() else {
             return refused("provider.no_times", format!("{host} gives no times: choose another model"));
         };

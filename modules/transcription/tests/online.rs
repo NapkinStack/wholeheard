@@ -185,7 +185,7 @@ fn a_segment_of_no_words_is_left_out_and_one_ended_before_it_began_refused() {
 fn the_test_sends_a_sound_of_its_own_and_reads_the_answer() {
     let (address, asked) = served(200, r#"{"text":"","segments":[]}"#);
     let service = Service::new(&address, "a-model", None).unwrap();
-    assert_eq!(service.test(), Ok(()));
+    assert_eq!(service.tested().map_err(|refused| refused.why), Ok(()));
     let (_, body) = asked.recv().unwrap();
     assert!(String::from_utf8_lossy(&body).contains("RIFF"), "a sound was sent");
 }
@@ -317,8 +317,20 @@ fn a_test_that_fails_says_its_cause_on_the_output_s_last_line() {
         (500, "{}", "provider.down"),
         (503, "{}", "provider.down"),
         (418, "{}", "provider.failed"),
+        (300, "{}", "provider.redirected"),
         (301, "{}", "provider.redirected"),
+        (302, "{}", "provider.redirected"),
+        (303, "{}", "provider.redirected"),
+        (307, "{}", "provider.redirected"),
         (308, "{}", "provider.redirected"),
+        (304, "{}", "provider.failed"),
+        (305, "{}", "provider.failed"),
+        (499, "{}", "provider.failed"),
+        (600, "{}", "provider.failed"),
+        (599, "{}", "provider.down"),
+        (200, "[]", "provider.failed"),
+        (200, "5", "provider.failed"),
+        (200, r#"{"segments":[{}]}"#, "provider.no_times"),
         (200, r#"{"segments":[{"start":0.0,"end":1.0}]}"#, "provider.failed"),
         (200, r#"{"segments":[{"text":"sans temps"}]}"#, "provider.no_times"),
         (400, "{}", "provider.no_times"),
@@ -351,7 +363,7 @@ fn a_test_that_passes_says_nothing_and_one_in_the_service_s_own_words_names_no_c
 
 #[test]
 fn a_key_a_request_cannot_carry_is_said_before_anything_leaves() {
-    for key in ["clé", "a b", "a\nb"] {
+    for key in ["clé", "a b", "a\nb", "a\tb", "a\u{7f}b"] {
         let (address, asked) = served(200, SEGMENTS);
         let output = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
             .args(["--test", "--provider", &address, "--model", "a-model"])

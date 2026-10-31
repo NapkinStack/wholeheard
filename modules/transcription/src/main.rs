@@ -90,7 +90,8 @@ fn test(provider: &str, model: &str) -> Result<(), String> {
     };
     let Some(refused) = refused else { return Ok(()) };
     if let Some(code) = refused.code {
-        println!("{}", serde_json::json!({ "event": "failed", "code": code }));
+        // An output that closed takes no line: the sentence is still said.
+        let _ = writeln!(std::io::stdout(), "{}", serde_json::json!({ "event": "failed", "code": code }));
     }
     Err(refused.why)
 }
