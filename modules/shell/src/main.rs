@@ -34,7 +34,7 @@ use wholeheard_shell::{
     migrate,
     minutes::{self, Minutes},
     model::{self, Published},
-    player,
+    named, player,
     providers::{self, Online},
     recording::{self, Recording, Said, Source},
     registry,
@@ -283,6 +283,7 @@ fn main() {
             context_saved,
             context_redo,
             language_set,
+            title_saved,
             confidential_set,
             transcript_redo,
             transcript_corrected,
@@ -1031,6 +1032,24 @@ fn language_set(shell: State<'_, Shell>, name: String, language: Option<String>)
         shell.told(failure, error)
     })?;
     tracing::info!(language = language.as_deref().unwrap_or("none"), "shell.language_set");
+    Ok(())
+}
+
+/// The name typed on a meeting's page (D70): written, or blank removed — its minutes' title or its
+/// date then. The name itself is never logged.
+#[tauri::command]
+fn title_saved(shell: State<'_, Shell>, name: String, title: String) -> Result<(), Told> {
+    let folder = session_folder(&shell, &name)?;
+    named::write(&folder, &title).map_err(|error| {
+        // A text the page's field never lets through; else the folder.
+        let failure = if error.kind() == std::io::ErrorKind::InvalidInput {
+            Failure::Unexpected
+        } else {
+            Failure::MeetingFile
+        };
+        shell.told(failure, error)
+    })?;
+    tracing::info!(given = !title.trim().is_empty(), "shell.title_set");
     Ok(())
 }
 

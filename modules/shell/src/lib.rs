@@ -16,6 +16,7 @@ pub mod migrate;
 pub mod minutes;
 pub mod mix;
 pub mod model;
+pub mod named;
 pub mod player;
 pub mod providers;
 pub mod recording;
