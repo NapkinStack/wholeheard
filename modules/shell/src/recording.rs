@@ -40,7 +40,8 @@ pub enum Said {
     Level(Source, f32),
     /// A source is recorded from another device now: its name, as `Started` names one (D31).
     Moved(Source, Option<String>),
-    /// The system names no device for a source: nothing of it is recorded until one comes.
+    /// No device for a source: the system names none or, for the microphone, a call let go of it,
+    /// never said which. Nothing of it is recorded until one comes.
     Lost(Source),
     /// The recording was stopped: its folder, and its length in seconds.
     Stopped(PathBuf, f64),

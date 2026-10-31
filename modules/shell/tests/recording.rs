@@ -321,6 +321,15 @@ fn a_silence_said_once_stays_said_after_a_device_changes() {
 }
 
 #[test]
+fn a_call_taking_and_leaving_the_microphone_turns_the_check_each_time() {
+    let (lost, taken) = (Said::Lost(Source::Me), Said::Moved(Source::Me, Some("AirPods".into())));
+    let waiting = Said::Unavailable(Source::Me, "waits".into());
+    assert_eq!(checked(&[waiting.clone(), taken.clone()])[0], Check::Listening);
+    assert_eq!(checked(&[waiting.clone(), taken.clone(), lost.clone()])[0], Check::Waiting);
+    assert_eq!(checked(&[waiting, taken.clone(), lost, taken])[0], Check::Listening);
+}
+
+#[test]
 fn a_level_under_a_voice_is_no_sound_yet() {
     assert_eq!(checked(&[Said::Level(Source::Me, 0.2)])[0], Check::Listening);
     assert_eq!(checked(&[Said::Level(Source::Me, 0.4)])[0], Check::Heard);
