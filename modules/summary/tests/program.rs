@@ -596,7 +596,10 @@ fn a_failure_a_person_acts_on_differently_ends_the_output_with_its_code() {
         ("403 Forbidden", "{}".to_string(), "provider.refused_key"),
         ("402 Payment Required", "{}".to_string(), "provider.no_credit"),
         ("404 Not Found", "{}".to_string(), "provider.unknown_model"),
-        ("500 Internal Server Error", "oops".to_string(), "provider.failed"),
+        ("500 Internal Server Error", "oops".to_string(), "provider.down"),
+        ("503 Service Unavailable", "oops".to_string(), "provider.down"),
+        ("429 Too Many Requests", "{}".to_string(), "provider.too_many"),
+        ("418 I'm a teapot", "{}".to_string(), "provider.failed"),
         ("300 Multiple Choices", String::new(), "provider.redirected"),
         // 304 and 305 send nowhere one can follow (RFC 9110 §15.4): another refusal.
         ("304 Not Modified", String::new(), "provider.failed"),

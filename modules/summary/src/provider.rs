@@ -215,6 +215,13 @@ impl Provider {
                     format!("{host} sent the request elsewhere, and it was not followed (HTTP {status})"),
                 );
             }
+            429 => {
+                return refused(
+                    "provider.too_many",
+                    format!("{host} refused for too many requests or a quota (HTTP 429)"),
+                );
+            }
+            status @ 500..=599 => return refused("provider.down", format!("{host} failed (HTTP {status})")),
             status => return refused("provider.failed", format!("{host} failed (HTTP {status})")),
         }
         let Ok(answer) = response.body_mut().read_json::<serde_json::Value>() else {
