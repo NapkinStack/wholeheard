@@ -2620,6 +2620,8 @@ function showSmall(words) {
   // away (D50). Gone, its room stays: Arrêter never moves.
   const announce = element("div", "small-announce");
   announce.id = "small-announce";
+  // Not offered before the first reading gives its sentence: a click would copy nothing.
+  announce.hidden = true;
   const announced = element("button", "link", words.copy_announcement);
   announced.type = "button";
   announced.id = "small-announce-copy";

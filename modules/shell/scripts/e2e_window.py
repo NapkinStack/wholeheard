@@ -2016,8 +2016,14 @@ def meeting_renamed(now: dt.datetime) -> None:
     head = lambda b: b.execute_script("return document.querySelector('#meeting h1')?.textContent")
     row = lambda b, folder: b.execute_script(
         "const r = [...document.querySelectorAll('#groups .session')].find(r => r.getAttribute('href').endsWith(arguments[0])); return r.querySelector('.day').textContent", folder.name)
-    name = lambda b, text, key: (b.find_element(By.ID, "rename").click(), wait_for(b, lambda c: c.find_elements(By.ID, "naming"), 5),
-                                 b.find_element(By.ID, "naming").send_keys(Keys.CONTROL, "a"), b.find_element(By.ID, "naming").send_keys((text or Keys.DELETE) + key))
+    # A save draws the page again a moment after the heading changes: pressed and typed through what is there then.
+    def opened(b) -> None:
+        press(b, "rename")
+        wait_for(b, lambda c: c.execute_script("const f = document.getElementById('naming'); if (f && document.activeElement === f) { f.select(); return true; } return false"), 5)
+    typed = lambda b, *keys: ActionChains(b).send_keys(*keys).perform()
+    def name(b, text: str, key: str) -> None:
+        opened(b)
+        typed(b, (text or Keys.DELETE) + key)
     with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
         browser.set_window_size(1100, 800)
         browser.execute_script(f"location.hash = '#/meeting/{with_minutes.name}'")
@@ -2032,14 +2038,12 @@ def meeting_renamed(now: dt.datetime) -> None:
         check("Escape: as it was", wait_for(browser, lambda b: head(b) == "Point budget Q4", 5) and given.read_text() == "Point budget Q4\n", head(browser))
         check("Escape: the focus is back on the heading", browser.execute_script("return document.activeElement.id") == "rename")
         # A reading of the page while typing, the window coming forward: what is typed stays.
-        browser.find_element(By.ID, "rename").click()
-        wait_for(browser, lambda b: b.find_elements(By.ID, "naming"), 5)
-        browser.find_element(By.ID, "naming").send_keys(Keys.CONTROL, "a")
-        browser.find_element(By.ID, "naming").send_keys("Tapé en cours")
-        browser.execute_script("refresh()")
-        kept = wait_for(browser, lambda b: b.execute_script("const f = document.getElementById('naming'); return f && f.value === 'Tapé en cours' && document.activeElement === f"), 5)
+        opened(browser)
+        typed(browser, "Tapé en cours")
+        browser.execute_async_script("const done = arguments[arguments.length - 1]; document.getElementById('meeting').dataset.at = '#/other'; refresh().then(done)")
+        kept = browser.execute_script("const f = document.getElementById('naming'); return f && f.value === 'Tapé en cours' && document.activeElement === f")
         check("the page read again keeps what is typed, and the focus", kept)
-        browser.find_element(By.ID, "naming").send_keys(Keys.ESCAPE)
+        typed(browser, Keys.ESCAPE)
         # Made again: it stays. Emptied: the minutes' title.
         written("Refait")
         browser.execute_script("refresh()")
@@ -2050,15 +2054,12 @@ def meeting_renamed(now: dt.datetime) -> None:
         check("emptied: the minutes' title comes back", wait_for(browser, lambda b: head(b) == "Refait", 5), head(browser))
         check("emptied: no file left", not given.exists() and not (with_minutes / ".title.part").exists())
         # Unchanged: the minutes' title is not frozen into a name of the user's.
-        browser.find_element(By.ID, "rename").click()
-        wait_for(browser, lambda b: b.find_elements(By.ID, "naming"), 5)
-        browser.find_element(By.ID, "naming").send_keys(Keys.ENTER)
+        opened(browser)
+        typed(browser, Keys.ENTER)
         check("Enter on the minutes' title unchanged writes nothing", wait_for(browser, lambda b: b.find_elements(By.ID, "rename"), 5) and not given.exists())
         # Leaving the field keeps it.
-        browser.find_element(By.ID, "rename").click()
-        wait_for(browser, lambda b: b.find_elements(By.ID, "naming"), 5)
-        browser.find_element(By.ID, "naming").send_keys(Keys.CONTROL, "a")
-        browser.find_element(By.ID, "naming").send_keys("En partant")
+        opened(browser)
+        typed(browser, "En partant")
         browser.find_element(By.ID, "find").click()
         check("leaving the field keeps it", wait_for(browser, lambda b: head(b) == "En partant", 5), head(browser))
         # As text, a path no path.
@@ -2079,11 +2080,9 @@ def meeting_renamed(now: dt.datetime) -> None:
         check("80 characters at most, the field says so by stopping", wait_for(browser, lambda b: head(b) == "W" * 80, 5), head(browser))
         check("the longest name does not widen the page", browser.execute_script("const e = document.scrollingElement; return e.scrollWidth <= e.clientWidth"))
         shot(browser, "d70-named")
-        browser.find_element(By.ID, "rename").click()
-        wait_for(browser, lambda b: b.find_elements(By.ID, "naming"), 5)
+        opened(browser)
         shot(browser, "d70-naming")
-        browser.find_element(By.ID, "naming").send_keys(Keys.CONTROL, "a")
-        browser.find_element(By.ID, "naming").send_keys("Revue d'équipe" + Keys.ENTER)
+        typed(browser, "Revue d'équipe" + Keys.ENTER)
         wait_for(browser, lambda b: head(b) == "Revue d'équipe", 5)
         # Libérer de l'espace: the name, the date beside it.
         browser.execute_script("location.hash = '#/free'")
@@ -2101,7 +2100,7 @@ def meeting_renamed(now: dt.datetime) -> None:
         check("a name refused is said, in French", said and browser.find_element(By.ID, "naming-said").get_attribute("textContent") == "Le nom n’a pas été enregistré\u00a0: REFUS")
         check("refused: the field stays, what was typed in it", browser.find_element(By.ID, "naming").get_attribute("value") == "Refusé")
         browser.execute_script("window.restore()")
-        browser.find_element(By.ID, "naming").send_keys(Keys.ESCAPE)
+        typed(browser, Keys.ESCAPE)
         check("Escape: the sentence goes, the date as it was", not browser.find_elements(By.ID, "naming-said") and head(browser) == dated, head(browser))
         # The meeting being recorded can be named too.
         live = lambda b: "live" in (b.find_element(By.ID, "record").get_attribute("class") or "")
