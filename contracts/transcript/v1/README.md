@@ -59,6 +59,30 @@ may rewrite a segment's `text` (below). Every line has a `type`.
   the file replaced whole — written beside, then renamed —, its lines in the same order, nothing else
   changed. A reader reads the text as it finds it; `edited` absent is the text as heard.
 
+## A test of a service
+
+`wholeheard-transcription --test --provider <address> --model <name>` writes no transcript: it sends
+a second of a sound of its own and reads the answer. Passed, it exits 0 and says nothing. Failed, it
+ends in failure with one sentence on its error stream, starting `wholeheard-transcription: `, for
+the log, and its output's last line says the cause when a person acts on it differently, as
+`{"event": "failed", "code": "provider.no_times"}`; otherwise no line says it, and the sentence alone does: a refusal in the service's own words (HTTP 400), wrong arguments.
+
+| `code` | The cause | What a person does |
+|---|---|---|
+| `provider.unreachable` | The service could not be reached | Check that it runs, or the network, then try again |
+| `provider.too_slow` | The service did not answer in time | Try again later |
+| `provider.refused_key` | The service refused the key (HTTP 401 or 403) | Give the service's key again |
+| `provider.no_credit` | The service refused for lack of credit (HTTP 402) | Add credit with the service |
+| `provider.too_many` | The service refused for too many requests, or a quota used up (HTTP 429) | Wait, or check the plan with the service |
+| `provider.down` | The service answered that it is failing (HTTP 500 to 599) | Try again later |
+| `provider.unknown_model` | The service does not know this model or this address (HTTP 404) | Choose the model or the address again |
+| `provider.no_times` | The service's answer gives no times for its segments, or it refused the request (HTTP 400) without saying why, as one that gives none does | Choose a model that gives each segment's times |
+| `provider.failed` | Any other refusal by the service, or an answer it left unreadable | Try again later |
+| `settings.invalid` | The address or the model's name cannot be used as given | Correct them where they were chosen |
+
+A consumer reads a code this page does not list as no code: a later code is added here, never a new
+version for it.
+
 ## What it never does
 
 - It never rewrites or removes a line while it is made. Once complete, it never removes one, and
