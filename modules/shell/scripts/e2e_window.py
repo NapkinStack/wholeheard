@@ -2046,6 +2046,10 @@ def meeting_renamed(now: dt.datetime) -> None:
         # The window losing the focus, the field keeping it: nothing is kept yet.
         browser.execute_script("document.getElementById('naming').dispatchEvent(new Event('blur'))")
         time.sleep(0.3)
+        # Where the caret was, the page read again.
+        browser.execute_script("document.getElementById('naming').setSelectionRange(2, 4)")
+        browser.execute_async_script("const done = arguments[arguments.length - 1]; document.getElementById('meeting').dataset.at = '#/other'; refresh().then(done)")
+        check("the page read again keeps the caret", browser.execute_script("const f = document.getElementById('naming'); return [f.selectionStart, f.selectionEnd]") == [2, 4])
         check("another window come forward keeps nothing yet", bool(browser.find_elements(By.ID, "naming")) and given.read_text() == "Point budget Q4\n")
         typed(browser, Keys.ESCAPE)
         # The same name, spaces around it: nothing written. Enter twice: saved once.
@@ -2112,6 +2116,13 @@ def meeting_renamed(now: dt.datetime) -> None:
         dated = head(browser)
         name(browser, "W" * 90, Keys.ENTER)
         check("80 characters at most, the field says so by stopping", wait_for(browser, lambda b: head(b) == "W" * 80, 5), head(browser))
+        # A heading that fits stays on one line: the button adds nothing to its width.
+        name(browser, "Revue d'équipe", Keys.ENTER)
+        wait_for(browser, lambda b: head(b) == "Revue d'équipe", 5)
+        one = browser.execute_script("const b = document.getElementById('rename'), r = document.createRange(); r.selectNodeContents(b); return r.getClientRects().length")
+        check("a short name stays on one line", one == 1, one)
+        name(browser, "W" * 90, Keys.ENTER)
+        wait_for(browser, lambda b: head(b) == "W" * 80, 5)
         check("the longest name does not widen the page", browser.execute_script("const e = document.scrollingElement; return e.scrollWidth <= e.clientWidth"))
         shot(browser, "d70-named")
         opened(browser)
@@ -2137,6 +2148,33 @@ def meeting_renamed(now: dt.datetime) -> None:
         browser.execute_async_script("const done = arguments[arguments.length - 1]; document.getElementById('meeting').dataset.at = '#/other'; refresh().then(done)")
         check("the page read again keeps the refusal", browser.find_element(By.ID, "naming-said").is_displayed() and browser.find_element(By.ID, "naming").get_attribute("value") == "Refusé")
         typed(browser, Keys.ESCAPE)
+        # Refused, the user gone elsewhere: the page read again neither brings them back nor tries again.
+        opened(browser)
+        typed(browser, "Refusé ailleurs")
+        browser.execute_script("window.__refused = 0; const was = window.__TAURI__.core; window.__TAURI__.core = { ...was, invoke: (asked, ...rest) => { if (asked === 'title_saved') window.__refused++; return was.invoke(asked, ...rest); } };")
+        browser.find_element(By.ID, "find").click()
+        wait_for(browser, lambda b: b.find_element(By.ID, "naming-said").is_displayed(), 5)
+        for _ in range(2):
+            browser.execute_async_script("const done = arguments[arguments.length - 1]; document.getElementById('meeting').dataset.at = '#/other'; refresh().then(done)")
+        time.sleep(0.2)
+        check("refused, gone elsewhere: the page read again leaves the focus there", browser.execute_script("return document.activeElement.id") == "find", browser.execute_script("return document.activeElement.id"))
+        check("refused, gone elsewhere: nothing tried again without a gesture", browser.execute_script("return window.__refused") == 1, browser.execute_script("return window.__refused"))
+        # The address left: each way out says it, where it stays.
+        press(browser, "settings-link")
+        told = wait_for(browser, lambda b: b.find_element(By.ID, "pane-said").is_displayed() and "REFUS" in b.find_element(By.ID, "pane-said").get_attribute("textContent"), 5)
+        check("refused, then Réglages: said in the pane", told, browser.find_element(By.ID, "pane-said").get_attribute("textContent"))
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: head(b) == dated, 10)
+        # The answer coming after the page was left: said there too.
+        browser.execute_script("const r = window.__TAURI__.core; window.__TAURI__.core = { ...r, invoke: (asked, ...rest) => asked === 'title_saved' ? new Promise((_, no) => setTimeout(() => no('LENT'), 500)) : r.invoke(asked, ...rest) };")
+        opened(browser)
+        typed(browser, "Refusé plus tard" + Keys.ENTER)
+        browser.execute_script("location.hash = '#/settings'")
+        told = wait_for(browser, lambda b: "LENT" in b.find_element(By.ID, "pane-said").get_attribute("textContent") and b.find_element(By.ID, "pane-said").is_displayed(), 5)
+        check("refused after the page was left: said in the pane", told, browser.find_element(By.ID, "pane-said").get_attribute("textContent"))
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: head(b) == dated, 10)
+        browser.execute_script("window.restore(); const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'title_saved' ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
         # Refused while leaving for another meeting: said in the pane, never to no one.
         opened(browser)
         typed(browser, "Refusé en partant")

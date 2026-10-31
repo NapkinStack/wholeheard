@@ -50,6 +50,9 @@ fn a_name_is_one_line_not_blank_within_its_length_counted_in_characters() {
     for not in [
         "\u{200b}",
         "\u{feff}\u{200b}",
+        "\u{ad}\u{fe0f}",
+        "\u{3164}",
+        "\u{2800}",
         "",
         "  \n",
         "two\nlines",

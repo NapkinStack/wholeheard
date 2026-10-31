@@ -1522,13 +1522,11 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   columns.append(minutesCard(minutes, words, session, transcript), transcriptCard(transcript, words, session));
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
-  // A name being typed is kept the same way, with its refusal and where the caret was (D70); another
-  // meeting drawn over a refusal says it in the pane.
+  // A name being typed is kept the same way, with its refusal and where the caret was (D70).
   const naming = document.querySelector("#naming:not([data-saving])");
   const namingRefused = document.getElementById("naming-said")?.textContent ?? "";
   const same = page.dataset.name === nameOf(session);
   const typing = same && naming ? { value: naming.value, caret: naming.selectionStart, end: naming.selectionEnd, focused: document.activeElement === naming } : null;
-  if (!same && namingRefused) paneSays(namingRefused);
   page.dataset.name = nameOf(session);
   const kept = confidentialCard(session, confidential, words);
   kept.append(languageRow(session, language, languages, words, meeting_language, apple, system_language));
@@ -1557,13 +1555,14 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   }
   if (typing) {
     const button = document.getElementById("rename");
-    const elsewhere = document.activeElement;
-    nameField(button.parentElement, button, session, words, typing.value, namingRefused);
-    document.getElementById("naming").setSelectionRange(typing.caret, typing.end);
-    // Typed in, it stays there; the user gone elsewhere, they are not brought back.
-    if (!typing.focused) elsewhere?.focus?.();
+    // Typed in, it takes the focus back; the user gone elsewhere, they are not brought back.
+    nameField(button.parentElement, button, session, words, typing.value, namingRefused, typing.focused);
+    if (typing.focused) document.getElementById("naming").setSelectionRange(typing.caret, typing.end);
   }
 }
+
+// A name refused while its field stays open, until the page is left.
+let nameRefused = null;
 
 // A sentence in the pane, until the next address.
 function paneSays(sentence) {
@@ -1585,7 +1584,7 @@ function meetingName(session, words) {
   return heading_;
 }
 
-function nameField(heading_, button, session, words, typed, refused = "") {
+function nameField(heading_, button, session, words, typed, refused = "", focused = true) {
   const field = element("input", "naming");
   field.type = "text";
   field.id = "naming";
@@ -1601,6 +1600,7 @@ function nameField(heading_, button, session, words, typed, refused = "") {
   let done = false;
   const leave = () => {
     done = true;
+    nameRefused = null;
     said.remove();
     field.replaceWith(button);
   };
@@ -1610,6 +1610,7 @@ function nameField(heading_, button, session, words, typed, refused = "") {
     done = true;
     // Being saved, no longer being typed: a reading of the page meanwhile does not open it again.
     field.dataset.saving = "";
+    const asked = location.hash;
     try {
       await window.__TAURI__.core.invoke("title_saved", { name: nameOf(session), title: field.value });
       button.textContent = field.value.trim() || heading(session, words);
@@ -1618,10 +1619,12 @@ function nameField(heading_, button, session, words, typed, refused = "") {
     } catch (why) {
       done = false;
       delete field.dataset.saving;
-      // Its page gone meanwhile: said where it stays, never to no one.
-      if (!field.isConnected) return paneSays(fill(words.name_not_saved, why));
+      // Its page left or drawn anew meanwhile: said where it stays, never to no one.
+      if (!field.isConnected || location.hash !== asked) return paneSays(fill(words.name_not_saved, why));
       said.textContent = fill(words.name_not_saved, why);
       said.hidden = false;
+      // The page left next, by the click that took the focus from here: the pane says it then.
+      nameRefused = said.textContent;
     }
   };
   field.addEventListener("keydown", (event) => {
@@ -1640,6 +1643,7 @@ function nameField(heading_, button, session, words, typed, refused = "") {
   });
   button.replaceWith(field);
   heading_.after(said);
+  if (!focused) return;
   field.focus();
   field.select();
 }
@@ -3457,6 +3461,8 @@ window.addEventListener("focus", () => {
 });
 window.addEventListener("hashchange", () => {
   document.getElementById("pane-said").hidden = true;
+  if (nameRefused) paneSays(nameRefused);
+  nameRefused = null;
   // Another address: the assistant, shown again, is drawn anew — even if the drawing that left it was cut short.
   delete document.getElementById("welcome").dataset.shown;
   refresh();
