@@ -317,6 +317,10 @@ fn a_test_that_fails_says_its_cause_on_the_output_s_last_line() {
         (500, "{}", "provider.down"),
         (503, "{}", "provider.down"),
         (418, "{}", "provider.failed"),
+        (301, "{}", "provider.redirected"),
+        (308, "{}", "provider.redirected"),
+        (200, r#"{"segments":[{"start":0.0,"end":1.0}]}"#, "provider.failed"),
+        (200, r#"{"segments":[{"text":"sans temps"}]}"#, "provider.no_times"),
         (400, "{}", "provider.no_times"),
         (200, r#"{"text":"no times"}"#, "provider.no_times"),
         (200, "not json", "provider.failed"),
@@ -343,6 +347,22 @@ fn a_test_that_passes_says_nothing_and_one_in_the_service_s_own_words_names_no_c
     let (passed, out, err) = tested(&address);
     assert!(!passed && out.is_empty(), "{out}");
     assert!(err.contains("model not found"), "{err}");
+}
+
+#[test]
+fn a_key_a_request_cannot_carry_is_said_before_anything_leaves() {
+    for key in ["clé", "a b", "a\nb"] {
+        let (address, asked) = served(200, SEGMENTS);
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+            .args(["--test", "--provider", &address, "--model", "a-model"])
+            .env("WHOLEHEARD_PROVIDER_KEY", key)
+            .env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"))
+            .output()
+            .unwrap();
+        let out = String::from_utf8_lossy(&output.stdout);
+        assert!(out.contains("settings.invalid"), "{key:?} {out}");
+        assert!(asked.try_recv().is_err(), "{key:?}: something left");
+    }
 }
 
 #[test]

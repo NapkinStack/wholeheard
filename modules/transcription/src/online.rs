@@ -48,12 +48,17 @@ impl Service {
         if model.trim().is_empty() {
             return Err("a model is named for the service".into());
         }
+        // No space either: a header cannot carry it, and the request would fail as if nobody listened.
+        let key = key.filter(|key| !key.is_empty());
+        if key.is_some_and(|key| !key.chars().all(|c| c.is_ascii_graphic())) {
+            return Err("the key holds a space or a character a request cannot carry".into());
+        }
         Ok(Service {
             // With its port: two services of one host are two hearers, never one transcript continued.
             host: authority.as_str().to_string(),
             uri,
             model: model.to_string(),
-            key: key.filter(|key| !key.is_empty()).map(str::to_string),
+            key: key.map(str::to_string),
         })
     }
 
@@ -158,6 +163,12 @@ impl Service {
                     ),
                 };
             }
+            status @ (300 | 301 | 302 | 303 | 307 | 308) => {
+                return refused(
+                    "provider.redirected",
+                    format!("{host} sent the request elsewhere, and it was not followed (HTTP {status})"),
+                );
+            }
             status @ 500..=599 => return refused("provider.down", format!("{host} failed (HTTP {status})")),
             status => return refused("provider.failed", format!("{host} failed (HTTP {status})")),
         }
@@ -178,6 +189,8 @@ impl Service {
                         end,
                         text: text.trim().to_string(),
                     }),
+                    // Its times are there and its text is not: another model would not help.
+                    (Some(_), Some(_), None) => refused("provider.failed", format!("{host} sent a segment without its text")),
                     _ => refused("provider.no_times", format!("{host} sent a segment without its times")),
                 },
             )
