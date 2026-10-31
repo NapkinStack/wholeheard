@@ -648,6 +648,8 @@ struct Listing {
     shortcut: Option<String>,
     /// The sidebar folded, as the user left it (D61).
     folded: bool,
+    /// The meetings' folder is there and cannot be read (D67): `sessions` is empty for that reason.
+    unreadable: bool,
 }
 
 /// A meeting's small relief, kept until its transcript changes: the list is drawn each time the
@@ -697,6 +699,10 @@ async fn listed(app: AppHandle) -> Result<Listing, Told> {
             recording: shell.recording.lock().unwrap().is_some(),
             shortcut: shell.shortcut.lock().unwrap().clone(),
             folded: shell.settings().folded,
+            unreadable: {
+                let folder = shell.settings().sessions.clone();
+                sessions::unreadable(&folder, folder == settings::Settings::default().sessions)
+            },
         }
     })
     .await

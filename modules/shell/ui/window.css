@@ -443,6 +443,7 @@ body.small-window .frame { display: none; }
   body.folded .pane > #unfold { display: inline-block; }
 }
 .empty { padding: 28px 24px; }
+.small-said { margin: 8px 0 0; padding: 0; }
 .empty .card { max-width: 480px; padding: 22px 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .empty .none { margin: 0; color: var(--ink); font-weight: 600; }
 .empty .says { margin: 0; }

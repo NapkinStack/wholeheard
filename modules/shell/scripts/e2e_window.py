@@ -3213,6 +3213,158 @@ def confidential_kept(now: dt.datetime) -> None:
         server.shutdown()
 
 
+def nothing_silent(now: dt.datetime) -> None:
+    """AP. What the user does and fails says so; a folder that cannot be read is no empty list (D67)."""
+    print("AP. a command that fails says it, in the user's language; a folder unread is said and tried again (D67)")
+    meetings = WORK / "silence"
+    session(meetings / "2026-10-20_10-00", now - dt.timedelta(days=3), 20, {"local.wav": 1000})
+    shown = lambda b, id_: b.find_element(By.ID, id_).is_displayed()
+    text = lambda b, id_: b.find_element(By.ID, id_).get_attribute("textContent")
+    # `core` itself is frozen, the object holding it not: a copy with the command stood in.
+    refuse = "const real = window.__TAURI__.core, refused = arguments[0]; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === refused ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };"
+    with Window(meetings, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: shown(b, "meeting"), 10)
+        # The real commands on a meeting gone: what the user reads is the shell's own sentence.
+        for ask in ("minutes_again", "transcript_again"):
+            said = browser.execute_async_script(
+                "const done = arguments[arguments.length - 1], said = document.createElement('p'), again = document.createElement('button');"
+                "said.dataset.name = 'gone'; askAgain({ ask: arguments[0] }, said, again).then(() => done(said.textContent));", ask)
+            check(f"{ask} on a meeting gone says so, in French, never the command's raw text",
+                  said.startswith("Impossible de recommencer") and "n’est plus dans le dossier" in said, said)
+        browser.execute_script(refuse, "agreement_shown")
+        browser.execute_script("location.hash = '#/agree/2026-10-20_10-00'")
+        refused = wait_for(browser, lambda b: shown(b, "pane-said"), 5)
+        check("an agreement refused: said in the pane, back at the list", refused
+              and text(browser, "pane-said") == "Cette réunion ne peut pas être envoyée\u00a0: REFUS", text(browser, "pane-said"))
+        browser.execute_script("window.restore(); location.hash = '#/settings'")
+        check("another address: the sentence goes", wait_for(browser, lambda b: not shown(b, "pane-said"), 5))
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script(refuse, "settings_saved")
+        press(browser, "fold")
+        folded = wait_for(browser, lambda b: shown(b, "pane-said"), 5)
+        check("the sidebar's fold not kept: said in the pane, the sidebar still as asked",
+              folded and text(browser, "pane-said") == "La barre latérale reviendra comme avant au prochain démarrage\u00a0: REFUS"
+              and not shown(browser, "sidebar"), text(browser, "pane-said"))
+        shot(browser, "d67-pane-said")
+        browser.execute_script("window.restore()")
+        press(browser, "unfold")
+        check("kept at last: the sentence goes", wait_for(browser, lambda b: not shown(b, "pane-said"), 5))
+        browser.execute_script(refuse, "hearing_models")
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "model"), 10)
+        # Settings drawn before, drawn anew: the list taken once that drawing is done.
+        time.sleep(1)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:0")
+        refused = wait_for(browser, lambda b: shown(b, "transcription-models-refused"), 5)
+        check("a service's models refused: said, and the model can still be typed",
+              refused and text(browser, "transcription-models-refused") == "Les modèles de ce service n’ont pas pu être lus, vous pouvez en saisir un\u00a0: REFUS"
+              and shown(browser, "transcription-model"), text(browser, "transcription-models-refused"))
+        browser.execute_script("window.restore()")
+        browser.execute_script("location.hash = '#/'")
+        # The folder refused, then given back: said, and read again on the click.
+        meetings.chmod(0)
+        try:
+            browser.execute_script("window.dispatchEvent(new Event('focus'))")
+            said = wait_for(browser, lambda b: shown(b, "empty-again"), 10)
+            check("the meetings' folder unread: said, no recording offered as if it were empty, a way to try again",
+                  said and text(browser, "none") == f"Les réunions de {meetings} ne peuvent pas être lues."
+                  and text(browser, "none-do").startswith("Vérifiez que le disque")
+                  and text(browser, "empty-again") == "Réessayer" and not shown(browser, "empty-record"), text(browser, "none"))
+            browser.set_window_size(420, 400)
+            browser.execute_script("document.getElementById('empty').scrollIntoView()")
+            for theme in ("light", "dark"):
+                shot_themed(browser, f"d67-unread-{theme}", theme)
+            press(browser, "empty-again")
+            time.sleep(0.3)
+            check("tried again, still refused: still said", shown(browser, "empty-again"))
+        finally:
+            meetings.chmod(0o755)
+        browser.set_window_size(1100, 800)
+        browser.execute_script("document.getElementById('empty-again').click()")
+        check("tried again, given back: the meetings are there", wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#groups .session") and not shown(b, "empty"), 10))
+    meetings.chmod(0)
+    try:
+        with Window(meetings, "fr_FR.UTF-8", "reminder = false\n", small=True) as browser:
+            said = wait_for(browser, lambda b: "ne peuvent pas être lues" in b.execute_script("return document.getElementById('small').textContent"), 10)
+            check("the small window says the meetings cannot be read, not that there are none", said)
+    finally:
+        meetings.chmod(0o755)
+    # A meeting's folder locked while it is recorded: the mark refused for real, the switch on says so.
+    recorded = WORK / "silence-marked"
+    recorded.mkdir()
+    with Window(recorded, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        press(browser, "small-record")
+        made = wait_for(browser, lambda b: list(recorded.glob("*/session.json")) and shown(b, "small-confidential"), 15)
+        folder = next(recorded.glob("*/session.json")).parent if made else recorded
+        folder.chmod(0o555)
+        click = "document.getElementById('small-confidential').click()"
+        top = "return document.getElementById('small-stop').getBoundingClientRect().top"
+        try:
+            before = browser.execute_script(top)
+            browser.execute_script(click)
+            said = wait_for(browser, lambda b: shown(b, "small-said"), 8)
+            check("said, Arrêter stays where it is", browser.execute_script(top) == before)
+            check("confidential refused in the small window: said, its lock off, never promising what is not so",
+                  said and "n’a pas pu être marquée confidentielle" in text(browser, "small-said")
+                  and "on" not in browser.execute_script("return document.getElementById('small-confidential').closest('.confidential').className").split(),
+                  text(browser, "small-said"))
+        finally:
+            folder.chmod(0o755)
+        check("given back, it is kept at the next try and the sentence goes",
+              wait_for(browser, lambda b: not shown(b, "small-said") and (folder / "confidential").exists(), 8), sorted(p.name for p in folder.glob("*")))
+        browser.execute_script(click)
+        wait_for(browser, lambda b: not (folder / "confidential").exists(), 5)
+        folder.chmod(0o555)
+        try:
+            browser.execute_script(click)
+            wait_for(browser, lambda b: shown(b, "small-said"), 8)
+        finally:
+            folder.chmod(0o755)
+        # A press within half a second of the last is taken for the same one.
+        time.sleep(0.6)
+        press(browser, "small-stop")
+        check("stopped before the next try: tried once more, and kept",
+              wait_for(browser, lambda b: shown(b, "small-record") and (folder / "confidential").exists() and not shown(b, "small-said"), 10))
+        # The clock stood in: the next recording is the same folder, its mark taken away.
+        (folder / "confidential").unlink()
+        time.sleep(2)
+        press(browser, "small-record")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 15)
+        time.sleep(0.6)
+        folder.chmod(0o555)
+        try:
+            browser.execute_script(click)
+            wait_for(browser, lambda b: shown(b, "small-said"), 8)
+            time.sleep(0.6)
+            press(browser, "small-stop")
+            at_rest = wait_for(browser, lambda b: shown(b, "small-record") and "n’est pas confidentielle" in text(b, "small-said"), 10)
+            first = browser.execute_script("return document.getElementById('small').firstElementChild.id")
+            check("stopped with the mark refused: said at rest as it is, first of all, and nothing marked",
+                  at_rest and first == "small-said" and not (folder / "confidential").exists(), (text(browser, "small-said"), first))
+        finally:
+            folder.chmod(0o755)
+        time.sleep(2)
+        press(browser, "small-record")
+        check("the next recording starts clean", wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed() and not shown(b, "small-said"), 15))
+        time.sleep(0.6)
+        press(browser, "small-stop")
+    for language, raw in (("fr_FR.UTF-8", False), ("en_US.UTF-8", True)):
+        with Window(meetings, language, "reminder = false\n" + ("developer = true\n" if raw else ""), ) as browser:
+            told = browser.execute_async_script(
+                "const done = arguments[arguments.length - 1]; window.__TAURI__.core.invoke('minutes_again', { name: 'gone' }).then(() => done(''), (why) => done(String(why)));")
+            check(f"the raw text only in developer mode ({'on' if raw else 'off'})", ("gone is no session" in told) == raw, told)
+    empty = WORK / "silence-none"
+    empty.mkdir()
+    with Window(empty, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(420, 400)
+        said = wait_for(browser, lambda b: shown(b, "none"), 10)
+        check("no meeting: what to do first, never only a path", said and text(browser, "none-do").startswith("Démarrez un enregistrement") and shown(browser, "empty-record"))
+        browser.execute_script("document.getElementById('empty').scrollIntoView()")
+        for theme in ("light", "dark"):
+            shot_themed(browser, f"d67-none-{theme}", theme)
+
+
 def main() -> int:
     now = dt.datetime.now().astimezone()
     sessions = WORK / "sessions"
@@ -4660,6 +4812,7 @@ def main() -> int:
     confidential_every_way(now)
     meeting_told_once(now)
     minutes_copied(now)
+    nothing_silent(now)
     actions_rows(now)
     announced(now)
     heard_checked(now)

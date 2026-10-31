@@ -2,6 +2,7 @@
 //! holds and what it weighs. Read from `session.json` (`contracts/session-audio`, both forms)
 //! and the files beside it; nothing here writes, moves or opens a file for writing.
 
+use std::io::ErrorKind;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -58,6 +59,24 @@ pub fn list(sessions: &Path, recording: Option<&Path>) -> Vec<Listed> {
         .collect();
     listed.sort_by(|a, b| b.instant.cmp(&a.instant).then(b.folder.cmp(&a.folder)));
     listed
+}
+
+/// Whether the sessions' folder cannot be read: no empty list, a failure to say (D67). Not made yet,
+/// beside a parent that is there, is an empty list: nothing was recorded. Its parent gone too — a disk
+/// unplugged, its mount point with it —, a link to nowhere, a folder that lists but opens nothing: not.
+/// `default_folder`: its parent, Documents, may simply not exist yet, so a parent gone says nothing there.
+/// A disk whose mount point stays looks like a folder not made yet, and cannot be told from one.
+pub fn unreadable(sessions: &Path, default_folder: bool) -> bool {
+    match fs::read_dir(sessions) {
+        Ok(mut entries) => entries
+            .next()
+            .and_then(Result::ok)
+            .is_some_and(|entry| fs::metadata(entry.path()).is_err_and(|error| error.kind() == ErrorKind::PermissionDenied)),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            fs::symlink_metadata(sessions).is_ok() || (!default_folder && sessions.parent().is_some_and(|parent| !parent.exists()))
+        }
+        Err(_) => true,
+    }
 }
 
 /// The folder of the session a page names, in the sessions' folder: by its name alone — never a
