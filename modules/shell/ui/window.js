@@ -437,14 +437,23 @@ async function askAgain(of, said, again) {
   readMakings();
 }
 
-// « Enregistré », a moment: outside the settings' page, which is drawn again by what it says (D68).
+// « Enregistré », a moment, under what was changed (D68): the page is drawn again by what it says,
+// so the sentence is put there after the drawing, by the name of what changed.
 let savedFor = null;
+let lastChanged = "";
+document.addEventListener("change", (event) => { lastChanged = event.target.id; }, true);
 function savedSaid(saved) {
-  const said = document.getElementById("saved-said");
   clearTimeout(savedFor);
-  said.textContent = saved ? words.saved : "";
-  said.hidden = !saved;
-  if (saved) savedFor = setTimeout(() => { said.hidden = true; }, 1500);
+  document.getElementById("saved-said")?.remove();
+  if (!saved) return;
+  const savedSentence = element("p", "says saved-said", words.saved);
+  savedSentence.id = "saved-said";
+  savedSentence.setAttribute("role", "status");
+  const changed = lastChanged && document.getElementById(lastChanged);
+  const row = changed?.closest("label, .row, .field");
+  if (row) row.after(savedSentence);
+  else document.getElementById("settings").prepend(savedSentence);
+  savedFor = setTimeout(() => savedSentence.remove(), 1500);
 }
 
 async function readMakings() {
@@ -518,14 +527,13 @@ function row(session, shape, words) {
   return item;
 }
 
-// The header's button, as the recording is — or as the user just asked it to be (D68): a recording
-// is said stopped once it has ended, some seconds after the click.
+// The header's button, as the shell says the recording is — or as the user just asked it to be,
+// until the command has answered (D68).
 let recordAsked = null;
 function paintRecord(recording) {
-  if (recordAsked && recordAsked.to !== recording && Date.now() < recordAsked.until) recording = recordAsked.to;
-  else recordAsked = null;
-  document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
-  document.getElementById("record").classList.toggle("live", recording);
+  const shown = recordAsked ?? recording;
+  document.getElementById("record-said").textContent = shown ? words.record_stop : words.record_start;
+  document.getElementById("record").classList.toggle("live", shown);
 }
 
 function show({ words, folder, sessions, shapes, recording, shortcut, folded, unreadable }) {
@@ -812,9 +820,14 @@ function closes(panel, go, button, words) {
     button.focus();
   };
   cancel.addEventListener("click", close);
-  panel.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") close();
-  });
+  // From the panel, or from nowhere — its title clicked; a field elsewhere keeps its own Escape.
+  const onEscape = (event) => {
+    if (!panel.isConnected) return document.removeEventListener("keydown", onEscape);
+    if (event.key !== "Escape") return;
+    const at = document.activeElement;
+    if (at === document.body || panel.contains(at)) close();
+  };
+  document.addEventListener("keydown", onEscape);
   const row = element("div", "redo-actions");
   go.replaceWith(row);
   row.append(go, cancel);
@@ -2404,23 +2417,22 @@ function showSmall(words) {
   const rest = element("div", "small-rest");
   const restTop = element("div", "small-top");
   restTop.append(element("span", "small-brand", "Wholeheard"), toFull("small-full"));
-  // Its new state at once, disabled until the recording's own says otherwise (D68). A start that
-  // failed has answered by then, and is told: its button comes back.
-  const asking = async (button, said, back) => {
+  // Its new state at once, disabled until the recording's own says otherwise (D68). Answered, a press
+  // the shell took for the same one, or a start that failed, gives the button back.
+  const asking = async (button, said, wanted, back) => {
     button.disabled = true;
     button.textContent = said;
     await window.__TAURI__.core.invoke("record");
-    if (back && recording !== true) setTimeout(rested, 1500);
-  };
-  const rested = () => {
-    if (recording === true) return;
-    start.disabled = false;
-    start.textContent = words.record_start;
+    const header = await window.__TAURI__.core.invoke("header");
+    if (header.recording !== wanted) {
+      button.disabled = false;
+      button.textContent = back;
+    }
   };
   const start = element("button", "primary", words.record_start);
   start.type = "button";
   start.id = "small-record";
-  start.addEventListener("click", () => asking(start, words.record_starting, true));
+  start.addEventListener("click", () => asking(start, words.record_starting, true, words.record_start));
   const keys = element("button", "hint");
   keys.type = "button";
   keys.id = "small-keys";
@@ -2485,7 +2497,7 @@ function showSmall(words) {
   const stop = element("button", "danger", words.small_stop);
   stop.type = "button";
   stop.id = "small-stop";
-  stop.addEventListener("click", () => asking(stop, words.record_stopping, false));
+  stop.addEventListener("click", () => asking(stop, words.record_stopping, false, words.small_stop));
   const meters = element("div", "meters");
   meters.append(
     meter(words.small_mic, "level-me", "device-me", { silent: words.small_silent_me, nothing: words.small_nothing, waiting: words.small_waiting_me }),
@@ -3232,21 +3244,19 @@ document.getElementById("groups").addEventListener("keydown", (event) => {
 // The empty pane's own gesture (D61's board 5): the sidebar's, offered where the eye is.
 document.getElementById("empty-record").addEventListener("click", () => document.getElementById("record").click());
 document.getElementById("empty-again").addEventListener("click", () => refresh());
-// Its new state at once, the command answering after it; a second click meanwhile asks nothing (D68).
-let recordAsking = false;
+// Its new state at once, the command answering after it; a second click meanwhile asks nothing.
+// Answered, the shell's word: a press it took for the same one, or a start that failed, shows (D68).
 document.getElementById("record").addEventListener("click", async () => {
-  if (recordAsking) return;
-  recordAsking = true;
-  const live = document.getElementById("record").classList.contains("live");
-  recordAsked = { to: !live, until: Date.now() + 10000 };
-  paintRecord(live);
+  if (recordAsked !== null) return;
+  recordAsked = !document.getElementById("record").classList.contains("live");
+  paintRecord(recordAsked);
   try {
     await window.__TAURI__.core.invoke("record");
   } finally {
-    recordAsking = false;
-    // A start that failed has answered by now, and is told: the button says so at the next reading.
-    if (!live) recordAsked = null;
+    recordAsked = null;
   }
+  const { recording } = await window.__TAURI__.core.invoke("header");
+  paintRecord(recording);
   // The recording says it started, or stopped, a moment later: then the header follows.
   setTimeout(refresh, 1200);
 });

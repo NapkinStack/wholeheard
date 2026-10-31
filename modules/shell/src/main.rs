@@ -185,6 +185,11 @@ impl Shell {
         read
     }
 
+    /// Whether a recording runs as the header says it: one told to stop is over for the user (D68).
+    fn recording_on(&self) -> bool {
+        self.recording.lock().unwrap().is_some() && !*self.stopping.lock().unwrap()
+    }
+
     /// What a command that failed tells the page, the raw text going to the log too: a detail holds
     /// nothing of a meeting, no key and no path (`tests/log.rs`).
     fn told(&self, failure: Failure, detail: impl std::fmt::Display) -> Told {
@@ -696,7 +701,7 @@ async fn listed(app: AppHandle) -> Result<Listing, Told> {
             folder: shell.settings().sessions.clone(),
             sessions,
             shapes,
-            recording: shell.recording.lock().unwrap().is_some(),
+            recording: shell.recording_on(),
             shortcut: shell.shortcut.lock().unwrap().clone(),
             folded: shell.settings().folded,
             unreadable: {
@@ -720,7 +725,7 @@ struct Header {
 #[tauri::command]
 fn header(shell: State<'_, Shell>) -> Header {
     Header {
-        recording: shell.recording.lock().unwrap().is_some(),
+        recording: shell.recording_on(),
         shortcut: shell.shortcut.lock().unwrap().clone(),
     }
 }
