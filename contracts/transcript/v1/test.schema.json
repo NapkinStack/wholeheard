@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The line a test of a service ends on",
+  "description": "transcript/v1 — `wholeheard-transcription --test`'s output when it fails for a cause a person acts on differently. Which codes there are is on the contract's page: a code it does not list is read as no code.",
+  "type": "object",
+  "properties": {
+    "event": {
+      "const": "failed"
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\n\\r]+$"
+    }
+  },
+  "required": [
+    "event",
+    "code"
+  ]
+}
