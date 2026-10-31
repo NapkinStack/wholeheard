@@ -285,13 +285,7 @@ function paintState(said, shown, of) {
       const again = element("button", "open", words.try_again);
       again.type = "button";
       again.id = of.again;
-      again.addEventListener("click", async () => {
-        again.disabled = true;
-        // Fails only when the meeting is gone, and says nothing then; a later failure is on this page.
-        await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name }).catch(() => {});
-        said.dataset.key = "";
-        readMakings();
-      });
+      again.addEventListener("click", () => askAgain(of, said, again));
       said.replaceChildren(element("span", "what", words.welcome_ollama_silent), again);
     } else {
       const fetch_ = element("button", "open", fill(words.confidential_fetch, makings.ollama_recommended));
@@ -314,14 +308,7 @@ function paintState(said, shown, of) {
     const again = element("button", "open", words.try_again);
     again.type = "button";
     again.id = of.again;
-    again.addEventListener("click", async () => {
-      again.disabled = true;
-      // Fails only when the meeting is gone, and says nothing then; a later failure is on this page.
-      await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name }).catch(() => {});
-      // Failing again for the same reason is said again: the state drawn anew.
-      said.dataset.key = "";
-      readMakings();
-    });
+    again.addEventListener("click", () => askAgain(of, said, again));
     // What the program said, only in developer mode: the shell sends nothing else (D29).
     const detail = shown.why ? [element("code", "detail", fill(words.program_said, shown.why))] : [];
     // Its cause and gesture, when the program named one (D29): else the step's sentence alone.
@@ -436,6 +423,20 @@ function paintMakings() {
   paintContext();
 }
 
+// *Réessayer*: fails only when the meeting is gone, said there (D67); a later failure is on this page.
+async function askAgain(of, said, again) {
+  again.disabled = true;
+  try {
+    await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name });
+  } catch (why) {
+    said.replaceChildren(element("span", "what", fill(words.again_refused, why)));
+    return;
+  }
+  // Failing again for the same reason is said again: the state drawn anew.
+  said.dataset.key = "";
+  readMakings();
+}
+
 async function readMakings() {
   makings = await window.__TAURI__.core.invoke("makings").catch(() => null);
   // Only the meeting shown: its page hidden, the last one opened is no longer in front.
@@ -507,7 +508,7 @@ function row(session, shape, words) {
   return item;
 }
 
-function show({ words, folder, sessions, shapes, recording, shortcut, folded }) {
+function show({ words, folder, sessions, shapes, recording, shortcut, folded, unreadable }) {
   document.documentElement.lang = words.locale;
   // The header's gesture, as the board has it: start or stop, with the shortcut beside.
   document.getElementById("free-link").textContent = words.free;
@@ -539,10 +540,13 @@ function show({ words, folder, sessions, shapes, recording, shortcut, folded }) 
   document.getElementById("none-found").textContent = words.none_found;
   const weight = document.getElementById("weight");
   weight.hidden = sessions.length === 0;
-  document.getElementById("none").textContent = fill(words.none, folder);
-  document.getElementById("none-do").textContent = words.none_do;
+  // A folder that cannot be read is no empty list: said, and tried again (D67).
+  document.getElementById("none").textContent = unreadable ? fill(words.list_unread, folder) : fill(words.none, folder);
+  document.getElementById("none-do").textContent = unreadable ? words.list_unread_do : words.none_do;
   document.getElementById("empty-record").textContent = words.record_start;
-  document.getElementById("empty-record").hidden = recording;
+  document.getElementById("empty-record").hidden = recording || unreadable;
+  document.getElementById("empty-again").textContent = words.try_again;
+  document.getElementById("empty-again").hidden = !unreadable;
 
   const audio = sessions.reduce((sum, s) => sum + s.audio, 0);
   const text = sessions.reduce((sum, s) => sum + s.text, 0);
@@ -1805,6 +1809,11 @@ function showSettings(shown, minutes, words) {
   modelsWrap.htmlFor = serviceModels.id;
   modelsWrap.append(element("span", "name", words.service_model), serviceModels);
   serviceModel.parentElement.before(modelsWrap);
+  const modelsRefused = element("p", "note warn");
+  modelsRefused.id = "transcription-models-refused";
+  modelsRefused.setAttribute("role", "status");
+  modelsRefused.hidden = true;
+  modelsWrap.after(modelsRefused);
   const showModel = () => {
     const named = pick.value.startsWith("service:");
     modelsWrap.hidden = !named;
@@ -1812,10 +1821,18 @@ function showSettings(shown, minutes, words) {
     if (named && serviceModels.value !== "") serviceModel.value = serviceModels.value;
   };
   const offerModels = async (index) => {
-    // Refused: an empty list, and nothing said; the model can still be typed.
-    const listed = await window.__TAURI__.core.invoke("hearing_models", { index }).catch(() => []);
+    // Refused: an empty list, and said; the model can still be typed.
+    let listed = [];
+    let refused = "";
+    try {
+      listed = await window.__TAURI__.core.invoke("hearing_models", { index });
+    } catch (why) {
+      refused = fill(words.hearing_models_refused, why);
+    }
     // Another chosen meanwhile: its own list comes.
     if (pick.value !== `service:${index}`) return;
+    modelsRefused.textContent = refused;
+    modelsRefused.hidden = refused === "";
     // The model saved for this service, if it is the one saved; another service starts from its list.
     const typed = index === preset ? (shown.transcription_model ?? "").trim() : "";
     serviceModel.value = typed;
@@ -2423,14 +2440,28 @@ function showSmall(words) {
   // The meeting's context (D59): closed by default, opened in place of the note — Arrêter never
   // moves. Kept as it is typed, once the meeting's folder holds its session.
   const meeting = { name: null, saved: null, typed: null };
+  // What could not be kept: above both states, for it outlasts the recording (D67).
+  const unkept = new Map();
+  const unkeptSaid = element("p", "note warn small-said");
+  unkeptSaid.id = "small-said";
+  unkeptSaid.setAttribute("role", "status");
+  unkeptSaid.hidden = true;
+  const smallSaid = (what, sentence) => {
+    if (sentence === null) unkept.delete(what);
+    else unkept.set(what, sentence);
+    unkeptSaid.textContent = [...unkept.values()].join("\n");
+    unkeptSaid.hidden = unkept.size === 0;
+  };
   const keep = async () => {
     const { name, typed } = meeting;
     if (name === null || typed === null || typed === meeting.saved) return;
     try {
       await invoke("context_saved", { name, text: typed });
       meeting.saved = typed;
+      smallSaid("context", null);
     } catch {
-      // Tried again at the next tick.
+      // Said, and tried again at the next tick.
+      smallSaid("context", words.context_not_saved);
     }
   };
   const field = contextField(words, "", (text) => {
@@ -2478,8 +2509,10 @@ function showSmall(words) {
     try {
       await invoke("confidential_set", { name: meeting.name, on: wanted });
       if (mark.wanted === wanted) mark.wanted = null;
+      smallSaid("mark", null);
     } catch {
-      // Tried again at the next tick.
+      // Said, and tried again at the next tick: staying on with nothing kept would promise what is not so.
+      smallSaid("mark", words.confidential_not_saved);
     }
   };
   secret.box.addEventListener("change", () => {
@@ -2489,7 +2522,7 @@ function showSmall(words) {
   });
   live.append(top, announce, meters, stop, secret.row, disclose, opened, note);
   live.hidden = true;
-  page.replaceChildren(rest, live);
+  page.replaceChildren(unkeptSaid, rest, live);
 
   // At rest: drawn again only when what it says changes, so that a link under the focus stays.
   const drawRest = async () => {
@@ -2499,14 +2532,14 @@ function showSmall(words) {
     const sessions = listing.sessions.filter((session) => session.state !== "recording");
     const shown = sessions[0] ?? null;
     const weight = sessions.reduce((sum, session) => sum + session.audio + session.text, 0);
-    const key = JSON.stringify([listing.shortcut, shown && [nameOf(shown), shown.minutes, shown.transcript, shown.audio, shown.seconds], sessions.length, weight]);
+    const key = JSON.stringify([listing.unreadable, listing.shortcut, shown && [nameOf(shown), shown.minutes, shown.transcript, shown.audio, shown.seconds], sessions.length, weight]);
     if (rest.dataset.key !== key) {
       rest.dataset.key = key;
       keys.textContent = listing.shortcut ? fill(words.small_keys, listing.shortcut) : words.small_no_keys;
       keys.disabled = Boolean(listing.shortcut);
       keys.onclick = listing.shortcut ? null : () => full("#/settings");
       if (shown === null) {
-        last.replaceChildren(element("p", "none", words.small_none));
+        last.replaceChildren(element("p", "none", listing.unreadable ? words.small_unread : words.small_none));
         foot.replaceChildren();
       } else {
         const card = element("div", "last");
@@ -2535,7 +2568,15 @@ function showSmall(words) {
     if (now.recording !== recording) {
       const first = recording === null;
       // What was typed last, kept before the field is emptied for the next recording.
-      if (recording) await keep();
+      if (recording) {
+        await keep();
+        await marked();
+      }
+      // A new recording starts clean; one that ended keeps saying what it could not keep.
+      if (now.recording) {
+        smallSaid("context", null);
+        smallSaid("mark", null);
+      }
       recording = now.recording;
       // Each recording its own context: nothing of the one before.
       Object.assign(meeting, { name: null, saved: null, typed: null });
@@ -2888,7 +2929,7 @@ async function showWelcome(again, words) {
       // Apple's model, fetched by macOS on this click, as Settings fetch it (D42).
       primary = button("welcome-go", "primary", words.speech_fetch, async () => {
         if (!(await save())) return;
-        invoke("speech_installed").catch(() => {});
+        invoke("speech_installed").catch((why) => pageFailed(why));
         done();
       });
     } else if (engine === "whisper" && fetchable) {
@@ -2996,7 +3037,11 @@ async function refresh(again = false) {
   if (agreeing) {
     try {
       agreement = await window.__TAURI__.core.invoke("agreement_shown", { name: decodeURIComponent(agreeing[1]) });
-    } catch {
+    } catch (why) {
+      // Said in the pane: the list drawn again keeps it, until the next address.
+      const said = document.getElementById("pane-said");
+      said.textContent = fill(words.agreement_refused, why);
+      said.hidden = false;
       // No hashchange follows a replaced address: the list's address is drawn here (D61).
       history.replaceState(null, "", "#/");
       if (!again) return refresh(true);
@@ -3079,8 +3124,15 @@ async function fold(folded) {
   document.body.classList.toggle("folded", folded);
   const gone = document.getElementById(folded ? "sidebar" : "unfold");
   if (gone.contains(document.activeElement)) document.getElementById(folded ? "unfold" : "fold").focus();
-  // Not kept: nothing said; the sidebar stays as asked until the next start.
-  await window.__TAURI__.core.invoke("settings_saved", { change: { folded } }).catch(() => {});
+  // Not kept: said; the sidebar stays as asked until the next start.
+  const said = document.getElementById("pane-said");
+  try {
+    await window.__TAURI__.core.invoke("settings_saved", { change: { folded } });
+    said.hidden = true;
+  } catch (why) {
+    said.textContent = fill(words.fold_not_kept, why);
+    said.hidden = false;
+  }
 }
 document.getElementById("fold").addEventListener("click", () => fold(true));
 document.getElementById("unfold").addEventListener("click", () => fold(false));
@@ -3106,6 +3158,7 @@ document.getElementById("groups").addEventListener("keydown", (event) => {
 });
 // The empty pane's own gesture (D61's board 5): the sidebar's, offered where the eye is.
 document.getElementById("empty-record").addEventListener("click", () => document.getElementById("record").click());
+document.getElementById("empty-again").addEventListener("click", () => refresh());
 document.getElementById("record").addEventListener("click", async () => {
   await window.__TAURI__.core.invoke("record");
   // The recording says it started, or stopped, a moment later: then the header follows.
@@ -3136,6 +3189,7 @@ window.addEventListener("focus", () => {
   if (!choosing) refresh();
 });
 window.addEventListener("hashchange", () => {
+  document.getElementById("pane-said").hidden = true;
   // Another address: the assistant, shown again, is drawn anew — even if the drawing that left it was cut short.
   delete document.getElementById("welcome").dataset.shown;
   refresh();

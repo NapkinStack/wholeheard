@@ -424,3 +424,30 @@ fn a_file_set_aside_for_a_making_is_put_back_when_it_fails_and_let_go_when_it_is
     fs::remove_file(&aside).unwrap();
     assert_eq!(sessions::settle(&transcript, &aside, false, |_| Ok(())), Some(true));
 }
+
+#[test]
+fn a_folder_that_cannot_be_read_is_no_empty_list_and_one_not_made_yet_is() {
+    let root = tempfile::tempdir().unwrap();
+    assert!(!sessions::unreadable(&root.path().join("not made yet")));
+    assert!(!sessions::unreadable(root.path()));
+    // A file where the folder should be: what a read refuses, whoever runs the test.
+    let file = root.path().join("a file");
+    std::fs::write(&file, "").unwrap();
+    assert!(sessions::unreadable(&file));
+    // Its disk gone, its mount point with it.
+    assert!(sessions::unreadable(&root.path().join("no disk").join("Wholeheard")));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let link = root.path().join("a link");
+        std::os::unix::fs::symlink(root.path().join("nowhere"), &link).unwrap();
+        assert!(sessions::unreadable(&link));
+        // It lists, and opens nothing.
+        let locked = root.path().join("locked");
+        std::fs::create_dir_all(locked.join("2026-10-12_09-30")).unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o444)).unwrap();
+        let said = sessions::unreadable(&locked);
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(said);
+    }
+}
