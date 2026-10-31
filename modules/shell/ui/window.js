@@ -2440,7 +2440,7 @@ function showSmall(words) {
   // The meeting's context (D59): closed by default, opened in place of the note — Arrêter never
   // moves. Kept as it is typed, once the meeting's folder holds its session.
   const meeting = { name: null, saved: null, typed: null, refused: null };
-  // What could not be kept: above both states, for it outlasts the recording (D67).
+  // What could not be kept: under both states, for it outlasts the recording, and *Arrêter* stays where it is (D67, D49).
   const unkept = new Map();
   const unkeptSaid = element("p", "note warn small-said");
   unkeptSaid.id = "small-said";
@@ -2529,7 +2529,7 @@ function showSmall(words) {
   });
   live.append(top, announce, meters, stop, secret.row, disclose, opened, note);
   live.hidden = true;
-  page.replaceChildren(unkeptSaid, rest, live);
+  page.replaceChildren(rest, live, unkeptSaid);
 
   // At rest: drawn again only when what it says changes, so that a link under the focus stays.
   const drawRest = async () => {

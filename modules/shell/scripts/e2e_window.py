@@ -3300,7 +3300,9 @@ def nothing_silent(now: dt.datetime) -> None:
         folder.chmod(0o555)
         try:
             browser.execute_script("document.getElementById('small-confidential').click()")
+            before = browser.execute_script("return document.getElementById('small-stop').getBoundingClientRect().top")
             said = wait_for(browser, lambda b: shown(b, "small-said"), 8)
+            check("said, Arrêter stays where it is", browser.execute_script("return document.getElementById('small-stop').getBoundingClientRect().top") == before)
             check("confidential refused in the small window: said, and the switch back off, never promising what is not so",
                   said and "n’a pas pu être dite confidentielle" in text(browser, "small-said")
                   and not browser.find_element(By.ID, "small-confidential").is_selected(), text(browser, "small-said"))
@@ -3317,7 +3319,9 @@ def nothing_silent(now: dt.datetime) -> None:
             wait_for(browser, lambda b: shown(b, "small-said"), 8)
         finally:
             folder.chmod(0o755)
-        # Given back first: a refused mark is not tried again, and the recording stops with its folder writable.
+        # Given back first: a refused mark is not tried again, and the recording stops with its folder
+        # writable. A press within half a second of the last is taken for the same one.
+        time.sleep(0.6)
         press(browser, "small-stop")
         at_rest = wait_for(browser, lambda b: shown(b, "small-record") and shown(b, "small-said"), 10)
         check("stopped with the mark refused: still said at rest, and nothing marked", at_rest and not (folder / "confidential").exists(), text(browser, "small-said"))
