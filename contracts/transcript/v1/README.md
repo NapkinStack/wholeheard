@@ -77,11 +77,12 @@ the log, and its output's last line says the cause when a person acts on it diff
 | `provider.down` | The service answered that it is failing (HTTP 500 to 599) | Try again later |
 | `provider.unknown_model` | The service does not know this model or this address (HTTP 404) | Choose the model or the address again |
 | `provider.no_times` | The service's answer gives no times for its segments, or it refused the request (HTTP 400) without saying why, as one that gives none does | Choose a model that gives each segment's times |
+| `provider.redirected` | The service sent the request elsewhere (HTTP 300, 301, 302, 303, 307 or 308), which is not followed | Check the address, or give the one it sends to |
 | `provider.failed` | Any other refusal by the service, or an answer it left unreadable | Try again later |
-| `settings.invalid` | The address or the model's name cannot be used as given | Correct them where they were chosen |
+| `settings.invalid` | The address, the model's name or the key cannot be used as given | Correct them where they were chosen |
 
 A consumer reads a code this page does not list as no code: a later code is added here, never a new
-version for it.
+version for it. [`test.schema.json`](./test.schema.json) says what the line is.
 
 ## What it never does
 

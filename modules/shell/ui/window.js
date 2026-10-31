@@ -1501,7 +1501,7 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   const named = element("div", "named");
   // Named by its minutes (D48): the date above the name.
   if (session.title) named.append(element("span", "on", heading(session, words)));
-  named.append(element("h1", "", session.title ?? heading(session, words)));
+  named.append(meetingName(session, words));
   if (session.seconds !== null) named.append(element("span", "length", length(session.seconds)));
   // Where the minutes were written, from their own front matter: unread, or naming none, not said.
   const minutesHere = minutes.state === "present" && minutes.provider ? minutes.provider === "local" : undefined;
@@ -1522,6 +1522,11 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   columns.append(minutesCard(minutes, words, session, transcript), transcriptCard(transcript, words, session));
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
+  // A name being typed is kept the same way, with its refusal and where the caret was (D70).
+  const naming = document.querySelector("#naming:not([data-saving])");
+  const namingRefused = document.getElementById("naming-said")?.textContent ?? "";
+  const same = page.dataset.name === nameOf(session);
+  const typing = same && naming ? { value: naming.value, caret: naming.selectionStart, end: naming.selectionEnd, focused: document.activeElement === naming } : null;
   page.dataset.name = nameOf(session);
   const kept = confidentialCard(session, confidential, words);
   kept.append(languageRow(session, language, languages, words, meeting_language, apple, system_language));
@@ -1548,6 +1553,101 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
     search.value = searching;
     search.dispatchEvent(new Event("input"));
   }
+  if (typing) {
+    const button = document.getElementById("rename");
+    // Typed in, it takes the focus back; the user gone elsewhere, they are not brought back.
+    nameField(button.parentElement, button, session, words, typing.value, namingRefused, typing.focused);
+    if (typing.focused) document.getElementById("naming").setSelectionRange(typing.caret, typing.end);
+  }
+}
+
+// A name refused while its field stays open, until the page is left.
+let nameRefused = null;
+
+// A sentence in the pane, until the next address.
+function paneSays(sentence) {
+  const said = document.getElementById("pane-said");
+  said.textContent = sentence;
+  said.hidden = false;
+}
+
+// The meeting's heading (D70): clicked, a field. Enter or leaving it keeps what is typed, emptied
+// its minutes' title or its date comes back; Escape leaves it as it was.
+function meetingName(session, words) {
+  const heading_ = element("h1");
+  const button = element("button", "rename", session.title ?? heading(session, words));
+  button.type = "button";
+  button.id = "rename";
+  button.title = words.rename_meeting;
+  button.addEventListener("click", () => nameField(heading_, button, session, words, session.title ?? ""));
+  heading_.append(button);
+  return heading_;
+}
+
+function nameField(heading_, button, session, words, typed, refused = "", focused = true) {
+  const field = element("input", "naming");
+  field.type = "text";
+  field.id = "naming";
+  field.maxLength = 80;
+  field.value = typed;
+  field.placeholder = words.name_meeting;
+  field.setAttribute("aria-label", words.name_meeting);
+  const said = element("p", "says");
+  said.id = "naming-said";
+  said.setAttribute("role", "status");
+  said.textContent = refused;
+  said.hidden = refused === "";
+  let done = false;
+  const leave = () => {
+    done = true;
+    nameRefused = null;
+    said.remove();
+    field.replaceWith(button);
+  };
+  const keep = async () => {
+    if (done) return;
+    if (field.value.trim() === (session.title ?? "")) return leave();
+    done = true;
+    // Being saved, no longer being typed: a reading of the page meanwhile does not open it again.
+    field.dataset.saving = "";
+    // An earlier refusal is no longer the last word, nor a sentence for the next address.
+    nameRefused = null;
+    const asked = location.hash;
+    try {
+      await window.__TAURI__.core.invoke("title_saved", { name: nameOf(session), title: field.value });
+      button.textContent = field.value.trim() || heading(session, words);
+      leave();
+      await refresh();
+    } catch (why) {
+      done = false;
+      delete field.dataset.saving;
+      // Its page left or drawn anew meanwhile: said where it stays, never to no one.
+      if (!field.isConnected || location.hash !== asked) return paneSays(fill(words.name_not_saved, why));
+      said.textContent = fill(words.name_not_saved, why);
+      said.hidden = false;
+      // The page left next, by the click that took the focus from here: the pane says it then.
+      nameRefused = said.textContent;
+    }
+  };
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      keep().then(() => document.getElementById("rename")?.focus());
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      leave();
+      button.focus();
+    }
+  });
+  // Another window come forward leaves the field where it was: only a click or a tab elsewhere keeps it.
+  field.addEventListener("blur", () => {
+    if (document.activeElement !== field) keep();
+  });
+  button.replaceWith(field);
+  heading_.after(said);
+  if (!focused) return;
+  field.focus();
+  field.select();
 }
 
 // The settings' page: each change saved at once; nothing offered over a file that cannot be read.
@@ -2549,6 +2649,8 @@ function showSmall(words) {
   // away (D50). Gone, its room stays: Arrêter never moves.
   const announce = element("div", "small-announce");
   announce.id = "small-announce";
+  // Not offered before the first reading gives its sentence: a click would copy nothing.
+  announce.hidden = true;
   const announced = element("button", "link", words.copy_announcement);
   announced.type = "button";
   announced.id = "small-announce-copy";
@@ -2872,7 +2974,9 @@ function showFree(listing, busy, words) {
         draw();
       });
       const said = element("span", "said");
-      said.append(element("span", "name", heading(s, words)), element("span", "length", s.seconds !== null ? length(s.seconds) : ""));
+      // Named (D70): the date stays beside the length, what tells two of one name apart.
+      const lasted = s.seconds !== null ? length(s.seconds) : "";
+      said.append(element("span", "name", s.title ?? heading(s, words)), element("span", "length", s.title ? `${heading(s, words)} · ${lasted}` : lasted));
       row.append(box, said, element("span", "weighs", size(weight(s), words)));
       item.append(row);
       list.append(item);
@@ -2881,7 +2985,7 @@ function showFree(listing, busy, words) {
       const item = element("li");
       const row = element("div", "card freeable busy");
       const said = element("span", "said");
-      said.append(element("span", "name", heading(s, words)), element("span", "length", words.free_busy));
+      said.append(element("span", "name", s.title ?? heading(s, words)), element("span", "length", s.title ? `${heading(s, words)} · ${words.free_busy}` : words.free_busy));
       row.append(said);
       item.append(row);
       list.append(item);
@@ -3229,6 +3333,9 @@ async function refresh(again = false) {
       player?.stop();
       player = null;
       history.replaceState(null, "", "#/");
+      // No hashchange follows a replaced address: a name refused on that page is said now.
+      if (nameRefused) paneSays(nameRefused);
+      nameRefused = null;
       if (!again) return refresh(true);
     }
   }
@@ -3364,6 +3471,8 @@ window.addEventListener("focus", () => {
 });
 window.addEventListener("hashchange", () => {
   document.getElementById("pane-said").hidden = true;
+  if (nameRefused) paneSays(nameRefused);
+  nameRefused = null;
   // Another address: the assistant, shown again, is drawn anew — even if the drawing that left it was cut short.
   delete document.getElementById("welcome").dataset.shown;
   refresh();
