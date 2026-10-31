@@ -434,6 +434,8 @@ body.small-window .frame { display: none; }
 .foot nav .open { min-height: 32px; padding: 0 10px; font-size: 13px; white-space: nowrap; }
 .foot nav a[aria-current="page"] { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); }
 .pane { flex: 1; min-width: 0; container: pane / inline-size; }
+.saved-said { margin: 4px 0 0; color: var(--ok); font-size: 13px; }
+.redo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .pane > .back { display: none; }
 /* Folding the sidebar (D61): its button at its top, the one that brings it back at the pane's. */
 .icon-button { width: 34px; min-height: 34px; padding: 0; border-radius: 9px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font-size: 17px; cursor: pointer; }

@@ -2075,6 +2075,8 @@ def meeting_told_once(now: dt.datetime) -> None:
         with Window(meetings, "fr_FR.UTF-8", settings) as browser:
             browser.find_element(By.ID, "record").click()
             wait_for(browser, lambda b: (meeting / "session.json").exists() and live(b), 10)
+            # The button says it at the click now (D68); a press within half a second is the same press.
+            time.sleep(0.6)
             browser.find_element(By.ID, "record").click()
             made = wait_for(browser, lambda b: "Compte rendu prêt" in notified.read_text(), 20)
             told = notified.read_text()
@@ -2865,6 +2867,8 @@ def context_gaps(now: dt.datetime) -> None:
         kept = wait_for(browser, lambda b: (meeting / "context.txt").exists() and (meeting / "context.txt").read_text() == typed, 3)
         check("the full window's page of the meeting being recorded offers its context: a Cyrillic name and an emoji kept whole",
               open_ and kept, (meeting / "context.txt").read_text() if (meeting / "context.txt").exists() else None)
+        # The button says it at the click now (D68); a press within half a second is the same press.
+        time.sleep(0.6)
         browser.find_element(By.ID, "record").click()
         stopped = wait_for(browser, lambda b: "stopped" in (meeting / "session.json").read_text() and not live(b), 10)
         made = wait_for(browser, lambda b: (meeting / "minutes.md").exists() and writing.exists(), 20)
@@ -3363,6 +3367,150 @@ def nothing_silent(now: dt.datetime) -> None:
         browser.execute_script("document.getElementById('empty').scrollIntoView()")
         for theme in ("light", "dark"):
             shot_themed(browser, f"d67-none-{theme}", theme)
+
+
+def gestures_answer(now: dt.datetime) -> None:
+    """AQ. Each gesture answers at once, its command stood in to take two seconds (D68)."""
+    print("AQ. Démarrer and Arrêter answer before their command, a second click asks nothing; Refaire… closes; a setting says Enregistré (D68)")
+    meetings = WORK / "answering"
+    written = meetings / "2026-10-28_09-00"
+    session(written, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+    (written / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n{"type":"complete","duration":1.0}\n')
+    (written / "minutes.md").write_text(
+        "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
+        "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    slow = ("const real = window.__TAURI__.core; window.__asked = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record'"
+            " ? (window.__asked++, new Promise((done) => setTimeout(done, 2000)).then(() => real.invoke(asked, ...rest))) : real.invoke(asked, ...rest) };")
+    shown = lambda b, id_: b.find_element(By.ID, id_).is_displayed()
+    said = lambda b: b.find_element(By.ID, "record-said").get_attribute("textContent")
+    running = lambda b: b.execute_async_script("const d = arguments[arguments.length - 1]; window.__TAURI__.core.invoke('recording_now').then((n) => d(n.recording))")
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        browser.set_window_size(1100, 800)
+        browser.execute_script(f"location.hash = '#/meeting/{written.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"), 10)
+        # Refaire…: Annuler, then Escape, each giving the focus back, nothing changed.
+        before = (written / "minutes.md").read_text()
+        for way in ("cancel", "escape"):
+            press(browser, "redo-minutes")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "redo-panel"), 5)
+            if way == "cancel":
+                press(browser, "redo-panel-cancel")
+            else:
+                browser.switch_to.active_element.send_keys(Keys.ESCAPE)
+            closed = wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-panel"), 3)
+            check(f"Refaire… closed by {way}: the focus back on it, nothing changed", closed
+                  and browser.execute_script("return document.activeElement.id") == "redo-minutes" and (written / "minutes.md").read_text() == before,
+                  (closed, browser.execute_script("return document.activeElement.outerHTML.slice(0, 80)")))
+        press(browser, "redo-minutes")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-panel"), 5)
+        browser.execute_script("document.activeElement.blur()")
+        ActionChains(browser).send_keys(Keys.ESCAPE).perform()
+        check("Escape with the focus nowhere closes it too", wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-panel"), 3))
+        press(browser, "redo-transcript")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-panel"), 5)
+        browser.switch_to.active_element.send_keys(Keys.ESCAPE)
+        check("the transcript's too", wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-transcript-panel"), 3)
+              and browser.execute_script("return document.activeElement.id") == "redo-transcript")
+        # The setting's word, a moment.
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "reminder"), 10)
+        time.sleep(0.5)
+        browser.execute_script("document.getElementById('reminder').click()")
+        here = lambda b: b.find_elements(By.ID, "saved-said")
+        told = wait_for(browser, here, 3)
+        check("a setting written says Enregistré, under it", told and here(browser)[0].text == "Enregistré"
+              and here(browser)[0].get_attribute("role") == "status"
+              and browser.execute_script("const s = document.getElementById('saved-said'), r = document.getElementById('reminder').closest('label, .row, .field'); return r.nextElementSibling === s"))
+        time.sleep(1)
+        check("still said after a second", here(browser))
+        check("gone at a second and a half", wait_for(browser, lambda b: not here(b), 1.5))
+        refuse = "const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'settings_saved' ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };"
+        browser.execute_script(refuse)
+        browser.execute_script("document.getElementById('reminder').click()")
+        refused = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
+        check("a write refused: said, no Enregistré", refused and not here(browser), browser.find_element(By.ID, "not-saved").text)
+        browser.execute_script("window.restore()")
+        # A radio with no id, far down at the smallest size: said under it, in view.
+        time.sleep(0.5)
+        browser.set_window_size(420, 400)
+        browser.execute_script("document.querySelector('input[name=after][value=nothing]').scrollIntoView(); document.querySelectorAll('input[name=after]')[1].click()")
+        wait_for(browser, here, 3)
+        check("said under a radio with no id, in view", here(browser) and browser.execute_script(
+            "const r = document.getElementById('saved-said').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && document.getElementById('saved-said').previousElementSibling.querySelector('input[name=after]') !== null"))
+        wait_for(browser, lambda b: not here(b), 3)
+        # A button in no row: said beside it, the page not sent to its top.
+        browser.execute_script("const p = document.getElementById('minutes'); p.scrollIntoView({block: 'center'}); p.value = 'custom'; p.dispatchEvent(new Event('change', {bubbles: true}))")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-address"), 5)
+        browser.find_element(By.ID, "minutes-address").send_keys("http://127.0.0.1:9/v1")
+        browser.find_element(By.ID, "minutes-model").send_keys("mistral")
+        browser.execute_script("document.getElementById('minutes-save').click()")
+        wait_for(browser, here, 5)
+        check("the minutes' Enregistrer: said beside its button, in view", here(browser) and browser.execute_script(
+            "const s = document.getElementById('saved-said'), r = s.getBoundingClientRect(); return s.previousElementSibling?.id === 'minutes-save' && r.top >= 0 && r.top + r.height / 2 <= innerHeight"),
+              browser.execute_script("const s = document.getElementById('saved-said'); return [s?.previousElementSibling?.id, s?.getBoundingClientRect().top]"))
+        browser.set_window_size(1100, 800)
+        browser.execute_script("location.hash = '#/'")
+        time.sleep(0.5)
+        # The real command, a double click: the second is the same press, and the button says so at once.
+        browser.execute_script("const r = document.getElementById('record'); r.click(); setTimeout(() => r.click(), 200);")
+        time.sleep(1)
+        check("a double click: recording, and the button says it, not the stop that was not made",
+              running(browser) and said(browser) == "Arrêter l’enregistrement", said(browser))
+        time.sleep(0.6)
+        browser.execute_script("document.getElementById('record').click()")
+        wait_for(browser, lambda b: not running(b), 10)
+        time.sleep(0.6)
+        # A press that does nothing, as a start that failed: the button comes back as soon as it is answered.
+        browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record' ? Promise.resolve() : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("document.getElementById('record').click()")
+        check("a start that did nothing: the button comes back", wait_for(browser, lambda b: said(b) == "Démarrer un enregistrement", 1), said(browser))
+        browser.execute_script("window.restore()")
+        # Its command two seconds long: the header answers first.
+        browser.execute_script(slow)
+        browser.execute_script("const r = document.getElementById('record'); r.click(); r.click();")
+        check("Démarrer: the button says its new state before the command answers, a second click asks nothing",
+              said(browser) == "Arrêter l’enregistrement" and browser.execute_script("return window.__asked") == 1, said(browser))
+        check("the recording did start, once", wait_for(browser, running, 8))
+        time.sleep(1.5)
+        browser.execute_script("const r = document.getElementById('record'); r.click(); r.click();")
+        check("Arrêter: the same, the button waiting", said(browser) == "Arrêt…" and not browser.find_element(By.ID, "record").is_enabled()
+              and browser.execute_script("return window.__asked") == 2, said(browser))
+        check("the recording did stop, once", wait_for(browser, lambda b: not running(b), 15))
+        check("ended, Démarrer again", wait_for(browser, lambda b: said(b) == "Démarrer un enregistrement" and b.find_element(By.ID, "record").is_enabled(), 5), said(browser))
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        browser.execute_script(slow)
+        browser.execute_script("const r = document.getElementById('small-record'); r.click(); r.click();")
+        start = browser.find_element(By.ID, "small-record")
+        check("the small window's Démarrer: at once, disabled", start.text == "Démarrage…" and not start.is_enabled()
+              and browser.execute_script("return window.__asked") == 1, start.text)
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        time.sleep(1)
+        browser.execute_script("const r = document.getElementById('small-stop'); r.click(); r.click();")
+        stop = browser.find_element(By.ID, "small-stop")
+        check("its Arrêter: the same", stop.text == "Arrêt…" and not stop.is_enabled() and browser.execute_script("return window.__asked") == 2, (stop.text, stop.is_enabled(), browser.execute_script("return window.__asked")))
+        back = wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed() and b.find_element(By.ID, "small-record").is_enabled(), 15)
+        check("at rest again, its Démarrer back", back and browser.find_element(By.ID, "small-record").text == "Démarrer un enregistrement")
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        # A start the shell lets go later: true when first read, false after, no recording seen.
+        browser.execute_script("const real = window.__TAURI__.core; let read = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record' ? Promise.resolve() : asked === 'header' ? Promise.resolve({ recording: read++ === 0, stopping: false, shortcut: null }) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("document.getElementById('small-record').click()")
+        late = wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_enabled() and b.find_element(By.ID, "small-record").text == "Démarrer un enregistrement", 3)
+        check("a start refused late: its Démarrer comes back", late, browser.find_element(By.ID, "small-record").text)
+        browser.execute_script("window.restore()")
+        time.sleep(0.6)
+        # Arrêter within the double press: it was not made, so the button is not stuck.
+        browser.execute_script("document.getElementById('small-record').click()")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        browser.execute_script("document.getElementById('small-stop').click()")
+        again = wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_enabled() and b.find_element(By.ID, "small-stop").text == "Arrêter", 3)
+        if again:
+            check("a stop taken for the same press: Arrêter comes back", True)
+            time.sleep(0.6)
+            press(browser, "small-stop")
+        else:
+            check("a stop past the double press: stopped", wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed(), 10))
 
 
 def main() -> int:
@@ -4813,6 +4961,7 @@ def main() -> int:
     meeting_told_once(now)
     minutes_copied(now)
     nothing_silent(now)
+    gestures_answer(now)
     actions_rows(now)
     announced(now)
     heard_checked(now)
