@@ -1618,12 +1618,10 @@ function nameField(heading_, button, session, words, typed, refused = "") {
     } catch (why) {
       done = false;
       delete field.dataset.saving;
-      const sentence = fill(words.name_not_saved, why);
       // Its page gone meanwhile: said where it stays, never to no one.
-      if (field.isConnected) {
-        said.textContent = sentence;
-        said.hidden = false;
-      } else paneSays(sentence);
+      if (!field.isConnected) return paneSays(fill(words.name_not_saved, why));
+      said.textContent = fill(words.name_not_saved, why);
+      said.hidden = false;
     }
   };
   field.addEventListener("keydown", (event) => {
