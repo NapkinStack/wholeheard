@@ -269,8 +269,8 @@ violation becomes an architecture signal.
 visible, traced and counted.
 
 A module is touched when its behaviour changes: editing only its description — manifest,
-`AGENTS.md`, `README.md`, `docs/` — touches none, and `contracts/` is a module like the
-others.
+`AGENTS.md`, `README.md`, `docs/` — touches none, unless the manifest moves its criticality or
+its user-visible surface, and `contracts/` is a module like the others.
 
 | Exception | Handling |
 |---|---|
