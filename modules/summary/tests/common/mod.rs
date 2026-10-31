@@ -27,13 +27,23 @@ pub fn provider(status: &'static str, body: String) -> (String, Receiver<(String
 
 /// A provider that answers its requests in turn with these, the last one again after them.
 pub fn providing(answers: Vec<(&'static str, String)>) -> (String, Receiver<(String, String)>) {
+    played(None, answers)
+}
+
+/// A provider that says what it is when asked its version, as Ollama does; that question is handed back too.
+pub fn ollama(answers: Vec<(&'static str, String)>) -> (String, Receiver<(String, String)>) {
+    played(Some(r#"{"version":"0.12.0"}"#), answers)
+}
+
+/// `version`: what it answers to `GET /api/version`, without that taking a turn; None, 404 and not handed back.
+pub fn played(version: Option<&'static str>, answers: Vec<(&'static str, String)>) -> (String, Receiver<(String, String)>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = format!("http://{}/v1", listener.local_addr().unwrap());
     let (sent, received) = mpsc::channel();
     thread::spawn(move || {
-        for turn in 0.. {
+        let mut turn = 0;
+        loop {
             let Ok((stream, _)) = listener.accept() else { return };
-            let (status, body) = answers[turn.min(answers.len() - 1)].clone();
             let mut reader = BufReader::new(stream);
             let (mut head, mut length) = (String::new(), 0);
             loop {
@@ -50,7 +60,16 @@ pub fn providing(answers: Vec<(&'static str, String)>) -> (String, Receiver<(Str
             if reader.read_exact(&mut asked).is_err() {
                 continue;
             }
-            let _ = sent.send((head, String::from_utf8_lossy(&asked).into_owned()));
+            let asking_version = head.starts_with("GET /api/version ");
+            if !asking_version || version.is_some() {
+                let _ = sent.send((head, String::from_utf8_lossy(&asked).into_owned()));
+            }
+            let (status, body) = if asking_version {
+                version.map_or(("404 Not Found", "{}".to_string()), |version| ("200 OK", version.to_string()))
+            } else {
+                turn += 1;
+                answers[(turn - 1).min(answers.len() - 1)].clone()
+            };
             let answer = format!(
                 "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
@@ -63,4 +82,9 @@ pub fn providing(answers: Vec<(&'static str, String)>) -> (String, Receiver<(Str
 
 pub fn answering(text: &str, finish: &str) -> String {
     serde_json::json!({ "choices": [{ "message": { "role": "assistant", "content": text }, "finish_reason": finish }] }).to_string()
+}
+
+/// An answer the way Ollama's own route gives one.
+pub fn answering_natively(text: &str, done: &str) -> String {
+    serde_json::json!({ "message": { "role": "assistant", "content": text }, "done": true, "done_reason": done }).to_string()
 }

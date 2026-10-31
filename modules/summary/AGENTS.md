@@ -50,6 +50,9 @@ Writes the minutes of a transcript.
 - The key is looked for in an answer as it is written: sent back in another case or encoded,
   it is not caught. A key that is a common word turns honest minutes away.
 
+- Ollama's `/v1` ignores `options.num_ctx` and cuts a long request from its head, silently:
+  the native route is why the rules still reach the model.
+
 ## Areas not to change without approval
 
 - The format of `minutes.md`: it is `contracts/minutes/v2`.
