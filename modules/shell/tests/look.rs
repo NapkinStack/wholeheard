@@ -162,8 +162,7 @@ fn too_faint(style: &str) -> Vec<String> {
             let property = |name: &str| {
                 body.split(';')
                     .filter_map(|one| one.split_once(':'))
-                    .filter(|(key, _)| key.trim() == name)
-                    .next_back()
+                    .rfind(|(key, _)| key.trim() == name)
                     .map(|(_, found)| found.trim().to_string())
             };
             let colour = property("-webkit-text-fill-color").or_else(|| property("color"));
