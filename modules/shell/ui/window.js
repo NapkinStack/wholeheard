@@ -1610,6 +1610,8 @@ function nameField(heading_, button, session, words, typed, refused = "", focuse
     done = true;
     // Being saved, no longer being typed: a reading of the page meanwhile does not open it again.
     field.dataset.saving = "";
+    // An earlier refusal is no longer the last word, nor a sentence for the next address.
+    nameRefused = null;
     const asked = location.hash;
     try {
       await window.__TAURI__.core.invoke("title_saved", { name: nameOf(session), title: field.value });
@@ -3326,6 +3328,9 @@ async function refresh(again = false) {
       player?.stop();
       player = null;
       history.replaceState(null, "", "#/");
+      // No hashchange follows a replaced address: a name refused on that page is said now.
+      if (nameRefused) paneSays(nameRefused);
+      nameRefused = null;
       if (!again) return refresh(true);
     }
   }
