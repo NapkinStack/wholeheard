@@ -41,20 +41,40 @@ impl Mix {
     /// The mix of these tracks, each with where its first frame is on the session's clock, in
     /// seconds; none when not one of them reads as a track.
     pub fn of(tracks: &[(PathBuf, f64)]) -> Option<Mix> {
+        let placed: Vec<(PathBuf, Vec<(u64, f64)>)> = tracks.iter().map(|(path, starts)| (path.clone(), vec![(0, *starts)])).collect();
+        Mix::placed(&placed)
+    }
+
+    /// The mix of these tracks, each placed run by run (D71): a frame of the track, and where it
+    /// is on the session's clock, in seconds. A run the clock puts before the end of the one
+    /// before stops that one there: never two sounds of one track added.
+    pub fn placed(tracks: &[(PathBuf, Vec<(u64, f64)>)]) -> Option<Mix> {
         // A start that is no instant, or beyond any meeting, leaves its track out.
-        let read: Vec<(Track, f64)> = tracks
+        let read: Vec<(Track, &Vec<(u64, f64)>)> = tracks
             .iter()
-            .filter(|(_, starts)| starts.is_finite() && starts.abs() < 1e6)
-            .filter_map(|(path, starts)| Some((track(path)?, *starts)))
+            .filter(|(_, runs)| runs.iter().all(|(_, at)| at.is_finite() && at.abs() < 1e6))
+            .filter_map(|(path, runs)| Some((track(path)?, runs)))
             .collect();
         let rate = read.iter().map(|(track, _)| track.rate).max()?;
-        let tracks: Vec<Track> = read
-            .into_iter()
-            .map(|(track, starts)| Track {
-                at: (starts * f64::from(rate)).round() as i64,
-                ..track
-            })
-            .collect();
+        let mut tracks: Vec<Track> = Vec::new();
+        for (whole, runs) in read {
+            let block = (whole.channels * whole.width) as u64;
+            let frames_of = |seconds: f64| (seconds * f64::from(whole.rate)).round() as i64;
+            for (index, &(from, at)) in runs.iter().enumerate() {
+                if from >= whole.frames {
+                    break;
+                }
+                let held = runs.get(index + 1).map_or(whole.frames, |(next, _)| (*next).min(whole.frames)) - from;
+                let room = runs.get(index + 1).map_or(i64::MAX, |(_, then)| frames_of(then - at).max(0));
+                tracks.push(Track {
+                    path: whole.path.clone(),
+                    data: whole.data + from * block,
+                    frames: held.min(u64::try_from(room).unwrap_or(u64::MAX)),
+                    at: (at * f64::from(rate)).round() as i64,
+                    ..whole
+                });
+            }
+        }
         let end = tracks
             .iter()
             .map(|track| track.at + (track.frames as f64 * f64::from(rate) / f64::from(track.rate)).round() as i64)
@@ -79,11 +99,9 @@ impl Mix {
     pub fn same(&self, other: &Mix) -> bool {
         self.rate == other.rate
             && self.tracks.len() == other.tracks.len()
-            && self
-                .tracks
-                .iter()
-                .zip(&other.tracks)
-                .all(|(one, two)| (&one.path, one.at, one.frames, one.rate) == (&two.path, two.at, two.frames, two.rate))
+            && self.tracks.iter().zip(&other.tracks).all(|(one, two)| {
+                (&one.path, one.data, one.at, one.frames, one.rate) == (&two.path, two.data, two.at, two.frames, two.rate)
+            })
     }
 
     /// Its length in bytes, header included.

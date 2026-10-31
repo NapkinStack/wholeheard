@@ -1198,7 +1198,7 @@ fn playable(shell: &Shell, folder: &Path) -> Option<String> {
     }
     served
         .as_ref()?
-        .offer(tracks.into_iter().map(|track| (track.path, track.starts)).collect())
+        .offer_placed(tracks.into_iter().map(|track| (track.path, track.runs)).collect())
 }
 
 /// A meeting's diagnostic, for the page to copy: every program's log lines of its makings, then

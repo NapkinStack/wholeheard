@@ -24,6 +24,7 @@ import sys
 import threading
 import time
 import traceback
+import urllib.request
 import wave
 from pathlib import Path
 
@@ -1998,6 +1999,56 @@ def meeting_named(now: dt.datetime) -> None:
         check("the minutes made again: the meeting takes the new title", again, browser.execute_script(head))
         retitled = wait_for(browser, lambda b: b.execute_script(rows_said)[0][0] == "Un nouveau nom", 10)
         check("its row too", retitled, browser.execute_script(rows_said)[0])
+
+
+def word_after_a_gap(now: dt.datetime) -> None:
+    """AT. A track with a gap: a line clicked after it plays that line, by the clock's next point (D71)."""
+    print("AT. after a gap in a track, a line clicked plays its own second; the track as it was (D71)")
+    meetings = WORK / "gapped"
+    played = meetings / "2026-10-19_10-00"
+    session(played, now - dt.timedelta(hours=1), 0.2, {})
+    record = json.loads((played / "session.json").read_text())
+    record["tracks"] = {"local": {"device": "Mic", "changed": [{"at": 4.0, "device": None}, {"at": 7.0, "device": "Mic"}]}}
+    (played / "session.json").write_text(json.dumps(record))
+    # Stopped at 4 s; zeros for 2 s of the 3 the clock leaves; a note at 8 s of the clock, frame 336 000.
+    with wave.open(str(played / "local.wav"), "wb") as made:
+        made.setnchannels(2)
+        made.setsampwidth(3)
+        made.setframerate(48000)
+        frames = bytearray()
+        for n in range(480000):
+            sample = int(0.3 * 8388607 * math.sin(2 * math.pi * 880 * n / 48000)) if 336000 <= n < 384000 else 0
+            frames += struct.pack("<i", sample)[:3] * 2
+        made.writeframes(bytes(frames))
+    (played / "clock.jsonl").write_text(
+        '{"track":"local","sample":0,"at":0.0}\n{"track":"local","silence":[192000,288000]}\n{"track":"local","sample":288000,"at":7.0}\n')
+    (played / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":"fr","context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":1.0,"end":2.0,"text":"Avant le trou."}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":8.0,"end":9.0,"text":"Après le trou."}\n{"type":"complete","duration":11.0}\n')
+    before = hashlib.sha256((played / "local.wav").read_bytes()).hexdigest()
+    with Window(meetings, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(1100, 800)
+        browser.execute_script(f"location.hash = '#/meeting/{played.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, ".lines li") and b.find_elements(By.ID, "play"), 10)
+        browser.find_element(By.ID, "play").click()
+        wait_for(browser, lambda b: b.execute_script("const a = document.querySelector('audio.track'); return !!a && !a.paused"), 10)
+        browser.find_elements(By.CSS_SELECTOR, ".lines li")[1].click()
+        at = lambda b: b.execute_script("return document.querySelector('audio.track').currentTime")
+        jumped = wait_for(browser, lambda b: 8.0 <= at(b) < 8.6 and b.execute_script("return document.querySelector('.lines li.now')?.dataset.start") == "8", 5)
+        check("the line after the gap: played from its second, and marked", jumped, at(browser))
+        url = browser.execute_script("return document.querySelector('audio.track').src")
+        def loud(second: float) -> float:
+            start = 44 + 2 * int(second * 48000)
+            asked = urllib.request.Request(url, headers={"Range": f"bytes={start}-{start + 2 * 4800 - 1}"})
+            with urllib.request.urlopen(asked, timeout=10) as answered:
+                body = answered.read()
+            values = struct.unpack(f"<{len(body) // 2}h", body)
+            return max(abs(v) for v in values) / 32768
+        check("what the player is given at that second is that line's sound", loud(8.05) > 0.2, loud(8.05))
+        check("and within 0.2 s of it: silence just before, sound just after", loud(7.7) < 0.01 and loud(8.1) > 0.2, (loud(7.7), loud(8.1)))
+        check("before the gap, the same place as ever: nothing at 2 s", loud(2.0) < 0.01, loud(2.0))
+    check("the track is unchanged (ADR-0004)", hashlib.sha256((played / "local.wav").read_bytes()).hexdigest() == before)
 
 
 def actions_rows(now: dt.datetime) -> None:
@@ -5029,6 +5080,7 @@ def main() -> int:
     announced(now)
     heard_checked(now)
     meeting_named(now)
+    word_after_a_gap(now)
     return 1 if FAILED else 0
 
 
