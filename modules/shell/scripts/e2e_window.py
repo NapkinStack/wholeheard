@@ -1878,7 +1878,7 @@ def heard_checked(now: dt.datetime) -> None:
                 fit(browser, "listening")
                 (taping / "hush").unlink()
                 rose = wait_for(browser, lambda b: b.execute_script(state) == ["heard", "heard"], 3)
-                check("levels risen: ✓ on each side", rose and all("✓" in c for c in browser.execute_script(glyph)), browser.execute_script(glyph))
+                check("levels risen: ✓ on each side", rose and all(c != "none" for c in browser.execute_script(glyph)), browser.execute_script(glyph))
                 told = browser.execute_script("return [...document.querySelectorAll('.check-said')].map(s => [s.getAttribute('role') ?? s.parentElement.getAttribute('role'), s.textContent])")
                 check("✓ said to a screen reader, side by side", [t[1] for t in told] == [heard_me, heard_others] and all(t[0] == "status" for t in told), told)
                 shot_themed(browser, f"d49-heard-{short}-{theme}", theme)
@@ -3513,6 +3513,43 @@ def gestures_answer(now: dt.datetime) -> None:
             check("a stop past the double press: stopped", wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed(), 10))
 
 
+def window_looks(now: dt.datetime) -> None:
+    """AR. The window looks finished: Petite fenêtre an icon with its name, one primary action, little motion (D69)."""
+    print("AR. one primary action, Petite fenêtre an icon named for assistive technology; 200 ms at most between states (D69)")
+    meetings = WORK / "looking"
+    made = meetings / "2026-10-28_09-00"
+    session(made, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed(), 10)
+        small = browser.find_element(By.ID, "small-link")
+        check("Petite fenêtre: an icon, named for assistive technology and to the pointer", small.text == "" and small.get_attribute("aria-label") == "Petite fenêtre"
+              and small.get_attribute("title") == "Petite fenêtre" and small.find_elements(By.CSS_SELECTOR, "svg"), small.text)
+        primaries = browser.execute_script("return [...document.querySelectorAll('#sidebar .primary')].filter(b => b.offsetParent).length")
+        check("the header shows one primary action", primaries == 1, primaries)
+        for theme in ("light", "dark"):
+            shot_themed(browser, f"d69-full-{theme}", theme)
+        # A chip turning: the making stood in, then the minutes there.
+        browser.execute_script("const real = window.__TAURI__.core, name = arguments[0]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => { const answer = await real.invoke(asked, ...rest); return asked === 'makings' ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } }; window.restore = () => { window.__TAURI__.core = real; };", made.name)
+        wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.chip.making')].some(c => !c.hidden)"), 8)
+        (made / "minutes.md").write_text(
+            "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: m\ncontext: null\n---\n\n"
+            "## 1.\n\nLe budget.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+        browser.execute_script("window.restore(); window.dispatchEvent(new Event('focus'))")
+        turned = wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, ".chip.turned"), 5)
+        duration = browser.execute_script("const c = document.querySelector('.chip.turned'); return c ? parseFloat(getComputedStyle(c).animationDuration) : null")
+        check("a chip turned: one small move, 200 ms at most", turned and duration is not None and 0 < duration <= 0.2, duration)
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        time.sleep(0.8)
+        check("once: drawn again, it stands still", not browser.find_elements(By.CSS_SELECTOR, ".chip.turned"))
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        moves = "return [...document.querySelectorAll('.small-rest, .small-live')].map(e => parseFloat(getComputedStyle(e).animationDuration))"
+        lengths = browser.execute_script(moves)
+        check("between the small window's states: 200 ms at most", lengths and all(0 < length <= 0.2 for length in lengths), lengths)
+        full = browser.find_element(By.ID, "small-full")
+        check("its way to the full window: an icon, named", full.text == "" and full.find_elements(By.CSS_SELECTOR, "svg") and full.get_attribute("aria-label"), full.text)
+
+
 def main() -> int:
     now = dt.datetime.now().astimezone()
     sessions = WORK / "sessions"
@@ -4618,7 +4655,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.execute_script("return document.getElementById('settings-link').textContent !== ''"))
         check("the full window left is the one kept in the settings", 'window = "full"' in window.file.read_text(), window.file.read_text())
         back = browser.find_element(By.ID, "small-link")
-        check("at rest too, the full window offers the small one", back.is_displayed() and back.text == "Petite fenêtre", back.text)
+        check("at rest too, the full window offers the small one", back.is_displayed() and back.get_attribute("aria-label") == "Petite fenêtre", back.get_attribute("aria-label"))
         main = browser.current_window_handle
         back.click()
         smaller = wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
@@ -4962,6 +4999,7 @@ def main() -> int:
     minutes_copied(now)
     nothing_silent(now)
     gestures_answer(now)
+    window_looks(now)
     actions_rows(now)
     announced(now)
     heard_checked(now)

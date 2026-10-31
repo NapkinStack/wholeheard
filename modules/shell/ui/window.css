@@ -16,6 +16,8 @@ body {
   margin: 0; background: var(--ground); color: var(--ink);
   font: 15px/1.45 system-ui, sans-serif;
 }
+/* An icon drawn (D69), the size of the text it stands beside. */
+.drawn { width: 1em; height: 1em; vertical-align: -0.125em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
 .mark { fill: var(--ink); }
 .peaks { stroke: var(--surface); }
@@ -153,7 +155,7 @@ select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px sol
 .goes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .goes li { display: flex; gap: 14px; align-items: baseline; }
 .goes li > div { display: flex; flex-direction: column; gap: 2px; }
-.goes .sign { flex: 0 0 18px; font-weight: 700; color: var(--soft); }
+.goes .sign { flex: 0 0 18px; color: var(--soft); }
 .goes .leaves .sign { color: var(--accent); }
 .recipient { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--raised); display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; }
 .recipient dt { color: var(--soft); }
@@ -259,13 +261,16 @@ body.small-window .frame { display: none; }
 /* A side's check in its device's slot (D49): a ring listening, ✓ heard, then gone; the slot's height
    held, so that nothing under it moves. */
 .meter .slot { display: flex; align-items: center; height: 16px; max-width: 190px; line-height: 16px; }
-.check { position: relative; flex: none; width: 14px; height: 14px; margin-right: 5px; border-radius: 50%; border: 1.5px solid var(--soft); font-size: 10px; line-height: 11px; text-align: center; font-weight: 700; color: var(--surface); }
+.check { position: relative; flex: none; width: 14px; height: 14px; margin-right: 5px; border-radius: 50%; border: 1.5px solid var(--soft); }
 .check-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .slot[data-check="listening"] .check { animation: beat 1.6s ease-in-out infinite; }
 .slot[data-check="nothing"] .check { border-color: var(--red); }
 .slot[data-check="waiting"] .check { display: none; }
 .slot[data-check="heard"] .check { border-color: var(--ok); background: var(--ok); animation: check-pop 280ms cubic-bezier(0.34, 1.56, 0.64, 1); transition: opacity 500ms ease, width 300ms ease 400ms, margin-right 300ms ease 400ms, border-width 0s linear 700ms; }
-.slot[data-check="heard"] .check::before { content: "✓"; }
+.slot[data-check="heard"] .check::before {
+  content: ""; position: absolute; inset: 1px; background: var(--surface);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+}
 .slot.faded .check { opacity: 0; width: 0; margin-right: 0; border-width: 0; }
 @keyframes check-pop { from { transform: scale(0.4); } }
 .check-says { grid-column: 1 / -1; margin: -2px 0 0; font-size: 12px; line-height: 1.25; animation: check-says 300ms ease; }
@@ -465,3 +470,10 @@ body.small-window .frame { display: none; }
   .pane > .back { display: inline-block; margin: 8px 0 0 16px; }
   .pane > main { padding: 12px 16px 40px; }
 }
+
+/* A little motion (D69): one fade between the small window's two states, one pop when a chip turns. */
+.small-rest, .small-live { animation: settle 160ms ease-out; }
+@keyframes settle { from { opacity: 0; } }
+.chip.turned { animation: chip-turn 180ms ease-out; }
+@keyframes chip-turn { from { opacity: 0.4; transform: scale(0.94); } }
+@media (prefers-reduced-motion: reduce) { .small-rest, .small-live, .chip.turned { animation: none; } }
