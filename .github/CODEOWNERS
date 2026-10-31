@@ -18,8 +18,8 @@
 # The project's records: charter, cycles, rules, decisions.
 /docs/                         @NapkinStack/maintainers
 
-# Modules: a line only for one neither `prototype` nor `standard` (doctor, L6) — all are
-# `standard` today.
+# Modules: a line only for one neither `prototype` nor `standard` (doctor, L6).
+/modules/capture/              @NapkinStack/maintainers
 
 # Contracts: the most critical boundary in the system, never orphaned (criticality high).
 /contracts/                    @NapkinStack/maintainers
