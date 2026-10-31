@@ -64,6 +64,12 @@ person without doubt, against four. Which of the two does the most is not measur
 no request recovers is the owner of a task said as "I": each track holds two people (cycle 02,
 D16).
 
+Ollama's OpenAI route keeps 4096 tokens and drops the rest in silence, the request's rules first:
+a meeting of 45 minutes did not fit (measured on `qwen3:8b`, 2026-10-31). So an address of that
+form, without a key, whose host answers `GET /api/version` as Ollama does, is asked on Ollama's
+own `/api/chat`, with a window sized to the request, an answer of at most 4096 tokens, and a
+patience that grows with what it has to read: 600 s, and a second for each 20 bytes.
+
 A key, when the provider wants one, is read from `WHOLEHEARD_PROVIDER_KEY` and written nowhere.
 Whatever fails — no network, a refused key, no credit left with the provider, an unknown
 model, an answer cut short or that is not minutes — the reason is one sentence on the error
