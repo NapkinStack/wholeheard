@@ -14,11 +14,23 @@ pub const MOST: usize = 80;
 pub fn within(text: &str) -> Option<&str> {
     let name = text.trim();
     let one_line = !name.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'));
-    // A name that shows nothing would leave an empty row: marks that take no room are no name.
-    let shows = name.chars().any(|c| {
-        !c.is_whitespace() && !matches!(c, '\u{ad}' | '\u{34f}' | '\u{115f}' | '\u{1160}' | '\u{17b4}' | '\u{17b5}' | '\u{180b}'..='\u{180f}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{206f}' | '\u{2800}' | '\u{3164}' | '\u{fe00}'..='\u{fe0f}' | '\u{feff}' | '\u{ffa0}' | '\u{e0000}'..='\u{e0fff}')
-    });
-    (one_line && shows && name.chars().count() <= MOST).then_some(name)
+    // A name that shows nothing would leave an empty row.
+    (one_line && !blank(name) && name.chars().count() <= MOST).then_some(name)
+}
+
+/// What names nothing: nothing typed, or only marks that show nothing.
+pub fn blank(text: &str) -> bool {
+    text.chars().all(|c| c.is_whitespace() || unseen(c))
+}
+
+/// A character that takes no room of its own: Unicode's default-ignorable code points, and the
+/// blank pattern and the interlinear annotation marks fonts draw as nothing.
+fn unseen(c: char) -> bool {
+    matches!(c,
+        '\u{ad}' | '\u{34f}' | '\u{61c}' | '\u{115f}' | '\u{1160}' | '\u{17b4}' | '\u{17b5}'
+        | '\u{180b}'..='\u{180f}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{206f}'
+        | '\u{2800}' | '\u{3164}' | '\u{fe00}'..='\u{fe0f}' | '\u{feff}' | '\u{ffa0}' | '\u{fff0}'..='\u{fffb}'
+        | '\u{1bca0}'..='\u{1bca3}' | '\u{1d173}'..='\u{1d17a}' | '\u{e0000}'..='\u{e0fff}')
 }
 
 /// The name the user gave the meeting, if they gave one.
@@ -37,7 +49,7 @@ pub fn write(folder: &Path, text: &str) -> io::Result<()> {
         ));
     }
     let file = folder.join(FILE);
-    if text.trim().is_empty() {
+    if blank(text) {
         return match fs::remove_file(&file) {
             Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
             _ => Ok(()),

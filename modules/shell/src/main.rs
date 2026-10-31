@@ -1049,7 +1049,7 @@ fn title_saved(shell: State<'_, Shell>, name: String, title: String) -> Result<(
         };
         shell.told(failure, error)
     })?;
-    tracing::info!(given = !title.trim().is_empty(), "shell.title_set");
+    tracing::info!(given = !named::blank(&title), "shell.title_set");
     Ok(())
 }
 
