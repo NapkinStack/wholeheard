@@ -2075,6 +2075,8 @@ def meeting_told_once(now: dt.datetime) -> None:
         with Window(meetings, "fr_FR.UTF-8", settings) as browser:
             browser.find_element(By.ID, "record").click()
             wait_for(browser, lambda b: (meeting / "session.json").exists() and live(b), 10)
+            # The button says it at the click now (D68); a press within half a second is the same press.
+            time.sleep(0.6)
             browser.find_element(By.ID, "record").click()
             made = wait_for(browser, lambda b: "Compte rendu prêt" in notified.read_text(), 20)
             told = notified.read_text()
@@ -2865,6 +2867,8 @@ def context_gaps(now: dt.datetime) -> None:
         kept = wait_for(browser, lambda b: (meeting / "context.txt").exists() and (meeting / "context.txt").read_text() == typed, 3)
         check("the full window's page of the meeting being recorded offers its context: a Cyrillic name and an emoji kept whole",
               open_ and kept, (meeting / "context.txt").read_text() if (meeting / "context.txt").exists() else None)
+        # The button says it at the click now (D68); a press within half a second is the same press.
+        time.sleep(0.6)
         browser.find_element(By.ID, "record").click()
         stopped = wait_for(browser, lambda b: "stopped" in (meeting / "session.json").read_text() and not live(b), 10)
         made = wait_for(browser, lambda b: (meeting / "minutes.md").exists() and writing.exists(), 20)
