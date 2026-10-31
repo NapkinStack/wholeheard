@@ -153,7 +153,7 @@ TEST_CAUSES = [
     ("provider.no_times", "Ce modèle ne donne pas les temps de ce qu’il entend\u00a0: choisissez-en un qui donne ceux de chaque segment dans les réglages de Wholeheard."),
     ("provider.no_credit", "Le fournisseur a refusé faute de crédit\u00a0: ajoutez du crédit chez lui, puis réessayez."),
     ("provider.too_many", "Le fournisseur refuse pour trop de demandes, ou un quota épuisé\u00a0: patientez, ou vérifiez votre forfait chez lui."),
-    ("provider.down", "Le fournisseur répond qu’il est en panne\u00a0: cela vient de lui, réessayez plus tard."),
+    ("provider.down", "Le fournisseur répond qu’il est en panne, ou que ce modèle est trop gros pour la mémoire\u00a0: réessayez plus tard, ou choisissez un modèle plus petit."),
     ("provider.unreachable", "Le fournisseur n’a pas pu être joint\u00a0: vérifiez qu’il tourne, ou le réseau, puis réessayez."),
 ]
 MONTHS_FR = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
