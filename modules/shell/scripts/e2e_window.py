@@ -3213,6 +3213,84 @@ def confidential_kept(now: dt.datetime) -> None:
         server.shutdown()
 
 
+def nothing_silent(now: dt.datetime) -> None:
+    """AP. What the user does and fails says so; a folder that cannot be read is no empty list (D67)."""
+    print("AP. a command that fails says it, in the user's language; a folder unread is said and tried again (D67)")
+    meetings = WORK / "silence"
+    session(meetings / "2026-10-20_10-00", now - dt.timedelta(days=3), 20, {"local.wav": 1000})
+    shown = lambda b, id_: b.find_element(By.ID, id_).is_displayed()
+    text = lambda b, id_: b.find_element(By.ID, id_).get_attribute("textContent")
+    # `core` itself is frozen, the object holding it not: a copy with the command stood in.
+    refuse = "const real = window.__TAURI__.core, refused = arguments[0]; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === refused ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };"
+    with Window(meetings, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: shown(b, "meeting"), 10)
+        # The real commands on a meeting gone: what the user reads is the shell's own sentence.
+        for ask in ("minutes_again", "transcript_again"):
+            said = browser.execute_async_script(
+                "const done = arguments[arguments.length - 1], said = document.createElement('p'), again = document.createElement('button');"
+                "said.dataset.name = 'gone'; askAgain({ ask: arguments[0] }, said, again).then(() => done(said.textContent));", ask)
+            check(f"{ask} on a meeting gone says so, in French, never the command's raw text",
+                  said.startswith("Impossible de recommencer") and "n’est plus dans le dossier" in said, said)
+        browser.execute_script(refuse, "settings_saved")
+        press(browser, "fold")
+        folded = wait_for(browser, lambda b: shown(b, "fold-said"), 5)
+        check("the sidebar's fold not kept: said in the pane, the sidebar still as asked",
+              folded and text(browser, "fold-said") == "La barre latérale reviendra comme avant au prochain démarrage\u00a0: REFUS"
+              and not shown(browser, "sidebar"), text(browser, "fold-said"))
+        shot(browser, "d67-fold")
+        browser.execute_script("window.restore()")
+        press(browser, "unfold")
+        check("kept at last: the sentence goes", wait_for(browser, lambda b: not shown(b, "fold-said"), 5))
+        browser.execute_script(refuse, "hearing_models")
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "model"), 10)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:0")
+        refused = wait_for(browser, lambda b: shown(b, "transcription-models-refused"), 5)
+        check("a service's models refused: said, and the model can still be typed",
+              refused and text(browser, "transcription-models-refused") == "Les modèles de ce service n’ont pas pu être lus, vous pouvez en saisir un\u00a0: REFUS"
+              and shown(browser, "transcription-model"), text(browser, "transcription-models-refused"))
+        browser.execute_script("window.restore()")
+        browser.execute_script("location.hash = '#/'")
+        # The folder refused, then given back: said, and read again on the click.
+        meetings.chmod(0)
+        try:
+            browser.execute_script("window.dispatchEvent(new Event('focus'))")
+            said = wait_for(browser, lambda b: shown(b, "empty-again"), 10)
+            check("the meetings' folder unread: said, no recording offered as if it were empty, a way to try again",
+                  said and text(browser, "none") == f"Les réunions de {meetings} ne peuvent pas être lues."
+                  and text(browser, "none-do").startswith("Elles sont toujours là.")
+                  and text(browser, "empty-again") == "Réessayer" and not shown(browser, "empty-record"), text(browser, "none"))
+            browser.set_window_size(420, 400)
+            browser.execute_script("document.getElementById('empty').scrollIntoView()")
+            for theme in ("light", "dark"):
+                shot_themed(browser, f"d67-unread-{theme}", theme)
+            press(browser, "empty-again")
+            time.sleep(0.3)
+            check("tried again, still refused: still said", shown(browser, "empty-again"))
+        finally:
+            meetings.chmod(0o755)
+        browser.set_window_size(1100, 800)
+        browser.execute_script("document.getElementById('empty-again').click()")
+        check("tried again, given back: the meetings are there", wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#groups .session") and not shown(b, "empty"), 10))
+    meetings.chmod(0)
+    try:
+        with Window(meetings, "fr_FR.UTF-8", "reminder = false\n", small=True) as browser:
+            said = wait_for(browser, lambda b: "ne peuvent pas être lues" in b.execute_script("return document.getElementById('small').textContent"), 10)
+            check("the small window says the meetings cannot be read, not that there are none", said)
+    finally:
+        meetings.chmod(0o755)
+    empty = WORK / "silence-none"
+    empty.mkdir()
+    with Window(empty, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(420, 400)
+        said = wait_for(browser, lambda b: shown(b, "none"), 10)
+        check("no meeting: what to do first, never only a path", said and text(browser, "none-do").startswith("Démarrez un enregistrement") and shown(browser, "empty-record"))
+        browser.execute_script("document.getElementById('empty').scrollIntoView()")
+        for theme in ("light", "dark"):
+            shot_themed(browser, f"d67-none-{theme}", theme)
+
+
 def main() -> int:
     now = dt.datetime.now().astimezone()
     sessions = WORK / "sessions"
@@ -4660,6 +4738,7 @@ def main() -> int:
     confidential_every_way(now)
     meeting_told_once(now)
     minutes_copied(now)
+    nothing_silent(now)
     actions_rows(now)
     announced(now)
     heard_checked(now)

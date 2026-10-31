@@ -60,6 +60,12 @@ pub fn list(sessions: &Path, recording: Option<&Path>) -> Vec<Listed> {
     listed
 }
 
+/// Whether the sessions' folder is there and cannot be read: no empty list, a failure to say (D67).
+/// A folder not made yet is an empty list: nothing was recorded.
+pub fn unreadable(sessions: &Path) -> bool {
+    fs::read_dir(sessions).is_err_and(|error| error.kind() != std::io::ErrorKind::NotFound)
+}
+
 /// The folder of the session a page names, in the sessions' folder: by its name alone — never a
 /// path, never a way out of the folder by its name — and only when it holds a session. A link the
 /// user put in the folder is followed, as the list follows it.

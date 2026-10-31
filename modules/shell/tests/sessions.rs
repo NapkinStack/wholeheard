@@ -424,3 +424,14 @@ fn a_file_set_aside_for_a_making_is_put_back_when_it_fails_and_let_go_when_it_is
     fs::remove_file(&aside).unwrap();
     assert_eq!(sessions::settle(&transcript, &aside, false, |_| Ok(())), Some(true));
 }
+
+#[test]
+fn a_folder_that_cannot_be_read_is_no_empty_list_and_one_not_made_yet_is() {
+    let root = tempfile::tempdir().unwrap();
+    assert!(!sessions::unreadable(&root.path().join("not made yet")));
+    assert!(!sessions::unreadable(root.path()));
+    // A file where the folder should be: what a read refuses, whoever runs the test.
+    let file = root.path().join("a file");
+    std::fs::write(&file, "").unwrap();
+    assert!(sessions::unreadable(&file));
+}
