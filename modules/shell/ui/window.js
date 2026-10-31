@@ -250,6 +250,8 @@ function holdings(session, words, where) {
   // What is being made for it, in the background (D25): painted from `makings`.
   const making = chip("", "making");
   making.dataset.name = nameOf(session);
+  // Minutes there already, made again: the chip that follows has not turned from anything.
+  making.dataset.first = String(!session.minutes);
   making.hidden = true;
   holds.append(making);
   return holds;
@@ -432,7 +434,7 @@ function paintMakings() {
     const state = minutes ?? transcript;
     chip_.hidden = state === null;
     if (state === null) continue;
-    if (minutes) chipsMaking.add(chip_.dataset.name);
+    if (minutes && chip_.dataset.first === "true") chipsMaking.add(chip_.dataset.name);
     chip_.textContent = minutes
       ? { making: words.chip_making, waiting: words.chip_waiting, ollama: words.chip_waiting, awaiting: words.chip_awaiting, failed: words.chip_failed }[state.kind]
       : { making: words.chip_transcribing, waiting: words.chip_waiting, model: words.chip_waiting, failed: words.chip_transcript_failed }[state.kind];
@@ -2525,6 +2527,7 @@ function showSmall(words) {
     const named = element("span", "device");
     named.id = device;
     const mark = element("span", "check");
+    mark.append(icon("check"));
     const status = element("span", "check-said");
     status.setAttribute("role", "status");
     mark.append(status);

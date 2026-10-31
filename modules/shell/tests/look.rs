@@ -12,7 +12,11 @@ const PAGE: &str = include_str!("../ui/window.js");
 const STYLE: &str = include_str!("../ui/window.css");
 const HTML: &str = include_str!("../ui/index.html");
 /// The glyphs a font would draw as an icon (UX review §8), and the back arrow beside them.
-const GLYPHS: [char; 6] = ['›', '‹', '⤢', '✓', '→', '×'];
+const GLYPHS: [char; 7] = ['›', '‹', '⤢', '✓', '✔', '→', '×'];
+/// The same, written otherwise.
+const ESCAPES: [&str; 12] = [
+    "\\203A", "\\2039", "\\2922", "\\2713", "\\2714", "\\2192", "\\D7", "&times;", "&rarr;", "&rsaquo;", "&lsaquo;", "&#",
+];
 
 #[derive(Default)]
 struct Texts(Vec<String>);
@@ -51,21 +55,30 @@ fn no_glyph_stands_for_an_icon_in_the_page() {
     let style = without_css_comments(STYLE);
     assert!(!style.contains(GLYPHS), "a glyph in the style");
     assert!(!HTML.contains(GLYPHS), "a glyph in the page's frame");
-    assert_eq!(glyphs_in_page(r#"const a = `✓ ${b}`; const c = "→"; // ✓ in a comment"#).len(), 2);
+    for escape in ESCAPES {
+        assert!(!style.to_uppercase().contains(&escape.to_uppercase()), "{escape} in the style");
+        assert!(!HTML.contains(escape), "{escape} in the page's frame");
+    }
+    assert_eq!(
+        glyphs_in_page(r#"const a = `✓ ${b}`; const c = "→"; const d = `✓`; // ✓ in a comment"#).len(),
+        3
+    );
 }
 
 #[test]
 fn nothing_is_fetched_for_an_icon() {
-    for file in [PAGE, STYLE, HTML] {
-        for line in file.lines().filter(|line| line.contains("<svg") || line.contains("url(")) {
-            assert!(
-                !line.contains("url(\"http") && !line.contains("href=\"http") && !line.contains("src=\"http"),
-                "{line}"
-            );
-        }
-    }
+    let style = without_css_comments(STYLE);
+    assert!(
+        !style.contains("url("),
+        "the page's policy refuses it, and a test of a value would not see it"
+    );
+    assert!(!HTML.contains("src=\"http") && !HTML.contains("href=\"http"));
     assert!(include_str!("../ui/LUCIDE-LICENSE").contains("ISC License"));
 }
+
+/// The one rule whose opacity stays: a line's pencil, no text, faint until its line is hovered or
+/// focused (D62), each state then at full strength.
+const FADED_ON_PURPOSE: &str = ".lines .edit";
 
 type Rgb = [f64; 3];
 
@@ -74,13 +87,17 @@ fn hex(text: &str) -> Rgb {
     [digit(1), digit(3), digit(5)]
 }
 
-/// The tokens in one block.
+/// The tokens in one block: one this test cannot read is refused, or it would say nothing of all that use it.
 fn tokens(block: &str) -> BTreeMap<String, Rgb> {
     block
         .split(';')
         .filter_map(|one| one.split_once(':'))
-        .filter(|(name, value)| name.trim().starts_with("--") && value.trim().starts_with('#') && value.trim().len() == 7)
-        .map(|(name, value)| (name.trim().to_string(), hex(value.trim())))
+        .filter(|(name, _)| name.trim().starts_with("--"))
+        .map(|(name, value)| {
+            let value = value.trim();
+            assert!(value.len() == 7 && value.starts_with('#'), "{name}: {value} is no #RRGGBB");
+            (name.trim().to_string(), hex(value))
+        })
         .collect()
 }
 
@@ -100,9 +117,12 @@ fn themes(style: &str) -> [BTreeMap<String, Rgb>; 2] {
     [tokens(light), tokens(dark)]
 }
 
-/// A value of the style in a theme: a token, or `color-mix` of two as the style writes it.
+/// A value of the style in a theme: `#RRGGBB`, a token, or `color-mix` of two as the style writes it.
 fn value(text: &str, theme: &BTreeMap<String, Rgb>) -> Option<Rgb> {
     let text = text.trim().trim_end_matches("!important").trim();
+    if text.len() == 7 && text.starts_with('#') {
+        return Some(hex(text));
+    }
     if let Some(name) = text.strip_prefix("var(").and_then(|rest| rest.strip_suffix(')')) {
         return theme.get(name).copied();
     }
@@ -128,35 +148,60 @@ fn contrast(a: Rgb, b: Rgb) -> f64 {
 }
 
 /// Each rule's text on its background; a rule naming no background is read on the three the window
-/// is built of. 4.5:1, whatever its size: no text here is large enough to count on less, except a
-/// rule of `font-size` 24 px or more, 3:1. An icon's colour or a `transparent` background is no pair.
+/// is built of. 4.5:1; 3:1 from 24 px. What it cannot read in a rule that names a text's colour is
+/// reported too, never passed over. `inherit` and `currentColor` name none, `transparent` and `none`
+/// no background. A background alone says nothing of the text inherited over it: a bar holds none.
 fn too_faint(style: &str) -> Vec<String> {
     let style = without_css_comments(style);
     let mut faint = Vec::new();
     for (index, theme) in themes(&style).iter().enumerate() {
         for rule in style.split('}') {
             let Some((selector, body)) = rule.rsplit_once('{') else { continue };
+            let selector = selector.trim();
+            // The last one is what holds.
             let property = |name: &str| {
                 body.split(';')
                     .filter_map(|one| one.split_once(':'))
-                    .find(|(key, _)| key.trim() == name)
+                    .filter(|(key, _)| key.trim() == name)
+                    .last()
                     .map(|(_, found)| found.trim().to_string())
             };
-            let Some(colour) = property("color").and_then(|text| value(&text, theme)) else {
+            let colour = property("-webkit-text-fill-color").or_else(|| property("color"));
+            let Some(colour) = colour else { continue };
+            if ["inherit", "currentColor", "transparent"].contains(&colour.as_str()) {
+                continue;
+            }
+            let Some(colour) = value(&colour, theme) else {
+                faint.push(format!("{selector}: its colour {colour} cannot be read"));
                 continue;
             };
+            if selector != FADED_ON_PURPOSE
+                && property("opacity").is_some_and(|opacity| opacity.parse::<f64>().is_ok_and(|opacity| opacity < 1.0))
+            {
+                faint.push(format!("{selector}: text with an opacity cannot be read"));
+                continue;
+            }
             let large = property("font-size")
                 .and_then(|size| size.strip_suffix("px").and_then(|px| px.parse::<f64>().ok()))
                 .is_some_and(|px| px >= 24.0);
             let need = if large { 3.0 } else { 4.5 };
-            let grounds: Vec<Rgb> = match property("background").and_then(|text| value(&text, theme)) {
-                Some(own) => vec![own],
+            let ground = property("background-color")
+                .or_else(|| property("background"))
+                .filter(|text| !["transparent", "none", "inherit"].contains(&text.as_str()));
+            let grounds: Vec<Rgb> = match ground {
+                Some(own) => match value(own.split_whitespace().next().unwrap_or_default(), theme).or_else(|| value(&own, theme)) {
+                    Some(own) => vec![own],
+                    None => {
+                        faint.push(format!("{selector}: its background {own} cannot be read"));
+                        continue;
+                    }
+                },
                 None => ["--ground", "--surface", "--raised"].map(|name| theme[name]).to_vec(),
             };
             for ground in grounds {
                 let ratio = contrast(colour, ground);
                 if ratio < need {
-                    faint.push(format!("theme {index}, {}: {ratio:.2}", selector.trim()));
+                    faint.push(format!("theme {index}, {selector}: {ratio:.2}"));
                 }
             }
         }
@@ -178,24 +223,41 @@ fn a_pair_below_aa_is_refused() {
     assert!(faint.iter().any(|line| line.contains(".bad")), "{faint:?}");
     assert!(!faint.iter().any(|line| line.contains(".good")), "{faint:?}");
     assert!((contrast([0.0; 3], [255.0; 3]) - 21.0).abs() < 0.01);
+    let unread = ":root { --ground: #FFFFFF; --surface: #FFFFFF; --raised: #FFFFFF; --ink: #000000; }\n\
+                  @media (prefers-color-scheme: dark) { :root { --ground: #000000; --surface: #000000; --raised: #000000; --ink: #FFFFFF; } }\n\
+                  .a { color: rgb(1, 2, 3); }\n.b { color: var(--ink); background: linear-gradient(red, blue); }\n.c { color: var(--ink); opacity: 0.2; }\n\
+                  .d { color: var(--ink); -webkit-text-fill-color: #888888; background-color: #888888; }\n.e { color: var(--ink); color: #FEFEFE; background: #FFFFFF; }";
+    let refused = too_faint(unread);
+    for selector in [".a", ".b", ".c", ".d", ".e"] {
+        assert!(refused.iter().any(|line| line.contains(selector)), "{selector}: {refused:?}");
+    }
 }
 
 #[test]
 fn what_moves_moves_shortly_and_not_for_who_asked_it_not_to() {
     let style = without_css_comments(STYLE);
-    for (selector, longest) in [(".small-rest, .small-live {", 200), (".chip.turned {", 200)] {
+    for selector in [".small-rest, .small-live {", ".chip.turned {"] {
         let rule = style
             .split(selector)
             .skip(1)
             .map(|part| part.split('}').next().unwrap())
             .find(|rule| rule.contains("animation"))
             .unwrap_or_else(|| panic!("{selector}"));
-        let ms: u32 = rule.split("ms").next().unwrap().rsplit(' ').next().unwrap().parse().unwrap();
-        assert!(ms <= longest, "{selector} {ms} ms");
+        let animation = rule
+            .trim()
+            .strip_prefix("animation:")
+            .unwrap_or_else(|| panic!("{selector}: {rule}"))
+            .trim()
+            .trim_end_matches(';');
+        // One name, one length, one ease: nothing repeating, nothing waiting.
+        let parts: Vec<&str> = animation.split_whitespace().collect();
+        assert_eq!(parts.len(), 3, "{selector}: {animation}");
+        let ms: u32 = parts[1]
+            .strip_suffix("ms")
+            .unwrap_or_else(|| panic!("{animation}"))
+            .parse()
+            .unwrap();
+        assert!(ms <= 200, "{selector} {ms} ms");
     }
-    let reduced = style
-        .split("prefers-reduced-motion")
-        .filter(|part| part.contains(".chip.turned"))
-        .count();
-    assert!(reduced >= 1 && style.contains(".small-rest, .small-live, .chip.turned { animation: none; }"));
+    assert!(style.contains("prefers-reduced-motion: reduce) { .small-rest, .small-live, .chip.turned { animation: none; } }"));
 }
