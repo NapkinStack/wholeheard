@@ -82,6 +82,41 @@ jobs:
         timeout-minutes: 15
         run: modules/install/windows/trial.ps1 -Artefacts dist -Out dist/install
 
+      # D77 probe: is the certification kit on the runner, does it run here, and what does its report hold?
+      - name: "PROBE — the certification kit"
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          $kit = 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe'
+          Write-Output "kit at the default path: $(Test-Path $kit)"
+          Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10' -Directory | ForEach-Object { $_.FullName }
+          Get-ChildItem 'C:\Program Files (x86)\Windows Kits' -Recurse -Filter appcert.exe -ErrorAction Ignore |
+            ForEach-Object { $_.FullName }
+          $s = Get-Process -Id $PID
+          Write-Output "session id: $($s.SessionId); interactive: $([Environment]::UserInteractive)"
+          if (-not (Test-Path $kit)) { exit 0 }
+          & $kit /? | Out-Host
+          $package = (Get-ChildItem dist/install/Wholeheard-*-x64.msix | Select-Object -First 1).FullName
+          Import-Certificate -FilePath dist/install/Wholeheard-this-run.cer `
+            -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
+          New-Item -ItemType Directory -Force probe | Out-Null
+          $report = Join-Path (Resolve-Path probe) 'appcert-report.xml'
+          & $kit reset | Out-Host; Write-Output "reset exit: $LASTEXITCODE"
+          & $kit test -appxpackagepath $package -reportoutputpath $report | Out-Host
+          Write-Output "test exit: $LASTEXITCODE"
+          Get-ChildItem probe | ForEach-Object { "$($_.Name) $($_.Length)" }
+          if (Test-Path $report) { Get-Content $report -TotalCount 60 }
+
+      - name: "PROBE — the kit's report, kept"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: d77-probe-appcert
+          path: probe/
+          if-no-files-found: warn
+          retention-days: 3
+
       - name: The package, kept for the colleagues
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
