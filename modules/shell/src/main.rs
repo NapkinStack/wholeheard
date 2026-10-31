@@ -650,6 +650,7 @@ struct Listing {
     shapes: Vec<Option<[Vec<f32>; 2]>>,
     /// Whether a recording runs, and the shortcut's keys as the desktop granted them: the header's.
     recording: bool,
+    stopping: bool,
     shortcut: Option<String>,
     /// The sidebar folded, as the user left it (D61).
     folded: bool,
@@ -702,6 +703,7 @@ async fn listed(app: AppHandle) -> Result<Listing, Told> {
             sessions,
             shapes,
             recording: shell.recording_on(),
+            stopping: *shell.stopping.lock().unwrap(),
             shortcut: shell.shortcut.lock().unwrap().clone(),
             folded: shell.settings().folded,
             unreadable: {
@@ -719,6 +721,8 @@ async fn listed(app: AppHandle) -> Result<Listing, Told> {
 #[derive(serde::Serialize)]
 struct Header {
     recording: bool,
+    /// Told to stop and not ended yet: the gesture waits (D68).
+    stopping: bool,
     shortcut: Option<String>,
 }
 
@@ -726,6 +730,7 @@ struct Header {
 fn header(shell: State<'_, Shell>) -> Header {
     Header {
         recording: shell.recording_on(),
+        stopping: *shell.stopping.lock().unwrap(),
         shortcut: shell.shortcut.lock().unwrap().clone(),
     }
 }

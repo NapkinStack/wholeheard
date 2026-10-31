@@ -441,7 +441,13 @@ async function askAgain(of, said, again) {
 // so the sentence is put there after the drawing, by the name of what changed.
 let savedFor = null;
 let lastChanged = "";
-document.addEventListener("change", (event) => { lastChanged = event.target.id; }, true);
+const remembered = (event) => {
+  const control = event.target.closest?.("input, select, textarea, button");
+  if (!control) return;
+  lastChanged = control.id ? `#${CSS.escape(control.id)}` : control.name ? `[name="${CSS.escape(control.name)}"][value="${CSS.escape(control.value)}"]` : "";
+};
+document.addEventListener("change", remembered, true);
+document.addEventListener("click", remembered, true);
 function savedSaid(saved) {
   clearTimeout(savedFor);
   document.getElementById("saved-said")?.remove();
@@ -449,10 +455,11 @@ function savedSaid(saved) {
   const savedSentence = element("p", "says saved-said", words.saved);
   savedSentence.id = "saved-said";
   savedSentence.setAttribute("role", "status");
-  const changed = lastChanged ? document.getElementById(lastChanged) : null;
+  const changed = lastChanged ? document.querySelector(`#settings ${lastChanged}`) : null;
   const row = changed?.closest("label, .row, .field");
   if (row) row.after(savedSentence);
   else document.getElementById("settings").prepend(savedSentence);
+  savedSentence.scrollIntoView({ block: "nearest" });
   savedFor = setTimeout(() => savedSentence.remove(), 1500);
 }
 
@@ -530,13 +537,16 @@ function row(session, shape, words) {
 // The header's button, as the shell says the recording is — or as the user just asked it to be,
 // until the command has answered (D68).
 let recordAsked = null;
-function paintRecord(recording) {
-  const shown = recordAsked ?? recording;
-  document.getElementById("record-said").textContent = shown ? words.record_stop : words.record_start;
-  document.getElementById("record").classList.toggle("live", shown);
+function paintRecord(recording, stopping) {
+  const live = recordAsked ?? recording;
+  // Ending, it waits: *Arrêt…*, a click then would ask nothing.
+  const ending = recordAsked === false || (recordAsked === null && stopping);
+  document.getElementById("record-said").textContent = ending ? words.record_stopping : live ? words.record_stop : words.record_start;
+  document.getElementById("record").classList.toggle("live", live);
+  document.getElementById("record").disabled = ending;
 }
 
-function show({ words, folder, sessions, shapes, recording, shortcut, folded, unreadable }) {
+function show({ words, folder, sessions, shapes, recording, stopping, shortcut, folded, unreadable }) {
   document.documentElement.lang = words.locale;
   // The header's gesture, as the board has it: start or stop, with the shortcut beside.
   document.getElementById("free-link").textContent = words.free;
@@ -544,7 +554,7 @@ function show({ words, folder, sessions, shapes, recording, shortcut, folded, un
   small.textContent = words.small;
   // At rest too: the small window is the user's to choose (D35).
   small.hidden = false;
-  paintRecord(recording);
+  paintRecord(recording, stopping);
   const keys = document.getElementById("header-keys");
   keys.textContent = shortcut ?? "";
   keys.hidden = !shortcut;
@@ -2419,10 +2429,13 @@ function showSmall(words) {
   restTop.append(element("span", "small-brand", "Wholeheard"), toFull("small-full"));
   // Its new state at once, disabled until the recording's own says otherwise (D68). Answered, a press
   // the shell took for the same one, or a start that failed, gives the button back.
+  let unanswered = false;
   const asking = async (button, said, wanted, back) => {
     button.disabled = true;
     button.textContent = said;
+    unanswered = true;
     await window.__TAURI__.core.invoke("record");
+    unanswered = false;
     const header = await window.__TAURI__.core.invoke("header");
     if (header.recording !== wanted) {
       button.disabled = false;
@@ -2677,7 +2690,14 @@ function showSmall(words) {
       // Opened at rest, the recording's gesture has the focus.
       if (first && !recording) start.focus();
     }
-    if (!recording) return;
+    if (!recording) {
+      // A start that failed late: the shell has let it go, and no recording will come to give it back.
+      if (start.disabled && !unanswered && !(await window.__TAURI__.core.invoke("header")).recording) {
+        start.disabled = false;
+        start.textContent = words.record_start;
+      }
+      return;
+    }
     const whole = Math.floor(now.seconds);
     time.textContent = [Math.floor(whole / 3600), Math.floor((whole % 3600) / 60), whole % 60].map((n) => String(n).padStart(2, "0")).join(":");
     for (const [index, id] of ["level-me", "level-others"].entries()) {
@@ -3249,14 +3269,14 @@ document.getElementById("empty-again").addEventListener("click", () => refresh()
 document.getElementById("record").addEventListener("click", async () => {
   if (recordAsked !== null) return;
   recordAsked = !document.getElementById("record").classList.contains("live");
-  paintRecord(recordAsked);
+  paintRecord(recordAsked, false);
   try {
     await window.__TAURI__.core.invoke("record");
   } finally {
     recordAsked = null;
   }
-  const { recording } = await window.__TAURI__.core.invoke("header");
-  paintRecord(recording);
+  const { recording, stopping } = await window.__TAURI__.core.invoke("header");
+  paintRecord(recording, stopping);
   // The recording says it started, or stopped, a moment later: then the header follows.
   setTimeout(refresh, 1200);
 });
@@ -3267,8 +3287,8 @@ setInterval(async () => {
   const asked = await window.__TAURI__.core.invoke("header").catch(() => null);
   if (asked === null) return;
   readMakings();
-  const { recording, shortcut } = asked;
-  paintRecord(recording);
+  const { recording, stopping, shortcut } = asked;
+  paintRecord(recording, stopping);
   const keys = document.getElementById("header-keys");
   keys.textContent = shortcut ?? "";
   keys.hidden = !shortcut;

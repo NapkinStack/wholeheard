@@ -3432,6 +3432,14 @@ def gestures_answer(now: dt.datetime) -> None:
         refused = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
         check("a write refused: said, no Enregistré", refused and not here(browser), browser.find_element(By.ID, "not-saved").text)
         browser.execute_script("window.restore()")
+        # A radio with no id, far down at the smallest size: said under it, in view.
+        time.sleep(0.5)
+        browser.set_window_size(420, 400)
+        browser.execute_script("document.querySelector('input[name=after][value=nothing]').scrollIntoView(); document.querySelectorAll('input[name=after]')[1].click()")
+        wait_for(browser, here, 3)
+        check("said under a radio with no id, in view", here(browser) and browser.execute_script(
+            "const r = document.getElementById('saved-said').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && document.getElementById('saved-said').previousElementSibling.querySelector('input[name=after]') !== null"))
+        browser.set_window_size(1100, 800)
         browser.execute_script("location.hash = '#/'")
         time.sleep(0.5)
         # The real command, a double click: the second is the same press, and the button says so at once.
@@ -3456,9 +3464,10 @@ def gestures_answer(now: dt.datetime) -> None:
         check("the recording did start, once", wait_for(browser, running, 8))
         time.sleep(1.5)
         browser.execute_script("const r = document.getElementById('record'); r.click(); r.click();")
-        check("Arrêter: the same", said(browser) == "Démarrer un enregistrement" and browser.execute_script("return window.__asked") == 2, said(browser))
+        check("Arrêter: the same, the button waiting", said(browser) == "Arrêt…" and not browser.find_element(By.ID, "record").is_enabled()
+              and browser.execute_script("return window.__asked") == 2, said(browser))
         check("the recording did stop, once", wait_for(browser, lambda b: not running(b), 15))
-        check("and the button stays as it was asked", said(browser) == "Démarrer un enregistrement", said(browser))
+        check("ended, Démarrer again", wait_for(browser, lambda b: said(b) == "Démarrer un enregistrement" and b.find_element(By.ID, "record").is_enabled(), 5), said(browser))
     with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
         browser.execute_script(slow)
         browser.execute_script("const r = document.getElementById('small-record'); r.click(); r.click();")
@@ -3473,6 +3482,13 @@ def gestures_answer(now: dt.datetime) -> None:
         back = wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed() and b.find_element(By.ID, "small-record").is_enabled(), 15)
         check("at rest again, its Démarrer back", back and browser.find_element(By.ID, "small-record").text == "Démarrer un enregistrement")
     with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        # A start the shell lets go later: true when first read, false after, no recording seen.
+        browser.execute_script("const real = window.__TAURI__.core; let read = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record' ? Promise.resolve() : asked === 'header' ? Promise.resolve({ recording: read++ === 0, stopping: false, shortcut: null }) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("document.getElementById('small-record').click()")
+        late = wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_enabled() and b.find_element(By.ID, "small-record").text == "Démarrer un enregistrement", 3)
+        check("a start refused late: its Démarrer comes back", late, browser.find_element(By.ID, "small-record").text)
+        browser.execute_script("window.restore()")
+        time.sleep(0.6)
         # Arrêter within the double press: it was not made, so the button is not stuck.
         browser.execute_script("document.getElementById('small-record').click()")
         wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
