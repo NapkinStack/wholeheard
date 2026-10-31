@@ -44,6 +44,9 @@ pub enum Cause {
     RefusedKey,
     NoCredit,
     UnknownModel,
+    TooMany,
+    Down,
+    NoTimes,
     Redirected,
     ProviderFailed,
     CutShort,
@@ -65,6 +68,9 @@ impl Cause {
             "provider.refused_key" => Cause::RefusedKey,
             "provider.no_credit" => Cause::NoCredit,
             "provider.unknown_model" => Cause::UnknownModel,
+            "provider.too_many" => Cause::TooMany,
+            "provider.down" => Cause::Down,
+            "provider.no_times" => Cause::NoTimes,
             "provider.failed" => Cause::ProviderFailed,
             "answer.not_minutes" => Cause::NotMinutes,
             "transcript.unusable" => Cause::TranscriptUnusable,
@@ -188,7 +194,7 @@ fn event(line: &str) -> Option<String> {
 }
 
 /// The code of a `failed` line of the contract; none for any other line.
-fn failed(line: &str) -> Option<String> {
+pub fn failed(line: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
     if value.get("event")?.as_str()? != "failed" {
         return None;

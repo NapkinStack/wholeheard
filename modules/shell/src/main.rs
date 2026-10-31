@@ -1885,9 +1885,10 @@ async fn hearing_models(shell: State<'_, Shell>, index: usize) -> Result<Vec<Str
 /// saved, its key in the environment; refused, the program's own sentence.
 #[tauri::command]
 async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), Told> {
-    let settings = shell.read_or_told()?;
+    let failed = |told: Told| words::test_refused(told, shell.language());
+    let settings = shell.read_or_told().map_err(failed)?;
     let (Some(provider), Some(model)) = (settings.transcription_provider, settings.transcription_model) else {
-        return Err(shell.told(Failure::NoneChosen, "no service is chosen yet"));
+        return Err(failed(shell.told(Failure::NoneChosen, "no service is chosen yet")));
     };
     let hearing = program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION");
     let output = tauri::async_runtime::spawn_blocking(move || {
@@ -1903,32 +1904,53 @@ async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), Told> {
         command.output()
     })
     .await
-    .map_err(|error| shell.told(Failure::Unexpected, error))?
-    .map_err(|error| shell.told(Failure::ProgramNotStarted, error))?;
+    .map_err(|error| failed(shell.told(Failure::Unexpected, error)))?
+    .map_err(|error| failed(shell.told(Failure::ProgramNotStarted, error)))?;
     if output.status.success() {
         tracing::info!("shell.transcription_tested");
         return Ok(());
     }
+    let said = last_said(&output, "wholeheard-transcription");
+    tracing::warn!(detail = %said, "shell.transcription_test_failed");
+    Err(test_told(&shell, &output, &said))
+}
+
+/// The last line a program left on its error stream, its name off; or that it said nothing.
+fn last_said(output: &std::process::Output, name: &str) -> String {
     let said = String::from_utf8_lossy(&output.stderr);
     let said = said.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
-    let said = said.strip_prefix("wholeheard-transcription: ").unwrap_or(said).to_string();
-    tracing::warn!(detail = %said, "shell.transcription_test_failed");
-    let said = if said.is_empty() {
-        format!("wholeheard-transcription stopped without saying why ({})", output.status)
+    let said = said.strip_prefix(&format!("{name}: ")).unwrap_or(said);
+    if said.is_empty() {
+        format!("{name} stopped without saying why ({})", output.status)
     } else {
-        said
-    };
-    Err(shell.said(Failure::TestRefused, &said))
+        said.to_string()
+    }
+}
+
+/// What a test that failed tells: the cause on its output's last line (D72), read by its code alone;
+/// a code unknown, or none: the sentence for no cause.
+fn test_told(shell: &Shell, output: &std::process::Output, said: &str) -> Told {
+    let out = String::from_utf8_lossy(&output.stdout);
+    let cause = out
+        .lines()
+        .rfind(|line| !line.trim().is_empty())
+        .and_then(summarising::failed)
+        .and_then(|code| summarising::Cause::of(&code));
+    match cause {
+        Some(cause) => words::test_caused(cause, said, shell.language(), shell.settings().developer),
+        None => words::test_refused(shell.said(Failure::TestRefused, said), shell.language()),
+    }
 }
 
 /// *Tester*: asks `wholeheard-summary` whether the model saved answers — one sentence of its own,
 /// nothing of a meeting —, the key going from the keyring to its environment, never its
-/// arguments. Refused, the program's own sentence.
+/// arguments. Refused, what its code names, or the program's own sentence.
 #[tauri::command]
 async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), Told> {
-    let settings = shell.read_or_told()?;
+    let failed = |told: Told| words::test_refused(told, shell.language());
+    let settings = shell.read_or_told().map_err(failed)?;
     let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
-        return Err(shell.told(Failure::NoneChosen, "no model is chosen yet"));
+        return Err(failed(shell.told(Failure::NoneChosen, "no model is chosen yet")));
     };
     let summary = program("wholeheard-summary", "WHOLEHEARD_SUMMARY");
     let ran = tauri::async_runtime::spawn_blocking(move || {
@@ -1960,24 +1982,14 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), Told> {
         output
     })
     .await
-    .map_err(|error| shell.told(Failure::Unexpected, error))?;
+    .map_err(|error| failed(shell.told(Failure::Unexpected, error)))?;
     match ran {
         Ok(output) if output.status.success() => Ok(()),
-        Ok(output) => {
-            let said = String::from_utf8_lossy(&output.stderr);
-            let said = said.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
-            let said = said.strip_prefix("wholeheard-summary: ").unwrap_or(said);
-            let said = if said.is_empty() {
-                format!("wholeheard-summary stopped without saying why ({})", output.status)
-            } else {
-                said.to_string()
-            };
-            Err(shell.said(Failure::TestRefused, &said))
-        }
-        Err(error) => Err(shell.said(
+        Ok(output) => Err(test_told(&shell, &output, &last_said(&output, "wholeheard-summary"))),
+        Err(error) => Err(failed(shell.said(
             Failure::ProgramNotStarted,
             &format!("wholeheard-summary could not be started ({error})"),
-        )),
+        ))),
     }
 }
 

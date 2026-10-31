@@ -170,3 +170,22 @@ exit 1"#
         );
     }
 }
+
+#[test]
+fn each_code_of_a_test_names_its_cause_and_an_unknown_one_none() {
+    use wholeheard_shell::summarising::{Cause, failed};
+    for (code, cause) in [
+        ("provider.too_many", Cause::TooMany),
+        ("provider.down", Cause::Down),
+        ("provider.no_times", Cause::NoTimes),
+    ] {
+        assert_eq!(Cause::of(code), Some(cause));
+    }
+    assert_eq!(Cause::of("provider.of_a_later_version"), None);
+    assert_eq!(
+        failed(r#"{"event":"failed","code":"provider.down"}"#).as_deref(),
+        Some("provider.down")
+    );
+    assert_eq!(failed(r#"{"event":"sending"}"#), None);
+    assert_eq!(failed("the program's own English"), None, "a sentence is never read for a cause");
+}
