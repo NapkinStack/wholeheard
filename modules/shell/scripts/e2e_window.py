@@ -1838,7 +1838,7 @@ def heard_checked(now: dt.datetime) -> None:
     print("AN. each side checked live, ✓ then gone; a silence said under its check; a side with no device said, no check; all inside 380 × 400, Arrêter still (D49)")
     place = "return document.getElementById('small-stop').getBoundingClientRect().top"
     state = "return [...document.querySelectorAll('.meters .slot')].map(s => s.dataset.check)"
-    glyph = "return [...document.querySelectorAll('.meters .check')].map(c => getComputedStyle(c, '::before').content)"
+    glyph = "return [...document.querySelectorAll('.meters .check')].map(c => getComputedStyle(c.querySelector('svg')).display)"
     said = "return [...document.querySelectorAll('.check-says')].map(s => s.textContent)"
     # Nothing cut or out of the window: every line of the live view inside it and inside its own box,
     # the meters' sentences above Arrêter. The note a transcript adds forced on, closed.
@@ -1873,12 +1873,12 @@ def heard_checked(now: dt.datetime) -> None:
                 browser.find_element(By.ID, "small-record").click()
                 wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(state) == ["listening", "listening"], 10)
                 time.sleep(0.5)
-                check("levels at silence: no ✓ on either side", browser.execute_script(state) == ["listening", "listening"] and "✓" not in "".join(browser.execute_script(glyph)), browser.execute_script(glyph))
+                check("levels at silence: no ✓ on either side", browser.execute_script(state) == ["listening", "listening"] and all(c == "none" for c in browser.execute_script(glyph)), browser.execute_script(glyph))
                 before = browser.execute_script(place)
                 fit(browser, "listening")
                 (taping / "hush").unlink()
                 rose = wait_for(browser, lambda b: b.execute_script(state) == ["heard", "heard"], 3)
-                check("levels risen: ✓ on each side", rose and all("✓" in c for c in browser.execute_script(glyph)), browser.execute_script(glyph))
+                check("levels risen: ✓ on each side", rose and all(c != "none" for c in browser.execute_script(glyph)), browser.execute_script(glyph))
                 told = browser.execute_script("return [...document.querySelectorAll('.check-said')].map(s => [s.getAttribute('role') ?? s.parentElement.getAttribute('role'), s.textContent])")
                 check("✓ said to a screen reader, side by side", [t[1] for t in told] == [heard_me, heard_others] and all(t[0] == "status" for t in told), told)
                 shot_themed(browser, f"d49-heard-{short}-{theme}", theme)
@@ -1922,8 +1922,8 @@ def heard_checked(now: dt.datetime) -> None:
             browser.find_element(By.ID, "small-record").click()
             shown = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(state) == ["waiting", "heard"], 10)
             check("no microphone: waiting, the other side heard", shown, browser.execute_script(state))
-            mark = browser.execute_script("const c = document.querySelector('.meters .check'); return [getComputedStyle(c).display, c.textContent, getComputedStyle(c, '::before').content]")
-            check("no check for it, nor ✓", mark[0] == "none" and mark[1] == "" and "✓" not in mark[2], mark)
+            mark = browser.execute_script("const c = document.querySelector('.meters .check'); return [getComputedStyle(c).display, c.textContent, getComputedStyle(c.querySelector('svg')).display]")
+            check("no check for it, nor ✓", mark[0] == "none" and mark[1].strip() == "" and mark[2] == "none", mark)
             check("said truthfully under its meter", browser.execute_script(said) == [waiting, ""], browser.execute_script(said))
             fit(browser, "a side waiting")
             shot(browser, f"d49-waiting-{short}")
@@ -3513,6 +3513,68 @@ def gestures_answer(now: dt.datetime) -> None:
             check("a stop past the double press: stopped", wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed(), 10))
 
 
+def window_looks(now: dt.datetime) -> None:
+    """AR. The window looks finished: Petite fenêtre an icon with its name, one primary action, little motion (D69)."""
+    print("AR. one primary action, Petite fenêtre an icon named for assistive technology; 200 ms at most between states (D69)")
+    meetings = WORK / "looking"
+    made = meetings / "2026-10-28_09-00"
+    session(made, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed(), 10)
+        small = browser.find_element(By.ID, "small-link")
+        check("Petite fenêtre: an icon, named for assistive technology and to the pointer", small.text == "" and small.get_attribute("aria-label") == "Petite fenêtre"
+              and small.get_attribute("title") == "Petite fenêtre" and small.find_elements(By.CSS_SELECTOR, "svg"), small.text)
+        # Drawn, and seen: stroked in the text's colour, the size of the text; a rule of another name once hid it.
+        drawn = browser.execute_script("const v = document.querySelector('#small-link svg'), c = getComputedStyle(v), p = getComputedStyle(v.parentElement); return [c.stroke === p.color, c.fill, parseFloat(c.width) === parseFloat(p.fontSize), parseFloat(c.height) === parseFloat(p.fontSize)]")
+        check("the icon is stroked, the size of its text", drawn == [True, "none", True, True], drawn)
+        primaries = browser.execute_script("return [...document.querySelectorAll('#sidebar .primary')].filter(b => b.offsetParent).length")
+        check("the header shows one primary action", primaries == 1, primaries)
+        for theme in ("light", "dark"):
+            shot_themed(browser, f"d69-full-{theme}", theme)
+        # A chip turning: the making stood in, then the minutes there.
+        browser.execute_script("const real = window.__TAURI__.core, name = arguments[0]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => { const answer = await real.invoke(asked, ...rest); return asked === 'makings' ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } }; window.restore = () => { window.__TAURI__.core = real; };", made.name)
+        wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.chip.making')].some(c => !c.hidden)"), 8)
+        (made / "minutes.md").write_text(
+            "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: m\ncontext: null\n---\n\n"
+            "## 1.\n\nLe budget.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+        browser.execute_script("window.restore(); window.dispatchEvent(new Event('focus'))")
+        turned = wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, ".chip.turned"), 5)
+        duration = browser.execute_script("const c = document.querySelector('.chip.turned'); return c ? parseFloat(getComputedStyle(c).animationDuration) : null")
+        check("a chip turned: one small move, 200 ms at most", turned and duration is not None and 0 < duration <= 0.2, duration)
+        once = browser.execute_script("const c = getComputedStyle(document.querySelector('.chip.turned')); return [c.animationIterationCount, c.animationDelay]")
+        check("once, with no wait", once == ["1", "0s"], once)
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        time.sleep(0.8)
+        check("once: drawn again, it stands still", not browser.find_elements(By.CSS_SELECTOR, ".chip.turned"))
+        # Made again, the minutes there: nothing has turned, however often it is drawn.
+        browser.execute_script("const real = window.__TAURI__.core, name = arguments[0]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => { const answer = await real.invoke(asked, ...rest); return asked === 'makings' ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } }; window.restore = () => { window.__TAURI__.core = real; };", made.name)
+        wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.chip.making')].some(c => !c.hidden)"), 8)
+        seen = False
+        for _ in range(3):
+            browser.execute_script("window.dispatchEvent(new Event('focus'))")
+            time.sleep(0.5)
+            seen = seen or bool(browser.find_elements(By.CSS_SELECTOR, ".chip.turned"))
+        browser.execute_script("window.restore()")
+        check("minutes made again: no chip turned", not seen)
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        moves = "return [...document.querySelectorAll('.small-rest, .small-live')].map(e => parseFloat(getComputedStyle(e).animationDuration))"
+        lengths = browser.execute_script(moves)
+        check("between the small window's states: 200 ms at most", lengths and all(0 < length <= 0.2 for length in lengths), lengths)
+        # The page's own policy refuses what it may not load: a mark drawn from a data: address was blank (#597).
+        browser.execute_script("window.__refused = []; document.addEventListener('securitypolicyviolation', (e) => window.__refused.push(e.violatedDirective + ' ' + e.blockedURI))")
+        press(browser, "small-record")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        heard = wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.slot[data-check=heard] .check svg')].some(v => getComputedStyle(v).display !== 'none' && v.getBoundingClientRect().width >= 10)"), 8)
+        check("a side heard: its check drawn on its green, its size", heard)
+        shot(browser, "d69-heard")
+        check("nothing refused by the page's policy", browser.execute_script("return window.__refused.length") == 0, browser.execute_script("return window.__refused"))
+        time.sleep(0.6)
+        press(browser, "small-stop")
+        full = browser.find_element(By.ID, "small-full")
+        check("its way to the full window: an icon, named", full.text == "" and full.find_elements(By.CSS_SELECTOR, "svg") and full.get_attribute("aria-label"), full.text)
+
+
 def main() -> int:
     now = dt.datetime.now().astimezone()
     sessions = WORK / "sessions"
@@ -4618,7 +4680,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.execute_script("return document.getElementById('settings-link').textContent !== ''"))
         check("the full window left is the one kept in the settings", 'window = "full"' in window.file.read_text(), window.file.read_text())
         back = browser.find_element(By.ID, "small-link")
-        check("at rest too, the full window offers the small one", back.is_displayed() and back.text == "Petite fenêtre", back.text)
+        check("at rest too, the full window offers the small one", back.is_displayed() and back.get_attribute("aria-label") == "Petite fenêtre", back.get_attribute("aria-label"))
         main = browser.current_window_handle
         back.click()
         smaller = wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
@@ -4962,6 +5024,7 @@ def main() -> int:
     minutes_copied(now)
     nothing_silent(now)
     gestures_answer(now)
+    window_looks(now)
     actions_rows(now)
     announced(now)
     heard_checked(now)

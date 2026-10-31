@@ -80,6 +80,36 @@ function lock() {
   return svg;
 }
 
+// Lucide's icons, inline (ISC, `ui/LUCIDE-LICENSE`): what the page draws for itself, a glyph being the
+// font's to draw (D69). The name goes on what holds it, for assistive technology.
+const ICONS = {
+  check: ["M20 6 9 17l-5-5"],
+  "chevron-left": ["m15 18-6-6 6-6"],
+  x: ["M18 6 6 18", "m6 6 12 12"],
+  "arrow-right": ["M5 12h14", "m12 5 7 7-7 7"],
+  "maximize-2": ["M15 3h6v6", "m21 3-7 7", "m3 21 7-7", "M9 21H3v-6"],
+  "picture-in-picture-2": ["M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4", "M14 13h6a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2"],
+};
+function icon(name) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "glyph");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of ICONS[name]) {
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+function readySaid(text) {
+  const said = element("span", "ready");
+  said.append(icon("check"), ` ${text}`);
+  return said;
+}
+
 function lockedChip(words) {
   const said = chip(words.confidential_chip, "locked");
   said.prepend(lock());
@@ -209,12 +239,19 @@ function holdings(session, words, where) {
   if (session.confidential) holds.append(lockedChip(words));
   if (session.state === "recording") holds.append(chip(words.recording, "live"));
   if (session.state === "interrupted") holds.append(chip(words.interrupted, "cut"));
-  if (session.minutes) holds.append(chip(ran(words.minutes, where?.minutes_here)));
+  if (session.minutes) {
+    const made = chip(ran(words.minutes, where?.minutes_here));
+    // Turned from what was being made: said by one small pop, once (D69).
+    if (chipsMaking.delete(nameOf(session))) made.classList.add("turned");
+    holds.append(made);
+  }
   if (session.transcript) holds.append(chip(ran(words.transcript, true)));
   holds.append(session.audio > 0 ? chip(fill(words.audio, size(session.audio, words))) : chip(words.audio_freed, "gone"));
   // What is being made for it, in the background (D25): painted from `makings`.
   const making = chip("", "making");
   making.dataset.name = nameOf(session);
+  // Minutes there already, made again: the chip that follows has not turned from anything.
+  making.dataset.first = String(!session.minutes);
   making.hidden = true;
   holds.append(making);
   return holds;
@@ -222,6 +259,7 @@ function holdings(session, words, where) {
 
 // What Wholeheard makes in the background (D25): read with the header, painted where it is shown.
 let makings = null;
+const chipsMaking = new Set();
 
 function minutesState(name) {
   if (makings === null) return null;
@@ -342,7 +380,7 @@ function paintOffered(list = document.getElementById("offered")) {
     if (item.dataset.kind === kind) continue;
     item.dataset.kind = kind;
     const state = item.querySelector(".state");
-    if (kind === "here") state.replaceChildren(element("span", "ready", `✓ ${words.on_this_computer}`));
+    if (kind === "here") state.replaceChildren(readySaid(words.on_this_computer));
     else if (far !== null) state.replaceChildren(element("span", "says", fill(words.offered_far, far)));
     else if (absent) state.replaceChildren(element("span", "says", words.offered_needs_ollama));
     else {
@@ -396,6 +434,7 @@ function paintMakings() {
     const state = minutes ?? transcript;
     chip_.hidden = state === null;
     if (state === null) continue;
+    if (minutes && chip_.dataset.first === "true") chipsMaking.add(chip_.dataset.name);
     chip_.textContent = minutes
       ? { making: words.chip_making, waiting: words.chip_waiting, ollama: words.chip_waiting, awaiting: words.chip_awaiting, failed: words.chip_failed }[state.kind]
       : { making: words.chip_transcribing, waiting: words.chip_waiting, model: words.chip_waiting, failed: words.chip_transcript_failed }[state.kind];
@@ -559,7 +598,10 @@ function show({ words, folder, sessions, shapes, recording, stopping, shortcut, 
   // The header's gesture, as the board has it: start or stop, with the shortcut beside.
   document.getElementById("free-link").textContent = words.free;
   const small = document.getElementById("small-link");
-  small.textContent = words.small;
+  // An icon with its name: the header's one action stays the recording's (D69, UX review 3.2).
+  small.replaceChildren(icon("picture-in-picture-2"));
+  small.title = words.small;
+  small.setAttribute("aria-label", words.small);
   // At rest too: the small window is the user's to choose (D35).
   small.hidden = false;
   paintRecord(recording, stopping);
@@ -569,7 +611,7 @@ function show({ words, folder, sessions, shapes, recording, stopping, shortcut, 
   document.getElementById("sidebar").setAttribute("aria-label", words.meetings);
   document.getElementById("sections").setAttribute("aria-label", words.sections);
   document.getElementById("settings-link").textContent = words.settings;
-  document.getElementById("pane-back").textContent = `‹ ${words.back}`;
+  document.getElementById("pane-back").replaceChildren(icon("chevron-left"), words.back);
   // Folded as the user left it (D61), each button named with its shortcut.
   document.body.classList.toggle("folded", folded);
   const folding = /Mac/.test(navigator.platform) ? "⌘B" : "Ctrl+B";
@@ -2270,7 +2312,7 @@ function showSettings(shown, minutes, words) {
     element("span", "says", chosen ? fill(words.model_here, size(chosen.bytes, words)) : ""),
   );
   state.append(stateSaid);
-  if (chosen) state.append(element("span", "ready", `✓ ${words.model_ready}`));
+  if (chosen) state.append(readySaid(words.model_ready));
   else state.dataset.missing = "true";
   state.id = "model-state";
   paintModel(state);
@@ -2350,7 +2392,9 @@ function showAgreement(name, agreement, words) {
     const line = element("li", mark);
     const said = element("div", "");
     said.append(element("strong", "", title), element("span", "says", fill(says, ...values)));
-    line.append(element("span", "sign", mark === "leaves" ? "→" : "×"), said);
+    const sign = element("span", "sign");
+    sign.append(icon(mark === "leaves" ? "arrow-right" : "x"));
+    line.append(sign, said);
     return line;
   };
   goes.append(item("leaves", words.agree_leaves, Math.max(1, Math.round(agreement.seconds / 60)), agreement.words.toLocaleString(document.documentElement.lang)));
@@ -2423,7 +2467,8 @@ function showSmall(words) {
   const invoke = window.__TAURI__.core.invoke;
   const full = (where) => invoke("full_window", { page: where ?? null });
   const toFull = (id) => {
-    const button = element("button", "open icon", "⤢");
+    const button = element("button", "open icon");
+    button.append(icon("maximize-2"));
     button.type = "button";
     button.id = id;
     button.title = words.small_full;
@@ -2482,6 +2527,7 @@ function showSmall(words) {
     const named = element("span", "device");
     named.id = device;
     const mark = element("span", "check");
+    mark.append(icon("check"));
     const status = element("span", "check-said");
     status.setAttribute("role", "status");
     mark.append(status);
