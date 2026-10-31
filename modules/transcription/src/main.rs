@@ -20,7 +20,7 @@ use serde_json::json;
 use tracing::{error, info};
 use wholeheard_transcription::{
     log,
-    online::Service,
+    online::{Refused, Service},
     speech::SpeechAnalyzer,
     step::{Engine, hear, read},
     whisper::{Whisper, knows},
@@ -57,9 +57,7 @@ fn main() -> ExitCode {
         [folder, "--engine", "speechanalyzer", "--language", language] | [folder, "--language", language, "--engine", "speechanalyzer"] => {
             run(Path::new(folder), Hearer::SpeechAnalyzer, Some(language))
         }
-        ["--test", "--provider", provider, "--model", model] => {
-            Service::new(provider, model, key().as_deref()).and_then(|service| service.test())
-        }
+        ["--test", "--provider", provider, "--model", model] => test(provider, model),
         [folder, "--provider", provider, "--model", model] => run(Path::new(folder), Hearer::Service { provider, model }, None),
         [folder, "--provider", provider, "--model", model, "--language", language] => {
             run(Path::new(folder), Hearer::Service { provider, model }, Some(language))
@@ -79,6 +77,23 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// A test of a service: what failed, for the log, and its cause on the output's last line (`transcript/v1`).
+fn test(provider: &str, model: &str) -> Result<(), String> {
+    let refused = match Service::new(provider, model, key().as_deref()) {
+        Ok(service) => service.tested().err(),
+        Err(why) => Some(Refused {
+            code: Some("settings.invalid"),
+            why,
+        }),
+    };
+    let Some(refused) = refused else { return Ok(()) };
+    if let Some(code) = refused.code {
+        // An output that closed takes no line: the sentence is still said.
+        let _ = writeln!(std::io::stdout(), "{}", serde_json::json!({ "event": "failed", "code": code }));
+    }
+    Err(refused.why)
 }
 
 fn run(folder: &Path, hearer: Hearer, language: Option<&str>) -> Result<(), String> {
