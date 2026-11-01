@@ -36,7 +36,7 @@ const PIECE: u64 = 96_000;
 struct Offered {
     number: u64,
     mix: Option<Arc<Mix>>,
-    tracks: Vec<(PathBuf, f64)>,
+    tracks: Vec<(PathBuf, Vec<(u64, f64)>)>,
 }
 
 /// The loopback server, for as long as the shell runs.
@@ -71,7 +71,12 @@ impl Served {
     /// The same tracks offered again as they were — the page drawn again — keep their URL,
     /// which a player may still be reading; grown since, a meeting still recording, they do not.
     pub fn offer(&self, tracks: Vec<(PathBuf, f64)>) -> Option<String> {
-        let mix = Mix::of(&tracks).map(Arc::new);
+        self.offer_placed(tracks.into_iter().map(|(path, starts)| (path, vec![(0, starts)])).collect())
+    }
+
+    /// The same, each track placed run by run, as `Mix::placed` says.
+    pub fn offer_placed(&self, tracks: Vec<(PathBuf, Vec<(u64, f64)>)>) -> Option<String> {
+        let mix = Mix::placed(&tracks).map(Arc::new);
         let mut offered = self.offered.lock().unwrap();
         let same = |old: &Option<Arc<Mix>>| match (old, &mix) {
             (Some(old), Some(new)) => old.same(new),

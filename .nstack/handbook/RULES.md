@@ -45,7 +45,7 @@ a family, a number a rule; a retired rule's number is never reused.
 | `B3` | A circular dependency between modules | `02-modules.md` §8 |
 | `B4` | *(warning)* A contract declared consumed and never read | `03-contracts.md` §6 |
 | `B5` | Direct access to another module's data | `08-quality.md` §8 |
-| `B6` | A consumed contract nobody provides in that version | `03-contracts.md` §6 |
+| `B6` | A consumed contract nobody provides in that version | `03-contracts.md` §4, §6 |
 | `B7` | A provided contract whose document does not exist | `03-contracts.md` §2 |
 | `B8` | *(warning)* A contract consumed from a deprecated module | `02-modules.md` §6 |
 | `B9` | Another module's release artefacts read without assembling it | `09-platform.md` §2 |
@@ -92,7 +92,7 @@ a family, a number a rule; a retired rule's number is never reused.
 | Code | Refuses | Why |
 |---|---|---|
 | `T1` | A change that owes a test sheet and carries none | `05-workflow.md` §7 |
-| `T2` | A sheet with no verifier, a verifier who is an author, or a row left empty | `05-workflow.md` §7 |
+| `T2` | A sheet with no verifier, a verifier who is an author, a row left empty, or a row with more cells than its header | `05-workflow.md` §7 |
 | `T3` | A scenario passed with no evidence, or no commit it was verified on | `05-workflow.md` §7 |
 | `T4` | Evidence older than the head commit | `05-workflow.md` §7 |
 | `T5` | A scenario failed, or left not verified | `05-workflow.md` §7 |

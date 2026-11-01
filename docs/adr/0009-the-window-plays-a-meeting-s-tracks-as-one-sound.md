@@ -101,8 +101,11 @@ By the end of cycle 03, 2026-11-07:
   shows who spoke.
 - Two sides speaking at once are added: a sum held at full scale may clip, where a call's own
   mix would bring them down. Speech rarely overlaps for long.
-- **Each track is placed by its first clock point, then read at the rate its header names.**
-  `session-audio/v2`'s clock also gives each track's true rate, which this mix does not apply.
+- **Each track is placed by its clock's points, then read at the rate its header names** (first
+  point alone until D71, 2026-10-31: after a gap of 8 s whose zeros stopped 1 s short, a sound was
+  heard 1 s early). A point more than 20 ms off the line of those before it starts a run of its
+  own; under that, nothing moves: a hole would be heard as a click. `session-audio/v2`'s clock also
+  gives each track's true rate, which this mix does not apply.
   - On one sound server with one device, two tracks moved by a ten-thousandth of a second
     (measured 2026-10-13).
   - Two devices on two clocks may drift further over an hour. How far is the contract's open

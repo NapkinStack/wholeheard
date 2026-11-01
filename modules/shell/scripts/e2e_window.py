@@ -24,6 +24,7 @@ import sys
 import threading
 import time
 import traceback
+import urllib.request
 import wave
 from pathlib import Path
 
@@ -68,6 +69,7 @@ if [ "$1" != --test ]; then
   echo '{"event": "written", "file": "x"}'
   exit 0
 fi
+[ -e "$here/test-code" ] && { echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'; echo '{"event": "failed", "code": "'"$(cat "$here/test-code")"'"}'; echo; echo "an earlier line" >&2; echo "wholeheard-summary: raw words of the provider" >&2; exit 1; }
 case "$*" in *openrouter.ai*) echo "wholeheard-summary: the provider at openrouter.ai refused the key" >&2; exit 1;; esac
 echo '{"event": "sending"}'
 echo '{"event": "answered"}'
@@ -84,7 +86,7 @@ printf '%s\\n' "$*" > "$(dirname "$0")/hearing-args"
 # Tester (D43, D63): the key it was given kept beside; a model that gives no times refused, as the real one says it.
 if [ "$1" = --test ]; then
   printf '%s' "${WHOLEHEARD_PROVIDER_KEY:-none}" > "$(dirname "$0")/hearing-key"
-  [ -e "$(dirname "$0")/no-times" ] && { echo "wholeheard-transcription: $(python3 -c "$HOST" "$3") gives no times: choose another model" >&2; exit 1; }
+  [ -e "$(dirname "$0")/test-code" ] && { echo '{"event": "started"}'; echo '{"event": "failed", "code": "'"$(cat "$(dirname "$0")/test-code")"'"}'; echo; echo "an earlier line" >&2; echo "wholeheard-transcription: raw words of the service" >&2; exit 1; }
   exit 0
 fi
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
@@ -144,6 +146,16 @@ echo '{"event":"stopped","folder":"'"$folder"'","seconds":5.0}'
 )
 RECORDER.chmod(0o755)
 FAILED = []
+# What Tester says of each cause its program names (D72), as `src/words.rs` says it in French.
+TEST_CAUSES = [
+    ("provider.refused_key", "Le fournisseur a refusé la clé\u00a0: saisissez-la de nouveau dans les réglages de Wholeheard."),
+    ("provider.unknown_model", "Le fournisseur ne connaît pas ce modèle ou cette adresse\u00a0: choisissez-les de nouveau dans les réglages de Wholeheard."),
+    ("provider.no_times", "Ce modèle ne donne pas les temps de ce qu’il entend\u00a0: choisissez-en un qui donne ceux de chaque segment dans les réglages de Wholeheard."),
+    ("provider.no_credit", "Le fournisseur a refusé faute de crédit\u00a0: ajoutez du crédit chez lui, puis réessayez."),
+    ("provider.too_many", "Le fournisseur refuse pour trop de demandes, ou un quota épuisé\u00a0: patientez, ou vérifiez votre forfait chez lui."),
+    ("provider.down", "Le fournisseur répond qu’il est en panne\u00a0: réessayez plus tard. Sur cet ordinateur, ce modèle est peut-être trop gros pour la mémoire\u00a0: choisissez-en un plus petit."),
+    ("provider.unreachable", "Le fournisseur n’a pas pu être joint\u00a0: vérifiez qu’il tourne, ou le réseau, puis réessayez."),
+]
 MONTHS_FR = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
 # The page's ground, as `ui/window.css` sets it in each theme.
 GROUND = {"light": "rgb(242, 244, 247)", "dark": "rgb(21, 23, 28)"}
@@ -843,14 +855,20 @@ def service_named(now: dt.datetime) -> None:
         tested = wait_for(browser, lambda b: b.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), 10)
         check("Tester, on the service chosen from the list, says it hears with each segment's times — the key the keyring kept given to it",
               tested and (WORK / "hearing-key").exists() and (WORK / "hearing-key").read_text() == "sk-stand-in-not-a-key", browser.execute_script(said))
-        (WORK / "no-times").touch()
+        # Each cause its own sentence (D72); the raw text never, outside developer mode.
+        code = WORK / "test-code"
         try:
+            for cause, sentence in TEST_CAUSES:
+                code.write_text(cause)
+                press(browser, "transcription-test")
+                held = wait_for(browser, lambda b: b.execute_script(said) == sentence, 10)
+                check(f"Tester of a service, {cause}: its own sentence, what to do, no raw text", held, browser.execute_script(said))
+            code.write_text("provider.of_a_later_version")
             press(browser, "transcription-test")
-            refused = wait_for(browser, lambda b: "vérifiez son adresse, son nom et sa clé" in b.execute_script(said), 10)
+            unknown = wait_for(browser, lambda b: b.execute_script(said).startswith("Le modèle ne répond pas"), 10)
+            check("a code unknown is read as no code: today's sentence", unknown and "vérifiez son adresse, son nom et sa clé" in browser.execute_script(said), browser.execute_script(said))
         finally:
-            (WORK / "no-times").unlink()
-        check("a model that gives no segment times: Tester says it is refused, and why", refused
-              and browser.execute_script(said).startswith("Le modèle ne répond pas"), browser.execute_script(said))
+            code.unlink(missing_ok=True)
         browser.execute_script("location.hash = '#/'")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
         browser.execute_script("location.hash = '#/settings'")
@@ -861,6 +879,19 @@ def service_named(now: dt.datetime) -> None:
         named = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["whisper-1", "Un autre modèle…"], 5)
         check("OpenAI chosen: the model it publishes with segments, named in the repository — not its own list",
               named and len(listed) == 2, (offered(browser, "transcription-models"), listed))
+        # In developer mode, the sentence and the program's last line, its name off.
+        code.write_text(TEST_CAUSES[-1][0])
+        try:
+            before = browser.find_element(By.ID, "transcription-said")
+            press(browser, "developer")
+            WebDriverWait(browser, 5).until(staleness_of(before))
+            press(browser, "transcription-test")
+            raw = wait_for(browser, lambda b: "raw words of the service" in b.execute_script(said), 10)
+            told = browser.execute_script(said)
+            check("Tester of a service in developer mode: the cause, then the raw line alone",
+                  raw and told.startswith(TEST_CAUSES[-1][1]) and "wholeheard-transcription:" not in told and "earlier line" not in told, told)
+        finally:
+            code.unlink(missing_ok=True)
     server.shutdown()
 
 
@@ -1458,7 +1489,8 @@ def meeting_language(now: dt.datetime) -> None:
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
         browser.execute_script(f"location.hash = '#/meeting/{heard.name}'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "meeting-language"), 10)
-        said = Select(browser.find_element(By.ID, "meeting-language")).first_selected_option.text
+        # By script, in one step: the page may be drawn again between finding the list and reading it.
+        said = browser.execute_script("const p = document.getElementById('meeting-language'); return p.options[p.selectedIndex].text")
         check("the settings detecting it, the page says « détectée »", said == "Celle des Réglages — détectée", said)
     # SpeechAnalyzer hears (a program in its place, as X has it): it detects none, and hears French
     # and English alone — the system's when nothing names another (D64).
@@ -1838,7 +1870,7 @@ def heard_checked(now: dt.datetime) -> None:
     print("AN. each side checked live, ✓ then gone; a silence said under its check; a side with no device said, no check; all inside 380 × 400, Arrêter still (D49)")
     place = "return document.getElementById('small-stop').getBoundingClientRect().top"
     state = "return [...document.querySelectorAll('.meters .slot')].map(s => s.dataset.check)"
-    glyph = "return [...document.querySelectorAll('.meters .check')].map(c => getComputedStyle(c, '::before').content)"
+    glyph = "return [...document.querySelectorAll('.meters .check')].map(c => getComputedStyle(c.querySelector('svg')).display)"
     said = "return [...document.querySelectorAll('.check-says')].map(s => s.textContent)"
     # Nothing cut or out of the window: every line of the live view inside it and inside its own box,
     # the meters' sentences above Arrêter. The note a transcript adds forced on, closed.
@@ -1873,12 +1905,12 @@ def heard_checked(now: dt.datetime) -> None:
                 browser.find_element(By.ID, "small-record").click()
                 wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(state) == ["listening", "listening"], 10)
                 time.sleep(0.5)
-                check("levels at silence: no ✓ on either side", browser.execute_script(state) == ["listening", "listening"] and "✓" not in "".join(browser.execute_script(glyph)), browser.execute_script(glyph))
+                check("levels at silence: no ✓ on either side", browser.execute_script(state) == ["listening", "listening"] and all(c == "none" for c in browser.execute_script(glyph)), browser.execute_script(glyph))
                 before = browser.execute_script(place)
                 fit(browser, "listening")
                 (taping / "hush").unlink()
                 rose = wait_for(browser, lambda b: b.execute_script(state) == ["heard", "heard"], 3)
-                check("levels risen: ✓ on each side", rose and all("✓" in c for c in browser.execute_script(glyph)), browser.execute_script(glyph))
+                check("levels risen: ✓ on each side", rose and all(c != "none" for c in browser.execute_script(glyph)), browser.execute_script(glyph))
                 told = browser.execute_script("return [...document.querySelectorAll('.check-said')].map(s => [s.getAttribute('role') ?? s.parentElement.getAttribute('role'), s.textContent])")
                 check("✓ said to a screen reader, side by side", [t[1] for t in told] == [heard_me, heard_others] and all(t[0] == "status" for t in told), told)
                 shot_themed(browser, f"d49-heard-{short}-{theme}", theme)
@@ -1922,8 +1954,8 @@ def heard_checked(now: dt.datetime) -> None:
             browser.find_element(By.ID, "small-record").click()
             shown = wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.execute_script(state) == ["waiting", "heard"], 10)
             check("no microphone: waiting, the other side heard", shown, browser.execute_script(state))
-            mark = browser.execute_script("const c = document.querySelector('.meters .check'); return [getComputedStyle(c).display, c.textContent, getComputedStyle(c, '::before').content]")
-            check("no check for it, nor ✓", mark[0] == "none" and mark[1] == "" and "✓" not in mark[2], mark)
+            mark = browser.execute_script("const c = document.querySelector('.meters .check'); return [getComputedStyle(c).display, c.textContent, getComputedStyle(c.querySelector('svg')).display]")
+            check("no check for it, nor ✓", mark[0] == "none" and mark[1].strip() == "" and mark[2] == "none", mark)
             check("said truthfully under its meter", browser.execute_script(said) == [waiting, ""], browser.execute_script(said))
             fit(browser, "a side waiting")
             shot(browser, f"d49-waiting-{short}")
@@ -1998,6 +2030,313 @@ def meeting_named(now: dt.datetime) -> None:
         check("the minutes made again: the meeting takes the new title", again, browser.execute_script(head))
         retitled = wait_for(browser, lambda b: b.execute_script(rows_said)[0][0] == "Un nouveau nom", 10)
         check("its row too", retitled, browser.execute_script(rows_said)[0])
+
+
+def word_after_a_gap(now: dt.datetime) -> None:
+    """AT. A track with a gap: a line clicked after it plays that line, by the clock's next point (D71)."""
+    print("AT. after a gap in a track, a line clicked plays its own second; the track as it was (D71)")
+    meetings = WORK / "gapped"
+    played = meetings / "2026-10-19_10-00"
+    session(played, now - dt.timedelta(hours=1), 0.2, {})
+    record = json.loads((played / "session.json").read_text())
+    record["tracks"] = {"local": {"device": "Mic", "changed": [{"at": 4.0, "device": None}, {"at": 7.0, "device": "Mic"}]}}
+    (played / "session.json").write_text(json.dumps(record))
+    # Stopped at 4 s; zeros for 2 s of the 3 the clock leaves; a note at 8 s of the clock, frame 336 000.
+    with wave.open(str(played / "local.wav"), "wb") as made:
+        made.setnchannels(2)
+        made.setsampwidth(3)
+        made.setframerate(48000)
+        frames = bytearray()
+        for n in range(480000):
+            sample = int(0.3 * 8388607 * math.sin(2 * math.pi * 880 * n / 48000)) if 336000 <= n < 384000 else 0
+            frames += struct.pack("<i", sample)[:3] * 2
+        made.writeframes(bytes(frames))
+    (played / "clock.jsonl").write_text(
+        '{"track":"local","sample":0,"at":0.0}\n{"track":"local","silence":[192000,288000]}\n{"track":"local","sample":288000,"at":7.0}\n')
+    (played / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":"fr","context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":1.0,"end":2.0,"text":"Avant le trou."}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":8.0,"end":9.0,"text":"Après le trou."}\n{"type":"complete","duration":11.0}\n')
+    before = hashlib.sha256((played / "local.wav").read_bytes()).hexdigest()
+    with Window(meetings, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(1100, 800)
+        browser.execute_script(f"location.hash = '#/meeting/{played.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, ".lines li") and b.find_elements(By.ID, "play"), 10)
+        browser.find_element(By.ID, "play").click()
+        wait_for(browser, lambda b: b.execute_script("const a = document.querySelector('audio.track'); return !!a && !a.paused"), 10)
+        browser.find_elements(By.CSS_SELECTOR, ".lines li")[1].click()
+        at = lambda b: b.execute_script("return document.querySelector('audio.track').currentTime")
+        jumped = wait_for(browser, lambda b: 8.0 <= at(b) < 8.6 and b.execute_script("return document.querySelector('.lines li.now')?.dataset.start") == "8", 5)
+        check("the line after the gap: played from its second, and marked", jumped, at(browser))
+        url = browser.execute_script("return document.querySelector('audio.track').src")
+        def loud(second: float) -> float:
+            start = 44 + 2 * int(second * 48000)
+            asked = urllib.request.Request(url, headers={"Range": f"bytes={start}-{start + 2 * 4800 - 1}"})
+            with urllib.request.urlopen(asked, timeout=10) as answered:
+                body = answered.read()
+            values = struct.unpack(f"<{len(body) // 2}h", body)
+            return max(abs(v) for v in values) / 32768
+        check("what the player is given at that second is that line's sound", loud(8.05) > 0.2, loud(8.05))
+        check("and within 0.2 s of it: silence just before, sound just after", loud(7.7) < 0.01 and loud(8.1) > 0.2, (loud(7.7), loud(8.1)))
+        check("before the gap, the same place as ever: nothing at 2 s", loud(2.0) < 0.01, loud(2.0))
+    check("the track is unchanged (ADR-0004)", hashlib.sha256((played / "local.wav").read_bytes()).hexdigest() == before)
+
+
+def meeting_renamed(now: dt.datetime) -> None:
+    """AS. A meeting renamed by hand (D70): the heading a field, the name everywhere at once, as text."""
+    print("AS. a meeting's heading clicked, a name typed: the list, the page and Libérer de l'espace show it; Escape leaves it; emptied, the minutes' title or the date comes back (D70)")
+    meetings = WORK / "renaming"
+    with_minutes, bare = meetings / "2026-10-28_14-00", meetings / "2026-10-27_14-00"
+    session(with_minutes, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+    session(bare, now - dt.timedelta(days=40), 10, {"local.wav": 1000})
+    def written(title: str) -> None:
+        (with_minutes / "minutes.md").write_text(
+            f"---\ncontract: minutes/v2\nmade: 2026-10-28T15:00:00+01:00\nprovider: local\nmodel: m\ncontext: null\ntitle: {json.dumps(title)}\n---\n\n"
+            "## 1.\n\nLe budget.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    written("Du compte rendu")
+    given = with_minutes / "title.txt"
+    head = lambda b: b.execute_script("return document.querySelector('#meeting h1')?.textContent")
+    row = lambda b, folder: b.execute_script(
+        "const r = [...document.querySelectorAll('#groups .session')].find(r => r.getAttribute('href').endsWith(arguments[0])); return r.querySelector('.day').textContent", folder.name)
+    # A save draws the page again a moment after the heading changes: pressed and typed through what is there then.
+    def opened(b) -> None:
+        press(b, "rename")
+        wait_for(b, lambda c: c.execute_script("const f = document.getElementById('naming'); if (f && document.activeElement === f) { f.select(); return true; } return false"), 5)
+    typed = lambda b, *keys: ActionChains(b).send_keys(*keys).perform()
+    def name(b, text: str, key: str) -> None:
+        opened(b)
+        typed(b, (text or Keys.DELETE) + key)
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        browser.set_window_size(1100, 800)
+        browser.execute_script(f"location.hash = '#/meeting/{with_minutes.name}'")
+        wait_for(browser, lambda b: head(b) == "Du compte rendu", 10)
+        name(browser, "Point budget Q4", Keys.ENTER)
+        check("Enter: the page shows it at once", wait_for(browser, lambda b: head(b) == "Point budget Q4", 5), head(browser))
+        check("the list too", wait_for(browser, lambda b: row(b, with_minutes) == "Point budget Q4", 5), row(browser, with_minutes))
+        check("kept as one line in title.txt", given.read_text() == "Point budget Q4\n", given.read_text())
+        check("the focus is back on the heading", browser.execute_script("return document.activeElement.id") == "rename")
+        check("the folder keeps its name", with_minutes.is_dir() and (with_minutes / "session.json").is_file())
+        name(browser, "Autre chose", Keys.ESCAPE)
+        check("Escape: as it was", wait_for(browser, lambda b: head(b) == "Point budget Q4", 5) and given.read_text() == "Point budget Q4\n", head(browser))
+        check("Escape: the focus is back on the heading", browser.execute_script("return document.activeElement.id") == "rename")
+        # A reading of the page while typing, the window coming forward: what is typed stays.
+        opened(browser)
+        typed(browser, "Tapé en cours")
+        browser.execute_async_script("const done = arguments[arguments.length - 1]; document.getElementById('meeting').dataset.at = '#/other'; refresh().then(done)")
+        kept = browser.execute_script("const f = document.getElementById('naming'); return f && f.value === 'Tapé en cours' && document.activeElement === f")
+        check("the page read again keeps what is typed, and the focus", kept)
+        # The window losing the focus, the field keeping it: nothing is kept yet.
+        browser.execute_script("document.getElementById('naming').dispatchEvent(new Event('blur'))")
+        time.sleep(0.3)
+        # Where the caret was, the page read again.
+        browser.execute_script("document.getElementById('naming').setSelectionRange(2, 4)")
+        browser.execute_async_script("const done = arguments[arguments.length - 1]; document.getElementById('meeting').dataset.at = '#/other'; refresh().then(done)")
+        check("the page read again keeps the caret", browser.execute_script("const f = document.getElementById('naming'); return [f.selectionStart, f.selectionEnd]") == [2, 4])
+        check("another window come forward keeps nothing yet", bool(browser.find_elements(By.ID, "naming")) and given.read_text() == "Point budget Q4\n")
+        typed(browser, Keys.ESCAPE)
+        # The same name, spaces around it: nothing written. Enter twice: saved once.
+        stamp = given.stat().st_mtime_ns
+        opened(browser)
+        typed(browser, "  Point budget Q4  " + Keys.ENTER)
+        wait_for(browser, lambda b: b.find_elements(By.ID, "rename"), 5)
+        check("the same name with spaces round it writes nothing", given.stat().st_mtime_ns == stamp)
+        browser.execute_script("const real = window.__TAURI__.core; window.__saves = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => { if (asked === 'title_saved') window.__saves++; return real.invoke(asked, ...rest); } }; window.restore = () => { window.__TAURI__.core = real; };")
+        opened(browser)
+        browser.execute_script("const f = document.getElementById('naming'); f.value = 'Une fois'; for (let i = 0; i < 2; i++) f.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));")
+        wait_for(browser, lambda b: head(b) == "Une fois", 5)
+        check("Enter twice saves once", browser.execute_script("return window.__saves") == 1, browser.execute_script("return window.__saves"))
+        browser.execute_script("window.restore()")
+        name(browser, "Point budget Q4", Keys.ENTER)
+        wait_for(browser, lambda b: head(b) == "Point budget Q4", 5)
+        # A reading of the page while a save is on its way: the field is not opened again over it.
+        browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'title_saved' ? new Promise((d) => setTimeout(d, 800)).then(() => real.invoke(asked, ...rest)) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        opened(browser)
+        typed(browser, "Lent" + Keys.ENTER)
+        time.sleep(0.2)
+        browser.execute_script("document.getElementById('meeting').dataset.at = '#/other'; refresh()")
+        wait_for(browser, lambda b: head(b) == "Lent", 5)
+        check("a page read during a save: no field left open after it", not browser.find_elements(By.ID, "naming"))
+        browser.execute_script("window.restore()")
+        name(browser, "Point budget Q4", Keys.ENTER)
+        wait_for(browser, lambda b: head(b) == "Point budget Q4", 5)
+        # Made again: it stays. Emptied: the minutes' title.
+        written("Refait")
+        browser.execute_script("refresh()")
+        time.sleep(0.5)
+        check("the minutes made again: the name stays", head(browser) == "Point budget Q4", head(browser))
+        check("the minutes made again leave the file alone", given.read_text() == "Point budget Q4\n")
+        name(browser, "", Keys.ENTER)
+        check("emptied: the minutes' title comes back", wait_for(browser, lambda b: head(b) == "Refait", 5), head(browser))
+        check("emptied: no file left", not given.exists() and not (with_minutes / ".title.part").exists())
+        # Unchanged: the minutes' title is not frozen into a name of the user's.
+        opened(browser)
+        typed(browser, Keys.ENTER)
+        check("Enter on the minutes' title unchanged writes nothing", wait_for(browser, lambda b: b.find_elements(By.ID, "rename"), 5) and not given.exists())
+        # Leaving the field keeps it.
+        opened(browser)
+        typed(browser, "En partant")
+        browser.find_element(By.ID, "find").click()
+        check("leaving the field keeps it", wait_for(browser, lambda b: head(b) == "En partant", 5), head(browser))
+        # As text, a path no path.
+        mark = "<img src=x onerror=\"window.renamed_ran=1\">"
+        name(browser, mark, Keys.ENTER)
+        shown = wait_for(browser, lambda b: head(b) == mark and row(b, with_minutes) == mark, 5)
+        check("markup is shown as text, on the page and in the list", shown
+              and not browser.execute_script("return document.querySelector('#meeting .named img') || document.querySelector('#groups img') || window.renamed_ran"), head(browser))
+        browser.execute_script("location.hash = '#/free'")
+        freed = wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('#free .freeable .name')].some(n => n.textContent === arguments[0])", mark), 10)
+        check("markup is text in Libérer de l'espace too", freed and not browser.execute_script("return document.querySelector('#free img') || window.renamed_ran"))
+        browser.execute_script(f"location.hash = '#/meeting/{with_minutes.name}'")
+        wait_for(browser, lambda b: head(b) == mark and b.find_elements(By.ID, "rename"), 10)
+        name(browser, "../../hors-du-dossier", Keys.ENTER)
+        check("a path is a name: shown as text", wait_for(browser, lambda b: head(b) == "../../hors-du-dossier", 5), head(browser))
+        check("a path: no folder moved, none made",
+              sorted(p.name for p in meetings.iterdir()) == [bare.name, with_minutes.name] and given.read_text() == "../../hors-du-dossier\n", sorted(p.name for p in meetings.iterdir()))
+        # No minutes, no name: the date; a name; emptied: the date.
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: "·" in (head(b) or ""), 10)
+        dated = head(browser)
+        name(browser, "W" * 90, Keys.ENTER)
+        check("80 characters at most, the field says so by stopping", wait_for(browser, lambda b: head(b) == "W" * 80, 5), head(browser))
+        # A heading that fits stays on one line: the button adds nothing to its width.
+        name(browser, "Revue d'équipe", Keys.ENTER)
+        wait_for(browser, lambda b: head(b) == "Revue d'équipe", 5)
+        one = browser.execute_script("const b = document.getElementById('rename'), r = document.createRange(); r.selectNodeContents(b); return r.getClientRects().length")
+        check("a short name stays on one line", one == 1, one)
+        name(browser, "W" * 90, Keys.ENTER)
+        wait_for(browser, lambda b: head(b) == "W" * 80, 5)
+        check("the longest name does not widen the page", browser.execute_script("const e = document.scrollingElement; return e.scrollWidth <= e.clientWidth"))
+        shot(browser, "d70-named")
+        opened(browser)
+        shot(browser, "d70-naming")
+        typed(browser, "Revue d'équipe" + Keys.ENTER)
+        wait_for(browser, lambda b: head(b) == "Revue d'équipe", 5)
+        # Libérer de l'espace: the name, the date beside it.
+        browser.execute_script("location.hash = '#/free'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#free .freeable .name"), 10)
+        freed = browser.execute_script("return [...document.querySelectorAll('#free .freeable')].map(r => [r.querySelector('.name').textContent, r.querySelector('.length').textContent])")
+        check("Libérer de l'espace names it, its date beside it", any(n == "Revue d'équipe" and "·" in l for n, l in freed), freed)
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: head(b) == "Revue d'équipe", 10)
+        name(browser, "", Keys.ENTER)
+        check("emptied, no minutes: the date comes back", wait_for(browser, lambda b: head(b) == dated, 5), head(browser))
+        # Refused: said, the field still open, what was typed kept.
+        browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'title_saved' ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        name(browser, "Refusé", Keys.ENTER)
+        said = wait_for(browser, lambda b: b.find_elements(By.ID, "naming-said") and b.find_element(By.ID, "naming-said").is_displayed(), 5)
+        check("a name refused is said, in French", said and browser.find_element(By.ID, "naming-said").get_attribute("textContent") == "Le nom n’a pas été enregistré\u00a0: REFUS")
+        check("refused: the field stays, what was typed in it", browser.find_element(By.ID, "naming").get_attribute("value") == "Refusé")
+        # A reading of the page keeps the sentence with the field, and leaves the focus where it is.
+        browser.execute_async_script("const done = arguments[arguments.length - 1]; document.getElementById('meeting').dataset.at = '#/other'; refresh().then(done)")
+        check("the page read again keeps the refusal", browser.find_element(By.ID, "naming-said").is_displayed() and browser.find_element(By.ID, "naming").get_attribute("value") == "Refusé")
+        typed(browser, Keys.ESCAPE)
+        # Refused, the user gone elsewhere: the page read again neither brings them back nor tries again.
+        opened(browser)
+        typed(browser, "Refusé ailleurs")
+        browser.execute_script("window.__refused = 0; const was = window.__TAURI__.core; window.__TAURI__.core = { ...was, invoke: (asked, ...rest) => { if (asked === 'title_saved') window.__refused++; return was.invoke(asked, ...rest); } };")
+        browser.find_element(By.ID, "find").click()
+        wait_for(browser, lambda b: b.find_element(By.ID, "naming-said").is_displayed(), 5)
+        for _ in range(2):
+            browser.execute_async_script("const done = arguments[arguments.length - 1]; document.getElementById('meeting').dataset.at = '#/other'; refresh().then(done)")
+        time.sleep(0.2)
+        check("refused, gone elsewhere: the page read again leaves the focus there", browser.execute_script("return document.activeElement.id") == "find", browser.execute_script("return document.activeElement.id"))
+        check("refused, gone elsewhere: nothing tried again without a gesture", browser.execute_script("return window.__refused") == 1, browser.execute_script("return window.__refused"))
+        # The address left: each way out says it, where it stays.
+        press(browser, "settings-link")
+        told = wait_for(browser, lambda b: b.find_element(By.ID, "pane-said").is_displayed() and "REFUS" in b.find_element(By.ID, "pane-said").get_attribute("textContent"), 5)
+        check("refused, then Réglages: said in the pane", told, browser.find_element(By.ID, "pane-said").get_attribute("textContent"))
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: head(b) == dated, 10)
+        # The answer coming after the page was left: said there too.
+        browser.execute_script("const r = window.__TAURI__.core; window.__TAURI__.core = { ...r, invoke: (asked, ...rest) => asked === 'title_saved' ? new Promise((_, no) => setTimeout(() => no('LENT'), 500)) : r.invoke(asked, ...rest) };")
+        opened(browser)
+        typed(browser, "Refusé plus tard" + Keys.ENTER)
+        browser.execute_script("location.hash = '#/settings'")
+        told = wait_for(browser, lambda b: "LENT" in b.find_element(By.ID, "pane-said").get_attribute("textContent") and b.find_element(By.ID, "pane-said").is_displayed(), 5)
+        check("refused after the page was left: said in the pane", told, browser.find_element(By.ID, "pane-said").get_attribute("textContent"))
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: head(b) == dated, 10)
+        browser.execute_script("window.restore(); const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'title_saved' ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        # Refused, then Escape: no sentence for the next address. Refused, then a slower try that saves: none either.
+        opened(browser)
+        typed(browser, "Refusé" + Keys.ENTER)
+        wait_for(browser, lambda b: b.find_element(By.ID, "naming-said").is_displayed(), 5)
+        typed(browser, Keys.ESCAPE)
+        press(browser, "settings-link")
+        wait_for(browser, lambda b: b.find_element(By.ID, "settings").is_displayed(), 5)
+        check("refused, then Escape: nothing said at the next address", not browser.find_element(By.ID, "pane-said").is_displayed())
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: head(b) == dated, 10)
+        opened(browser)
+        typed(browser, "Refusé" + Keys.ENTER)
+        wait_for(browser, lambda b: b.find_element(By.ID, "naming-said").is_displayed(), 5)
+        browser.execute_script("window.restore(); const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'title_saved' ? new Promise((d) => setTimeout(d, 400)).then(() => real.invoke(asked, ...rest)) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("document.getElementById('naming').blur(); location.hash = '#/settings'")
+        wait_for(browser, lambda b: (bare / "title.txt").exists(), 5)
+        time.sleep(0.3)
+        check("refused, then saved by a slower try: no sentence says otherwise", not browser.find_element(By.ID, "pane-said").is_displayed(), browser.find_element(By.ID, "pane-said").get_attribute("textContent"))
+        (bare / "title.txt").unlink()
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: head(b) == dated, 10)
+        browser.execute_script("window.restore(); const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'title_saved' ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        # Refused while leaving for another meeting: said in the pane, never to no one.
+        opened(browser)
+        typed(browser, "Refusé en partant")
+        browser.execute_script(f"document.getElementById('naming').blur(); location.hash = '#/meeting/{with_minutes.name}'")
+        told = wait_for(browser, lambda b: b.find_element(By.ID, "pane-said").is_displayed() and "REFUS" in b.find_element(By.ID, "pane-said").get_attribute("textContent"), 5)
+        check("refused on the way to another meeting: said in the pane", told, browser.find_element(By.ID, "pane-said").get_attribute("textContent"))
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: head(b) == dated, 10)
+        # Refused, then the folder gone: the address is replaced, no hashchange, and it is said all the same.
+        gone = meetings / "2026-10-20_14-00"
+        session(gone, now - dt.timedelta(days=45), 10, {"local.wav": 1000})
+        browser.execute_async_script("const done = arguments[arguments.length - 1]; refresh().then(done)")
+        browser.execute_script(f"location.hash = '#/meeting/{gone.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "rename") and b.execute_script("return document.getElementById('meeting').dataset.name") == gone.name, 10)
+        opened(browser)
+        typed(browser, "Refusé" + Keys.ENTER)
+        wait_for(browser, lambda b: b.find_element(By.ID, "naming-said").is_displayed(), 5)
+        shutil.rmtree(gone)
+        browser.execute_async_script("const done = arguments[arguments.length - 1]; refresh().then(done)")
+        told = wait_for(browser, lambda b: b.find_element(By.ID, "pane-said").is_displayed() and "REFUS" in b.find_element(By.ID, "pane-said").get_attribute("textContent"), 5)
+        check("refused, then its folder gone: said in the pane", told, browser.find_element(By.ID, "pane-said").get_attribute("textContent"))
+        browser.execute_script(f"location.hash = '#/meeting/{bare.name}'")
+        wait_for(browser, lambda b: head(b) == dated, 10)
+        check("then the next address says nothing", not browser.find_element(By.ID, "pane-said").is_displayed())
+        browser.execute_script("window.restore()")
+        # Marks that show nothing, as a paste gives them: no name, and nothing to apologise for.
+        name(browser, "Provisoire", Keys.ENTER)
+        wait_for(browser, lambda b: head(b) == "Provisoire", 5)
+        opened(browser)
+        browser.execute_script("document.getElementById('naming').value = '\\u200b\\u2060'")
+        typed(browser, Keys.ENTER)
+        check("marks that show nothing: the name goes, the date back, nothing refused", wait_for(browser, lambda b: head(b) == dated, 5) and not (bare / "title.txt").exists() and not browser.find_elements(By.ID, "naming-said"), head(browser))
+        opened(browser)
+        typed(browser, "Refusé")
+        typed(browser, Keys.ESCAPE)
+        check("Escape: the sentence goes, the date as it was", not browser.find_elements(By.ID, "naming-said") and head(browser) == dated, head(browser))
+        # The meeting being recorded can be named too.
+        live = lambda b: "live" in (b.find_element(By.ID, "record").get_attribute("class") or "")
+        recording = meetings / "2026-10-18_12-00"
+        browser.find_element(By.ID, "record").click()
+        wait_for(browser, lambda b: (recording / "session.json").exists() and live(b), 10)
+        browser.execute_script(f"location.hash = '#/meeting/{recording.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "rename") and b.execute_script("return document.getElementById('meeting').dataset.name") == recording.name, 10)
+        name(browser, "En direct", Keys.ENTER)
+        check("while recording: named at once", wait_for(browser, lambda b: head(b) == "En direct", 5), head(browser))
+        check("while recording: kept in its folder", (recording / "title.txt").read_text() == "En direct\n")
+        # While it records, Libérer de l'espace names it too, busy, its date beside.
+        browser.execute_script("location.hash = '#/free'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#free .freeable.busy"), 10)
+        busy = browser.execute_script("return [...document.querySelectorAll('#free .freeable.busy')].map(r => [r.querySelector('.name').textContent, r.querySelector('.length').textContent])")
+        check("being recorded, Libérer de l'espace names it, its date beside", bool(busy) and busy[0][0] == "En direct" and "·" in busy[0][1], busy)
+        browser.execute_script(f"location.hash = '#/meeting/{recording.name}'")
+        wait_for(browser, lambda b: head(b) == "En direct", 10)
+        # A press within half a second is the same press.
+        time.sleep(0.6)
+        browser.find_element(By.ID, "record").click()
+        stopped = wait_for(browser, lambda b: "stopped" in (recording / "session.json").read_text() and not live(b), 10)
+        check("stopped: the name stays", stopped and (recording / "title.txt").read_text() == "En direct\n" and head(browser) == "En direct", head(browser))
 
 
 def actions_rows(now: dt.datetime) -> None:
@@ -2075,6 +2414,8 @@ def meeting_told_once(now: dt.datetime) -> None:
         with Window(meetings, "fr_FR.UTF-8", settings) as browser:
             browser.find_element(By.ID, "record").click()
             wait_for(browser, lambda b: (meeting / "session.json").exists() and live(b), 10)
+            # The button says it at the click now (D68); a press within half a second is the same press.
+            time.sleep(0.6)
             browser.find_element(By.ID, "record").click()
             made = wait_for(browser, lambda b: "Compte rendu prêt" in notified.read_text(), 20)
             told = notified.read_text()
@@ -2865,6 +3206,8 @@ def context_gaps(now: dt.datetime) -> None:
         kept = wait_for(browser, lambda b: (meeting / "context.txt").exists() and (meeting / "context.txt").read_text() == typed, 3)
         check("the full window's page of the meeting being recorded offers its context: a Cyrillic name and an emoji kept whole",
               open_ and kept, (meeting / "context.txt").read_text() if (meeting / "context.txt").exists() else None)
+        # The button says it at the click now (D68); a press within half a second is the same press.
+        time.sleep(0.6)
         browser.find_element(By.ID, "record").click()
         stopped = wait_for(browser, lambda b: "stopped" in (meeting / "session.json").read_text() and not live(b), 10)
         made = wait_for(browser, lambda b: (meeting / "minutes.md").exists() and writing.exists(), 20)
@@ -3211,6 +3554,364 @@ def confidential_kept(now: dt.datetime) -> None:
               offered and counted == {"hear": 1, "write": 2}, (browser.execute_script(waits), counted, names(unmodelled / "kept")))
     for server in servers:
         server.shutdown()
+
+
+def nothing_silent(now: dt.datetime) -> None:
+    """AP. What the user does and fails says so; a folder that cannot be read is no empty list (D67)."""
+    print("AP. a command that fails says it, in the user's language; a folder unread is said and tried again (D67)")
+    meetings = WORK / "silence"
+    session(meetings / "2026-10-20_10-00", now - dt.timedelta(days=3), 20, {"local.wav": 1000})
+    shown = lambda b, id_: b.find_element(By.ID, id_).is_displayed()
+    text = lambda b, id_: b.find_element(By.ID, id_).get_attribute("textContent")
+    # `core` itself is frozen, the object holding it not: a copy with the command stood in.
+    refuse = "const real = window.__TAURI__.core, refused = arguments[0]; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === refused ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };"
+    with Window(meetings, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: shown(b, "meeting"), 10)
+        # The real commands on a meeting gone: what the user reads is the shell's own sentence.
+        for ask in ("minutes_again", "transcript_again"):
+            said = browser.execute_async_script(
+                "const done = arguments[arguments.length - 1], said = document.createElement('p'), again = document.createElement('button');"
+                "said.dataset.name = 'gone'; askAgain({ ask: arguments[0] }, said, again).then(() => done(said.textContent));", ask)
+            check(f"{ask} on a meeting gone says so, in French, never the command's raw text",
+                  said.startswith("Impossible de recommencer") and "n’est plus dans le dossier" in said, said)
+        browser.execute_script(refuse, "agreement_shown")
+        browser.execute_script("location.hash = '#/agree/2026-10-20_10-00'")
+        refused = wait_for(browser, lambda b: shown(b, "pane-said"), 5)
+        check("an agreement refused: said in the pane, back at the list", refused
+              and text(browser, "pane-said") == "Cette réunion ne peut pas être envoyée\u00a0: REFUS", text(browser, "pane-said"))
+        browser.execute_script("window.restore(); location.hash = '#/settings'")
+        check("another address: the sentence goes", wait_for(browser, lambda b: not shown(b, "pane-said"), 5))
+        browser.execute_script("location.hash = '#/'")
+        browser.execute_script(refuse, "settings_saved")
+        press(browser, "fold")
+        folded = wait_for(browser, lambda b: shown(b, "pane-said"), 5)
+        check("the sidebar's fold not kept: said in the pane, the sidebar still as asked",
+              folded and text(browser, "pane-said") == "La barre latérale reviendra comme avant au prochain démarrage\u00a0: REFUS"
+              and not shown(browser, "sidebar"), text(browser, "pane-said"))
+        shot(browser, "d67-pane-said")
+        browser.execute_script("window.restore()")
+        press(browser, "unfold")
+        check("kept at last: the sentence goes", wait_for(browser, lambda b: not shown(b, "pane-said"), 5))
+        browser.execute_script(refuse, "hearing_models")
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "model"), 10)
+        # Settings drawn before, drawn anew: the list taken once that drawing is done.
+        time.sleep(1)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:0")
+        refused = wait_for(browser, lambda b: shown(b, "transcription-models-refused"), 5)
+        check("a service's models refused: said, and the model can still be typed",
+              refused and text(browser, "transcription-models-refused") == "Les modèles de ce service n’ont pas pu être lus, vous pouvez en saisir un\u00a0: REFUS"
+              and shown(browser, "transcription-model"), text(browser, "transcription-models-refused"))
+        browser.execute_script("window.restore()")
+        browser.execute_script("location.hash = '#/'")
+        # The folder refused, then given back: said, and read again on the click.
+        meetings.chmod(0)
+        try:
+            browser.execute_script("window.dispatchEvent(new Event('focus'))")
+            said = wait_for(browser, lambda b: shown(b, "empty-again"), 10)
+            check("the meetings' folder unread: said, no recording offered as if it were empty, a way to try again",
+                  said and text(browser, "none") == f"Les réunions de {meetings} ne peuvent pas être lues."
+                  and text(browser, "none-do").startswith("Vérifiez que le disque")
+                  and text(browser, "empty-again") == "Réessayer" and not shown(browser, "empty-record"), text(browser, "none"))
+            browser.set_window_size(420, 400)
+            browser.execute_script("document.getElementById('empty').scrollIntoView()")
+            for theme in ("light", "dark"):
+                shot_themed(browser, f"d67-unread-{theme}", theme)
+            press(browser, "empty-again")
+            time.sleep(0.3)
+            check("tried again, still refused: still said", shown(browser, "empty-again"))
+        finally:
+            meetings.chmod(0o755)
+        browser.set_window_size(1100, 800)
+        browser.execute_script("document.getElementById('empty-again').click()")
+        check("tried again, given back: the meetings are there", wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#groups .session") and not shown(b, "empty"), 10))
+    meetings.chmod(0)
+    try:
+        with Window(meetings, "fr_FR.UTF-8", "reminder = false\n", small=True) as browser:
+            said = wait_for(browser, lambda b: "ne peuvent pas être lues" in b.execute_script("return document.getElementById('small').textContent"), 10)
+            check("the small window says the meetings cannot be read, not that there are none", said)
+    finally:
+        meetings.chmod(0o755)
+    # A meeting's folder locked while it is recorded: the mark refused for real, the switch on says so.
+    recorded = WORK / "silence-marked"
+    recorded.mkdir()
+    with Window(recorded, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        press(browser, "small-record")
+        made = wait_for(browser, lambda b: list(recorded.glob("*/session.json")) and shown(b, "small-confidential"), 15)
+        folder = next(recorded.glob("*/session.json")).parent if made else recorded
+        folder.chmod(0o555)
+        click = "document.getElementById('small-confidential').click()"
+        top = "return document.getElementById('small-stop').getBoundingClientRect().top"
+        try:
+            before = browser.execute_script(top)
+            browser.execute_script(click)
+            said = wait_for(browser, lambda b: shown(b, "small-said"), 8)
+            check("said, Arrêter stays where it is", browser.execute_script(top) == before)
+            check("confidential refused in the small window: said, its lock off, never promising what is not so",
+                  said and "n’a pas pu être marquée confidentielle" in text(browser, "small-said")
+                  and "on" not in browser.execute_script("return document.getElementById('small-confidential').closest('.confidential').className").split(),
+                  text(browser, "small-said"))
+        finally:
+            folder.chmod(0o755)
+        check("given back, it is kept at the next try and the sentence goes",
+              wait_for(browser, lambda b: not shown(b, "small-said") and (folder / "confidential").exists(), 8), sorted(p.name for p in folder.glob("*")))
+        browser.execute_script(click)
+        wait_for(browser, lambda b: not (folder / "confidential").exists(), 5)
+        folder.chmod(0o555)
+        try:
+            browser.execute_script(click)
+            wait_for(browser, lambda b: shown(b, "small-said"), 8)
+        finally:
+            folder.chmod(0o755)
+        # A press within half a second of the last is taken for the same one.
+        time.sleep(0.6)
+        press(browser, "small-stop")
+        check("stopped before the next try: tried once more, and kept",
+              wait_for(browser, lambda b: shown(b, "small-record") and (folder / "confidential").exists() and not shown(b, "small-said"), 10))
+        # The clock stood in: the next recording is the same folder, its mark taken away.
+        (folder / "confidential").unlink()
+        time.sleep(2)
+        press(browser, "small-record")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 15)
+        time.sleep(0.6)
+        folder.chmod(0o555)
+        try:
+            browser.execute_script(click)
+            wait_for(browser, lambda b: shown(b, "small-said"), 8)
+            time.sleep(0.6)
+            press(browser, "small-stop")
+            at_rest = wait_for(browser, lambda b: shown(b, "small-record") and "n’est pas confidentielle" in text(b, "small-said"), 10)
+            first = browser.execute_script("return document.getElementById('small').firstElementChild.id")
+            check("stopped with the mark refused: said at rest as it is, first of all, and nothing marked",
+                  at_rest and first == "small-said" and not (folder / "confidential").exists(), (text(browser, "small-said"), first))
+        finally:
+            folder.chmod(0o755)
+        time.sleep(2)
+        press(browser, "small-record")
+        check("the next recording starts clean", wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed() and not shown(b, "small-said"), 15))
+        time.sleep(0.6)
+        press(browser, "small-stop")
+    for language, raw in (("fr_FR.UTF-8", False), ("en_US.UTF-8", True)):
+        with Window(meetings, language, "reminder = false\n" + ("developer = true\n" if raw else ""), ) as browser:
+            told = browser.execute_async_script(
+                "const done = arguments[arguments.length - 1]; window.__TAURI__.core.invoke('minutes_again', { name: 'gone' }).then(() => done(''), (why) => done(String(why)));")
+            check(f"the raw text only in developer mode ({'on' if raw else 'off'})", ("gone is no session" in told) == raw, told)
+    empty = WORK / "silence-none"
+    empty.mkdir()
+    with Window(empty, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(420, 400)
+        said = wait_for(browser, lambda b: shown(b, "none"), 10)
+        check("no meeting: what to do first, never only a path", said and text(browser, "none-do").startswith("Démarrez un enregistrement") and shown(browser, "empty-record"))
+        browser.execute_script("document.getElementById('empty').scrollIntoView()")
+        for theme in ("light", "dark"):
+            shot_themed(browser, f"d67-none-{theme}", theme)
+
+
+def gestures_answer(now: dt.datetime) -> None:
+    """AQ. Each gesture answers at once, its command stood in to take two seconds (D68)."""
+    print("AQ. Démarrer and Arrêter answer before their command, a second click asks nothing; Refaire… closes; a setting says Enregistré (D68)")
+    meetings = WORK / "answering"
+    written = meetings / "2026-10-28_09-00"
+    session(written, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+    (written / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n{"type":"complete","duration":1.0}\n')
+    (written / "minutes.md").write_text(
+        "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
+        "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    slow = ("const real = window.__TAURI__.core; window.__asked = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record'"
+            " ? (window.__asked++, new Promise((done) => setTimeout(done, 2000)).then(() => real.invoke(asked, ...rest))) : real.invoke(asked, ...rest) };")
+    shown = lambda b, id_: b.find_element(By.ID, id_).is_displayed()
+    said = lambda b: b.find_element(By.ID, "record-said").get_attribute("textContent")
+    running = lambda b: b.execute_async_script("const d = arguments[arguments.length - 1]; window.__TAURI__.core.invoke('recording_now').then((n) => d(n.recording))")
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        browser.set_window_size(1100, 800)
+        browser.execute_script(f"location.hash = '#/meeting/{written.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"), 10)
+        # Refaire…: Annuler, then Escape, each giving the focus back, nothing changed.
+        before = (written / "minutes.md").read_text()
+        for way in ("cancel", "escape"):
+            press(browser, "redo-minutes")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "redo-panel"), 5)
+            if way == "cancel":
+                press(browser, "redo-panel-cancel")
+            else:
+                browser.switch_to.active_element.send_keys(Keys.ESCAPE)
+            closed = wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-panel"), 3)
+            check(f"Refaire… closed by {way}: the focus back on it, nothing changed", closed
+                  and browser.execute_script("return document.activeElement.id") == "redo-minutes" and (written / "minutes.md").read_text() == before,
+                  (closed, browser.execute_script("return document.activeElement.outerHTML.slice(0, 80)")))
+        press(browser, "redo-minutes")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-panel"), 5)
+        browser.execute_script("document.activeElement.blur()")
+        ActionChains(browser).send_keys(Keys.ESCAPE).perform()
+        check("Escape with the focus nowhere closes it too", wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-panel"), 3))
+        press(browser, "redo-transcript")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-transcript-panel"), 5)
+        browser.switch_to.active_element.send_keys(Keys.ESCAPE)
+        check("the transcript's too", wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-transcript-panel"), 3)
+              and browser.execute_script("return document.activeElement.id") == "redo-transcript")
+        # The setting's word, a moment.
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "reminder"), 10)
+        time.sleep(0.5)
+        browser.execute_script("document.getElementById('reminder').click()")
+        here = lambda b: b.find_elements(By.ID, "saved-said")
+        told = wait_for(browser, here, 3)
+        check("a setting written says Enregistré, under it", told and here(browser)[0].text == "Enregistré"
+              and here(browser)[0].get_attribute("role") == "status"
+              and browser.execute_script("const s = document.getElementById('saved-said'), r = document.getElementById('reminder').closest('label, .row, .field'); return r.nextElementSibling === s"))
+        time.sleep(1)
+        check("still said after a second", here(browser))
+        check("gone at a second and a half", wait_for(browser, lambda b: not here(b), 1.5))
+        refuse = "const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'settings_saved' ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };"
+        browser.execute_script(refuse)
+        browser.execute_script("document.getElementById('reminder').click()")
+        refused = wait_for(browser, lambda b: b.find_element(By.ID, "not-saved").is_displayed(), 5)
+        check("a write refused: said, no Enregistré", refused and not here(browser), browser.find_element(By.ID, "not-saved").text)
+        browser.execute_script("window.restore()")
+        # A radio with no id, far down at the smallest size: said under it, in view.
+        time.sleep(0.5)
+        browser.set_window_size(420, 400)
+        browser.execute_script("document.querySelector('input[name=after][value=nothing]').scrollIntoView(); document.querySelectorAll('input[name=after]')[1].click()")
+        wait_for(browser, here, 3)
+        check("said under a radio with no id, in view", here(browser) and browser.execute_script(
+            "const r = document.getElementById('saved-said').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && document.getElementById('saved-said').previousElementSibling.querySelector('input[name=after]') !== null"))
+        wait_for(browser, lambda b: not here(b), 3)
+        # A button in no row: said beside it, the page not sent to its top.
+        browser.execute_script("const p = document.getElementById('minutes'); p.scrollIntoView({block: 'center'}); p.value = 'custom'; p.dispatchEvent(new Event('change', {bubbles: true}))")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "minutes-address"), 5)
+        browser.find_element(By.ID, "minutes-address").send_keys("http://127.0.0.1:9/v1")
+        browser.find_element(By.ID, "minutes-model").send_keys("mistral")
+        browser.execute_script("document.getElementById('minutes-save').click()")
+        wait_for(browser, here, 5)
+        check("the minutes' Enregistrer: said beside its button, in view", here(browser) and browser.execute_script(
+            "const s = document.getElementById('saved-said'), r = s.getBoundingClientRect(); return s.previousElementSibling?.id === 'minutes-save' && r.top >= 0 && r.top + r.height / 2 <= innerHeight"),
+              browser.execute_script("const s = document.getElementById('saved-said'); return [s?.previousElementSibling?.id, s?.getBoundingClientRect().top]"))
+        browser.set_window_size(1100, 800)
+        browser.execute_script("location.hash = '#/'")
+        time.sleep(0.5)
+        # The real command, a double click: the second is the same press, and the button says so at once.
+        browser.execute_script("const r = document.getElementById('record'); r.click(); setTimeout(() => r.click(), 200);")
+        time.sleep(1)
+        check("a double click: recording, and the button says it, not the stop that was not made",
+              running(browser) and said(browser) == "Arrêter l’enregistrement", said(browser))
+        time.sleep(0.6)
+        browser.execute_script("document.getElementById('record').click()")
+        wait_for(browser, lambda b: not running(b), 10)
+        time.sleep(0.6)
+        # A press that does nothing, as a start that failed: the button comes back as soon as it is answered.
+        browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record' ? Promise.resolve() : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("document.getElementById('record').click()")
+        check("a start that did nothing: the button comes back", wait_for(browser, lambda b: said(b) == "Démarrer un enregistrement", 1), said(browser))
+        browser.execute_script("window.restore()")
+        # Its command two seconds long: the header answers first.
+        browser.execute_script(slow)
+        browser.execute_script("const r = document.getElementById('record'); r.click(); r.click();")
+        check("Démarrer: the button says its new state before the command answers, a second click asks nothing",
+              said(browser) == "Arrêter l’enregistrement" and browser.execute_script("return window.__asked") == 1, said(browser))
+        check("the recording did start, once", wait_for(browser, running, 8))
+        time.sleep(1.5)
+        browser.execute_script("const r = document.getElementById('record'); r.click(); r.click();")
+        check("Arrêter: the same, the button waiting", said(browser) == "Arrêt…" and not browser.find_element(By.ID, "record").is_enabled()
+              and browser.execute_script("return window.__asked") == 2, said(browser))
+        check("the recording did stop, once", wait_for(browser, lambda b: not running(b), 15))
+        check("ended, Démarrer again", wait_for(browser, lambda b: said(b) == "Démarrer un enregistrement" and b.find_element(By.ID, "record").is_enabled(), 5), said(browser))
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        browser.execute_script(slow)
+        browser.execute_script("const r = document.getElementById('small-record'); r.click(); r.click();")
+        start = browser.find_element(By.ID, "small-record")
+        check("the small window's Démarrer: at once, disabled", start.text == "Démarrage…" and not start.is_enabled()
+              and browser.execute_script("return window.__asked") == 1, start.text)
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        time.sleep(1)
+        browser.execute_script("const r = document.getElementById('small-stop'); r.click(); r.click();")
+        stop = browser.find_element(By.ID, "small-stop")
+        check("its Arrêter: the same", stop.text == "Arrêt…" and not stop.is_enabled() and browser.execute_script("return window.__asked") == 2, (stop.text, stop.is_enabled(), browser.execute_script("return window.__asked")))
+        back = wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed() and b.find_element(By.ID, "small-record").is_enabled(), 15)
+        check("at rest again, its Démarrer back", back and browser.find_element(By.ID, "small-record").text == "Démarrer un enregistrement")
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        # A start the shell lets go later: true when first read, false after, no recording seen.
+        browser.execute_script("const real = window.__TAURI__.core; let read = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record' ? Promise.resolve() : asked === 'header' ? Promise.resolve({ recording: read++ === 0, stopping: false, shortcut: null }) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("document.getElementById('small-record').click()")
+        late = wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_enabled() and b.find_element(By.ID, "small-record").text == "Démarrer un enregistrement", 3)
+        check("a start refused late: its Démarrer comes back", late, browser.find_element(By.ID, "small-record").text)
+        browser.execute_script("window.restore()")
+        time.sleep(0.6)
+        # Arrêter within the double press: it was not made, so the button is not stuck.
+        browser.execute_script("document.getElementById('small-record').click()")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        browser.execute_script("document.getElementById('small-stop').click()")
+        again = wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_enabled() and b.find_element(By.ID, "small-stop").text == "Arrêter", 3)
+        if again:
+            check("a stop taken for the same press: Arrêter comes back", True)
+            time.sleep(0.6)
+            press(browser, "small-stop")
+        else:
+            check("a stop past the double press: stopped", wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed(), 10))
+
+
+def window_looks(now: dt.datetime) -> None:
+    """AR. The window looks finished: Petite fenêtre an icon with its name, one primary action, little motion (D69)."""
+    print("AR. one primary action, Petite fenêtre an icon named for assistive technology; 200 ms at most between states (D69)")
+    meetings = WORK / "looking"
+    made = meetings / "2026-10-28_09-00"
+    session(made, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed(), 10)
+        small = browser.find_element(By.ID, "small-link")
+        check("Petite fenêtre: an icon, named for assistive technology and to the pointer", small.text == "" and small.get_attribute("aria-label") == "Petite fenêtre"
+              and small.get_attribute("title") == "Petite fenêtre" and small.find_elements(By.CSS_SELECTOR, "svg"), small.text)
+        # Drawn, and seen: stroked in the text's colour, the size of the text; a rule of another name once hid it.
+        drawn = browser.execute_script("const v = document.querySelector('#small-link svg'), c = getComputedStyle(v), p = getComputedStyle(v.parentElement); return [c.stroke === p.color, c.fill, parseFloat(c.width) === parseFloat(p.fontSize), parseFloat(c.height) === parseFloat(p.fontSize)]")
+        check("the icon is stroked, the size of its text", drawn == [True, "none", True, True], drawn)
+        primaries = browser.execute_script("return [...document.querySelectorAll('#sidebar .primary')].filter(b => b.offsetParent).length")
+        check("the header shows one primary action", primaries == 1, primaries)
+        for theme in ("light", "dark"):
+            shot_themed(browser, f"d69-full-{theme}", theme)
+        # A chip turning: the making stood in, then the minutes there.
+        browser.execute_script("const real = window.__TAURI__.core, name = arguments[0]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => { const answer = await real.invoke(asked, ...rest); return asked === 'makings' ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } }; window.restore = () => { window.__TAURI__.core = real; };", made.name)
+        wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.chip.making')].some(c => !c.hidden)"), 8)
+        (made / "minutes.md").write_text(
+            "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: m\ncontext: null\n---\n\n"
+            "## 1.\n\nLe budget.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+        browser.execute_script("window.restore(); window.dispatchEvent(new Event('focus'))")
+        turned = wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, ".chip.turned"), 5)
+        duration = browser.execute_script("const c = document.querySelector('.chip.turned'); return c ? parseFloat(getComputedStyle(c).animationDuration) : null")
+        check("a chip turned: one small move, 200 ms at most", turned and duration is not None and 0 < duration <= 0.2, duration)
+        once = browser.execute_script("const c = getComputedStyle(document.querySelector('.chip.turned')); return [c.animationIterationCount, c.animationDelay]")
+        check("once, with no wait", once == ["1", "0s"], once)
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        time.sleep(0.8)
+        check("once: drawn again, it stands still", not browser.find_elements(By.CSS_SELECTOR, ".chip.turned"))
+        # Made again, the minutes there: nothing has turned, however often it is drawn.
+        browser.execute_script("const real = window.__TAURI__.core, name = arguments[0]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => { const answer = await real.invoke(asked, ...rest); return asked === 'makings' ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } }; window.restore = () => { window.__TAURI__.core = real; };", made.name)
+        wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.chip.making')].some(c => !c.hidden)"), 8)
+        seen = False
+        for _ in range(3):
+            browser.execute_script("window.dispatchEvent(new Event('focus'))")
+            time.sleep(0.5)
+            seen = seen or bool(browser.find_elements(By.CSS_SELECTOR, ".chip.turned"))
+        browser.execute_script("window.restore()")
+        check("minutes made again: no chip turned", not seen)
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True) as browser:
+        moves = "return [...document.querySelectorAll('.small-rest, .small-live')].map(e => parseFloat(getComputedStyle(e).animationDuration))"
+        lengths = browser.execute_script(moves)
+        check("between the small window's states: 200 ms at most", lengths and all(0 < length <= 0.2 for length in lengths), lengths)
+        # The page's own policy refuses what it may not load: a mark drawn from a data: address was blank (#597).
+        browser.execute_script("window.__refused = []; document.addEventListener('securitypolicyviolation', (e) => window.__refused.push(e.violatedDirective + ' ' + e.blockedURI))")
+        press(browser, "small-record")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        heard = wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.slot[data-check=heard] .check svg')].some(v => getComputedStyle(v).display !== 'none' && v.getBoundingClientRect().width >= 10)"), 8)
+        check("a side heard: its check drawn on its green, its size", heard)
+        shot(browser, "d69-heard")
+        check("nothing refused by the page's policy", browser.execute_script("return window.__refused.length") == 0, browser.execute_script("return window.__refused"))
+        time.sleep(0.6)
+        press(browser, "small-stop")
+        full = browser.find_element(By.ID, "small-full")
+        check("its way to the full window: an icon, named", full.text == "" and full.find_elements(By.CSS_SELECTOR, "svg") and full.get_attribute("aria-label"), full.text)
 
 
 def main() -> int:
@@ -3727,6 +4428,24 @@ def main() -> int:
             kept.get_attribute("value") == "" and kept.get_attribute("placeholder").startswith("Une clé est gardée") and "sk-scenario" not in text,
             kept.get_attribute("placeholder"),
         )
+        # Each cause its own sentence (D72).
+        code = WORK / "test-code"
+        try:
+            for cause, sentence in TEST_CAUSES:
+                code.write_text(cause)
+                press(browser, "minutes-test")
+                held = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").get_attribute("textContent") == sentence, 10)
+                check(f"Tester of the minutes, {cause}: its own sentence, what to do, no raw text", held, browser.find_element(By.ID, "minutes-tested").get_attribute("textContent"))
+            # In developer mode, the sentence and the program's last line, its name off.
+            changed(lambda: browser.find_element(By.ID, "developer").click())
+            press(browser, "minutes-test")
+            raw = wait_for(browser, lambda b: "raw words of the provider" in b.find_element(By.ID, "minutes-tested").get_attribute("textContent"), 10)
+            told = browser.find_element(By.ID, "minutes-tested").get_attribute("textContent")
+            check("Tester in developer mode: the cause, then the raw line alone", raw and told.startswith(TEST_CAUSES[-1][1]) and "wholeheard-summary:" not in told and "earlier line" not in told, told)
+            changed(lambda: browser.find_element(By.ID, "developer").click())
+            text = window.file.read_text()
+        finally:
+            code.unlink(missing_ok=True)
         press(browser, "minutes-test")
         refused = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").text.startswith("Le modèle ne répond pas"), 10)
         said = browser.find_element(By.ID, "minutes-tested").text
@@ -4318,7 +5037,7 @@ def main() -> int:
         wait_for(browser, lambda b: b.execute_script("return document.getElementById('settings-link').textContent !== ''"))
         check("the full window left is the one kept in the settings", 'window = "full"' in window.file.read_text(), window.file.read_text())
         back = browser.find_element(By.ID, "small-link")
-        check("at rest too, the full window offers the small one", back.is_displayed() and back.text == "Petite fenêtre", back.text)
+        check("at rest too, the full window offers the small one", back.is_displayed() and back.get_attribute("aria-label") == "Petite fenêtre", back.get_attribute("aria-label"))
         main = browser.current_window_handle
         back.click()
         smaller = wait_for(browser, lambda b: len(b.window_handles) == 2, 5)
@@ -4660,10 +5379,15 @@ def main() -> int:
     confidential_every_way(now)
     meeting_told_once(now)
     minutes_copied(now)
+    nothing_silent(now)
+    gestures_answer(now)
+    window_looks(now)
     actions_rows(now)
     announced(now)
     heard_checked(now)
     meeting_named(now)
+    word_after_a_gap(now)
+    meeting_renamed(now)
     return 1 if FAILED else 0
 
 

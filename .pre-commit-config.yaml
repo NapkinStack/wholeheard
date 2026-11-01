@@ -51,6 +51,8 @@ repos:
     rev: c92afdf2c6ca336aaa8f39e2bd8d48f62dbd8e1f  # frozen: v1.31.1
     hooks:
       - id: zizmor
+        # An empty token variable makes zizmor refuse its option before --offline counts (#327).
+        entry: env -u GH_TOKEN -u GITHUB_TOKEN -u ZIZMOR_GITHUB_TOKEN zizmor
         args: [--no-progress, --offline]
 
   # Workflow validity. shellcheck disabled: absent locally, present on GitHub runners,

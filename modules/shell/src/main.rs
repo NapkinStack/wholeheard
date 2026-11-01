@@ -34,7 +34,7 @@ use wholeheard_shell::{
     migrate,
     minutes::{self, Minutes},
     model::{self, Published},
-    player,
+    named, player,
     providers::{self, Online},
     recording::{self, Recording, Said, Source},
     registry,
@@ -185,6 +185,11 @@ impl Shell {
         read
     }
 
+    /// Whether a recording runs as the header says it: one told to stop is over for the user (D68).
+    fn recording_on(&self) -> bool {
+        self.recording.lock().unwrap().is_some() && !*self.stopping.lock().unwrap()
+    }
+
     /// What a command that failed tells the page, the raw text going to the log too: a detail holds
     /// nothing of a meeting, no key and no path (`tests/log.rs`).
     fn told(&self, failure: Failure, detail: impl std::fmt::Display) -> Told {
@@ -278,6 +283,7 @@ fn main() {
             context_saved,
             context_redo,
             language_set,
+            title_saved,
             confidential_set,
             transcript_redo,
             transcript_corrected,
@@ -645,9 +651,12 @@ struct Listing {
     shapes: Vec<Option<[Vec<f32>; 2]>>,
     /// Whether a recording runs, and the shortcut's keys as the desktop granted them: the header's.
     recording: bool,
+    stopping: bool,
     shortcut: Option<String>,
     /// The sidebar folded, as the user left it (D61).
     folded: bool,
+    /// The meetings' folder is there and cannot be read (D67): `sessions` is empty for that reason.
+    unreadable: bool,
 }
 
 /// A meeting's small relief, kept until its transcript changes: the list is drawn each time the
@@ -694,9 +703,14 @@ async fn listed(app: AppHandle) -> Result<Listing, Told> {
             folder: shell.settings().sessions.clone(),
             sessions,
             shapes,
-            recording: shell.recording.lock().unwrap().is_some(),
+            recording: shell.recording_on(),
+            stopping: *shell.stopping.lock().unwrap(),
             shortcut: shell.shortcut.lock().unwrap().clone(),
             folded: shell.settings().folded,
+            unreadable: {
+                let folder = shell.settings().sessions.clone();
+                sessions::unreadable(&folder, folder == settings::Settings::default().sessions)
+            },
         }
     })
     .await
@@ -708,13 +722,16 @@ async fn listed(app: AppHandle) -> Result<Listing, Told> {
 #[derive(serde::Serialize)]
 struct Header {
     recording: bool,
+    /// Told to stop and not ended yet: the gesture waits (D68).
+    stopping: bool,
     shortcut: Option<String>,
 }
 
 #[tauri::command]
 fn header(shell: State<'_, Shell>) -> Header {
     Header {
-        recording: shell.recording.lock().unwrap().is_some(),
+        recording: shell.recording_on(),
+        stopping: *shell.stopping.lock().unwrap(),
         shortcut: shell.shortcut.lock().unwrap().clone(),
     }
 }
@@ -1018,6 +1035,24 @@ fn language_set(shell: State<'_, Shell>, name: String, language: Option<String>)
     Ok(())
 }
 
+/// The name typed on a meeting's page (D70): written, or blank removed — its minutes' title or its
+/// date then. The name itself is never logged.
+#[tauri::command]
+fn title_saved(shell: State<'_, Shell>, name: String, title: String) -> Result<(), Told> {
+    let folder = session_folder(&shell, &name)?;
+    named::write(&folder, &title).map_err(|error| {
+        // A text the page's field never lets through; else the folder.
+        let failure = if error.kind() == std::io::ErrorKind::InvalidInput {
+            Failure::Unexpected
+        } else {
+            Failure::MeetingFile
+        };
+        shell.told(failure, error)
+    })?;
+    tracing::info!(given = !named::blank(&title), "shell.title_set");
+    Ok(())
+}
+
 /// Whether a meeting is said confidential, and what had left before it was (D60).
 #[derive(serde::Serialize)]
 struct ConfidentialShown {
@@ -1182,7 +1217,7 @@ fn playable(shell: &Shell, folder: &Path) -> Option<String> {
     }
     served
         .as_ref()?
-        .offer(tracks.into_iter().map(|track| (track.path, track.starts)).collect())
+        .offer_placed(tracks.into_iter().map(|track| (track.path, track.runs)).collect())
 }
 
 /// A meeting's diagnostic, for the page to copy: every program's log lines of its makings, then
@@ -1869,9 +1904,10 @@ async fn hearing_models(shell: State<'_, Shell>, index: usize) -> Result<Vec<Str
 /// saved, its key in the environment; refused, the program's own sentence.
 #[tauri::command]
 async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), Told> {
-    let settings = shell.read_or_told()?;
+    let failed = |told: Told| words::test_refused(told, shell.language());
+    let settings = shell.read_or_told().map_err(failed)?;
     let (Some(provider), Some(model)) = (settings.transcription_provider, settings.transcription_model) else {
-        return Err(shell.told(Failure::NoneChosen, "no service is chosen yet"));
+        return Err(failed(shell.told(Failure::NoneChosen, "no service is chosen yet")));
     };
     let hearing = program("wholeheard-transcription", "WHOLEHEARD_TRANSCRIPTION");
     let output = tauri::async_runtime::spawn_blocking(move || {
@@ -1887,32 +1923,35 @@ async fn transcription_tested(shell: State<'_, Shell>) -> Result<(), Told> {
         command.output()
     })
     .await
-    .map_err(|error| shell.told(Failure::Unexpected, error))?
-    .map_err(|error| shell.told(Failure::ProgramNotStarted, error))?;
+    .map_err(|error| failed(shell.told(Failure::Unexpected, error)))?
+    .map_err(|error| failed(shell.told(Failure::ProgramNotStarted, error)))?;
     if output.status.success() {
         tracing::info!("shell.transcription_tested");
         return Ok(());
     }
-    let said = String::from_utf8_lossy(&output.stderr);
-    let said = said.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
-    let said = said.strip_prefix("wholeheard-transcription: ").unwrap_or(said).to_string();
+    let said = summarising::last_said(&String::from_utf8_lossy(&output.stderr), "wholeheard-transcription", output.status);
     tracing::warn!(detail = %said, "shell.transcription_test_failed");
-    let said = if said.is_empty() {
-        format!("wholeheard-transcription stopped without saying why ({})", output.status)
-    } else {
-        said
-    };
-    Err(shell.said(Failure::TestRefused, &said))
+    Err(test_told(&shell, &output, &said))
+}
+
+/// What a test that failed tells: the cause on its output's last line (D72), read by its code alone;
+/// a code unknown, or none: the sentence for no cause.
+fn test_told(shell: &Shell, output: &std::process::Output, said: &str) -> Told {
+    match summarising::test_cause(&String::from_utf8_lossy(&output.stdout)) {
+        Some(cause) => words::test_caused(cause, said, shell.language(), shell.settings().developer),
+        None => words::test_refused(shell.said(Failure::TestRefused, said), shell.language()),
+    }
 }
 
 /// *Tester*: asks `wholeheard-summary` whether the model saved answers — one sentence of its own,
 /// nothing of a meeting —, the key going from the keyring to its environment, never its
-/// arguments. Refused, the program's own sentence.
+/// arguments. Refused, what its code names, or the program's own sentence.
 #[tauri::command]
 async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), Told> {
-    let settings = shell.read_or_told()?;
+    let failed = |told: Told| words::test_refused(told, shell.language());
+    let settings = shell.read_or_told().map_err(failed)?;
     let (Some(provider), Some(model)) = (settings.minutes_provider, settings.minutes_model) else {
-        return Err(shell.told(Failure::NoneChosen, "no model is chosen yet"));
+        return Err(failed(shell.told(Failure::NoneChosen, "no model is chosen yet")));
     };
     let summary = program("wholeheard-summary", "WHOLEHEARD_SUMMARY");
     let ran = tauri::async_runtime::spawn_blocking(move || {
@@ -1944,24 +1983,18 @@ async fn minutes_tested(shell: State<'_, Shell>) -> Result<(), Told> {
         output
     })
     .await
-    .map_err(|error| shell.told(Failure::Unexpected, error))?;
+    .map_err(|error| failed(shell.told(Failure::Unexpected, error)))?;
     match ran {
         Ok(output) if output.status.success() => Ok(()),
-        Ok(output) => {
-            let said = String::from_utf8_lossy(&output.stderr);
-            let said = said.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
-            let said = said.strip_prefix("wholeheard-summary: ").unwrap_or(said);
-            let said = if said.is_empty() {
-                format!("wholeheard-summary stopped without saying why ({})", output.status)
-            } else {
-                said.to_string()
-            };
-            Err(shell.said(Failure::TestRefused, &said))
-        }
-        Err(error) => Err(shell.said(
+        Ok(output) => Err(test_told(
+            &shell,
+            &output,
+            &summarising::last_said(&String::from_utf8_lossy(&output.stderr), "wholeheard-summary", output.status),
+        )),
+        Err(error) => Err(failed(shell.said(
             Failure::ProgramNotStarted,
             &format!("wholeheard-summary could not be started ({error})"),
-        )),
+        ))),
     }
 }
 

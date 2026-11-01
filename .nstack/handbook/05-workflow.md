@@ -291,8 +291,9 @@ well as a human. So a pull request that changes a module the table above asks a 
 one a user sees, from `standard` up, and any module of criticality `high` or `critical` —
 carries a **test sheet** in its description. Editing
 only a module's description — its manifest, `AGENTS.md`, `README.md`, `docs/` — changes no
-behaviour and needs no sheet, a framework update included. The user-visible surface and the
-criticality are read before and after the change, and the stricter applies:
+behaviour and needs no sheet, a framework update included; a manifest that moves the module's
+criticality or its user-visible surface does change the module. Both are read before and after
+the change, and the stricter applies:
 
 | # | Given · when · then | Kind | Result | Evidence | Commit | Confirmed |
 |---|---|---|---|---|---|---|

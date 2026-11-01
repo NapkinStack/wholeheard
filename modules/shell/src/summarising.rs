@@ -44,6 +44,9 @@ pub enum Cause {
     RefusedKey,
     NoCredit,
     UnknownModel,
+    TooMany,
+    Down,
+    NoTimes,
     Redirected,
     ProviderFailed,
     CutShort,
@@ -65,6 +68,9 @@ impl Cause {
             "provider.refused_key" => Cause::RefusedKey,
             "provider.no_credit" => Cause::NoCredit,
             "provider.unknown_model" => Cause::UnknownModel,
+            "provider.too_many" => Cause::TooMany,
+            "provider.down" => Cause::Down,
+            "provider.no_times" => Cause::NoTimes,
             "provider.failed" => Cause::ProviderFailed,
             "answer.not_minutes" => Cause::NotMinutes,
             "transcript.unusable" => Cause::TranscriptUnusable,
@@ -187,8 +193,27 @@ fn event(line: &str) -> Option<String> {
     Some(value.get("event")?.as_str()?.to_string())
 }
 
+/// The last line a program left on its error stream, its name off; or that it said nothing.
+pub fn last_said(stderr: &str, name: &str, status: impl std::fmt::Display) -> String {
+    let said = stderr.lines().map(str::trim).rfind(|line| !line.is_empty()).unwrap_or("");
+    let said = said.strip_prefix(&format!("{name}: ")).unwrap_or(said);
+    if said.is_empty() {
+        format!("{name} stopped without saying why ({status})")
+    } else {
+        said.to_string()
+    }
+}
+
+/// The cause on a test's output's last line (D72), read by its code alone; a code unknown: none.
+pub fn test_cause(out: &str) -> Option<Cause> {
+    out.lines()
+        .rfind(|line| !line.trim().is_empty())
+        .and_then(failed)
+        .and_then(|code| Cause::of(&code))
+}
+
 /// The code of a `failed` line of the contract; none for any other line.
-fn failed(line: &str) -> Option<String> {
+pub fn failed(line: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(line).ok()?;
     if value.get("event")?.as_str()? != "failed" {
         return None;
