@@ -870,6 +870,13 @@ fn a_microphone_going_is_said_once_a_recording_and_its_return_never() {
     assert_eq!(title(&mut sides, &taken), None);
     assert_eq!(title(&mut sides, &lost), None);
 
+    // In the contract's order, `started` after what waits: still said once.
+    let mut sides = Sides::default();
+    assert_eq!(title(&mut sides, &waiting).as_deref(), not_recorded);
+    sides.told(&Said::Started("/s".into(), None, None), false, French);
+    assert_eq!(title(&mut sides, &taken), None);
+    assert_eq!(title(&mut sides, &lost), None);
+
     // It was recorded: the same sentence, in both languages, once.
     let mut sides = Sides::default();
     sides.told(&Said::Started("/s".into(), Some("AirPods".into()), None), false, French);
