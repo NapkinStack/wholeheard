@@ -69,6 +69,7 @@ if [ "$1" != --test ]; then
   echo '{"event": "written", "file": "x"}'
   exit 0
 fi
+[ -e "$here/test-code" ] && { echo '{"event": "sending", "host": "h", "model": "m", "characters": 1}'; echo '{"event": "failed", "code": "'"$(cat "$here/test-code")"'"}'; echo; echo "an earlier line" >&2; echo "wholeheard-summary: raw words of the provider" >&2; exit 1; }
 case "$*" in *openrouter.ai*) echo "wholeheard-summary: the provider at openrouter.ai refused the key" >&2; exit 1;; esac
 echo '{"event": "sending"}'
 echo '{"event": "answered"}'
@@ -85,7 +86,7 @@ printf '%s\\n' "$*" > "$(dirname "$0")/hearing-args"
 # Tester (D43, D63): the key it was given kept beside; a model that gives no times refused, as the real one says it.
 if [ "$1" = --test ]; then
   printf '%s' "${WHOLEHEARD_PROVIDER_KEY:-none}" > "$(dirname "$0")/hearing-key"
-  [ -e "$(dirname "$0")/no-times" ] && { echo "wholeheard-transcription: $(python3 -c "$HOST" "$3") gives no times: choose another model" >&2; exit 1; }
+  [ -e "$(dirname "$0")/test-code" ] && { echo '{"event": "started"}'; echo '{"event": "failed", "code": "'"$(cat "$(dirname "$0")/test-code")"'"}'; echo; echo "an earlier line" >&2; echo "wholeheard-transcription: raw words of the service" >&2; exit 1; }
   exit 0
 fi
 [ -e "$(dirname "$0")/fail-hearing" ] && { echo "wholeheard-transcription: the engine stopped" >&2; exit 1; }
@@ -145,6 +146,16 @@ echo '{"event":"stopped","folder":"'"$folder"'","seconds":5.0}'
 )
 RECORDER.chmod(0o755)
 FAILED = []
+# What Tester says of each cause its program names (D72), as `src/words.rs` says it in French.
+TEST_CAUSES = [
+    ("provider.refused_key", "Le fournisseur a refusé la clé\u00a0: saisissez-la de nouveau dans les réglages de Wholeheard."),
+    ("provider.unknown_model", "Le fournisseur ne connaît pas ce modèle ou cette adresse\u00a0: choisissez-les de nouveau dans les réglages de Wholeheard."),
+    ("provider.no_times", "Ce modèle ne donne pas les temps de ce qu’il entend\u00a0: choisissez-en un qui donne ceux de chaque segment dans les réglages de Wholeheard."),
+    ("provider.no_credit", "Le fournisseur a refusé faute de crédit\u00a0: ajoutez du crédit chez lui, puis réessayez."),
+    ("provider.too_many", "Le fournisseur refuse pour trop de demandes, ou un quota épuisé\u00a0: patientez, ou vérifiez votre forfait chez lui."),
+    ("provider.down", "Le fournisseur répond qu’il est en panne\u00a0: réessayez plus tard. Sur cet ordinateur, ce modèle est peut-être trop gros pour la mémoire\u00a0: choisissez-en un plus petit."),
+    ("provider.unreachable", "Le fournisseur n’a pas pu être joint\u00a0: vérifiez qu’il tourne, ou le réseau, puis réessayez."),
+]
 MONTHS_FR = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
 # The page's ground, as `ui/window.css` sets it in each theme.
 GROUND = {"light": "rgb(242, 244, 247)", "dark": "rgb(21, 23, 28)"}
@@ -844,14 +855,20 @@ def service_named(now: dt.datetime) -> None:
         tested = wait_for(browser, lambda b: b.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), 10)
         check("Tester, on the service chosen from the list, says it hears with each segment's times — the key the keyring kept given to it",
               tested and (WORK / "hearing-key").exists() and (WORK / "hearing-key").read_text() == "sk-stand-in-not-a-key", browser.execute_script(said))
-        (WORK / "no-times").touch()
+        # Each cause its own sentence (D72); the raw text never, outside developer mode.
+        code = WORK / "test-code"
         try:
+            for cause, sentence in TEST_CAUSES:
+                code.write_text(cause)
+                press(browser, "transcription-test")
+                held = wait_for(browser, lambda b: b.execute_script(said) == sentence, 10)
+                check(f"Tester of a service, {cause}: its own sentence, what to do, no raw text", held, browser.execute_script(said))
+            code.write_text("provider.of_a_later_version")
             press(browser, "transcription-test")
-            refused = wait_for(browser, lambda b: "vérifiez son adresse, son nom et sa clé" in b.execute_script(said), 10)
+            unknown = wait_for(browser, lambda b: b.execute_script(said).startswith("Le modèle ne répond pas"), 10)
+            check("a code unknown is read as no code: today's sentence", unknown and "vérifiez son adresse, son nom et sa clé" in browser.execute_script(said), browser.execute_script(said))
         finally:
-            (WORK / "no-times").unlink()
-        check("a model that gives no segment times: Tester says it is refused, and why", refused
-              and browser.execute_script(said).startswith("Le modèle ne répond pas"), browser.execute_script(said))
+            code.unlink(missing_ok=True)
         browser.execute_script("location.hash = '#/'")
         wait_for(browser, lambda b: b.find_element(By.ID, "list").is_displayed(), 5)
         browser.execute_script("location.hash = '#/settings'")
@@ -862,6 +879,19 @@ def service_named(now: dt.datetime) -> None:
         named = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["whisper-1", "Un autre modèle…"], 5)
         check("OpenAI chosen: the model it publishes with segments, named in the repository — not its own list",
               named and len(listed) == 2, (offered(browser, "transcription-models"), listed))
+        # In developer mode, the sentence and the program's last line, its name off.
+        code.write_text(TEST_CAUSES[-1][0])
+        try:
+            before = browser.find_element(By.ID, "transcription-said")
+            press(browser, "developer")
+            WebDriverWait(browser, 5).until(staleness_of(before))
+            press(browser, "transcription-test")
+            raw = wait_for(browser, lambda b: "raw words of the service" in b.execute_script(said), 10)
+            told = browser.execute_script(said)
+            check("Tester of a service in developer mode: the cause, then the raw line alone",
+                  raw and told.startswith(TEST_CAUSES[-1][1]) and "wholeheard-transcription:" not in told and "earlier line" not in told, told)
+        finally:
+            code.unlink(missing_ok=True)
     server.shutdown()
 
 
@@ -4398,6 +4428,24 @@ def main() -> int:
             kept.get_attribute("value") == "" and kept.get_attribute("placeholder").startswith("Une clé est gardée") and "sk-scenario" not in text,
             kept.get_attribute("placeholder"),
         )
+        # Each cause its own sentence (D72).
+        code = WORK / "test-code"
+        try:
+            for cause, sentence in TEST_CAUSES:
+                code.write_text(cause)
+                press(browser, "minutes-test")
+                held = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").get_attribute("textContent") == sentence, 10)
+                check(f"Tester of the minutes, {cause}: its own sentence, what to do, no raw text", held, browser.find_element(By.ID, "minutes-tested").get_attribute("textContent"))
+            # In developer mode, the sentence and the program's last line, its name off.
+            changed(lambda: browser.find_element(By.ID, "developer").click())
+            press(browser, "minutes-test")
+            raw = wait_for(browser, lambda b: "raw words of the provider" in b.find_element(By.ID, "minutes-tested").get_attribute("textContent"), 10)
+            told = browser.find_element(By.ID, "minutes-tested").get_attribute("textContent")
+            check("Tester in developer mode: the cause, then the raw line alone", raw and told.startswith(TEST_CAUSES[-1][1]) and "wholeheard-summary:" not in told and "earlier line" not in told, told)
+            changed(lambda: browser.find_element(By.ID, "developer").click())
+            text = window.file.read_text()
+        finally:
+            code.unlink(missing_ok=True)
         press(browser, "minutes-test")
         refused = wait_for(browser, lambda b: b.find_element(By.ID, "minutes-tested").text.startswith("Le modèle ne répond pas"), 10)
         said = browser.find_element(By.ID, "minutes-tested").text

@@ -1828,7 +1828,7 @@ function minutesRow(minutes, words, locked) {
         await window.__TAURI__.core.invoke("minutes_tested");
         said = words.test_answered;
       } catch (why) {
-        said = fill(words.test_failed, why);
+        said = why;
       }
       testing = false;
       // Said on the page as it is now: it may have been drawn again meanwhile.
@@ -2137,7 +2137,12 @@ function showSettings(shown, minutes, words) {
   testService.addEventListener("click", async () => {
     testService.disabled = true;
     serviceSaid.textContent = "";
-    serviceSaid.textContent = await window.__TAURI__.core.invoke("transcription_tested").then(() => words.service_tested, (why) => fill(words.test_failed, why));
+    try {
+      await window.__TAURI__.core.invoke("transcription_tested");
+      serviceSaid.textContent = words.service_tested;
+    } catch (why) {
+      serviceSaid.textContent = why;
+    }
     testService.disabled = false;
   });
   service.append(agree, saveService, testService, serviceSaid);

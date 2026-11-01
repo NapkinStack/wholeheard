@@ -170,3 +170,45 @@ exit 1"#
         );
     }
 }
+
+#[test]
+fn each_code_of_a_test_names_its_cause_and_an_unknown_one_none() {
+    use wholeheard_shell::summarising::{Cause, failed};
+    for (code, cause) in [
+        ("provider.too_many", Cause::TooMany),
+        ("provider.down", Cause::Down),
+        ("provider.no_times", Cause::NoTimes),
+    ] {
+        assert_eq!(Cause::of(code), Some(cause));
+    }
+    assert_eq!(Cause::of("provider.of_a_later_version"), None);
+    assert_eq!(
+        failed(r#"{"event":"failed","code":"provider.down"}"#).as_deref(),
+        Some("provider.down")
+    );
+    assert_eq!(failed(r#"{"event":"sending"}"#), None);
+    assert_eq!(failed("the program's own English"), None, "a sentence is never read for a cause");
+}
+
+#[test]
+fn a_test_is_read_from_its_last_lines() {
+    use wholeheard_shell::summarising::{Cause, last_said, test_cause};
+    let failed = r#"{"event": "failed", "code": "provider.down"}"#;
+    assert_eq!(test_cause(&format!("{{\"event\": \"sending\"}}\n{failed}\n\n")), Some(Cause::Down));
+    assert_eq!(
+        test_cause(&format!("{failed}\n{{\"event\": \"answered\"}}\n")),
+        None,
+        "failed is the last line, or nothing"
+    );
+    assert_eq!(test_cause(r#"{"event": "failed", "code": "of a later version"}"#), None);
+    assert_eq!(test_cause(""), None);
+    assert_eq!(
+        last_said("an earlier line\n a-program: what failed \n\n", "a-program", 1),
+        "what failed"
+    );
+    assert_eq!(last_said("not named: what failed", "a-program", 1), "not named: what failed");
+    assert_eq!(
+        last_said(" \n", "a-program", "exit status: 3"),
+        "a-program stopped without saying why (exit status: 3)"
+    );
+}

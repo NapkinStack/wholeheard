@@ -1625,6 +1625,22 @@ pub fn told(which: Failure, detail: &str, language: Language, developer: bool) -
     })
 }
 
+/// *Tester* failed with no cause named: the sentence that says the model does not answer, whatever came.
+pub fn test_refused(told: Told, language: Language) -> Told {
+    Told(window(language).test_failed.replacen("{}", &told.0, 1))
+}
+
+/// *Tester* failed for a cause its program named: that sentence alone, the raw text only in developer mode.
+pub fn test_caused(which: Cause, detail: &str, language: Language, developer: bool) -> Told {
+    let shown = shown_detail(detail, developer);
+    let sentence = cause(which, language);
+    Told(if shown.is_empty() {
+        sentence.to_string()
+    } else {
+        format!("{sentence}\n{shown}")
+    })
+}
+
 /// Why minutes were not made, and what to do, as wholeheard-summary coded it (summarising/v1).
 pub fn cause(cause: Cause, language: Language) -> &'static str {
     use Language::{English, French};
@@ -1646,6 +1662,22 @@ pub fn cause(cause: Cause, language: Language) -> &'static str {
         }
         (Cause::UnknownModel, French) => {
             "Le fournisseur ne connaît pas ce modèle ou cette adresse\u{a0}: choisissez-les de nouveau dans les réglages de Wholeheard."
+        }
+        (Cause::TooMany, English) => "The provider refuses for too many requests, or a quota used up: wait, or check your plan with it.",
+        (Cause::TooMany, French) => {
+            "Le fournisseur refuse pour trop de demandes, ou un quota épuisé\u{a0}: patientez, ou vérifiez votre forfait chez lui."
+        }
+        (Cause::Down, English) => {
+            "The provider answers that it is failing: try again later. On this computer, this model may be too large for the memory: choose a smaller one."
+        }
+        (Cause::Down, French) => {
+            "Le fournisseur répond qu’il est en panne\u{a0}: réessayez plus tard. Sur cet ordinateur, ce modèle est peut-être trop gros pour la mémoire\u{a0}: choisissez-en un plus petit."
+        }
+        (Cause::NoTimes, English) => {
+            "This model gives no times for what it hears: choose one that gives each segment’s times in Wholeheard’s settings."
+        }
+        (Cause::NoTimes, French) => {
+            "Ce modèle ne donne pas les temps de ce qu’il entend\u{a0}: choisissez-en un qui donne ceux de chaque segment dans les réglages de Wholeheard."
         }
         (Cause::Redirected, English) => "The provider sends the request to another address: check the address in Wholeheard’s settings.",
         (Cause::Redirected, French) => {
