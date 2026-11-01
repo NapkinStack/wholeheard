@@ -193,7 +193,9 @@ active on its monitor: wrong by construction.
 
 ## Success criterion
 
-> We will consider this was the right call if, **before the end of cycle 05, 2026-11-19**, the decider's
+Read at 05-best-of-its-kind-to-use's closure, 2026-10-31: not met, the trial was not run. Its date moved to the end of cycle 06, the framer's default in the decider's word of that day; the rest unchanged.
+
+> We will consider this was the right call if, **before the end of cycle 06, 2026-11-14**, the decider's
 > real WhatsApp Web call on AirPods, recorded from start to stop at least five times, is never cut, no
 > `Failure in Bluetooth audio transport` is logged within two seconds of capture opening or closing a
 > stream (8 of 9 on 2026-10-27), and `local.wav` holds their voice each time; capture's e2e holds D66's

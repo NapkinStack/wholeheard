@@ -279,6 +279,21 @@ EXAMPLES = {
             {"source": "me"},
         ],
     ),
+    "transcript/v1/test.schema.json": (
+        [
+            {"event": "failed", "code": "provider.no_times"},
+            {"event": "failed", "code": "a code of a later version"},
+            {"event": "an event of a later version"},
+        ],
+        [
+            "a line that is no object",
+            {"code": "provider.no_times"},
+            {"event": "failed"},
+            {"event": "failed", "code": ""},
+            {"event": "failed", "code": "provider.no_times\n"},
+            {"event": "failed", "code": 429},
+        ],
+    ),
     "summarising/v1/event.schema.json": (
         [
             {"event": "sending", "host": "openrouter.ai", "model": "anthropic/claude-sonnet-5.5", "characters": 48210},

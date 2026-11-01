@@ -150,6 +150,8 @@ pub struct Track {
     pub name: String,
     pub path: PathBuf,
     pub starts: f64,
+    /// Each run of frames the clock places by itself (D71): a frame of the file, and when it was heard.
+    pub runs: Vec<(u64, f64)>,
 }
 
 /// The tracks a meeting's folder holds, as `session-audio` describes them, each where its first
@@ -179,19 +181,47 @@ pub fn tracks(folder: &Path) -> Vec<Track> {
             let path = std::path::absolute(folder.join(file)).ok()?;
             fs::symlink_metadata(&path).ok().filter(fs::Metadata::is_file)?;
             let rate = rate(&path)?;
-            let starts = points
+            let mut placed: Vec<(u64, f64)> = points
                 .iter()
-                .find(|point| point["track"] == name && point["sample"].is_u64() && point["at"].is_number())
-                .map_or(0.0, |point| {
-                    point["at"].as_f64().unwrap_or(0.0) - point["sample"].as_u64().unwrap_or(0) as f64 / rate
-                });
+                .filter(|point| point["track"] == name)
+                .filter_map(|point| Some((point["sample"].as_u64()?, point["at"].as_f64()?)))
+                // An instant beyond any meeting is no point: its line says nothing, as the transcription reads it.
+                .filter(|(_, at)| at.abs() < 43_200.0)
+                .collect();
+            placed.sort_by_key(|(frame, _)| *frame);
+            placed.dedup_by_key(|(frame, _)| *frame);
+            let runs = runs(&placed, rate);
+            let starts = runs[0].1;
             Some(Track {
                 name: name.into(),
                 path,
                 starts,
+                runs,
             })
         })
         .collect()
+}
+
+/// Where the player takes a frame off the line of the points before it, in seconds, to place it by
+/// its own point. Coarser than the transcription's 5 ms, which no ear hears: under this, a hole in
+/// the sound would be heard as a click, for a word no one could tell was early.
+const OFF: f64 = 0.02;
+
+/// Each run of frames the clock places by itself, in the order of its frames: the first point
+/// places frame 0 too, at the track's own rate. No point: it starts with the session.
+fn runs(points: &[(u64, f64)], rate: f64) -> Vec<(u64, f64)> {
+    let mut runs: Vec<(u64, f64)> = Vec::new();
+    for &(frame, at) in points {
+        match runs.last() {
+            None => runs.push((0, at - frame as f64 / rate)),
+            Some(&(from, then)) if (at - then - (frame - from) as f64 / rate).abs() > OFF => runs.push((frame, at)),
+            Some(_) => {}
+        }
+    }
+    if runs.is_empty() {
+        runs.push((0, 0.0));
+    }
+    runs
 }
 
 /// A WAV file's sample rate, from its own `fmt ` chunk — never assumed.

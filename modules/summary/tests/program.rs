@@ -391,6 +391,7 @@ fn the_log_says_each_step_under_the_makings_id_and_nothing_of_the_meeting() {
             "summary.started",
             "summary.read",
             "summary.sending",
+            "summary.route",
             "summary.answered",
             "summary.written"
         ]
@@ -468,7 +469,7 @@ fn a_level_asked_shows_more_and_a_library_says_nothing() {
         .unwrap();
     assert!(output.status.success(), "{}", said(&output).1);
     let lines = logged(logs.path());
-    assert_eq!(steps(&lines), ["summary.testing", "summary.answered"]);
+    assert_eq!(steps(&lines), ["summary.testing", "summary.route", "summary.answered"]);
 }
 
 #[test]
@@ -525,7 +526,7 @@ fn a_run_removes_the_day_files_of_more_than_fourteen_days() {
         .unwrap();
     assert!(output.status.success());
     assert!(!logs.path().join("shell.2026-01-01.jsonl").exists());
-    assert_eq!(logged(logs.path()).len(), 2);
+    assert_eq!(logged(logs.path()).len(), 3);
 }
 
 /// A log folder whose day file cannot take a byte: every write to it fails.
@@ -596,7 +597,17 @@ fn a_failure_a_person_acts_on_differently_ends_the_output_with_its_code() {
         ("403 Forbidden", "{}".to_string(), "provider.refused_key"),
         ("402 Payment Required", "{}".to_string(), "provider.no_credit"),
         ("404 Not Found", "{}".to_string(), "provider.unknown_model"),
-        ("500 Internal Server Error", "oops".to_string(), "provider.failed"),
+        ("500 Internal Server Error", "oops".to_string(), "provider.down"),
+        ("503 Service Unavailable", "oops".to_string(), "provider.down"),
+        ("429 Too Many Requests", "{}".to_string(), "provider.too_many"),
+        ("418 I'm a teapot", "{}".to_string(), "provider.failed"),
+        ("499 Client Closed", "{}".to_string(), "provider.failed"),
+        ("428 Precondition Required", "{}".to_string(), "provider.failed"),
+        ("430 Unassigned", "{}".to_string(), "provider.failed"),
+        ("502 Bad Gateway", "oops".to_string(), "provider.down"),
+        ("504 Gateway Timeout", "oops".to_string(), "provider.down"),
+        ("599 Network Connect Timeout", "oops".to_string(), "provider.down"),
+        ("600 Beyond", "{}".to_string(), "provider.failed"),
         ("300 Multiple Choices", String::new(), "provider.redirected"),
         // 304 and 305 send nowhere one can follow (RFC 9110 §15.4): another refusal.
         ("304 Not Modified", String::new(), "provider.failed"),

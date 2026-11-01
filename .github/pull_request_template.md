@@ -22,7 +22,8 @@ Deliverable: D<n>
 > outside the cycle — an incident, a production defect — carries the `out-of-cycle` label,
 > and replaces the line above with `Out of cycle: <reason>`. A pull request that changes no
 > module beyond its description — manifest, `AGENTS.md`, `README.md`, `docs/` — such as a
-> framework update, is not delivery work: the line does not apply.
+> framework update, is not delivery work: the line does not apply, unless the manifest moves
+> the module's criticality or its user-visible surface.
 
 ## What it changes
 
@@ -93,7 +94,8 @@ other: <specify>
 
 > Required when the pull request changes a module the table of `.nstack/handbook/05-workflow.md` §7
 > asks a sheet of — a user-facing one from `standard` up, any one of criticality high or
-> critical — beyond its description: manifest, `AGENTS.md`, `README.md`, `docs/`. The
+> critical — beyond its description: manifest, `AGENTS.md`, `README.md`, `docs/` — or moves its
+> criticality or its user-visible surface. The
 > scenarios come from the acceptance
 > criteria and are written before the code; the results are filled in by a verifier who is
 > not the author (`.nstack/playbooks/verification.md`). Kind: automated · explored · human only —

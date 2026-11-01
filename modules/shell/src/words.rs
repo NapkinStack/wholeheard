@@ -129,8 +129,13 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
                 format!("{named}Prévenez les participants que cette réunion est enregistrée."),
             );
         }
-        (Said::Unavailable(Source::Me, _), English) => ("Your microphone is not recorded", "The meeting’s sound is still recorded."),
-        (Said::Unavailable(Source::Me, _), French) => ("Votre micro n’est pas enregistré", "Le son de la réunion est toujours enregistré."),
+        (Said::Unavailable(Source::Me, _), English) => {
+            ("Your microphone is not recorded for now", "The meeting’s sound is still recorded.")
+        }
+        (Said::Unavailable(Source::Me, _), French) => (
+            "Votre micro n’est pas enregistré pour l’instant",
+            "Le son de la réunion est toujours enregistré.",
+        ),
         (Said::Unavailable(Source::Others, _), English) => ("The meeting’s sound is not recorded", "Your microphone is still recorded."),
         (Said::Unavailable(Source::Others, _), French) => {
             ("Le son de la réunion n’est pas enregistré", "Votre micro est toujours enregistré.")
@@ -163,15 +168,10 @@ pub fn of(said: &Said, reminder: bool, language: Language) -> Option<Notice> {
             "Sortie audio changée",
             "Le son de la réunion est toujours enregistré, depuis la sortie qu’utilise maintenant votre ordinateur.",
         ),
-        // None left: that side, and nothing of the other, which may have none either.
-        (Said::Lost(Source::Me), English) => (
-            "Your microphone is not recorded for now",
-            "Your computer has no microphone left. A microphone plugged in is recorded at once; the recording goes on.",
-        ),
-        (Said::Lost(Source::Me), French) => (
-            "Votre micro n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de micro. Un micro branché est enregistré aussitôt\u{202f}; l’enregistrement continue.",
-        ),
+        // None left: that side, and nothing of the other, which may have none either. Of the
+        // microphone, never why: the system took it away, or a call let go of it (D66).
+        (Said::Lost(Source::Me), English) => ("Your microphone is not recorded for now", "The recording goes on."),
+        (Said::Lost(Source::Me), French) => ("Votre micro n’est pas enregistré pour l’instant", "L’enregistrement continue."),
         (Said::Lost(Source::Others), English) => (
             "The meeting’s sound is not recorded for now",
             "Your computer has no sound output left. An output plugged in is recorded at once; the recording goes on.",
@@ -319,6 +319,18 @@ pub struct Window {
     /// The sidebar's search (D61): what its field says, and none of the meetings holding what is typed.
     /// No meeting yet: what to do.
     pub none_do: &'static str,
+    pub list_unread: &'static str,
+    pub list_unread_do: &'static str,
+    pub small_unread: &'static str,
+    pub again_refused: &'static str,
+    pub hearing_models_refused: &'static str,
+    pub fold_not_kept: &'static str,
+    pub agreement_refused: &'static str,
+    pub record_starting: &'static str,
+    pub record_stopping: &'static str,
+    pub redo_cancel: &'static str,
+    pub saved: &'static str,
+    pub small_not_confidential: &'static str,
     pub find_meetings: &'static str,
     /// The sidebar folded and brought back (D61): each button's name; the shortcut is added beside.
     pub fold: &'static str,
@@ -666,6 +678,9 @@ pub struct Window {
     pub language_detected: &'static str,
     pub meetings_language: &'static str,
     pub language_not_saved: &'static str,
+    pub rename_meeting: &'static str,
+    pub name_meeting: &'static str,
+    pub name_not_saved: &'static str,
     pub language_detected_short: &'static str,
     /// SpeechAnalyzer's language when the settings name none: the system's, never the app's (D64).
     pub language_as_system: &'static str,
@@ -725,6 +740,18 @@ pub fn window(language: Language) -> Window {
             interrupted: "Interrupted",
             none: "No meeting in {} yet.",
             none_do: "Start a recording: its button, its shortcut, or the tray’s icon.",
+            list_unread: "The meetings in {} cannot be read.",
+            list_unread_do: "Check that this folder’s disk is connected and that you may read it, then try again.",
+            small_unread: "The meetings cannot be read: open the full window.",
+            again_refused: "It could not start again: {}",
+            hearing_models_refused: "This service’s models could not be read, you can type one: {}",
+            fold_not_kept: "The sidebar will be back as it was at the next start: {}",
+            agreement_refused: "This meeting cannot be sent: {}",
+            record_starting: "Starting…",
+            record_stopping: "Stopping…",
+            redo_cancel: "Cancel",
+            saved: "Saved",
+            small_not_confidential: "This meeting is not confidential: open it to mark it.",
             find_meetings: "Search the meetings",
             fold: "Fold the sidebar",
             unfold: "Show the sidebar",
@@ -1038,6 +1065,9 @@ pub fn window(language: Language) -> Window {
             language_detected: "Detected by the transcription",
             meetings_language: "Language of the meetings",
             language_not_saved: "The language was not saved: {}",
+            rename_meeting: "Rename this meeting",
+            name_meeting: "Name this meeting",
+            name_not_saved: "The name was not saved: {}",
             language_detected_short: "detected",
             language_as_system: "The system’s",
             language_heard_as: "{} — SpeechAnalyzer hears {}",
@@ -1089,6 +1119,18 @@ pub fn window(language: Language) -> Window {
             interrupted: "Interrompu",
             none: "Aucune réunion dans {} pour l’instant.",
             none_do: "Démarrez un enregistrement\u{a0}: son bouton, son raccourci, ou l’icône de la barre système.",
+            list_unread: "Les réunions de {} ne peuvent pas être lues.",
+            list_unread_do: "Vérifiez que le disque de ce dossier est branché et que vous pouvez le lire, puis réessayez.",
+            small_unread: "Les réunions ne peuvent pas être lues\u{a0}: ouvrez la grande fenêtre.",
+            again_refused: "Impossible de recommencer\u{a0}: {}",
+            hearing_models_refused: "Les modèles de ce service n’ont pas pu être lus, vous pouvez en saisir un\u{a0}: {}",
+            fold_not_kept: "La barre latérale reviendra comme avant au prochain démarrage\u{a0}: {}",
+            agreement_refused: "Cette réunion ne peut pas être envoyée\u{a0}: {}",
+            record_starting: "Démarrage…",
+            record_stopping: "Arrêt…",
+            redo_cancel: "Annuler",
+            saved: "Enregistré",
+            small_not_confidential: "Cette réunion n’est pas confidentielle\u{a0}: ouvrez-la pour la marquer.",
             find_meetings: "Chercher dans les réunions",
             fold: "Replier la barre latérale",
             unfold: "Afficher la barre latérale",
@@ -1405,6 +1447,9 @@ pub fn window(language: Language) -> Window {
             language_detected: "Détectée par la transcription",
             meetings_language: "Langue des réunions",
             language_not_saved: "La langue n’a pas été enregistrée\u{a0}: {}",
+            rename_meeting: "Renommer cette réunion",
+            name_meeting: "Nommer cette réunion",
+            name_not_saved: "Le nom n’a pas été enregistré\u{a0}: {}",
             language_detected_short: "détectée",
             language_as_system: "Celle du système",
             language_heard_as: "{} — SpeechAnalyzer entend {}",
@@ -1430,7 +1475,7 @@ pub fn window(language: Language) -> Window {
             confidential_left: "Déjà parti avant\u{a0}: {}.",
             confidential_left_sound: "le son vers {}",
             confidential_left_transcript: "la transcription vers {}",
-            confidential_not_saved: "Le réglage n’a pas pu être enregistré\u{a0}: réessayez.",
+            confidential_not_saved: "La réunion n’a pas pu être marquée confidentielle\u{a0}: réessayez.",
             confidential_ollama_empty: "Ollama n’a aucun modèle sur cet ordinateur\u{a0}: le compte rendu l’attend.",
             confidential_fetch: "Télécharger {}",
         },
@@ -1580,6 +1625,22 @@ pub fn told(which: Failure, detail: &str, language: Language, developer: bool) -
     })
 }
 
+/// *Tester* failed with no cause named: the sentence that says the model does not answer, whatever came.
+pub fn test_refused(told: Told, language: Language) -> Told {
+    Told(window(language).test_failed.replacen("{}", &told.0, 1))
+}
+
+/// *Tester* failed for a cause its program named: that sentence alone, the raw text only in developer mode.
+pub fn test_caused(which: Cause, detail: &str, language: Language, developer: bool) -> Told {
+    let shown = shown_detail(detail, developer);
+    let sentence = cause(which, language);
+    Told(if shown.is_empty() {
+        sentence.to_string()
+    } else {
+        format!("{sentence}\n{shown}")
+    })
+}
+
 /// Why minutes were not made, and what to do, as wholeheard-summary coded it (summarising/v1).
 pub fn cause(cause: Cause, language: Language) -> &'static str {
     use Language::{English, French};
@@ -1601,6 +1662,22 @@ pub fn cause(cause: Cause, language: Language) -> &'static str {
         }
         (Cause::UnknownModel, French) => {
             "Le fournisseur ne connaît pas ce modèle ou cette adresse\u{a0}: choisissez-les de nouveau dans les réglages de Wholeheard."
+        }
+        (Cause::TooMany, English) => "The provider refuses for too many requests, or a quota used up: wait, or check your plan with it.",
+        (Cause::TooMany, French) => {
+            "Le fournisseur refuse pour trop de demandes, ou un quota épuisé\u{a0}: patientez, ou vérifiez votre forfait chez lui."
+        }
+        (Cause::Down, English) => {
+            "The provider answers that it is failing: try again later. On this computer, this model may be too large for the memory: choose a smaller one."
+        }
+        (Cause::Down, French) => {
+            "Le fournisseur répond qu’il est en panne\u{a0}: réessayez plus tard. Sur cet ordinateur, ce modèle est peut-être trop gros pour la mémoire\u{a0}: choisissez-en un plus petit."
+        }
+        (Cause::NoTimes, English) => {
+            "This model gives no times for what it hears: choose one that gives each segment’s times in Wholeheard’s settings."
+        }
+        (Cause::NoTimes, French) => {
+            "Ce modèle ne donne pas les temps de ce qu’il entend\u{a0}: choisissez-en un qui donne ceux de chaque segment dans les réglages de Wholeheard."
         }
         (Cause::Redirected, English) => "The provider sends the request to another address: check the address in Wholeheard’s settings.",
         (Cause::Redirected, French) => {
@@ -1945,28 +2022,56 @@ pub struct Sides {
     gone: [bool; 2],
     /// What each side is recorded from, to name a microphone that sends nothing.
     devices: crate::recording::Devices,
+    /// The microphone's going was said: once a recording, a call taking and leaving it being no
+    /// news each time. Its return is never said: the small window and the page show it (D66).
+    me_out_said: bool,
+    /// The microphone waits for its first device: taking it is no change.
+    me_waited: bool,
+    /// The microphone last named, by the start or by a notice.
+    me_last: Option<String>,
 }
 
 impl Sides {
     /// The notice of what a recording said, as [`of`] says it, knowing the sides: a side gone
-    /// says the other is still recorded only when it is; one back after none is recorded again.
+    /// says the other is still recorded only when it is; the meeting's sound back after none is
+    /// recorded again.
     pub fn told(&mut self, said: &Said, reminder: bool, language: Language) -> Option<Notice> {
-        let side = |source: &Source| usize::from(*source == Source::Others);
         self.devices.heard(said);
         match said {
             // None left, it was said: the zeros the recording keeps in its place are no news.
             Said::Nothing if self.gone[0] => return None,
             Said::Nothing => return sends_nothing(self.devices.names()[0].as_deref(), language),
-            Said::Unavailable(source, _) => self.gone[side(source)] = true,
-            Said::Lost(source) => {
-                self.gone[side(source)] = true;
-                if !self.gone[1 - side(source)] {
-                    return Some(lost_beside(*source, language));
+            Said::Started(_, me, _) => self.me_last = me.clone(),
+            Said::Unavailable(Source::Me, _) | Said::Lost(Source::Me) => {
+                self.gone[0] = true;
+                self.me_waited |= matches!(said, Said::Unavailable(..));
+                if std::mem::replace(&mut self.me_out_said, true) {
+                    return None;
+                }
+                return if self.gone[1] {
+                    of(&Said::Lost(Source::Me), reminder, language)
+                } else {
+                    Some(lost_beside(Source::Me, language))
+                };
+            }
+            Said::Moved(Source::Me, name) => {
+                self.gone[0] = false;
+                let first = std::mem::take(&mut self.me_waited);
+                let same = *name == std::mem::replace(&mut self.me_last, name.clone());
+                if first || same {
+                    return None;
                 }
             }
-            Said::Moved(source, name) if self.gone[side(source)] => {
-                self.gone[side(source)] = false;
-                return Some(back(*source, name.as_deref(), language));
+            Said::Unavailable(Source::Others, _) => self.gone[1] = true,
+            Said::Lost(Source::Others) => {
+                self.gone[1] = true;
+                if !self.gone[0] {
+                    return Some(lost_beside(Source::Others, language));
+                }
+            }
+            Said::Moved(Source::Others, name) if self.gone[1] => {
+                self.gone[1] = false;
+                return Some(back(name.as_deref(), language));
             }
             _ => {}
         }
@@ -1996,13 +2101,10 @@ fn sends_nothing(name: Option<&str>, language: Language) -> Option<Notice> {
 /// A side with no device left while the other is still recorded.
 fn lost_beside(source: Source, language: Language) -> Notice {
     let (title, body) = match (source, language) {
-        (Source::Me, Language::English) => (
-            "Your microphone is not recorded for now",
-            "Your computer has no microphone left. The meeting’s sound is still recorded, and a microphone plugged in is recorded at once.",
-        ),
+        (Source::Me, Language::English) => ("Your microphone is not recorded for now", "The meeting’s sound is still recorded."),
         (Source::Me, Language::French) => (
-            "Votre micro n’est plus enregistré pour l’instant",
-            "Votre ordinateur n’a plus de micro. Le son de la réunion est toujours enregistré, et un micro branché est enregistré aussitôt.",
+            "Votre micro n’est pas enregistré pour l’instant",
+            "Le son de la réunion est toujours enregistré.",
         ),
         (Source::Others, Language::English) => (
             "The meeting’s sound is not recorded for now",
@@ -2019,26 +2121,14 @@ fn lost_beside(source: Source, language: Language) -> Notice {
     }
 }
 
-/// Said when a side that had no device left is recorded again, from this one (D31).
-pub fn back(source: Source, name: Option<&str>, language: Language) -> Notice {
-    let (title, body) = match (source, language) {
-        (Source::Me, Language::English) => (
-            "Your microphone is recorded again",
-            name.map_or("From the one your computer uses now.".into(), |name| {
-                format!("Now recorded: {name}.")
-            }),
-        ),
-        (Source::Me, Language::French) => (
-            "Votre micro est de nouveau enregistré",
-            name.map_or("Depuis celui qu’utilise maintenant votre ordinateur.".into(), |name| {
-                format!("Enregistré maintenant\u{a0}: {name}.")
-            }),
-        ),
-        (Source::Others, Language::English) => (
+/// Said when the meeting's sound, with no device left, is recorded again, from this one (D31).
+pub fn back(name: Option<&str>, language: Language) -> Notice {
+    let (title, body) = match language {
+        Language::English => (
             "The meeting’s sound is recorded again",
             name.map_or("From the output your computer uses now.".into(), |name| format!("From {name}.")),
         ),
-        (Source::Others, Language::French) => (
+        Language::French => (
             "Le son de la réunion est de nouveau enregistré",
             name.map_or("Depuis la sortie qu’utilise maintenant votre ordinateur.".into(), |name| {
                 format!("Depuis {name}.")

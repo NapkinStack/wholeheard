@@ -33,7 +33,8 @@ sign the sheet `Verifier: session <that identifier>`, and `pr-check` refuses one
 **Hold.** As the author of a deliverable of the accepted cycle, take it before your first
 change: `nstack claim D<n> --session <this session> --person <the person you work for>` — their
 forge handle, asked once, never git's user: agents sharing one identity would be one person.
-Held by someone else, stop and say who holds it; never work around a hold, never force-push a
+Held by someone else — another agent's session is someone else, even for your person — stop and
+say who holds it; never work around a hold, never force-push a
 branch `nstack/hold/…` (`.nstack/handbook/project.md`, *Who holds a deliverable*).
 
 **Words.** Facing a person, use the framework's words as `.nstack/handbook/glossary.md` defines
@@ -81,7 +82,7 @@ test needed (a typo, a local rename): do it, run the local checks, summarise. No
 10. Sync         merge the default branch in before the pull request: a conflict is
                  its author's to settle, here; a number taken in sequence is taken now
 11. Summarise    done / verified / assumed / not verified / risks
-12. Close        once merged, its branch is gone: on the forge, here, and its worktree
+12. Close        once merged, its branch is gone: on the forge, here, its worktree, and the empty start branch `nstack plan` names for this deliverable
 ```
 
 Before writing any file, present steps 1 to 3, the oracle you will write (4) and the size (5),
@@ -102,7 +103,7 @@ You **stop and report** in these cases, without looking for a way around:
 | Potentially destructive action | Stop. See §5. |
 | A blocking piece of information is missing after searching | Ask for clarification. Once, precisely. |
 | The framework itself is wrong — a message, a check, a page | Stop; never a workaround. Report it to the decider: the file, the message, what is wrong. Fixing it at its source is a task the decider assigns (`.nstack/handbook/INSTALL.md`, *When the framework is wrong*). |
-| The deliverable is held by someone else (`nstack claim` refuses it) | Stop. Say who holds it and since when; take another ready deliverable — and take over a stale hold only when the person you work for asks. |
+| The deliverable is held by someone else (`nstack claim` refuses it) | Stop. Say who holds it and since when; take another ready deliverable — and take over only when the person you work for asks: a stale hold, or one another session of theirs holds. |
 | A module's criticality has to be chosen | Propose it with what it costs, and let the decider settle it: it is a product decision (`.nstack/handbook/05-workflow.md` §7). |
 
 A red CI is never a detail. A bypassed gate is an incident.

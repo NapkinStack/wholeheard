@@ -33,7 +33,17 @@ per user and per package and removes with it
 read 2026-10-30). `windows/trial.ps1` holds both on GitHub's Windows runner, at every run of
 `.github/workflows/windows-app.yml`.
 
-## Before a submission
+## What stands between the package and a submission
+
+The Windows App Certification Kit, run on the package at every run of `windows-app.yml` (D77; its
+report kept beside the package, `appcert-report.xml`), said on 2026-10-31, kit 10.0.26100.9457,
+Wholeheard 0.2.0: **PASS overall, 24 tests, 1 failed**.
+
+| Test | Kit's verdict | Why | What it asks |
+|---|---|---|---|
+| Blocked executables (88) | FAIL, optional | The shell starts the three other programs (`CreateProcessW`, `ShellExecuteW`), and the programs name `cmd`, `reg`, `powershell` in their code | Nothing yet: launching processes is what `runFullTrust` is declared for, above. Whether Partner Center's own review accepts it is known at the first submission only |
+
+Before that submission:
 
 - `identity.json` still holds a placeholder: fill it with the *Package/Identity* values from
   Partner Center's *View app identity details*, and set `placeholder` to `false`.

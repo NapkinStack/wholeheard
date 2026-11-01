@@ -67,4 +67,9 @@ tauri-plugin-global-shortcut = "2.4.1"
 
 [dev-dependencies]
 minisign = "0.10.0"
+oxc_allocator = "0.156"
+oxc_ast = "0.156"
+oxc_ast_visit = "0.156"
+oxc_parser = "0.156"
+oxc_span = "0.156"
 tempfile = "3"

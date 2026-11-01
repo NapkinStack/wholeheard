@@ -17,7 +17,9 @@
   Mac plays.
 - `windows-x64`: the zip (`windows/build.py`) and `Wholeheard-<version>-x64.msix` (`windows/msix.py`,
   from `AppxManifest.xml.in`, `identity.json` and `Assets/`), made on Windows. `windows/trial.ps1`,
-  run by `windows-app.yml`, signs it for the run and installs, upgrades and removes it.
+  run by `windows-app.yml`, signs it for the run and installs, upgrades and removes it; `windows/certify.ps1`
+  has the certification kit test it, `windows/appcert.py` says its report — read in `scripts/test.sh` from
+  `tests/appcert-report.xml`, cut from a report the kit wrote on the runner.
 - Each package is made in a throwaway container of its system, so that `rpmbuild`, `dpkg` and the
   libraries they read are that system's, and nothing is installed on the workstation.
 
