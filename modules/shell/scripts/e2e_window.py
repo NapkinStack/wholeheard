@@ -397,6 +397,30 @@ class Window:
                     pass
 
 
+def asking_less_motion(window: Window) -> Window:
+    """A window whose desktop asks for less motion, in the scenario's own settings, never the user's:
+    WebKitGTK reads `org.gnome.desktop.interface enable-animations`, from a key file with this backend
+    (`gtk-3.0/settings.ini` alone is not enough: the query stays false under Wayland)."""
+    settings = Path(window.env["XDG_CONFIG_HOME"]) / "glib-2.0" / "settings"
+    settings.mkdir(parents=True, exist_ok=True)
+    (settings / "keyfile").write_text("[org/gnome/desktop/interface]\nenable-animations=false\n")
+    window.env.update(GSETTINGS_BACKEND="keyfile")
+    return window
+
+
+LESS_MOTION = "return matchMedia('(prefers-reduced-motion: reduce)').matches"
+# From here on, whatever starts to move, in the running page.
+WATCH_MOTION = ("window.__moved = []; for (const kind of ['animationstart', 'transitionrun'])"
+                " document.addEventListener(kind, (e) => window.__moved.push(`${kind} ${e.animationName ?? e.propertyName} ${e.target.className || e.target.id}`), true)")
+# What moved so far, and every element or pseudo-element that would move by its computed style.
+MOVING = ("const moves = [...window.__moved], some = (t) => t.split(',').some((d) => parseFloat(d) > 0);"
+          "for (const e of document.querySelectorAll('*')) for (const p of [null, '::before', '::after']) {"
+          " const c = getComputedStyle(e, p), named = `${e.tagName}.${e.className.baseVal ?? e.className}#${e.id}${p ?? ''}`;"
+          " if (c.animationName !== 'none' && some(c.animationDuration)) moves.push(`animation ${c.animationName} ${named}`);"
+          " if (c.transitionProperty !== 'none' && some(c.transitionDuration)) moves.push(`transition ${c.transitionProperty} ${c.transitionDuration} ${named}`); }"
+          "return moves")
+
+
 # The run's own output, made by e2e.sh: the window's sound goes there, never to the speakers.
 QUIET = os.environ.get("PULSE_SINK", "")
 # What WirePlumber remembers of an application's sound, by its name: the user's own Wholeheard
@@ -817,9 +841,74 @@ def service_named(now: dt.datetime) -> None:
         saved = wait_for(browser, lambda b: 'engine = "service"' in window.file.read_text(), 5)
         check("agreed, the service is saved as who hears, its host kept as agreed",
               saved and 'transcription_agreed = "hears.example"' in window.file.read_text() and "whisper-1" in window.file.read_text(), window.file.read_text())
-        browser.find_element(By.ID, "transcription-test").click()
+        # Saved, the model no longer needed: Settings are drawn anew at the next reading of the makings,
+        # perhaps between finding the button and clicking it. Clicked in the page, as it is now.
+        browser.execute_script("document.getElementById('transcription-test').click()")
         tested = wait_for(browser, lambda b: b.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), 10)
         check("Tester says in one sentence what the service answered: it hears, with each segment's times", tested, browser.execute_script(said))
+        # The page drawn anew under a slow answer, as a model come or the window back do: nothing lost, no second ask.
+        browser.execute_script("const real = window.__TAURI__.core; window.answer = null; window.asked = 0; window.answered = 0; window.held = window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => { if (asked !== 'transcription_tested') return real.invoke(asked, ...rest); window.asked += 1; return new Promise((resolve) => { window.answer = () => real.invoke(asked, ...rest).then((told) => { resolve(told); setTimeout(() => { window.answered += 1; }); }); }); } }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("window.__old = document.getElementById('transcription-said'); document.getElementById('transcription-test').click()")
+        wait_for(browser, lambda b: b.execute_script("return window.answer !== null"), 5)
+        browser.execute_script("refresh()")
+        drawn = wait_for(browser, lambda b: b.execute_script("return !window.__old.isConnected && document.getElementById('transcription-said') !== null"), 5)
+        check("drawn anew while it asks: Tester stays disabled", drawn and browser.execute_script("return document.getElementById('transcription-test').disabled"))
+        browser.execute_script("window.answer()")
+        kept = wait_for(browser, lambda b: b.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), 10)
+        check("drawn anew while it asks: the answer is said on the page as it is", kept and not browser.execute_script("return document.getElementById('transcription-test').disabled") and browser.execute_script("return window.asked") == 1, browser.execute_script(said))
+        browser.execute_script("window.restore(); window.__old = document.getElementById('transcription-said'); refresh()")
+        wait_for(browser, lambda b: b.execute_script("return !window.__old.isConnected && document.getElementById('transcription-said') !== null"), 5)
+        hears = "Il entend, avec les temps de chaque segment"
+        testing = "return document.getElementById('transcription-test').disabled"
+        check("drawn anew after it answered: the answer stays", browser.execute_script(said).startswith(hears), browser.execute_script(said))
+        check("drawn anew after it answered: Tester can be asked again", not browser.execute_script(testing))
+        # Enregistrer while Tester asks: the sentence said, then the answer; the button given back.
+        browser.execute_script("window.answer = null; window.__TAURI__.core = window.held; document.getElementById('transcription-test').click()")
+        wait_for(browser, lambda b: b.execute_script("return window.answer !== null"), 5)
+        browser.execute_script("document.getElementById('transcription-save').click()")
+        saved_said = wait_for(browser, lambda b: "hears.example" in b.execute_script(said), 5)
+        check("Enregistrer while Tester asks: said, Tester still disabled", saved_said and browser.execute_script(testing), browser.execute_script(said))
+        browser.execute_script("window.answer()")
+        check("then Tester's answer is said, and it can be asked again", wait_for(browser, lambda b: b.execute_script(said).startswith(hears) and not b.execute_script(testing), 10), browser.execute_script(said))
+        browser.execute_script("window.restore()")
+        # Enregistrer's own sentence: it outlives a redraw too.
+        browser.execute_script("document.getElementById('transcription-save').click()")
+        wait_for(browser, lambda b: "hears.example" in b.execute_script(said), 5)
+        kept_said = browser.execute_script(said)
+        browser.execute_script("window.__old = document.getElementById('transcription-said'); refresh()")
+        wait_for(browser, lambda b: b.execute_script("return !window.__old.isConnected && document.getElementById('transcription-said') !== null"), 5)
+        check("Enregistrer's sentence: it stays when drawn anew", browser.execute_script(said) == kept_said, browser.execute_script(said))
+        # Another address saved while Tester asks about the first: its answer is not said of the second.
+        address_to = "const a = document.getElementById('transcription-provider'); a.value = arguments[0]; a.dispatchEvent(new Event('input')); document.getElementById('transcription-agreed').click(); document.getElementById('transcription-save').click()"
+        browser.execute_script("window.answer = null; window.__TAURI__.core = window.held; document.getElementById('transcription-test').click()")
+        wait_for(browser, lambda b: b.execute_script("return window.answer !== null"), 5)
+        browser.execute_script(address_to, "https://other.example/v1")
+        moved = wait_for(browser, lambda b: "other.example" in b.execute_script(said) and 'transcription_agreed = "other.example"' in window.file.read_text(), 5)
+        browser.execute_script("window.answer()")
+        back = wait_for(browser, lambda b: not b.execute_script(testing), 10)
+        check("another service saved while Tester asks: the answer is not said, the button given back",
+              moved and back and "other.example" in browser.execute_script(said) and not browser.execute_script(said).startswith(hears), browser.execute_script(said))
+        browser.execute_script("window.restore()")
+        browser.execute_script(address_to, "https://hears.example/v1")
+        wait_for(browser, lambda b: 'transcription_agreed = "hears.example"' in window.file.read_text(), 5)
+        # Another model saved while Tester asks about the first: the same.
+        model_to = "const m = document.getElementById('transcription-model'); m.value = arguments[0]; m.dispatchEvent(new Event('input')); document.getElementById('transcription-save').click()"
+        browser.execute_script("window.answer = null; window.__TAURI__.core = window.held; document.getElementById('transcription-test').click()")
+        wait_for(browser, lambda b: b.execute_script("return window.answer !== null"), 5)
+        browser.execute_script(model_to, "whisper-2")
+        moved = wait_for(browser, lambda b: 'transcription_model = "whisper-2"' in window.file.read_text(), 5)
+        browser.execute_script("window.answer()")
+        back = wait_for(browser, lambda b: not b.execute_script(testing), 10)
+        check("another model saved while Tester asks: the answer is not said, the button given back",
+              moved and back and not browser.execute_script(said).startswith(hears), browser.execute_script(said))
+        browser.execute_script("window.restore()")
+        browser.execute_script(model_to, "whisper-1")
+        wait_for(browser, lambda b: 'transcription_model = "whisper-1"' in window.file.read_text(), 5)
+        # What was saved cannot be read to bind the answer: said, the button given back.
+        browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'settings_shown' ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; }; document.getElementById('transcription-test').click()")
+        told = wait_for(browser, lambda b: b.execute_script(said) == "REFUS" and not b.execute_script(testing), 5)
+        browser.execute_script("window.restore()")
+        check("what was saved not read: said, the button given back", told, browser.execute_script(said))
         # Who heard a meeting, said where it is read: the service's host, never « sur cet ordinateur ».
         browser.execute_script("location.hash = '#/meeting/heard'")
         makers = lambda b: [p.text for p in b.find_elements(By.CSS_SELECTOR, "#meeting .maker")]
@@ -828,10 +917,29 @@ def service_named(now: dt.datetime) -> None:
         browser.execute_script("location.hash = '#/settings'")
         note = wait_for(browser, lambda b: "reçoit le son de vos réunions" in b.find_element(By.ID, "settings").text, 5)
         check("Settings say a transcription service receives the meetings' sound", note and "L’audio ne quitte jamais" not in browser.find_element(By.ID, "settings").text)
+        check("another address and back: the last answer is gone", browser.execute_script(said) == "", browser.execute_script(said))
         # Offered by name, as the minutes' services are (D63).
         offered = lambda b, id_: b.execute_script("return [...document.querySelectorAll(arguments[0])].map(o => [o.value, o.textContent])", f"#{id_} option")
         names = [said_ for value, said_ in offered(browser, "model") if value.startswith("service:")]
         check("the services that hear are offered by name, as the minutes' are: OpenRouter, OpenAI", names == ["OpenRouter", "OpenAI"], names)
+        # Another choice: what was said of the last goes at once, on the same page.
+        browser.execute_script("document.getElementById('transcription-test').click()")
+        wait_for(browser, lambda b: b.execute_script(said).startswith(hears), 10)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:0")
+        check("another service chosen: the last answer goes at once", browser.execute_script(said) == "", browser.execute_script(said))
+        Select(browser.find_element(By.ID, "model")).select_by_value("service")
+        # Another service chosen while Tester asks: its button at once, the old answer never said, even drawn anew.
+        browser.execute_script("window.answer = null; window.answered = 0; window.__TAURI__.core = window.held; document.getElementById('transcription-test').click()")
+        wait_for(browser, lambda b: b.execute_script("return window.answer !== null"), 5)
+        Select(browser.find_element(By.ID, "model")).select_by_value("service:0")
+        check("another service chosen while Tester asks: its button given back at once", not browser.execute_script(testing))
+        browser.execute_script("window.answer()")
+        wait_for(browser, lambda b: b.execute_script("return window.answered") >= 1, 10)
+        check("the answer for the service left is not said", browser.execute_script(said) == "", browser.execute_script(said))
+        browser.execute_script("window.restore(); window.__old = document.getElementById('transcription-said'); refresh()")
+        wait_for(browser, lambda b: b.execute_script("return !window.__old.isConnected && document.getElementById('transcription-said') !== null"), 5)
+        check("drawn anew after: nor then", browser.execute_script(said) == "", browser.execute_script(said))
+        listed.clear()
         Select(browser.find_element(By.ID, "model")).select_by_value("service:0")
         models = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["openai/whisper-large-v3-turbo", "vendor/scribe", "Un autre modèle…"], 5)
         check("OpenRouter chosen: its transcription models listed from it, its address filled and not asked",
@@ -1960,10 +2068,16 @@ def heard_checked(now: dt.datetime) -> None:
             fit(browser, "a side waiting")
             shot(browser, f"d49-waiting-{short}")
             stop_from_small(browser)
-    # What a user who asked for less motion is given: asked of the page's own rules.
-    with Window(WORK / "checks-waiting-fr", "fr_FR.UTF-8", 'after = "nothing"\n', small=True) as browser:
-        still = browser.execute_script("const found = []; for (const sheet of document.styleSheets) for (const rule of sheet.cssRules) if (rule.media && rule.media.mediaText.includes('prefers-reduced-motion')) found.push(rule.cssText); return found.join(' ')")
-        check("less motion asked: neither pulse, pop nor fade", ".slot[data-check] .check" in still and ".check-says" in still, still)
+    # A user who asked for less motion, in a running window: a side's check and its sentence stand still.
+    with asking_less_motion(Window(WORK / "checks-waiting-fr", "fr_FR.UTF-8", 'after = "nothing"\n', small=True)) as browser:
+        check("less motion asked: the page's query says so", browser.execute_script(LESS_MOTION))
+        browser.execute_script(WATCH_MOTION)
+        browser.find_element(By.ID, "small-record").click()
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, ".check-says") and b.find_elements(By.CSS_SELECTOR, ".slot[data-check=heard] .check"), 10)
+        named = browser.execute_script("return ['.slot[data-check] .check', '.check-says'].map(q => [...document.querySelectorAll(q)].map(e => { const c = getComputedStyle(e); return [c.animationName, c.transitionDuration]; }))")
+        check("less motion asked: neither pulse, pop nor fade", all(found and all(said == ["none", "0s"] for said in found) for found in named), named)
+        check("less motion asked: nothing in the recording moves", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
+        stop_from_small(browser)
 
 
 def meeting_named(now: dt.datetime) -> None:
@@ -4007,11 +4121,132 @@ def nothing_silent(now: dt.datetime) -> None:
             told = browser.execute_async_script(
                 "const done = arguments[arguments.length - 1]; window.__TAURI__.core.invoke('minutes_again', { name: 'gone' }).then(() => done(''), (why) => done(String(why)));")
             check(f"the raw text only in developer mode ({'on' if raw else 'off'})", ("gone is no session" in told) == raw, told)
+    # What the page reads and cannot: said where the eye is, in the user's language; asked by no gesture
+    # or not, never only a line in the log (D67).
+    for language, not_opened, not_read, unread, gone in (
+        ("fr_FR.UTF-8", "Cette réunion n’a pas pu être ouverte\u00a0: ", "Le contexte n’a pas pu être relu\u00a0: ", "Les réunions ne peuvent pas être lues", "n’est plus dans le dossier"),
+        ("en_US.UTF-8", "This meeting could not be opened: ", "The context could not be read again: ", "The meetings cannot be read", "is no longer in the meetings"),
+    ):
+        context_file = meetings / "2026-10-20_10-00" / "context.txt"
+        context_file.write_text("Budget 2026")
+        with Window(meetings, language, "reminder = false\n") as browser:
+            browser.set_window_size(1100, 800)
+            wait_for(browser, lambda b: shown(b, "meeting") and b.find_elements(By.ID, "context"), 10)
+            # A making stood in, then over, the context not read back: its text stays, the sentence comes.
+            browser.execute_script(
+                "const real = window.__TAURI__.core, name = arguments[0]; window.making = true; window.refusing = true;"
+                "window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => {"
+                " if (asked === 'context_shown' && window.refusing) throw 'REFUS';"
+                " const answer = await real.invoke(asked, ...rest);"
+                " return asked === 'makings' && window.making ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } };"
+                "window.restore = () => { window.__TAURI__.core = real; };", "2026-10-20_10-00")
+            wait_for(browser, lambda b: b.execute_script("return document.getElementById('context').dataset.making === 'true'"), 8)
+            browser.execute_script("window.making = false")
+            said = wait_for(browser, lambda b: text(b, "context-said") == not_read + "REFUS" and shown(b, "context-said"), 8)
+            check(f"a context not read back after a making: said ({language})", said, text(browser, "context-said"))
+            check("its text stays as it was", browser.execute_script("return document.getElementById('context-text').value") == "Budget 2026")
+            # Read back after the next making: the sentence goes.
+            def a_making(refusing: bool) -> None:
+                browser.execute_script("window.refusing = arguments[0]; window.making = true", refusing)
+                wait_for(browser, lambda b: b.execute_script("return document.getElementById('context').dataset.making === 'true'"), 8)
+                browser.execute_script("window.making = false")
+                wait_for(browser, lambda b: b.execute_script("return document.getElementById('context').dataset.making === 'false'"), 8)
+            a_making(False)
+            check("read back at the next making: the sentence goes", wait_for(browser, lambda b: not shown(b, "context-said"), 5), text(browser, "context-said"))
+            a_making(True)
+            wait_for(browser, lambda b: shown(b, "context-said"), 5)
+            # Written since: it is no longer the last word, with no redraw to wipe it.
+            browser.execute_script("window.__card = document.getElementById('context')")
+            browser.find_element(By.ID, "context-text").send_keys(" X")
+            gone_said = wait_for(browser, lambda b: not shown(b, "context-said") and context_file.read_text() == "Budget 2026 X", 5)
+            check("written after it could not be read: the sentence goes, on the same page", gone_said and browser.execute_script("return window.__card === document.getElementById('context')"), text(browser, "context-said"))
+            browser.execute_script("window.restore()")
+            browser.execute_script(refuse, "opened")
+            browser.execute_script("location.hash = '#/meeting/2026-10-20_10-00'")
+            said = wait_for(browser, lambda b: shown(b, "pane-said") and text(b, "pane-said") == not_opened + "REFUS", 5)
+            check(f"a meeting that cannot be opened: said in the pane, back at the list ({language})",
+                  said and browser.execute_script("return location.hash") == "#/" and not shown(browser, "meeting"), text(browser, "pane-said"))
+            browser.execute_script("window.restore(); location.hash = '#/settings'")
+            check("another address: the sentence goes", wait_for(browser, lambda b: not shown(b, "pane-said"), 5))
+            # The real command, on a meeting gone: the shell's own sentence, not the stand-in's.
+            browser.execute_script("location.hash = '#/meeting/gone'")
+            said = wait_for(browser, lambda b: shown(b, "pane-said") and text(b, "pane-said").startswith(not_opened), 5)
+            check(f"a meeting gone: said, with what the shell tells of it ({language})", said and gone in text(browser, "pane-said"), text(browser, "pane-said"))
+            check("said at the list: never to go back to it", not any(word in text(browser, "pane-said") for word in ("revenez", "go back")), text(browser, "pane-said"))
+            # A folder there that holds no session: the same sentence.
+            browser.execute_script("location.hash = '#/settings'")
+            wait_for(browser, lambda b: not shown(b, "pane-said"), 5)
+            (meetings / "not-a-session").mkdir(exist_ok=True)
+            (meetings / "not-a-session" / "session.json").write_text('{"contract":"another/v1"}')
+            browser.execute_script("location.hash = '#/meeting/not-a-session'")
+            said = wait_for(browser, lambda b: shown(b, "pane-said") and text(b, "pane-said").startswith(not_opened), 5)
+            check(f"a folder that is no session: said, never to go back to the list ({language})",
+                  said and gone in text(browser, "pane-said") and not any(word in text(browser, "pane-said") for word in ("revenez", "go back")), text(browser, "pane-said"))
+            (meetings / "not-a-session" / "session.json").unlink()
+            (meetings / "not-a-session").rmdir()
+            # At the smallest size the pane is hidden on the list: the sentence is seen all the same, above it.
+            browser.execute_script("location.hash = '#/settings'")
+            wait_for(browser, lambda b: not shown(b, "pane-said"), 5)
+            browser.set_window_size(420, 400)
+            wait_for(browser, lambda b: b.execute_script("return innerWidth") < 840, 5)
+            browser.execute_script(refuse, "opened")
+            browser.execute_script("location.hash = '#/meeting/2026-10-20_10-00'")
+            place = "const r = document.getElementById('pane-said').getBoundingClientRect(), l = document.querySelector('#groups .session').getBoundingClientRect(); return [r.width > innerWidth * 0.8, r.top >= 0, r.bottom <= innerHeight, r.bottom <= l.top, location.hash, getComputedStyle(document.querySelector('.pane > .back')).display]"
+            seen = wait_for(browser, lambda b: text(b, "pane-said") == not_opened + "REFUS" and b.execute_script(place)[:3] == [True, True, True], 5)
+            check(f"at 420 × 400, back at the list: the sentence is seen, above the list, no way back offered ({language})",
+                  seen and browser.execute_script(place) == [True, True, True, True, "#/", "none"], browser.execute_script(place))
+            browser.execute_script("window.restore(); location.hash = '#/settings'")
+            check("at 420 × 400, the next address: the sentence goes", wait_for(browser, lambda b: not shown(b, "pane-said"), 5))
+            browser.set_window_size(1100, 800)
+            wait_for(browser, lambda b: b.execute_script("return innerWidth") >= 840, 5)
+            # Refused late, the user gone to another address meanwhile: that address stays, nothing said.
+            browser.execute_script("location.hash = '#/settings'")
+            wait_for(browser, lambda b: not shown(b, "pane-said") and b.find_elements(By.ID, "model"), 5)
+            browser.execute_script("const real = window.__TAURI__.core; window.late = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'opened' ? new Promise((_, no) => setTimeout(() => { window.late += 1; no('REFUS'); }, 300)) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; }; location.hash = '#/meeting/2026-10-20_10-00'; setTimeout(() => { location.hash = '#/settings'; }, 50);")
+            wait_for(browser, lambda b: b.execute_script("return window.late") >= 1, 5)
+            time.sleep(0.2)
+            check(f"refused late, another address since: it stays, nothing said ({language})",
+                  browser.execute_script("return location.hash") == "#/settings" and not shown(browser, "pane-said"), browser.execute_script("return location.hash"))
+            browser.execute_script("window.restore()")
+        with Window(recorded, language, 'after = "nothing"\nreminder = false\n', small=True) as browser:
+            wait_for(browser, lambda b: b.find_elements(By.ID, "small-read"), 8)
+            browser.execute_script(refuse, "listed")
+            said = wait_for(browser, lambda b: unread in b.execute_script("return document.querySelector('.small-rest').textContent") and not b.find_elements(By.ID, "small-read") and not b.find_elements(By.ID, "small-all"), 6)
+            check(f"the small window's list not read: said, nothing stale offered ({language})", said)
+            browser.execute_script("window.restore()")
+            check("read again: the last meeting is back", wait_for(browser, lambda b: b.find_elements(By.ID, "small-read") and unread not in b.execute_script("return document.querySelector('.small-rest').textContent"), 6))
+            browser.execute_script(refuse, "context_shown")
+            time.sleep(1.1)
+            press(browser, "small-record")
+            said = wait_for(browser, lambda b: shown(b, "small-said") and text(b, "small-said") == not_read + "REFUS", 10)
+            check(f"a recording's context not read: said under the switch, Arrêter stays ({language})", said, text(browser, "small-said"))
+            browser.execute_script("window.restore()")
+            time.sleep(0.6)
+            press(browser, "small-stop")
+            wait_for(browser, lambda b: shown(b, "small-record"), 10)
+            # Another meeting's context, read: the sentence of the last one goes.
+            time.sleep(2)
+            press(browser, "small-record")
+            cleared = wait_for(browser, lambda b: shown(b, "small-stop") and not shown(b, "small-said"), 10)
+            check(f"the next recording's context read: the sentence goes ({language})", cleared, text(browser, "small-said"))
+            time.sleep(0.6)
+            press(browser, "small-stop")
+            wait_for(browser, lambda b: shown(b, "small-record"), 10)
     empty = WORK / "silence-none"
     empty.mkdir()
     with Window(empty, "fr_FR.UTF-8", "reminder = false\n") as browser:
         browser.set_window_size(420, 400)
         said = wait_for(browser, lambda b: shown(b, "none"), 10)
+        # No meeting at all: the sentence alone comes first, the header and Démarrer still in sight.
+        browser.execute_script("location.hash = '#/meeting/gone'")
+        place = "const y = (id) => document.getElementById(id).getBoundingClientRect(); return [y('pane-said').top >= 0, y('pane-said').bottom <= y('record').top, y('record').bottom <= innerHeight, y('record').bottom <= y('empty-record').top]"
+        seen = wait_for(browser, lambda b: shown(b, "pane-said") and text(b, "pane-said").startswith("Cette réunion n’a pas pu être ouverte"), 5)
+        check("no meeting, at 420 × 400: the sentence, then the header and Démarrer in sight, what to do under them",
+              seen and browser.execute_script(place) == [True, True, True, True], browser.execute_script(place))
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: not shown(b, "pane-said"), 5)
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: shown(b, "none"), 5)
         check("no meeting: what to do first, never only a path", said and text(browser, "none-do").startswith("Démarrez un enregistrement") and shown(browser, "empty-record"))
         browser.execute_script("document.getElementById('empty').scrollIntoView()")
         for theme in ("light", "dark"):
@@ -4222,6 +4457,35 @@ def window_looks(now: dt.datetime) -> None:
         press(browser, "small-stop")
         full = browser.find_element(By.ID, "small-full")
         check("its way to the full window: an icon, named", full.text == "" and full.find_elements(By.CSS_SELECTOR, "svg") and full.get_attribute("aria-label"), full.text)
+        check("no less motion asked: the page's query says so", not browser.execute_script(LESS_MOTION))
+    # Less motion asked, in a running window: rest to recording to rest, and a chip turning, stand still.
+    with asking_less_motion(Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True)) as browser:
+        check("less motion asked: the page's query says so", browser.execute_script(LESS_MOTION))
+        browser.execute_script(WATCH_MOTION)
+        check("at rest, nothing moves", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
+        press(browser, "small-record")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        time.sleep(0.6)
+        check("the small window recording: nothing moved, nothing can", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
+        press(browser, "small-stop")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed(), 10)
+        check("back at rest: nothing moved, nothing can", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
+    (made / "minutes.md").unlink()
+    with asking_less_motion(Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n')) as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed(), 10)
+        check("less motion asked: the page's query says so", browser.execute_script(LESS_MOTION))
+        browser.execute_script(WATCH_MOTION)
+        browser.execute_script("const real = window.__TAURI__.core, name = arguments[0]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => { const answer = await real.invoke(asked, ...rest); return asked === 'makings' ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } }; window.restore = () => { window.__TAURI__.core = real; };", made.name)
+        wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.chip.making')].some(c => !c.hidden)"), 8)
+        (made / "minutes.md").write_text(
+            "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: m\ncontext: null\n---\n\n"
+            "## 1.\n\nLe budget.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+        browser.execute_script("window.restore(); window.dispatchEvent(new Event('focus'))")
+        turned = wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, ".chip.turned"), 5)
+        said = browser.execute_script("const c = document.querySelector('.chip.turned'); return c ? getComputedStyle(c).animationName : null")
+        check("a chip turned: it does not move", turned and said == "none", said)
+        check("the full window: nothing moved, nothing can", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
 
 
 def main() -> int:

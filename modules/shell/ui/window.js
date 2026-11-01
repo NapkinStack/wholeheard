@@ -771,6 +771,8 @@ function contextCard(session, { context, transcript, minutes }, words) {
   });
   changed.append(element("p", "says", words.context_changed[minutes.state === "present" ? 1 : 0]), redo);
   const save = async (text) => {
+    // Written now: what it could not read back is no longer the last word.
+    delete card.dataset.unread;
     try {
       const shown = await window.__TAURI__.core.invoke("context_saved", { name, text });
       card.dataset.changed = String(shown.changed);
@@ -805,14 +807,20 @@ function paintContext() {
       .invoke("context_shown", { name })
       .then((shown) => {
         card.dataset.changed = String(shown.changed);
+        delete card.dataset.unread;
         paintContext();
       })
-      .catch(() => {});
+      // Its flag and its text stay as they were, and that they could not be read back is said.
+      .catch((why) => {
+        card.dataset.unread = fill(words.context_not_read, why);
+        paintContext();
+      });
   }
   card.dataset.making = String(making);
   area.readOnly = closed !== null;
   const said = document.getElementById("context-said");
   if (closed !== null) said.textContent = closed;
+  else if (card.dataset.unread) said.textContent = card.dataset.unread;
   else if (said.textContent !== words.context_not_saved) said.textContent = "";
   said.hidden = said.textContent === "";
   document.getElementById("context-changed").hidden = closed !== null || card.dataset.changed !== "true" || card.dataset.redo !== "true";
@@ -1615,6 +1623,9 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
 
 // A name refused while its field stays open, until the page is left.
 let nameRefused = null;
+// What the service's button last said, and whether it is still asking: Settings are drawn anew under
+// it by a model come or the window coming back, the answer still to arrive (D72).
+let serviceAnswer = null;
 
 // A sentence in the pane, until the next address.
 function paneSays(sentence) {
@@ -2180,26 +2191,52 @@ function showSettings(shown, minutes, words) {
     const saved = await invoke("transcription_saved", {
       provider: address.value, model: serviceModel.value, key: serviceKey.value || null, agreed: agreeBox.checked,
     }).then((notKept) => (notKept === null ? fill(words.service_saved, hostOf(address.value)) : fill(words.key_not_kept, notKept)), (why) => fill(words.not_saved, why));
+    // A Tester still asking stays: its answer comes after this, the button its own.
+    serviceAnswer ??= { said: "", asking: false };
+    serviceAnswer.said = saved;
     serviceSaid.textContent = saved;
   });
   const testService = element("button", "open", words.service_test);
   testService.type = "button";
   testService.id = "transcription-test";
-  testService.disabled = locked;
+  testService.disabled = locked || serviceAnswer?.asking === true;
+  serviceSaid.textContent = serviceAnswer?.said ?? "";
   testService.addEventListener("click", async () => {
+    const mine = (serviceAnswer = { said: "", asking: true });
     testService.disabled = true;
     serviceSaid.textContent = "";
+    // The service asked, as saved: an answer for one no longer saved is no answer for what is.
+    const asking = async () => {
+      const { transcription_provider, transcription_model } = await window.__TAURI__.core.invoke("settings_shown");
+      return JSON.stringify([transcription_provider, transcription_model]);
+    };
     try {
-      await window.__TAURI__.core.invoke("transcription_tested");
-      serviceSaid.textContent = words.service_tested;
+      const asked = await asking();
+      let answer;
+      try {
+        await window.__TAURI__.core.invoke("transcription_tested");
+        answer = words.service_tested;
+      } catch (why) {
+        answer = why;
+      }
+      if ((await asking()) === asked) mine.said = answer;
     } catch (why) {
-      serviceSaid.textContent = why;
+      mine.said = why;
     }
-    testService.disabled = false;
+    mine.asking = false;
+    // Said on the page as it is now; another address or another service: nothing to say any more.
+    if (serviceAnswer !== mine) return;
+    const said = document.getElementById("transcription-said");
+    if (said) said.textContent = mine.said;
+    const button = document.getElementById("transcription-test");
+    if (button) button.disabled = locked;
   });
   service.append(agree, saveService, testService, serviceSaid);
   if (pick.value.startsWith("service")) chooseService();
   pick.addEventListener("change", () => {
+    serviceAnswer = null;
+    serviceSaid.textContent = "";
+    testService.disabled = locked;
     service.hidden = !pick.value.startsWith("service");
     if (pick.value.startsWith("service")) {
       chooseService();
@@ -2621,7 +2658,7 @@ function showAgreement(name, agreement, words) {
 function showSmall(words) {
   const page = document.getElementById("small");
   document.body.classList.add("small-window");
-  const invoke = window.__TAURI__.core.invoke;
+  const invoke = (...asked) => window.__TAURI__.core.invoke(...asked);
   const full = (where) => invoke("full_window", { page: where ?? null });
   const toFull = (id) => {
     const button = element("button", "open icon");
@@ -2828,7 +2865,13 @@ function showSmall(words) {
 
   // At rest: drawn again only when what it says changes, so that a link under the focus stays.
   const drawRest = async () => {
-    const listing = await invoke("listed").catch(() => null);
+    // Not read: said as a folder unread is, nothing stale offered; drawn anew once it reads.
+    const listing = await invoke("listed").catch(() => {
+      rest.dataset.key = "";
+      last.replaceChildren(element("p", "none", words.small_unread));
+      foot.replaceChildren();
+      return null;
+    });
     if (listing === null) return;
     await readMakings();
     const sessions = listing.sessions.filter((session) => session.state !== "recording");
@@ -2949,7 +2992,11 @@ function showSmall(words) {
       meeting.name = now.meeting;
       if (another) meeting.typed = null;
       if (now.meeting !== null) {
-        const there = await invoke("context_shown", { name: now.meeting }).catch(() => null);
+        const there = await invoke("context_shown", { name: now.meeting }).catch((why) => {
+          smallSaid("context-read", fill(words.context_not_read, why));
+          return null;
+        });
+        if (there !== null) smallSaid("context-read", null);
         meeting.saved = there?.text ?? "";
         if (meeting.typed === null && meeting.name === now.meeting) {
           field.area.value = meeting.saved;
@@ -3380,13 +3427,15 @@ async function refresh(again = false) {
     // A meeting no longer there, or a name that is none, goes back to the list.
     try {
       opened = await window.__TAURI__.core.invoke("opened", { name });
-    } catch {
+    } catch (why) {
+      // A reading since then answers for its own address.
+      if (mine !== drawing) return;
       // Gone while it played: it stops with its page.
       player?.stop();
       player = null;
       history.replaceState(null, "", "#/");
-      // No hashchange follows a replaced address: a name refused on that page is said now.
-      if (nameRefused) paneSays(nameRefused);
+      // No hashchange follows a replaced address: said now, a name refused on that page first.
+      paneSays(nameRefused ?? fill(words.meeting_not_opened, why));
       nameRefused = null;
       if (!again) return refresh(true);
     }
@@ -3523,6 +3572,7 @@ window.addEventListener("focus", () => {
 });
 window.addEventListener("hashchange", () => {
   document.getElementById("pane-said").hidden = true;
+  serviceAnswer = null;
   if (nameRefused) paneSays(nameRefused);
   nameRefused = null;
   // Another address: the assistant, shown again, is drawn anew — even if the drawing that left it was cut short.

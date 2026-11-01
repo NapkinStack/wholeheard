@@ -995,12 +995,13 @@ struct Opened {
 
 #[tauri::command]
 fn opened(shell: State<'_, Shell>, name: String) -> Result<Opened, Told> {
-    let folder = session_folder(&shell, &name)?;
+    let gone = || shell.told(Failure::MeetingGone, format!("{name} is no session"));
+    let folder = sessions::folder(&shell.settings().sessions, &name).ok_or_else(gone)?;
     let recorded = shell.recorded.lock().unwrap().clone();
     let session = sessions::list(&shell.settings().sessions, recorded.as_deref())
         .into_iter()
         .find(|listed| listed.folder == folder)
-        .ok_or_else(|| shell.told(Failure::NoMeeting, format!("{name} is no session")))?;
+        .ok_or_else(gone)?;
     Ok(Opened {
         session,
         transcript: meeting::transcript(&folder),
