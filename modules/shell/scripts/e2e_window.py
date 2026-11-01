@@ -841,9 +841,24 @@ def service_named(now: dt.datetime) -> None:
         saved = wait_for(browser, lambda b: 'engine = "service"' in window.file.read_text(), 5)
         check("agreed, the service is saved as who hears, its host kept as agreed",
               saved and 'transcription_agreed = "hears.example"' in window.file.read_text() and "whisper-1" in window.file.read_text(), window.file.read_text())
-        browser.find_element(By.ID, "transcription-test").click()
+        # Saved, the model no longer needed: Settings are drawn anew at the next reading of the makings,
+        # perhaps between finding the button and clicking it. Clicked in the page, as it is now.
+        browser.execute_script("document.getElementById('transcription-test').click()")
         tested = wait_for(browser, lambda b: b.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), 10)
         check("Tester says in one sentence what the service answered: it hears, with each segment's times", tested, browser.execute_script(said))
+        # The page drawn anew under a slow answer, as a model come or the window back do: nothing lost, no second ask.
+        browser.execute_script("const real = window.__TAURI__.core; window.answer = null; window.asked = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => { if (asked !== 'transcription_tested') return real.invoke(asked, ...rest); window.asked += 1; return new Promise((resolve) => { window.answer = () => real.invoke(asked, ...rest).then(resolve); }); } }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("window.__old = document.getElementById('transcription-said'); document.getElementById('transcription-test').click()")
+        wait_for(browser, lambda b: b.execute_script("return window.answer !== null"), 5)
+        browser.execute_script("refresh()")
+        drawn = wait_for(browser, lambda b: b.execute_script("return !window.__old.isConnected && document.getElementById('transcription-said') !== null"), 5)
+        check("drawn anew while it asks: Tester stays disabled", drawn and browser.execute_script("return document.getElementById('transcription-test').disabled"))
+        browser.execute_script("window.answer()")
+        kept = wait_for(browser, lambda b: b.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), 10)
+        check("drawn anew while it asks: the answer is said on the page as it is", kept and not browser.execute_script("return document.getElementById('transcription-test').disabled") and browser.execute_script("return window.asked") == 1, browser.execute_script(said))
+        browser.execute_script("window.restore(); window.__old = document.getElementById('transcription-said'); refresh()")
+        wait_for(browser, lambda b: b.execute_script("return !window.__old.isConnected && document.getElementById('transcription-said') !== null"), 5)
+        check("drawn anew after it answered: the answer stays", browser.execute_script(said).startswith("Il entend, avec les temps de chaque segment"), browser.execute_script(said))
         # Who heard a meeting, said where it is read: the service's host, never « sur cet ordinateur ».
         browser.execute_script("location.hash = '#/meeting/heard'")
         makers = lambda b: [p.text for p in b.find_elements(By.CSS_SELECTOR, "#meeting .maker")]
