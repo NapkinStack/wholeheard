@@ -142,7 +142,7 @@ fn minutes_that_are_not_of_this_version_are_said_unreadable_and_none_are_absent(
     assert_eq!(minutes::minutes(folder.path(), NAMES), Read::Absent);
     for wrong in [
         MINUTES.replacen("---\ncontract", "contract", 1),
-        MINUTES.replace("minutes/v1", "minutes/v3"),
+        MINUTES.replace("minutes/v1", "minutes/v4"),
         MINUTES.replace("## Points clés", "Points clés"),
         format!("{MINUTES}\n## Encore\n"),
     ] {
