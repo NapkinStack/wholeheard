@@ -156,6 +156,8 @@ from then on the plan check refuses an accepted charter over a form left as it c
   deliver, or that a person must try, is `accepted` when **each of its criteria** is held by a
   scenario of one of their sheets or by an answer in its acceptance issue
   (`.nstack/handbook/05-workflow.md` §7); the cycle names that issue beside the state.
+  A deliverable one approved pull request delivered, its sheet run, owes the decider no further
+  request. The plan's own pull request records the states, and may record several together.
 
 ## 5. The end of a cycle
 
