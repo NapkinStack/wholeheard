@@ -38,24 +38,9 @@ const SILENT: &[(&str, usize, &str)] = &[
         "`.then(() => true, () => false)`: the answer is said by the lines after it; the assistant's logs it",
     ),
     (
-        "listed",
-        1,
-        "the small window's rest: fails only if its task dies, logged by `told`; asked again at the next tick",
-    ),
-    (
         "speech_shown",
         2,
         "an offer: returns `Ok` on what it reads, and is simply absent otherwise",
-    ),
-    (
-        "context_shown",
-        2,
-        "a meeting gone, logged by `told`; it answers no gesture: its flag and its text stay as they were",
-    ),
-    (
-        "opened",
-        1,
-        "a meeting gone, logged by `told`: most often sent to the trash here, and the list shows it",
     ),
     ("URL", 6, "no command: an address that does not parse is shown as it was typed"),
     ("audio.play", 1, "no command: its handler is the player's own"),

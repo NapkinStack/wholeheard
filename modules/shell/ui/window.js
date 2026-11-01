@@ -805,14 +805,20 @@ function paintContext() {
       .invoke("context_shown", { name })
       .then((shown) => {
         card.dataset.changed = String(shown.changed);
+        delete card.dataset.unread;
         paintContext();
       })
-      .catch(() => {});
+      // Its flag and its text stay as they were, and that they could not be read back is said.
+      .catch((why) => {
+        card.dataset.unread = fill(words.context_not_read, why);
+        paintContext();
+      });
   }
   card.dataset.making = String(making);
   area.readOnly = closed !== null;
   const said = document.getElementById("context-said");
   if (closed !== null) said.textContent = closed;
+  else if (card.dataset.unread) said.textContent = card.dataset.unread;
   else if (said.textContent !== words.context_not_saved) said.textContent = "";
   said.hidden = said.textContent === "";
   document.getElementById("context-changed").hidden = closed !== null || card.dataset.changed !== "true" || card.dataset.redo !== "true";
@@ -2621,7 +2627,7 @@ function showAgreement(name, agreement, words) {
 function showSmall(words) {
   const page = document.getElementById("small");
   document.body.classList.add("small-window");
-  const invoke = window.__TAURI__.core.invoke;
+  const invoke = (...asked) => window.__TAURI__.core.invoke(...asked);
   const full = (where) => invoke("full_window", { page: where ?? null });
   const toFull = (id) => {
     const button = element("button", "open icon");
@@ -2949,7 +2955,11 @@ function showSmall(words) {
       meeting.name = now.meeting;
       if (another) meeting.typed = null;
       if (now.meeting !== null) {
-        const there = await invoke("context_shown", { name: now.meeting }).catch(() => null);
+        const there = await invoke("context_shown", { name: now.meeting }).catch((why) => {
+          smallSaid("context-read", fill(words.context_not_read, why));
+          return null;
+        });
+        if (there !== null) smallSaid("context-read", null);
         meeting.saved = there?.text ?? "";
         if (meeting.typed === null && meeting.name === now.meeting) {
           field.area.value = meeting.saved;
@@ -3380,13 +3390,15 @@ async function refresh(again = false) {
     // A meeting no longer there, or a name that is none, goes back to the list.
     try {
       opened = await window.__TAURI__.core.invoke("opened", { name });
-    } catch {
+    } catch (why) {
+      // A reading since then answers for its own address.
+      if (mine !== drawing) return;
       // Gone while it played: it stops with its page.
       player?.stop();
       player = null;
       history.replaceState(null, "", "#/");
-      // No hashchange follows a replaced address: a name refused on that page is said now.
-      if (nameRefused) paneSays(nameRefused);
+      // No hashchange follows a replaced address: said now, a name refused on that page first.
+      paneSays(nameRefused ?? fill(words.meeting_not_opened, why));
       nameRefused = null;
       if (!again) return refresh(true);
     }

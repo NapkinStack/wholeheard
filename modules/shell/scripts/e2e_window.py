@@ -4052,6 +4052,64 @@ def gestures_answer(now: dt.datetime) -> None:
             check(f"Refaire… closed by {way}: the focus back on it, nothing changed", closed
                   and browser.execute_script("return document.activeElement.id") == "redo-minutes" and (written / "minutes.md").read_text() == before,
                   (closed, browser.execute_script("return document.activeElement.outerHTML.slice(0, 80)")))
+    # What the page reads and cannot: said where the eye is, in the user's language; asked by no gesture
+    # or not, never only a line in the log (D67).
+    for language, not_opened, not_read, unread, gone in (
+        ("fr_FR.UTF-8", "Cette réunion n’a pas pu être ouverte\u00a0: ", "Le contexte n’a pas pu être relu\u00a0: ", "Les réunions ne peuvent pas être lues", "n’est plus dans le dossier"),
+        ("en_US.UTF-8", "This meeting could not be opened: ", "The context could not be read again: ", "The meetings cannot be read", "is no longer in the meetings"),
+    ):
+        with Window(meetings, language, "reminder = false\n") as browser:
+            browser.set_window_size(1100, 800)
+            wait_for(browser, lambda b: shown(b, "meeting") and b.find_elements(By.ID, "context"), 10)
+            # A making stood in, then over, the context not read back: its text stays, the sentence comes.
+            browser.execute_script(
+                "const real = window.__TAURI__.core, name = arguments[0]; window.making = true;"
+                "window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => {"
+                " if (asked === 'context_shown') throw 'REFUS';"
+                " const answer = await real.invoke(asked, ...rest);"
+                " return asked === 'makings' && window.making ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } };"
+                "window.restore = () => { window.__TAURI__.core = real; };", "2026-10-20_10-00")
+            wait_for(browser, lambda b: b.execute_script("return document.getElementById('context').dataset.making === 'true'"), 8)
+            browser.execute_script("window.making = false")
+            said = wait_for(browser, lambda b: text(b, "context-said") == not_read + "REFUS" and shown(b, "context-said"), 8)
+            check(f"a context not read back after a making: said ({language})", said, text(browser, "context-said"))
+            browser.execute_script("window.restore()")
+            browser.execute_script(refuse, "opened")
+            browser.execute_script("location.hash = '#/meeting/2026-10-20_10-00'")
+            said = wait_for(browser, lambda b: shown(b, "pane-said") and text(b, "pane-said") == not_opened + "REFUS", 5)
+            check(f"a meeting that cannot be opened: said in the pane, back at the list ({language})",
+                  said and browser.execute_script("return location.hash") == "#/" and not shown(browser, "meeting"), text(browser, "pane-said"))
+            browser.execute_script("window.restore(); location.hash = '#/settings'")
+            check("another address: the sentence goes", wait_for(browser, lambda b: not shown(b, "pane-said"), 5))
+            # The real command, on a meeting gone: the shell's own sentence, not the stand-in's.
+            browser.execute_script("location.hash = '#/meeting/gone'")
+            said = wait_for(browser, lambda b: shown(b, "pane-said") and text(b, "pane-said").startswith(not_opened), 5)
+            check(f"a meeting gone: said, with what the shell tells of it ({language})", said and gone in text(browser, "pane-said"), text(browser, "pane-said"))
+            # Refused late, the user gone to another address meanwhile: that address stays, nothing said.
+            browser.execute_script("location.hash = '#/settings'")
+            wait_for(browser, lambda b: not shown(b, "pane-said") and b.find_elements(By.ID, "model"), 5)
+            browser.execute_script("const real = window.__TAURI__.core; window.late = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'opened' ? new Promise((_, no) => setTimeout(() => { window.late += 1; no('REFUS'); }, 300)) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; }; location.hash = '#/meeting/2026-10-20_10-00'; setTimeout(() => { location.hash = '#/settings'; }, 50);")
+            wait_for(browser, lambda b: b.execute_script("return window.late") >= 1, 5)
+            time.sleep(0.2)
+            check(f"refused late, another address since: it stays, nothing said ({language})",
+                  browser.execute_script("return location.hash") == "#/settings" and not shown(browser, "pane-said"), browser.execute_script("return location.hash"))
+            browser.execute_script("window.restore()")
+        with Window(recorded, language, 'after = "nothing"\nreminder = false\n', small=True) as browser:
+            wait_for(browser, lambda b: b.find_elements(By.ID, "small-read"), 8)
+            browser.execute_script(refuse, "listed")
+            said = wait_for(browser, lambda b: unread in b.execute_script("return document.querySelector('.small-rest').textContent") and not b.find_elements(By.ID, "small-read"), 6)
+            check(f"the small window's list not read: said, nothing stale offered ({language})", said)
+            browser.execute_script("window.restore()")
+            check("read again: the last meeting is back", wait_for(browser, lambda b: b.find_elements(By.ID, "small-read") and unread not in b.execute_script("return document.querySelector('.small-rest').textContent"), 6))
+            browser.execute_script(refuse, "context_shown")
+            time.sleep(1.1)
+            press(browser, "small-record")
+            said = wait_for(browser, lambda b: shown(b, "small-said") and text(b, "small-said") == not_read + "REFUS", 10)
+            check(f"a recording's context not read: said under the switch, Arrêter stays ({language})", said, text(browser, "small-said"))
+            browser.execute_script("window.restore()")
+            time.sleep(0.6)
+            press(browser, "small-stop")
+            wait_for(browser, lambda b: shown(b, "small-record"), 10)
         press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-panel"), 5)
         browser.execute_script("document.activeElement.blur()")
