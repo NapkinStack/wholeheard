@@ -758,6 +758,7 @@ fn only_the_tail_of_an_item_is_ever_touched_and_a_time_ends_it_only_when_kept() 
         ("- a\n  - b\n\n  c [99:00]\n  - d", "- a\n  - b\n\n  c\n  - d", 1),
         // Square brackets with no time neither continue a tail nor count as an earlier time.
         ("- a [00:02] [note]", "- a [00:02] [note]", 0),
+        ("- a [99:00][12:75]", "- a [99:00][12:75]", 0),
         ("- a [note] b [01:00]", "- a [note] b [01:00]", 0),
         ("- a [note] b [99:00]", "- a [note] b", 1),
         ("* a [01:00].", "* a [01:00]", 0),
