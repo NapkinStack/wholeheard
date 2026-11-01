@@ -531,6 +531,74 @@ fn segments() -> Vec<Segment> {
     .unwrap()
 }
 
+/// The seconds the minutes' consumer marks in a body: its reading of `minutes/v3`, as
+/// `modules/shell/src/minutes.rs`'s `times` has it, written again here, a module knowing another by
+/// its contract alone. Only a top-level item's last characters, in its own words.
+fn marked(body: &str) -> Vec<u32> {
+    use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+
+    let second_of = |said: &str| -> Option<u32> {
+        let (minutes, seconds) = said.split_once(':')?;
+        let digits = |part: &str| part.bytes().all(|c| c.is_ascii_digit());
+        if minutes.len() < 2 || seconds.len() != 2 || !digits(minutes) || !digits(seconds) {
+            return None;
+        }
+        let seconds: u32 = seconds.parse().ok().filter(|seconds| *seconds < 60)?;
+        minutes.parse::<u32>().ok()?.checked_mul(60)?.checked_add(seconds)
+    };
+    let mut found = Vec::new();
+    let (mut titles, mut depth) = (0, 0);
+    let (mut item, mut words, mut text_ended) = (None, None, None);
+    for (event, range) in Parser::new(body).into_offset_iter() {
+        if depth > 0 {
+            words.get_or_insert(range.start);
+        }
+        match &event {
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H2, ..
+            }) => titles += 1,
+            Event::Start(Tag::Item) => {
+                if depth == 0 && titles >= 2 {
+                    item = Some(range.clone());
+                    words = None;
+                }
+                depth += 1;
+            }
+            Event::Start(Tag::BlockQuote(_)) => depth += 1,
+            Event::End(TagEnd::BlockQuote(_) | TagEnd::Item) => depth -= 1,
+            _ => {}
+        }
+        text_ended = match event {
+            Event::Text(_) => Some(range.end),
+            Event::End(TagEnd::Paragraph | TagEnd::Item) => text_ended,
+            _ => None,
+        };
+        if depth == 0 && matches!(event, Event::End(TagEnd::Item)) {
+            let Some(whole) = item.take() else { continue };
+            let written = body[whole.clone()].trim_end_matches(['\n', '\r']);
+            let end = whole.start + written.len();
+            let Some(said) = written.strip_suffix(']').filter(|_| text_ended == Some(end)) else {
+                continue;
+            };
+            let Some(open) = said.rfind(" [") else { continue };
+            if words.is_some_and(|words| words < whole.start + open + 1)
+                && let Some(second) = second_of(&said[open + 2..])
+            {
+                found.push(second);
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn the_reader_marks_a_time_after_a_sub_list_and_the_check_sees_it() {
+    assert_eq!(
+        marked("## A\n\nx\n\n## B\n\n- a\n  - b\n\n  c [99:00]\n\n## C\n\n- z [01:00]\n"),
+        [5940, 60]
+    );
+}
+
 /// What is written for these two items of Actions and Key points, and how many times went.
 fn with_times(action: &str, point: &str) -> (String, usize) {
     let segments = segments();
@@ -546,6 +614,9 @@ fn with_times(action: &str, point: &str) -> (String, usize) {
     let body = accepted.as_str().split_once("\n---\n\n").unwrap().1;
     let (head, rest) = body.split_once("## B\n\n").unwrap();
     assert_eq!(head, "## A\n\n- Vu à [09:59].\n\n", "the first section holds no time to check");
+    for second in marked(body) {
+        assert!(matches!(second, 60..=62 | 125), "the reader marks {second}, in no segment: {body}");
+    }
     let (action, point) = rest.split_once("\n\n## C\n\n").unwrap();
     (format!("{action}|{}", point.trim_end_matches('\n')), accepted.removed())
 }
@@ -664,6 +735,31 @@ fn only_the_tail_of_an_item_is_ever_touched_and_a_time_ends_it_only_when_kept() 
         ("- a\n\n  b [01:00].", "- a\n\n  b [01:00]", 0),
         ("- a\n\n  b [99:00]", "- a\n\n  b", 1),
         ("- a [01:00]\n\n  b", "- a [01:00]\n\n  b", 0),
+        // After a sub-list, the item's last text is the one its reader marks, and all its own text counts.
+        ("- a\n  - b\n\n  c [99:00]", "- a\n  - b\n\n  c", 1),
+        ("- a\n  - b\n\n  c [01:00].", "- a\n  - b\n\n  c [01:00]", 0),
+        ("- a [00:02]\n  - b\n\n  c [00:17]", "- a [00:02]\n  - b\n\n  c", 1),
+        ("- a [00:02]\n  - b\n\n  c [01:00]", "- a [00:02]\n  - b\n\n  c", 1),
+        ("- a\n  - b [98:00]\n\n  c [01:00]", "- a\n  - b\n\n  c [01:00]", 1),
+        ("- a\n  - b\n\n  c\n  - d\n\n  e [99:00]", "- a\n  - b\n\n  c\n  - d\n\n  e", 1),
+        (
+            "- a [00:02]\n  - b\n\n  c\n  - d\n\n  e [01:00]",
+            "- a [00:02]\n  - b\n\n  c\n  - d\n\n  e",
+            1,
+        ),
+        ("- a\n  - b\n\n  [01:00]", "- a\n  - b\n\n  [01:00]", 0),
+        ("- a\n  - b\n\n  c [00:02]\n- y", "- a\n  - b\n\n  c\n- y", 1),
+        ("- a [99:00]\n  - b\n\n  c", "- a [99:00]\n  - b\n\n  c", 0),
+        (
+            "- a\n  - b\n\n  c [00:02]\n  - d\n\n  e [01:00]",
+            "- a\n  - b\n\n  c [00:02]\n  - d\n\n  e",
+            1,
+        ),
+        ("- a\n  - b\n\n  c [99:00]\n  - d", "- a\n  - b\n\n  c\n  - d", 1),
+        // Square brackets with no time neither continue a tail nor count as an earlier time.
+        ("- a [00:02] [note]", "- a [00:02] [note]", 0),
+        ("- a [note] b [01:00]", "- a [note] b [01:00]", 0),
+        ("- a [note] b [99:00]", "- a [note] b", 1),
         ("* a [01:00].", "* a [01:00]", 0),
         ("1. a [99:00]", "1. a", 1),
     ] {

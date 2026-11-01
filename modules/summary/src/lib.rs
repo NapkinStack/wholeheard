@@ -411,12 +411,14 @@ fn holds_a_time(text: &str) -> bool {
 /// What `minutes/v3` lets an item of Actions or Key points write of its tail: its one time, when it
 /// lies in a segment and the item holds no other; otherwise nothing, the line kept. Nothing before
 /// the tail ever changes, and an item without one is left as it is: anything else in square
-/// brackets is its text. `text` runs from its mark to its own end: the answer is where the end to
-/// replace starts, with what, and how many times went.
-fn item_end(text: &str, segments: &[Segment]) -> Option<(usize, String, usize)> {
+/// brackets is its text. `text` is the item's last text of its own, `earlier` whether what it said
+/// before held a time: the answer is where the end to replace starts, with what, and how many times
+/// went.
+fn item_end(text: &str, earlier: bool, segments: &[Segment]) -> Option<(usize, String, usize)> {
     let (first, times) = tail(text)?;
     let before = &text[..first];
     if let [time] = times[..]
+        && !earlier
         && !holds_a_time(before)
         && segments
             .iter()
@@ -424,6 +426,10 @@ fn item_end(text: &str, segments: &[Segment]) -> Option<(usize, String, usize)> 
     {
         let trimmed = text.trim_end();
         let bracket = trimmed.strip_suffix('.').unwrap_or(trimmed);
+        // Alone on its line, after a sub-list, it stays where it is: joined up, it would be the sub-list's.
+        if before.trim().is_empty() {
+            return Some((first, bracket[first..].to_string(), 0));
+        }
         return Some((before.trim_end().len(), format!(" {}", &bracket[first..]), 0));
     }
     let kept = before.trim_end();
@@ -436,27 +442,39 @@ fn item_end(text: &str, segments: &[Segment]) -> Option<(usize, String, usize)> 
 fn with_times_checked(body: &str, segments: &[Segment]) -> (String, usize) {
     use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
-    let (mut section, mut open, mut edits, mut removed) = (0, Vec::<(usize, Option<usize>)>::new(), Vec::new(), 0);
+    let (mut section, mut open, mut edits, mut removed) = (0, Vec::<(usize, Vec<std::ops::Range<usize>>)>::new(), Vec::new(), 0);
     for (event, range) in Parser::new(body).into_offset_iter() {
         match event {
             Event::Start(Tag::Heading {
                 level: HeadingLevel::H2, ..
             }) => section += 1,
-            Event::Start(Tag::Item) => open.push((range.start, None)),
-            // An item's own text stops where the list inside it starts.
+            Event::Start(Tag::Item) => open.push((range.start, Vec::new())),
+            // An item's own text is all of it but the lists inside it, as the minutes' reader has it.
             Event::Start(Tag::List(_)) => {
-                if let Some((_, own @ None)) = open.last_mut() {
-                    *own = Some(range.start);
+                if let Some((_, lists)) = open.last_mut() {
+                    lists.push(range);
                 }
             }
             Event::End(TagEnd::Item) => {
-                let Some((start, own)) = open.pop() else { continue };
-                let own = &body[start..own.unwrap_or(range.end)];
+                let Some((start, lists)) = open.pop() else { continue };
+                let mut own = Vec::new();
+                let mut from = start;
+                for list in lists {
+                    own.push(from..list.start);
+                    from = list.end;
+                }
+                own.push(from..range.end);
+                let Some(last) = own.iter().rposition(|text| !body[text.clone()].trim().is_empty()) else {
+                    continue;
+                };
+                let earlier = own[..last].iter().any(|text| holds_a_time(&body[text.clone()]));
+                let text = &body[own[last].clone()];
                 if section >= 2
-                    && let Some((from, written, went)) = item_end(own, segments)
+                    && let Some((from, written, went)) = item_end(text, earlier, segments)
                 {
                     // To the end of its text, and the spaces that follow on its line.
-                    let end = start + own.trim_end().len();
+                    let start = own[last].start;
+                    let end = start + text.trim_end().len();
                     let spaces = body[end..].trim_start_matches(|c: char| c.is_whitespace() && c != '\n');
                     removed += went;
                     edits.push((start + from..body.len() - spaces.len(), written));
