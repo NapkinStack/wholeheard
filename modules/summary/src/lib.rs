@@ -433,7 +433,7 @@ fn item_times(text: &str, segments: &[Segment]) -> (Vec<(std::ops::Range<usize>,
             let mut spans: Vec<std::ops::Range<usize>> = Vec::new();
             for (range, _) in &found {
                 match spans.last_mut() {
-                    Some(last) if text[last.end..range.start].split_whitespace().count() <= 1 => {
+                    Some(last) if text[last.end..range.start].chars().all(list_mark) => {
                         last.end = range.end;
                     }
                     _ => spans.push(range.clone()),
