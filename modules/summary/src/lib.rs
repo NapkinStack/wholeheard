@@ -428,14 +428,12 @@ fn item_times(text: &str, segments: &[Segment]) -> (Vec<(std::ops::Range<usize>,
             }
         }
         _ => {
-            // A word or a mark alone between two times is what joined them, and goes with them.
+            // Text between two times is the line's and stays: only spaces and a list's commas go.
+            let list_mark = |c: char| c.is_whitespace() || matches!(c, ',' | ';');
             let mut spans: Vec<std::ops::Range<usize>> = Vec::new();
             for (range, _) in &found {
                 match spans.last_mut() {
-                    Some(last)
-                        if text[last.end..range.start].split_whitespace().count() <= 1
-                            && text[last.end..range.start].chars().count() <= 6 =>
-                    {
+                    Some(last) if text[last.end..range.start].split_whitespace().count() <= 1 => {
                         last.end = range.end;
                     }
                     _ => spans.push(range.clone()),
