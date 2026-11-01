@@ -397,6 +397,30 @@ class Window:
                     pass
 
 
+def asking_less_motion(window: Window) -> Window:
+    """A window whose desktop asks for less motion, in the scenario's own settings, never the user's:
+    WebKitGTK reads `org.gnome.desktop.interface enable-animations`, from a key file with this backend
+    (`gtk-3.0/settings.ini` alone is not enough: the query stays false under Wayland)."""
+    settings = Path(window.env["XDG_CONFIG_HOME"]) / "glib-2.0" / "settings"
+    settings.mkdir(parents=True, exist_ok=True)
+    (settings / "keyfile").write_text("[org/gnome/desktop/interface]\nenable-animations=false\n")
+    window.env.update(GSETTINGS_BACKEND="keyfile")
+    return window
+
+
+LESS_MOTION = "return matchMedia('(prefers-reduced-motion: reduce)').matches"
+# From here on, whatever starts to move, in the running page.
+WATCH_MOTION = ("window.__moved = []; for (const kind of ['animationstart', 'transitionrun'])"
+                " document.addEventListener(kind, (e) => window.__moved.push(`${kind} ${e.animationName ?? e.propertyName} ${e.target.className || e.target.id}`), true)")
+# What moved so far, and every element or pseudo-element that would move by its computed style.
+MOVING = ("const moves = [...window.__moved], some = (t) => t.split(',').some((d) => parseFloat(d) > 0);"
+          "for (const e of document.querySelectorAll('*')) for (const p of [null, '::before', '::after']) {"
+          " const c = getComputedStyle(e, p), named = `${e.tagName}.${e.className.baseVal ?? e.className}#${e.id}${p ?? ''}`;"
+          " if (c.animationName !== 'none' && some(c.animationDuration)) moves.push(`animation ${c.animationName} ${named}`);"
+          " if (c.transitionProperty !== 'none' && some(c.transitionDuration)) moves.push(`transition ${c.transitionProperty} ${c.transitionDuration} ${named}`); }"
+          "return moves")
+
+
 # The run's own output, made by e2e.sh: the window's sound goes there, never to the speakers.
 QUIET = os.environ.get("PULSE_SINK", "")
 # What WirePlumber remembers of an application's sound, by its name: the user's own Wholeheard
@@ -1960,10 +1984,16 @@ def heard_checked(now: dt.datetime) -> None:
             fit(browser, "a side waiting")
             shot(browser, f"d49-waiting-{short}")
             stop_from_small(browser)
-    # What a user who asked for less motion is given: asked of the page's own rules.
-    with Window(WORK / "checks-waiting-fr", "fr_FR.UTF-8", 'after = "nothing"\n', small=True) as browser:
-        still = browser.execute_script("const found = []; for (const sheet of document.styleSheets) for (const rule of sheet.cssRules) if (rule.media && rule.media.mediaText.includes('prefers-reduced-motion')) found.push(rule.cssText); return found.join(' ')")
-        check("less motion asked: neither pulse, pop nor fade", ".slot[data-check] .check" in still and ".check-says" in still, still)
+    # A user who asked for less motion, in a running window: a side's check and its sentence stand still.
+    with asking_less_motion(Window(WORK / "checks-waiting-fr", "fr_FR.UTF-8", 'after = "nothing"\n', small=True)) as browser:
+        check("less motion asked: the page's query says so", browser.execute_script(LESS_MOTION))
+        browser.execute_script(WATCH_MOTION)
+        browser.find_element(By.ID, "small-record").click()
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, ".check-says") and b.find_elements(By.CSS_SELECTOR, ".slot[data-check=heard] .check"), 10)
+        named = browser.execute_script("return ['.slot[data-check] .check', '.check-says'].map(q => [...document.querySelectorAll(q)].map(e => { const c = getComputedStyle(e); return [c.animationName, c.transitionDuration]; }))")
+        check("less motion asked: neither pulse, pop nor fade", all(found and all(said == ["none", "0s"] for said in found) for found in named), named)
+        check("less motion asked: nothing in the recording moves", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
+        stop_from_small(browser)
 
 
 def meeting_named(now: dt.datetime) -> None:
@@ -4007,51 +4037,6 @@ def nothing_silent(now: dt.datetime) -> None:
             told = browser.execute_async_script(
                 "const done = arguments[arguments.length - 1]; window.__TAURI__.core.invoke('minutes_again', { name: 'gone' }).then(() => done(''), (why) => done(String(why)));")
             check(f"the raw text only in developer mode ({'on' if raw else 'off'})", ("gone is no session" in told) == raw, told)
-    empty = WORK / "silence-none"
-    empty.mkdir()
-    with Window(empty, "fr_FR.UTF-8", "reminder = false\n") as browser:
-        browser.set_window_size(420, 400)
-        said = wait_for(browser, lambda b: shown(b, "none"), 10)
-        check("no meeting: what to do first, never only a path", said and text(browser, "none-do").startswith("Démarrez un enregistrement") and shown(browser, "empty-record"))
-        browser.execute_script("document.getElementById('empty').scrollIntoView()")
-        for theme in ("light", "dark"):
-            shot_themed(browser, f"d67-none-{theme}", theme)
-
-
-def gestures_answer(now: dt.datetime) -> None:
-    """AQ. Each gesture answers at once, its command stood in to take two seconds (D68)."""
-    print("AQ. Démarrer and Arrêter answer before their command, a second click asks nothing; Refaire… closes; a setting says Enregistré (D68)")
-    meetings = WORK / "answering"
-    written = meetings / "2026-10-28_09-00"
-    session(written, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
-    (written / "transcript.jsonl").write_text(
-        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
-        '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n{"type":"complete","duration":1.0}\n')
-    (written / "minutes.md").write_text(
-        "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
-        "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
-    slow = ("const real = window.__TAURI__.core; window.__asked = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record'"
-            " ? (window.__asked++, new Promise((done) => setTimeout(done, 2000)).then(() => real.invoke(asked, ...rest))) : real.invoke(asked, ...rest) };")
-    shown = lambda b, id_: b.find_element(By.ID, id_).is_displayed()
-    said = lambda b: b.find_element(By.ID, "record-said").get_attribute("textContent")
-    running = lambda b: b.execute_async_script("const d = arguments[arguments.length - 1]; window.__TAURI__.core.invoke('recording_now').then((n) => d(n.recording))")
-    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
-        browser.set_window_size(1100, 800)
-        browser.execute_script(f"location.hash = '#/meeting/{written.name}'")
-        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"), 10)
-        # Refaire…: Annuler, then Escape, each giving the focus back, nothing changed.
-        before = (written / "minutes.md").read_text()
-        for way in ("cancel", "escape"):
-            press(browser, "redo-minutes")
-            wait_for(browser, lambda b: b.find_elements(By.ID, "redo-panel"), 5)
-            if way == "cancel":
-                press(browser, "redo-panel-cancel")
-            else:
-                browser.switch_to.active_element.send_keys(Keys.ESCAPE)
-            closed = wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-panel"), 3)
-            check(f"Refaire… closed by {way}: the focus back on it, nothing changed", closed
-                  and browser.execute_script("return document.activeElement.id") == "redo-minutes" and (written / "minutes.md").read_text() == before,
-                  (closed, browser.execute_script("return document.activeElement.outerHTML.slice(0, 80)")))
     # What the page reads and cannot: said where the eye is, in the user's language; asked by no gesture
     # or not, never only a line in the log (D67).
     for language, not_opened, not_read, unread, gone in (
@@ -4110,6 +4095,51 @@ def gestures_answer(now: dt.datetime) -> None:
             time.sleep(0.6)
             press(browser, "small-stop")
             wait_for(browser, lambda b: shown(b, "small-record"), 10)
+    empty = WORK / "silence-none"
+    empty.mkdir()
+    with Window(empty, "fr_FR.UTF-8", "reminder = false\n") as browser:
+        browser.set_window_size(420, 400)
+        said = wait_for(browser, lambda b: shown(b, "none"), 10)
+        check("no meeting: what to do first, never only a path", said and text(browser, "none-do").startswith("Démarrez un enregistrement") and shown(browser, "empty-record"))
+        browser.execute_script("document.getElementById('empty').scrollIntoView()")
+        for theme in ("light", "dark"):
+            shot_themed(browser, f"d67-none-{theme}", theme)
+
+
+def gestures_answer(now: dt.datetime) -> None:
+    """AQ. Each gesture answers at once, its command stood in to take two seconds (D68)."""
+    print("AQ. Démarrer and Arrêter answer before their command, a second click asks nothing; Refaire… closes; a setting says Enregistré (D68)")
+    meetings = WORK / "answering"
+    written = meetings / "2026-10-28_09-00"
+    session(written, now - dt.timedelta(days=1), 10, {"local.wav": 1000})
+    (written / "transcript.jsonl").write_text(
+        '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+        '{"type":"segment","speaker":"me","track":"local","start":0.0,"end":1.0,"text":"Bonjour."}\n{"type":"complete","duration":1.0}\n')
+    (written / "minutes.md").write_text(
+        "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: qwen3:8b\ncontext: null\n---\n\n"
+        "## 1.\n\nLe budget est validé.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    slow = ("const real = window.__TAURI__.core; window.__asked = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'record'"
+            " ? (window.__asked++, new Promise((done) => setTimeout(done, 2000)).then(() => real.invoke(asked, ...rest))) : real.invoke(asked, ...rest) };")
+    shown = lambda b, id_: b.find_element(By.ID, id_).is_displayed()
+    said = lambda b: b.find_element(By.ID, "record-said").get_attribute("textContent")
+    running = lambda b: b.execute_async_script("const d = arguments[arguments.length - 1]; window.__TAURI__.core.invoke('recording_now').then((n) => d(n.recording))")
+    with Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n') as browser:
+        browser.set_window_size(1100, 800)
+        browser.execute_script(f"location.hash = '#/meeting/{written.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "redo-minutes"), 10)
+        # Refaire…: Annuler, then Escape, each giving the focus back, nothing changed.
+        before = (written / "minutes.md").read_text()
+        for way in ("cancel", "escape"):
+            press(browser, "redo-minutes")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "redo-panel"), 5)
+            if way == "cancel":
+                press(browser, "redo-panel-cancel")
+            else:
+                browser.switch_to.active_element.send_keys(Keys.ESCAPE)
+            closed = wait_for(browser, lambda b: not b.find_elements(By.ID, "redo-panel"), 3)
+            check(f"Refaire… closed by {way}: the focus back on it, nothing changed", closed
+                  and browser.execute_script("return document.activeElement.id") == "redo-minutes" and (written / "minutes.md").read_text() == before,
+                  (closed, browser.execute_script("return document.activeElement.outerHTML.slice(0, 80)")))
         press(browser, "redo-minutes")
         wait_for(browser, lambda b: b.find_elements(By.ID, "redo-panel"), 5)
         browser.execute_script("document.activeElement.blur()")
@@ -4280,6 +4310,35 @@ def window_looks(now: dt.datetime) -> None:
         press(browser, "small-stop")
         full = browser.find_element(By.ID, "small-full")
         check("its way to the full window: an icon, named", full.text == "" and full.find_elements(By.CSS_SELECTOR, "svg") and full.get_attribute("aria-label"), full.text)
+        check("no less motion asked: the page's query says so", not browser.execute_script(LESS_MOTION))
+    # Less motion asked, in a running window: rest to recording to rest, and a chip turning, stand still.
+    with asking_less_motion(Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n', small=True)) as browser:
+        check("less motion asked: the page's query says so", browser.execute_script(LESS_MOTION))
+        browser.execute_script(WATCH_MOTION)
+        check("at rest, nothing moves", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
+        press(browser, "small-record")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        time.sleep(0.6)
+        check("the small window recording: nothing moved, nothing can", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
+        press(browser, "small-stop")
+        wait_for(browser, lambda b: b.find_element(By.ID, "small-record").is_displayed(), 10)
+        check("back at rest: nothing moved, nothing can", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
+    (made / "minutes.md").unlink()
+    with asking_less_motion(Window(meetings, "fr_FR.UTF-8", 'after = "nothing"\nreminder = false\n')) as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed(), 10)
+        check("less motion asked: the page's query says so", browser.execute_script(LESS_MOTION))
+        browser.execute_script(WATCH_MOTION)
+        browser.execute_script("const real = window.__TAURI__.core, name = arguments[0]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => { const answer = await real.invoke(asked, ...rest); return asked === 'makings' ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } }; window.restore = () => { window.__TAURI__.core = real; };", made.name)
+        wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.chip.making')].some(c => !c.hidden)"), 8)
+        (made / "minutes.md").write_text(
+            "---\ncontract: minutes/v1\nmade: 2026-10-28T10:00:00+01:00\nprovider: local\nmodel: m\ncontext: null\n---\n\n"
+            "## 1.\n\nLe budget.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+        browser.execute_script("window.restore(); window.dispatchEvent(new Event('focus'))")
+        turned = wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, ".chip.turned"), 5)
+        said = browser.execute_script("const c = document.querySelector('.chip.turned'); return c ? getComputedStyle(c).animationName : null")
+        check("a chip turned: it does not move", turned and said == "none", said)
+        check("the full window: nothing moved, nothing can", browser.execute_script(MOVING) == [], browser.execute_script(MOVING))
 
 
 def main() -> int:

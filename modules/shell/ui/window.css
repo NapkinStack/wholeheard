@@ -486,3 +486,8 @@ body.small-window .frame { display: none; }
 .chip.turned { animation: chip-turn 180ms ease-out; }
 @keyframes chip-turn { from { opacity: 0.4; transform: scale(0.94); } }
 @media (prefers-reduced-motion: reduce) { .small-rest, .small-live, .chip.turned { animation: none; } }
+
+/* Last, for all of it: who asked for less motion is given none — hover, levels and chevrons too (D69). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
