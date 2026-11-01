@@ -879,6 +879,19 @@ def service_named(now: dt.datetime) -> None:
         named = wait_for(browser, lambda b: [s for _, s in offered(b, "transcription-models")] == ["whisper-1", "Un autre modèle…"], 5)
         check("OpenAI chosen: the model it publishes with segments, named in the repository — not its own list",
               named and len(listed) == 2, (offered(browser, "transcription-models"), listed))
+        # In developer mode, the sentence and the program's last line, its name off.
+        code.write_text(TEST_CAUSES[-1][0])
+        try:
+            before = browser.find_element(By.ID, "transcription-said")
+            press(browser, "developer")
+            WebDriverWait(browser, 5).until(staleness_of(before))
+            press(browser, "transcription-test")
+            raw = wait_for(browser, lambda b: "raw words of the service" in b.execute_script(said), 10)
+            told = browser.execute_script(said)
+            check("Tester of a service in developer mode: the cause, then the raw line alone",
+                  raw and told.startswith(TEST_CAUSES[-1][1]) and "wholeheard-transcription:" not in told and "earlier line" not in told, told)
+        finally:
+            code.unlink(missing_ok=True)
     server.shutdown()
 
 
