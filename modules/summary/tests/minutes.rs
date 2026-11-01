@@ -550,85 +550,120 @@ fn with_times(action: &str, point: &str) -> (String, usize) {
     (format!("{action}|{}", point.trim_end_matches('\n')), accepted.removed())
 }
 
+/// Whether a line ends on what `minutes/v3` reads as a time.
+fn ends_on_a_time(line: &str) -> bool {
+    let Some((_, time)) = line.strip_suffix(']').and_then(|inner| inner.rsplit_once('[')) else {
+        return false;
+    };
+    time.split_once(':').is_some_and(|(minutes, seconds)| {
+        minutes.len() >= 2 && seconds.len() == 2 && seconds < "60" && (minutes.bytes().chain(seconds.bytes())).all(|b| b.is_ascii_digit())
+    })
+}
+
 #[test]
-fn a_time_inside_a_segment_ends_its_item_and_any_other_goes_the_line_kept() {
+fn only_the_tail_of_an_item_is_ever_touched_and_a_time_ends_it_only_when_kept() {
     for (given, expected, removed) in [
-        // Each second a segment holds, its start and its end cut to the whole second.
+        // Rule 3: each second a segment holds, its start and its end cut to the whole second.
         ("- a [01:00]", "- a [01:00]", 0),
         ("- a [01:01]", "- a [01:01]", 0),
         ("- a [01:02]", "- a [01:02]", 0),
         ("- a [02:05]", "- a [02:05]", 0),
-        // On either side of them, and between them.
+        // The stop and the spaces go, a non-breaking one too; one space before it.
+        ("- a [01:00].  ", "- a [01:00]", 0),
+        ("- a. [01:00].", "- a. [01:00]", 0),
+        ("- a [01:00]\u{a0}", "- a [01:00]", 0),
+        ("- a\u{a0}[01:00].\u{a0}", "- a [01:00]", 0),
+        ("- a[01:00]", "- a [01:00]", 0),
+        ("- a    [01:00]", "- a [01:00]", 0),
+        ("- a\n  [01:00]", "- a [01:00]", 0),
+        ("- a, [01:00]", "- a, [01:00]", 0),
+        ("- à é [01:00]", "- à é [01:00]", 0),
+        ("- a à 12:30 [01:00]", "- a à 12:30 [01:00]", 0),
+        // Rule 4: on either side of the segments, and between them.
         ("- a [00:59]", "- a", 1),
         ("- a [01:03]", "- a", 1),
         ("- a [02:04]", "- a", 1),
         ("- a [02:06]", "- a", 1),
         ("- a — b — c [99:00]", "- a — b — c", 1),
         ("- a [120:00]", "- a", 1),
-        // What the models wrote: a full stop and two spaces, kept or not.
-        ("- a [01:00].  ", "- a [01:00]", 0),
-        ("- a. [01:00].", "- a. [01:00]", 0),
         ("- a [01:03].  ", "- a", 1),
         ("- a. [01:03].", "- a.", 1),
-        // Written against the text, or far from it: one space.
-        ("- a[01:00]", "- a [01:00]", 0),
-        ("- a    [01:00]", "- a [01:00]", 0),
-        ("- a\n  [01:00]", "- a [01:00]", 0),
-        // A list of times is not written, whether its times are in the transcript or not.
+        ("- a\u{a0}[99:00]\u{a0}", "- a", 1),
+        ("- a\u{202f}[99:00].\u{a0}", "- a", 1),
+        // Its own trailing spaces and one `,` or `;`, no more.
+        ("- a, [99:00]", "- a", 1),
+        ("- a; [99:00]", "- a", 1),
+        ("- a , [99:00]", "- a", 1),
+        ("- a,, [99:00]", "- a,", 1),
+        ("- a: [99:00]", "- a:", 1),
+        ("- a — [99:00]", "- a —", 1),
+        // Several times in the tail: all go, in the transcript or not.
         ("- a [01:00, 01:01, 01:02].  ", "- a", 3),
-        ("- a [01:00] [01:01]", "- a", 2),
-        ("- a, [01:00], [99:00].", "- a", 2),
+        ("- a [01:00 et 01:01]", "- a", 2),
         ("- a [01:00–01:02]", "- a", 2),
-        // Square brackets that are no time are the item's text, its full stop and spaces with them.
+        ("- a [01:00] [01:01]", "- a", 2),
+        ("- a [01:00], [01:01]", "- a", 2),
+        ("- a [01:00]; [01:01]", "- a", 2),
+        ("- a [01:00],[01:01]", "- a", 2),
+        ("- a, [01:00], [99:00].", "- a", 2),
+        // The separators are spaces, `,` and `;`: anything else ends the tail, and stays.
+        ("- a [00:02] et [00:17]", "- a [00:02] et", 1),
+        ("- a [01:00] / [01:01]", "- a [01:00] /", 1),
+        ("- a [01:00] - [01:01]", "- a [01:00] -", 1),
+        ("- a [01:00] – [01:01]", "- a [01:00] –", 1),
+        ("- a [01:00] — [01:01]", "- a [01:00] —", 1),
+        ("- a [01:00] ou [01:01]", "- a [01:00] ou", 1),
+        ("- a [01:00] puis [01:01].", "- a [01:00] puis", 1),
+        ("- a [01:00] & [01:01]", "- a [01:00] &", 1),
+        ("- a [01:00] . [01:01]", "- a [01:00] .", 1),
+        ("- a [01:00]. [01:01]", "- a [01:00].", 1),
+        // Another time earlier in the item: the one at its end goes, the earlier is its text.
+        ("- RDV [14:30] puis déjeuner [12:00]", "- RDV [14:30] puis déjeuner", 1),
+        // What is left reads as a link's definition, no text to a CommonMark reader: alone in its section, asked again.
+        ("- [00:02]: Envoyer [00:17]\n- y", "- [00:02]: Envoyer\n- y", 1),
+        ("- a [00:02]b [00:17]", "- a [00:02]b", 1),
+        ("- a [99:00] b [01:00]", "- a [99:00] b", 1),
+        ("- a [98:00, 99:00] b [01:00]", "- a [98:00, 99:00] b", 1),
+        ("- `[99:00]` b [01:00]", "- `[99:00]` b", 1),
+        (
+            "- a [01:00] le budget [01:01] et le reste [01:02]",
+            "- a [01:00] le budget [01:01] et le reste",
+            1,
+        ),
+        // Rule 5: no tail, not a byte changes, nothing counted.
+        ("- a [00:02] .", "- a [00:02] .", 0),
+        ("- a [00:02];", "- a [00:02];", 0),
+        ("- a [00:02],", "- a [00:02],", 0),
+        ("- a [00:02]..", "- a [00:02]..", 0),
         ("- a [12:75].", "- a [12:75].", 0),
         ("- a [9:00]", "- a [9:00]", 0),
-        ("- a [ 99:00 ]", "- a [ 99:00 ]", 0),
-        ("- a [01:00:00]", "- a [01:00:00]", 0),
-        ("- a [note]", "- a [note]", 0),
         ("- a [01:5]", "- a [01:5]", 0),
         ("- a [09:60]", "- a [09:60]", 0),
         ("- a [+9:00]", "- a [+9:00]", 0),
+        ("- a [ 99:00 ]", "- a [ 99:00 ]", 0),
         ("- a [999999999999999999:00]", "- a [999999999999999999:00]", 0),
+        ("- a [01:00:00]", "- a [01:00:00]", 0),
+        ("- a [note]", "- a [note]", 0),
         ("- a [note 01:00]", "- a [note 01:00]", 0),
-        ("- a [99999999999999999999:00]", "- a [99999999999999999999:00]", 0),
-        // Only the last characters are a time.
-        ("- [99:00] puis a", "- [99:00] puis a", 0),
-        ("- a à 12:30 [01:00]", "- a à 12:30 [01:00]", 0),
-        // More than one time, wherever they are and whatever joins them, is a list: none stays.
-        ("- a [00:02] et [00:17]", "- a et", 2),
-        ("- a [01:00] ou [01:01]", "- a ou", 2),
-        ("- a [01:00] and [01:01]", "- a and", 2),
-        ("- a [01:00] puis [01:01].", "- a puis", 2),
-        ("- a [01:00] to [01:01]", "- a to", 2),
-        ("- a [01:00] à [01:01]", "- a à", 2),
-        ("- a [01:00] & [01:01]", "- a &", 2),
-        ("- a [01:00] + [01:01]", "- a +", 2),
-        ("- a [01:00] | [01:01]", "- a |", 2),
-        ("- a [01:00] · [01:01]", "- a ·", 2),
-        ("- a [01:00] . [01:01]", "- a .", 2),
-        ("- a [01:00 et 01:01]", "- a", 2),
-        ("- a [01:00] le budget [01:01] et le reste [01:02]", "- a le budget et le reste", 3),
-        ("- a [[01:00, 01:01]", "- a [", 2),
-        ("- a [99:00] b [01:00]", "- a b", 2),
-        ("- a [99:00] b c [01:00] d", "- a b c d", 2),
-        ("- a [99:00] le long mot [01:00] c", "- a le long mot c", 2),
-        ("- [01:00] puis a [02:05]", "- puis a", 2),
-        ("- a [01:00] [01:01] b", "- a b", 2),
-        ("- a [01:00, 01:01] b", "- a b", 2),
-        // A space that does not break is a space.
-        ("- a [01:00]\u{a0}", "- a [01:00]", 0),
-        ("- a\u{a0}[01:00].\u{a0}", "- a [01:00]", 0),
-        ("- a\u{a0}[99:00]\u{a0}", "- a", 1),
-        ("- a\u{202f}[99:00].\u{a0}", "- a", 1),
-        ("- a; [99:00]", "- a", 1),
-        ("- a [01:00] ;", "- a [01:00] ;", 0),
+        ("- a [de 10:30 à 11:45 salle B]", "- a [de 10:30 à 11:45 salle B]", 0),
+        ("- a [de 10:30 à 11:45]", "- a [de 10:30 à 11:45]", 0),
+        ("- a [10:30 salle B 11:45]", "- a [10:30 salle B 11:45]", 0),
+        ("- a [10:30 à 11:45 salle]", "- a [10:30 à 11:45 salle]", 0),
+        ("- **[00:02]** b **[00:17]**", "- **[00:02]** b **[00:17]**", 0),
+        ("- a **[99:00]**", "- a **[99:00]**", 0),
         ("- a `[99:00]`", "- a `[99:00]`", 0),
+        ("- [99:00] puis a", "- [99:00] puis a", 0),
+        ("- [01:00] [01:01] puis a [02:05] b", "- [01:00] [01:01] puis a [02:05] b", 0),
+        ("- a [01:00] ;", "- a [01:00] ;", 0),
         ("- a", "- a", 0),
-        ("- à é [01:00]", "- à é [01:00]", 0),
-        // Each item of a list has its own, a list within an item too.
+        ("- a.  \n- y", "- a.  \n- y", 0),
+        // Each item has its own; a list inside an item and a second paragraph as before.
         ("- a [01:00]\n- b [99:00]\n- c [01:01].", "- a [01:00]\n- b\n- c [01:01]", 1),
         ("- a [99:00]  \n  - b [01:00].\n  - c [98:00]", "- a\n  - b [01:00]\n  - c", 2),
         ("- a [01:00]\n\n- b [99:00]", "- a [01:00]\n\n- b", 1),
+        ("- a\n\n  b [01:00].", "- a\n\n  b [01:00]", 0),
+        ("- a\n\n  b [99:00]", "- a\n\n  b", 1),
+        ("- a [01:00]\n\n  b", "- a [01:00]\n\n  b", 0),
         ("* a [01:00].", "* a [01:00]", 0),
         ("1. a [99:00]", "1. a", 1),
     ] {
@@ -640,14 +675,50 @@ fn a_time_inside_a_segment_ends_its_item_and_any_other_goes_the_line_kept() {
             (format!("- z|{expected}").as_str(), removed),
             "{given:?}, key points"
         );
+        // A reader finds a time at an item's end only where one was kept.
+        if removed > 0 && !given.contains('\n') {
+            assert!(!ends_on_a_time(expected), "{given:?} still ends on a time");
+        }
+    }
+}
+
+#[test]
+fn after_a_tail_went_no_item_ends_on_a_time() {
+    for tail in ["[99:00]", "[01:00] [01:01]", "[01:00, 01:01]", "[01:00], [99:00]."] {
+        for before in [
+            "- a ",
+            "- [00:02] et ",
+            "- [00:02], ",
+            "- [00:02]; ",
+            "- [00:02]  ",
+            "- [00:02]. ",
+            "- [00:02]\u{a0}",
+        ] {
+            let given = format!("{before}{tail}");
+            let (written, went) = with_times(&format!("{given}\n- y"), "- z");
+            assert!(went > 0, "{given:?}");
+            let line = written.split_once('\n').unwrap().0;
+            assert!(!ends_on_a_time(line), "{given:?} gives {line:?}");
+        }
     }
 }
 
 #[test]
 fn a_time_alone_on_a_line_goes_and_a_section_left_empty_is_no_minutes() {
     assert_eq!(with_times("- [01:00]\n- [99:00]\n- a", "- z"), ("- [01:00]\n-\n- a|- z".into(), 1));
+    assert_eq!(with_times("- [00:17]\n- a", "- z"), ("-\n- a|- z".into(), 1));
     let segments = segments();
-    let answer = "## A\n\nVu.\n\n## B\n\n- [99:00]\n\n## C\n\n- z\n";
+    let answer = "## A\n\nVu.\n\n## B\n\n- [00:17]\n\n## C\n\n- z\n";
+    let refused = minutes(
+        answer,
+        &Made {
+            segments: &segments,
+            ..made(None)
+        },
+    )
+    .unwrap_err();
+    assert_eq!(refused.1, Some("answer.not_minutes"));
+    let answer = "## A\n\nVu.\n\n## B\n\n- [00:02]: Envoyer [00:17]\n\n## C\n\n- z\n";
     let refused = minutes(
         answer,
         &Made {

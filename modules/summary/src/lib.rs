@@ -363,95 +363,72 @@ fn seconds(time: &str) -> Option<u64> {
     minutes.parse::<u64>().ok()?.checked_mul(60)?.checked_add(seconds)
 }
 
-/// The times in these square brackets: `[12:31]`, or a list however its times are joined —
-/// `[12:31, 14:02]`, `[12:31 et 14:02]`. One time among other words is text.
+/// The times these square brackets hold: `[12:31]`, or a list of them — `[12:31, 14:02]`,
+/// `[12:31 et 14:02]`, one word at most between two. Any other words make them text.
 fn times_in(inside: &str) -> Vec<u64> {
     if let Some(time) = seconds(inside) {
         return vec![time];
     }
-    let times: Vec<u64> = inside
+    let read: Vec<Option<u64>> = inside
         .split(|c: char| !c.is_alphanumeric() && c != ':')
-        .filter_map(seconds)
+        .filter(|word| !word.is_empty())
+        .map(seconds)
         .collect();
-    if times.len() > 1 { times } else { Vec::new() }
+    let list = read.first().is_some_and(Option::is_some)
+        && read.last().is_some_and(Option::is_some)
+        && read.len() > 1
+        && read.windows(2).all(|pair| pair[0].is_some() || pair[1].is_some());
+    if list { read.into_iter().flatten().collect() } else { Vec::new() }
 }
 
-/// Where each pair of square brackets holding times sits in `text`, with those times.
-fn times_of(text: &str) -> Vec<(std::ops::Range<usize>, Vec<u64>)> {
-    let mut found = Vec::new();
-    for (open, _) in text.match_indices('[') {
-        if let Some(close) = text[open..].find(']').map(|close| open + close)
-            && !text[open + 1..close].contains('[')
-        {
-            let times = times_in(&text[open + 1..close]);
-            if !times.is_empty() {
-                found.push((open..close + 1, times));
-            }
+/// Where the tail of an item opens, and its times: at the end of the text, past its spaces and one
+/// full stop, square brackets holding times, one group or several separated by spaces, `,` or `;`.
+fn tail(text: &str) -> Option<(usize, Vec<u64>)> {
+    let trimmed = text.trim_end();
+    let mut left = trimmed.strip_suffix('.').unwrap_or(trimmed);
+    let (mut first, mut times) = (None, Vec::new());
+    while let Some(open) = left.strip_suffix(']').and_then(|inner| inner.rfind('[')) {
+        let found = times_in(&left[open + 1..left.len() - 1]);
+        if found.is_empty() {
+            break;
         }
+        times.extend(found);
+        first = Some(open);
+        left = left[..open].trim_end_matches(|c: char| c.is_whitespace() || matches!(c, ',' | ';'));
     }
-    found
+    first.map(|first| (first, times))
 }
 
-/// What `minutes/v3` lets an item of Actions or Key points write of its times: one, in a segment,
-/// ending the item. More than one, anywhere in it, is a list, and none stays; one elsewhere than
-/// at its end is its text. `text` is the item from its mark to its own end: the answer is what to
-/// replace in it, each with what, and how many times went. The last replacement reaching the end
-/// of the text means its end, the marks a time left there included.
-fn item_times(text: &str, segments: &[Segment]) -> (Vec<(std::ops::Range<usize>, String)>, usize) {
-    let found = times_of(text);
-    let count = found.iter().map(|(_, times)| times.len()).sum::<usize>();
-    let ends = |from: usize| {
-        let rest = text[from..].trim_end();
-        rest.is_empty() || rest == "."
-    };
-    // Spaces and the marks a list is written with go with what they stood before, at the end.
-    let before_end = |from: usize| {
-        text[..from]
-            .trim_end_matches(|c: char| c.is_whitespace() || matches!(c, ',' | ';'))
-            .len()
-    };
-    let before = |from: usize| text[..from].trim_end().len();
-    let end = text.trim_end().len();
-    match &found[..] {
-        [] => (Vec::new(), 0),
-        [(range, times)] if count == 1 => {
-            if !ends(range.end) {
-                return (Vec::new(), 0);
-            }
-            let inside = segments
-                .iter()
-                .any(|segment| segment.start as u64 <= times[0] && times[0] <= segment.end as u64);
-            if inside {
-                (vec![(before(range.start)..end, format!(" {}", &text[range.clone()]))], 0)
-            } else {
-                (vec![(before_end(range.start)..end, String::new())], 1)
-            }
-        }
-        _ => {
-            // Text between two times is the line's and stays: only spaces and a list's commas go.
-            let list_mark = |c: char| c.is_whitespace() || matches!(c, ',' | ';');
-            let mut spans: Vec<std::ops::Range<usize>> = Vec::new();
-            for (range, _) in &found {
-                match spans.last_mut() {
-                    Some(last) if text[last.end..range.start].chars().all(list_mark) => {
-                        last.end = range.end;
-                    }
-                    _ => spans.push(range.clone()),
-                }
-            }
-            let edits = spans
-                .into_iter()
-                .map(|span| {
-                    if ends(span.end) {
-                        (before_end(span.start)..end, String::new())
-                    } else {
-                        (before(span.start)..span.end, String::new())
-                    }
-                })
-                .collect();
-            (edits, count)
-        }
+/// Whether square brackets somewhere in `text` hold a time.
+fn holds_a_time(text: &str) -> bool {
+    text.match_indices('[').any(|(open, _)| {
+        text[open + 1..]
+            .split_once(']')
+            .is_some_and(|(inside, _)| !times_in(inside).is_empty())
+    })
+}
+
+/// What `minutes/v3` lets an item of Actions or Key points write of its tail: its one time, when it
+/// lies in a segment and the item holds no other; otherwise nothing, the line kept. Nothing before
+/// the tail ever changes, and an item without one is left as it is: anything else in square
+/// brackets is its text. `text` runs from its mark to its own end: the answer is where the end to
+/// replace starts, with what, and how many times went.
+fn item_end(text: &str, segments: &[Segment]) -> Option<(usize, String, usize)> {
+    let (first, times) = tail(text)?;
+    let before = &text[..first];
+    if let [time] = times[..]
+        && !holds_a_time(before)
+        && segments
+            .iter()
+            .any(|segment| segment.start as u64 <= time && time <= segment.end as u64)
+    {
+        let trimmed = text.trim_end();
+        let bracket = trimmed.strip_suffix('.').unwrap_or(trimmed);
+        return Some((before.trim_end().len(), format!(" {}", &bracket[first..]), 0));
     }
+    let kept = before.trim_end();
+    let kept = kept.strip_suffix([',', ';']).unwrap_or(kept).trim_end();
+    Some((kept.len(), String::new(), times.len()))
 }
 
 /// The body with only the times `minutes/v3` lets it write, and how many went. Read by the
@@ -475,17 +452,14 @@ fn with_times_checked(body: &str, segments: &[Segment]) -> (String, usize) {
             Event::End(TagEnd::Item) => {
                 let Some((start, own)) = open.pop() else { continue };
                 let own = &body[start..own.unwrap_or(range.end)];
-                if section >= 2 {
-                    let (replaced, went) = item_times(own, segments);
+                if section >= 2
+                    && let Some((from, written, went)) = item_end(own, segments)
+                {
+                    // To the end of its text, and the spaces that follow on its line.
+                    let end = start + own.trim_end().len();
+                    let spaces = body[end..].trim_start_matches(|c: char| c.is_whitespace() && c != '\n');
                     removed += went;
-                    for (range, written) in replaced {
-                        // At its text's end: the spaces that follow on its line go too.
-                        let mut end = start + range.end;
-                        if range.end == own.trim_end().len() {
-                            end += body[end..].len() - body[end..].trim_start_matches(|c: char| c.is_whitespace() && c != '\n').len();
-                        }
-                        edits.push((start + range.start..end, written));
-                    }
+                    edits.push((start + from..body.len() - spaces.len(), written));
                 }
             }
             _ => {}
