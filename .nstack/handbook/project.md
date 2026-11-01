@@ -71,6 +71,11 @@ Cycle 03-the-window: 10 of 14 accepted · 2 in progress · 2 ready · day 5 of 2
 Holds in 03-the-window: 3 held, of which 0 stale (from origin; stale after 7 days without work):
 ```
 
+Below the holds, `nstack plan` names each deliverable still open whose commits on the default branch name
+it in their title or a `Deliverable:` line since the cycle started, and how many, a revert taken off. It
+reads titles, checks no approval and moves no state: several pull requests may deliver one deliverable.
+The plan's own pull request records the states, and may record several together.
+
 *Accepted* counts what the decider accepted; a `dropped` deliverable counts in nothing. From its
 end date — the first day the cycle is over — the line says the circuit breaker fell and the
 decider chooses, and the pull request check refuses delivery work (K2). The project's own
