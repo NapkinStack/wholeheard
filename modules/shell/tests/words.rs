@@ -1319,6 +1319,8 @@ fn the_review_s_wording_is_what_the_window_says_in_french() {
             french.no_player,
             "L’audio a été supprimé pour faire de la place. La transcription et le compte rendu restent.",
         ),
+        (french.time_listen, "Écouter depuis {}"),
+        (french.time_passage, "Voir le passage de {}"),
         (french.small_no_keys, "Pas de raccourci clavier — en définir un"),
         (french.shortcut_none, "Aucun raccourci défini"),
         (french.shortcut_where, "Il se modifie dans les réglages clavier du système."),

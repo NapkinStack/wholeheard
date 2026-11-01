@@ -239,7 +239,7 @@ run, quoted. `nstack e2e shell` audits the same logs after the run.
   (`src/recording.rs`); [`transcript/v1`](../../contracts/transcript/v1/README.md) — only that a session's
   `transcript.jsonl` is there once `wholeheard-transcription` ended well (`src/transcription.rs`);
   [`session-audio`](../../contracts/session-audio/v2/README.md), v1 and v2 — a session's `session.json`, for the
-  window's list (`src/sessions.rs`); the transcript's segments and [`minutes/v1`](../../contracts/minutes/v1/README.md)
+  window's list (`src/sessions.rs`); the transcript's segments and [`minutes`](../../contracts/minutes/v3/README.md), v1 to v3
   — one meeting's, as the window will open it (`src/meeting.rs`, `src/minutes.rs`);
   [`summarising/v1`](../../contracts/summarising/v1/README.md) — what `wholeheard-summary` says while it writes the
   minutes (`src/summarising.rs`). The contracts of the files it will read are declared with the slice that reads

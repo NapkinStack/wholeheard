@@ -285,3 +285,223 @@ fn a_session_listed_says_its_minutes_title() {
         assert_eq!(title(untitled), None, "{untitled}");
     }
 }
+
+/// Minutes of `minutes/v3`: what they are written with after `context`, and their three sections' items.
+fn third(front: &str, actions: &str, points: &str) -> String {
+    format!(
+        "---\ncontract: minutes/v3\nmade: 2026-10-13T15:12:40+02:00\nprovider: \"openrouter.ai\"\nmodel: \"m\"\ncontext: null\n{front}---\n\n## 1.\n\nLe point. [01:00]\n\n## 2.\n\n{actions}\n\n## 3.\n\n{points}\n"
+    )
+}
+
+fn present(text: &str) -> minutes::Minutes {
+    match read(text) {
+        Read::Present(minutes) => minutes,
+        other => panic!("not read: {other:?}\n{text}"),
+    }
+}
+
+#[test]
+fn minutes_v3_read_as_v2_do_and_say_what_they_cost() {
+    let priced = present(&third("title: \"Un nom\"\ncost: 0.012\ncurrency: USD\n", "- a — b — c", "- d"));
+    assert_eq!(priced.title.as_deref(), Some("Un nom"));
+    assert_eq!((priced.cost, priced.currency.as_deref()), (Some(0.012), Some("USD")));
+    for (cost, read_as) in [("1.2e-6", 1.2e-6), ("0", 0.0), ("-0", 0.0), ("3", 3.0)] {
+        let shown = present(&third(&format!("cost: {cost}\ncurrency: EUR\n"), "- a", "- d"));
+        assert_eq!(shown.cost, Some(read_as), "{cost}");
+        assert!(!shown.cost.unwrap().is_sign_negative(), "{cost}");
+    }
+    // Quoted, a currency is the same word; a value in double quotes is read as JSON.
+    assert_eq!(
+        present(&third("cost: 1\ncurrency: \"EUR\"\n", "- a", "- d")).currency.as_deref(),
+        Some("EUR")
+    );
+    // Neither, the minutes as they were: no key, no price.
+    let free = present(&third("", "- a", "- d"));
+    assert_eq!((free.cost, free.currency), (None, None));
+}
+
+/// The contract's bounds: anything else is neither, and the minutes still read.
+#[test]
+fn a_cost_out_of_the_contract_is_no_cost_and_the_minutes_still_read() {
+    for front in [
+        "cost: 0.012\n",
+        "currency: USD\n",
+        "cost: -0.5\ncurrency: USD\n",
+        "cost: \"0.012\"\ncurrency: USD\n",
+        "cost: null\ncurrency: USD\n",
+        "cost: \ncurrency: USD\n",
+        "cost: .5\ncurrency: USD\n",
+        "cost: +1\ncurrency: USD\n",
+        "cost: 01\ncurrency: USD\n",
+        "cost: 1,5\ncurrency: USD\n",
+        "cost: NaN\ncurrency: USD\n",
+        "cost: Infinity\ncurrency: USD\n",
+        "cost: 1e999\ncurrency: USD\n",
+        "cost: 12 USD\ncurrency: USD\n",
+        "cost: 1\ncurrency: usd\n",
+        "cost: 1\ncurrency: US\n",
+        "cost: 1\ncurrency: USDT\n",
+        "cost: 1\ncurrency: U5D\n",
+        "cost: 1\ncurrency: ÉUR\n",
+        "cost: 1\ncurrency: null\n",
+        "cost: 1\ncurrency: \n",
+    ] {
+        let minutes = present(&third(front, "- a", "- d"));
+        assert_eq!((minutes.cost, minutes.currency.as_deref()), (None, None), "{front}");
+    }
+}
+
+/// Keys of v3 in an older version are keys it does not know, and its items' brackets are its text.
+#[test]
+fn minutes_v1_and_v2_know_no_cost_and_no_time() {
+    let written =
+        |version: &str| third("cost: 0.012\ncurrency: USD\n", "- a — b — c [12:31]", "- d [00:05]").replace("minutes/v3", version);
+    for version in ["minutes/v1", "minutes/v2"] {
+        let minutes = present(&written(version));
+        assert_eq!((minutes.cost, minutes.currency.as_deref()), (None, None), "{version}");
+        assert!(minutes.body.contains("<li>a — b — c [12:31]</li>"), "{}", minutes.body);
+        assert!(minutes.body.contains("<li>d [00:05]</li>"), "{}", minutes.body);
+        assert!(!minutes.body.contains("<time"), "{}", minutes.body);
+        assert!(minutes.markdown.contains("- a — b — c [12:31]\n"), "{}", minutes.markdown);
+    }
+}
+
+#[test]
+fn a_time_ending_an_item_is_said_apart_and_left_out_of_what_is_copied() {
+    let minutes = present(&third(
+        "",
+        "- Contacter — Alexandre — 26 avril [12:31]\n- Réserver — non précisé — non précisé",
+        "- Un plan B reste à trouver. [00:00]\n- Sans temps.\n- Le long [120:59]",
+    ));
+    for shown in [
+        "<li>Contacter — Alexandre — 26 avril <time data-second=\"751\">12:31</time></li>",
+        "<li>Réserver — non précisé — non précisé</li>",
+        "<li>Un plan B reste à trouver. <time data-second=\"0\">00:00</time></li>",
+        "<li>Sans temps.</li>",
+        "<li>Le long <time data-second=\"7259\">120:59</time></li>",
+    ] {
+        assert!(minutes.body.contains(shown), "{shown} not in {}", minutes.body);
+    }
+    assert_eq!(
+        minutes.markdown,
+        "## Points saillants\n\nLe point. [01:00]\n\n## Actions\n\n- Contacter — Alexandre — 26 avril\n- Réserver — non précisé — non précisé\n\n\
+         ## Points clés\n\n- Un plan B reste à trouver.\n- Sans temps.\n- Le long\n"
+    );
+    // Written around other marks, or over several lines, or an item of paragraphs, or numbered.
+    let minutes = present(&third(
+        "",
+        "1. **Fort** [00:01]\n2. sur\n   deux lignes [00:02]",
+        "- un\n\n  deux [00:03]\n\n- trois [00:04]",
+    ));
+    for shown in [
+        "<strong>Fort</strong> <time data-second=\"1\">00:01</time>",
+        "deux lignes <time data-second=\"2\">00:02</time>",
+        "deux <time data-second=\"3\">00:03</time></p>",
+        "trois <time data-second=\"4\">00:04</time></p>",
+    ] {
+        assert!(minutes.body.contains(shown), "{shown} not in {}", minutes.body);
+    }
+    assert!(!minutes.markdown.contains("[00:0"), "{}", minutes.markdown);
+    assert!(
+        minutes.markdown.contains("1. **Fort**\n2. sur\n   deux lignes\n"),
+        "{}",
+        minutes.markdown
+    );
+}
+
+/// « One time, at the end, or none »: every other bracket is the item's text, read and copied as written.
+#[test]
+fn anything_else_in_square_brackets_is_the_item_s_text() {
+    for item in [
+        "a [12:75]",
+        "a [12:60]",
+        "a [12:059]",
+        "a [+1:30]",
+        "a [12:+5]",
+        "a [1:30]",
+        "a [12:5]",
+        "a [12:305]",
+        "a [:30]",
+        "a [12:]",
+        "a [12:31:05]",
+        "a [ab:cd]",
+        "a [12:31].",
+        "a [12:31] b",
+        "a [12:31]  ",
+        "a[12:31]",
+        "[12:31]",
+        "a `[12:31]`",
+        "a *[12:31]*",
+        "a \\[12:31]",
+        "a [12:31](http://example.org)",
+        "a [٠١:٣٠]",
+        "a [99999999999999999999:00]",
+    ] {
+        let minutes = present(&third("", &format!("- {item}"), &format!("- {item}")));
+        assert!(!minutes.body.contains("<time"), "{item}: {}", minutes.body);
+        assert_eq!(minutes.markdown.matches(item.trim_end()).count(), 2, "{item}: {}", minutes.markdown);
+    }
+    // An item that is nothing else is its own text, wherever it stands in its list.
+    let alone = present(&third("", "- a\n- [12:31]", "- d"));
+    assert!(alone.body.contains("<li>[12:31]</li>"), "{}", alone.body);
+    // An item within an item keeps its brackets; the time is its parent's own, ending the parent.
+    let parent = present(&third("", "- a\n  - b [00:01]\n\n  c [00:02]", "- d"));
+    assert_eq!(parent.body.matches("<time ").count(), 1, "{}", parent.body);
+    assert!(parent.body.contains("b [00:01]"), "{}", parent.body);
+    assert!(parent.body.contains("c <time data-second=\"2\">00:02</time>"), "{}", parent.body);
+    assert!(
+        parent.markdown.contains("b [00:01]") && !parent.markdown.contains("[00:02]"),
+        "{}",
+        parent.markdown
+    );
+    // Two: the last characters alone are the time, the other the item's text.
+    let two = present(&third("", "- a [12:31] [14:02]", "- d"));
+    assert!(
+        two.body.contains("<li>a [12:31] <time data-second=\"842\">14:02</time></li>"),
+        "{}",
+        two.body
+    );
+    assert!(two.markdown.contains("- a [12:31]\n"), "{}", two.markdown);
+    // Only Actions and Key points hold times, and only their own items: not Highlights, not an
+    // item within an item, nor one quoted.
+    let elsewhere = present(&third(
+        "",
+        "- a\n  - b [00:01]\n\n> - c [00:02]",
+        "- d [00:03]\n  ```\n  [00:04]\n  ```",
+    ))
+    .body
+    .replace("</code>", "");
+    assert!(!elsewhere.contains("<time"), "{elsewhere}");
+    let highlights = present(&third("", "- a", "- d").replace("Le point. [01:00]", "- Le point. [01:00]"));
+    assert!(highlights.body.contains("<li>Le point. [01:00]</li>"), "{}", highlights.body);
+    assert!(highlights.markdown.contains("- Le point. [01:00]"), "{}", highlights.markdown);
+}
+
+/// The time is the shell's own mark, made of digits: nothing a model writes becomes one.
+#[test]
+fn a_mark_written_in_the_minutes_stays_text() {
+    let minutes = present(&third(
+        "",
+        "- <time data-second=\"1\" onclick=\"x()\">12:31</time> — b — c",
+        "- d <img src=x onerror=y> [00:05]",
+    ));
+    assert!(!minutes.body.contains("<time data-second=\"1\""), "{}", minutes.body);
+    assert!(!minutes.body.contains("<img"), "{}", minutes.body);
+    assert_eq!(minutes.body.matches("<time ").count(), 1, "{}", minutes.body);
+    assert!(minutes.body.contains("<time data-second=\"5\">00:05</time>"), "{}", minutes.body);
+}
+
+#[test]
+fn a_session_listed_says_the_title_of_minutes_v3() {
+    let sessions = tempfile::tempdir().unwrap();
+    let folder = sessions.path().join("third");
+    fs::create_dir(&folder).unwrap();
+    fs::write(
+        folder.join("session.json"),
+        r#"{"contract":"session-audio/v2","started":"2026-10-13T15:00:00+02:00"}"#,
+    )
+    .unwrap();
+    fs::write(folder.join("minutes.md"), third("title: \"Un nom\"\n", "- a", "- d")).unwrap();
+    let listed = wholeheard_shell::sessions::list(sessions.path(), None);
+    assert_eq!(listed[0].title.as_deref(), Some("Un nom"));
+}
