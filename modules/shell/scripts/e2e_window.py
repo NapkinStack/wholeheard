@@ -3330,12 +3330,15 @@ def corrections_gated(now: dt.datetime) -> None:
     front = lambda folder, key: next((line.split(": ", 1)[1] for line in (folder / "minutes.md").read_text().splitlines()
                                       if line.startswith(f"{key}: ")), None)
     args = WORK / "summary-args"
+    # The page of the meeting asked for, its own button: until `opened` answers, the page before
+    # stays in the pane, with a button of the same name that acts on the meeting it shows.
+    its_page = lambda name: lambda b: b.find_elements(By.ID, "redo-corrections") and b.execute_script("return document.getElementById('minutes-state')?.dataset.name") == name
     try:
         with Window(meetings, "fr_FR.UTF-8", online, ollama=base) as browser:
             browser.set_window_size(1100, 800)
             args.unlink(missing_ok=True)
             browser.execute_script(f"location.hash = '#/meeting/{opened.name}'")
-            wait_for(browser, lambda b: b.find_elements(By.ID, "redo-corrections"), 10)
+            wait_for(browser, its_page(opened.name), 10)
             press(browser, "redo-corrections")
             asked = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/agree/{opened.name}"
                              and b.find_elements(By.ID, "agree-send"), 10)
