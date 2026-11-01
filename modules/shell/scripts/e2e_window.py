@@ -2037,8 +2037,8 @@ def minutes_checked(now: dt.datetime) -> None:
     time that opens its passage and plays its second (D75); Copy without the times."""
     print("AU. minutes/v3: the cost on the maker's line, nowhere else (D51); a time opens its passage and plays its second, keyboard too; none copied (D75)")
     meetings = WORK / "checking"
-    played, freed, unplayable, bare, older, unpriced, secret, dear = (
-        meetings / f"2026-10-2{n}_09-00" for n in range(8))
+    played, freed, unplayable, bare, older, unpriced, secret, dear, early, hollow = (
+        meetings / f"2026-10-2{n}_09-00" for n in range(10))
     head = '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":"fr","context":null}\n'
     # A long meeting: a line every two seconds, its passages far below the fold; one that starts within its second.
     said = "".join(
@@ -2051,7 +2051,7 @@ def minutes_checked(now: dt.datetime) -> None:
             "## 2.\n\n- Mettre à jour le planning — Marc — aujourd’hui [01:40]\n- Couper un serveur — non précisé — non précisé\n- Relancer le fournisseur — Paul [01:50]\n\n"
             "## 3.\n\n- Un serveur est gardé. [01:10]\n- La salle reste à trouver [12:75]\n")
     priced = "cost: 0.01234\ncurrency: USD\n"
-    for folder in (played, unplayable, freed, bare, older, unpriced, secret, dear):
+    for folder in (played, unplayable, freed, bare, older, unpriced, secret, dear, early, hollow):
         session(folder, now - dt.timedelta(days=2), 2, {})
     for folder in (played, unpriced, secret):
         with wave.open(str(folder / "local.wav"), "wb") as made:
@@ -2073,6 +2073,11 @@ def minutes_checked(now: dt.datetime) -> None:
     (unpriced / "minutes.md").write_text(front.format(version="v3", more="cost: -1\ncurrency: USD\n") + body)
     (older / "minutes.md").write_text(front.format(version="v2", more=priced) + body)
     (dear / "minutes.md").write_text(front.format(version="v3", more="cost: 1e30\ncurrency: EUR\n") + body)
+    # A time before the first line, that line already in view; nothing heard, and a time past the hour.
+    (early / "transcript.jsonl").write_text(head + "".join(line for line in said.splitlines(True)[5:]) + '{"type":"complete","duration":120.0}\n')
+    (early / "minutes.md").write_text(front.format(version="v3", more="") + "## 1.\n\nRien.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Un début [00:05]\n")
+    (hollow / "transcript.jsonl").write_text(head + '{"type":"complete","duration":0.0}\n')
+    (hollow / "minutes.md").write_text(front.format(version="v3", more="") + "## 1.\n\nRien.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Le long [65:00]\n")
     open_ = lambda b, folder: (b.execute_script(f"location.hash = '#/meeting/{folder.name}'"), wait_for(
         b, lambda c: c.execute_script("return document.getElementById('meeting').dataset.name") == folder.name
         and c.find_elements(By.CSS_SELECTOR, "#meeting .minutes .body h2"), 10))
@@ -2119,6 +2124,8 @@ def minutes_checked(now: dt.datetime) -> None:
                   got == [[at, f"{listen} {at}"] for at in ("01:40", "01:50", "01:10")]
                   and "[12:75]" in browser.find_element(By.CSS_SELECTOR, "#meeting .minutes .body").text
                   and "[01:" not in browser.find_element(By.CSS_SELECTOR, "#meeting .minutes .body").text, got)
+            told = browser.execute_script("return [...document.querySelectorAll('#meeting .minutes button.line-time')].map(l => l.title === l.getAttribute('aria-label') && l.title !== '')")
+            check(f"{short}: its words also said to a pointer resting on it", told == [True, True, True], told)
             quiet = browser.execute_script(
                 "const l = document.querySelector('#meeting .minutes button.line-time'), s = getComputedStyle(l),"
                 " b = getComputedStyle(document.querySelector('#meeting .minutes .body li')); return [parseFloat(s.fontSize) < parseFloat(b.fontSize), s.textDecorationLine, s.backgroundColor]")
@@ -2145,9 +2152,15 @@ def minutes_checked(now: dt.datetime) -> None:
                   browser.execute_script("return document.activeElement.outerHTML"))
             outline = browser.execute_script("const a = document.activeElement; return [a.matches(':focus-visible'), getComputedStyle(a).outlineStyle]")
             check(f"{short}: reached by the keyboard, it shows its focus", outline == [True, "solid"], outline)
+            # A failure said earlier is not left beside a sound that now plays.
+            browser.execute_script("document.getElementById('not-played').textContent = 'dit plus tôt'")
             browser.execute_script(links)[1].send_keys(" ")
             spaced = wait_for(browser, lambda b: b.execute_script(in_view, 55) and (a := b.execute_script(audio)) and 110.0 <= a[0] < 112.0 and not a[1], 8)
             check(f"{short}: Space too, without pausing what plays; a line starting within that second is its passage", spaced, browser.execute_script(audio))
+            check(f"{short}: what a failure said before is gone",
+                  browser.execute_script("return document.getElementById('not-played').textContent") == "", browser.execute_script("return document.getElementById('not-played').textContent"))
+            stop = browser.execute_script("return document.querySelector('#meeting .lines li[tabindex=\"0\"]').textContent")
+            check(f"{short}: Tab goes on from its passage, the line starting at 110.6 s for a time of 110", "numéro 55," in stop, stop)
             # A search that hides the passage gives way to it.
             search = browser.find_element(By.ID, "search")
             browser.execute_script("arguments[0].scrollIntoView({block: 'nearest'})", search)
@@ -2193,6 +2206,9 @@ def minutes_checked(now: dt.datetime) -> None:
                 wait_for(browser, lambda b: b.execute_script(in_view, 35), 3)
                 check(f"{short}: one passage marked at a time", browser.execute_script(
                     "return document.querySelectorAll('#meeting .lines li.now').length") == 1 and "numéro 35," in browser.execute_script(marked), browser.execute_script(marked))
+                browser.execute_script(links)[1].click()
+                check(f"{short}: its audio {why}: a time of 110 marks the line starting at 110.6 s, not the one before",
+                      wait_for(browser, lambda b: "numéro 55," in b.execute_script(marked), 3), browser.execute_script(marked))
             shot_themed(browser, f"d75-{short}-freed", "dark")
             # Nothing to play, nothing to open: the time as plain text, no link that leads nowhere.
             open_(browser, bare)
@@ -2201,6 +2217,26 @@ def minutes_checked(now: dt.datetime) -> None:
                   and times == [["01:40", True, -1], ["01:50", True, -1], ["01:10", True, -1]], times)
             got = browser.execute_script(row_text)
             check(f"{short}: and its row keeps its three cells", got[0] == ["Marc", "Mettre à jour le planning 01:40", "aujourd’hui"], got)
+            # A transcript that holds no line: nothing to open, no link; the time as the page writes it.
+            open_(browser, hollow)
+            wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#meeting .minutes .body time"), 5)
+            times = browser.execute_script("return [...document.querySelectorAll('#meeting .minutes .body time')].map(t => t.textContent)")
+            check(f"{short}: a transcript with no line: no link, and past the hour the time reads as the transcript writes it",
+                  browser.execute_script(labels) == [] and times == ["01:05:00"], times)
+            # Before the first line, that line in view: it is the passage, and the page does not move.
+            open_(browser, early)
+            wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#meeting .lines li"), 10)
+            # In view low in the pane, far from its centre: the link is out of view, so clicked by the page.
+            browser.execute_script(
+                "document.querySelector('#meeting .lines li').scrollIntoView({block: 'end'});"
+                "const pane = [...document.querySelectorAll('*')].find(e => e.scrollTop > 0 && e.contains(document.getElementById('meeting'))); pane.scrollTop += 40")
+            at = browser.execute_script(scrolled)
+            check(f"{short}: the first line in view before a click", browser.execute_script(in_view, 5) and at > 0, at)
+            browser.execute_script("arguments[0].click()", browser.execute_script(links)[0])
+            first = wait_for(browser, lambda b: "numéro 5," in b.execute_script(marked), 3)
+            time.sleep(0.5)
+            check(f"{short}: a time before the first line opens that line; in view already, the page stays where it is",
+                  first and browser.execute_script(scrolled) == at, (browser.execute_script(marked), at, browser.execute_script(scrolled)))
             # Older minutes: exactly as today.
             open_(browser, older)
             wait_for(browser, lambda b: b.find_elements(By.ID, "play") or b.find_elements(By.ID, "no-player"), 10)
@@ -2229,6 +2265,65 @@ def minutes_checked(now: dt.datetime) -> None:
             check(f"{short}: a meeting said confidential: its time plays here too, its lock still said",
                   plays and browser.execute_script("return document.getElementById('confidential-switch').checked") is True, browser.execute_script(audio))
             browser.execute_script("document.querySelector('audio.track').pause()")
+
+    # Said confidential, services named in the settings: a time played and the minutes copied send nothing.
+    counted = {"hear": 0, "write": 0}
+
+    class Service(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_POST(self):
+            counted[self.path.strip("/")] += 1
+            self.rfile.read(int(self.headers.get("content-length") or 0))
+            self.send_response(200)
+            self.send_header("content-length", "0")
+            self.end_headers()
+
+        def log_message(self, *_):
+            pass
+
+    # An Ollama that holds a model: a step started here on this page's account would run, and be seen.
+    class Ollama(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_GET(self):
+            answer = json.dumps({"models": [{"name": "qwen3:8b"}]}).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(answer)))
+            self.end_headers()
+            self.wfile.write(answer)
+
+        def log_message(self, *_):
+            pass
+
+    server, here = (http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) for handler in (Service, Ollama))
+    for running in (server, here):
+        threading.Thread(target=running.serve_forever, daemon=True).start()
+    services = ('reminder = false\nengine = "service"\ntranscription_provider = "https://hears.example/v1"\ntranscription_model = "whisper-1"\n'
+                'transcription_agreed = "hears.example"\nminutes_provider = "https://writes.example/v1"\nminutes_model = "gpt-4.1-mini"\nminutes_agreed = "writes.example"\n')
+    hearing, writing = WORK / "hearing-args", WORK / "summary-args"
+    hearing.unlink(missing_ok=True)
+    writing.unlink(missing_ok=True)
+    before = {name: (secret / name).read_bytes() for name in ("minutes.md", "transcript.jsonl")}
+    try:
+        window = Window(meetings, "fr_FR.UTF-8", services, ollama=f"http://127.0.0.1:{here.server_port}")
+        window.env.update(STANDIN=f"http://127.0.0.1:{server.server_port}")
+        with window as browser:
+            browser.set_window_size(1100, 800)
+            open_(browser, secret)
+            wait_for(browser, lambda b: b.find_elements(By.ID, "play"), 10)
+            browser.execute_script(links)[0].click()
+            plays = wait_for(browser, lambda b: (a := b.execute_script(audio)) and not a[1] and 100.0 <= a[0] < 102.0, 8)
+            browser.execute_script(stand_in)
+            press(browser, "copy-minutes")
+            copied = wait_for(browser, lambda b: b.execute_script("return window.__copied.length") == 1, 3)
+            time.sleep(2)
+            check("a meeting said confidential: its time plays, its minutes copy, and nothing is sent: no service asked, neither step started, its files as they were",
+                  plays and copied and counted == {"hear": 0, "write": 0} and not hearing.exists() and not writing.exists()
+                  and all((secret / name).read_bytes() == kept for name, kept in before.items()), (plays, copied, counted, hearing.exists(), writing.exists()))
+    finally:
+        server.shutdown()
+        here.shutdown()
 
     # D51's fourth: neither the agreement nor the small window says a price.
     priced_words = ("return /0[,.]01|\\$|\\bUSD\\b|coût|\\bcost\\b|\\bprix\\b|\\bprice\\b/i.test(document.getElementById(arguments[0]).innerText)")

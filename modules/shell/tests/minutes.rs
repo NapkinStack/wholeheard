@@ -414,6 +414,10 @@ fn a_time_ending_an_item_is_said_apart_and_left_out_of_what_is_copied() {
 fn anything_else_in_square_brackets_is_the_item_s_text() {
     for item in [
         "a [12:75]",
+        "a [12:60]",
+        "a [12:059]",
+        "a [+1:30]",
+        "a [12:+5]",
         "a [1:30]",
         "a [12:5]",
         "a [12:305]",
@@ -437,6 +441,19 @@ fn anything_else_in_square_brackets_is_the_item_s_text() {
         assert!(!minutes.body.contains("<time"), "{item}: {}", minutes.body);
         assert_eq!(minutes.markdown.matches(item.trim_end()).count(), 2, "{item}: {}", minutes.markdown);
     }
+    // An item that is nothing else is its own text, wherever it stands in its list.
+    let alone = present(&third("", "- a\n- [12:31]", "- d"));
+    assert!(alone.body.contains("<li>[12:31]</li>"), "{}", alone.body);
+    // An item within an item keeps its brackets; the time is its parent's own, ending the parent.
+    let parent = present(&third("", "- a\n  - b [00:01]\n\n  c [00:02]", "- d"));
+    assert_eq!(parent.body.matches("<time ").count(), 1, "{}", parent.body);
+    assert!(parent.body.contains("b [00:01]"), "{}", parent.body);
+    assert!(parent.body.contains("c <time data-second=\"2\">00:02</time>"), "{}", parent.body);
+    assert!(
+        parent.markdown.contains("b [00:01]") && !parent.markdown.contains("[00:02]"),
+        "{}",
+        parent.markdown
+    );
     // Two: the last characters alone are the time, the other the item's text.
     let two = present(&third("", "- a [12:31] [14:02]", "- d"));
     assert!(
