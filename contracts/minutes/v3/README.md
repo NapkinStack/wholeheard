@@ -69,9 +69,10 @@ the three parts.
   as neither: the minutes still read. A producer given such a cost writes the minutes without it.
 - **One time, at the end, or none.** Only the last characters of an item are a time, and an item
   has one: anything else in square brackets is the item's text, and so is `[12:75]`. A time that
-  falls inside no segment of the transcript, from its start to its end, or a list of times, the
-  producer does not write: it keeps the line without them. A full stop after a time, the producer
-  does not write either: the time ends the item. A reader has the time as said: it cannot tell
+  falls inside no segment of the transcript, or a list of times, the producer does not write: it
+  keeps the line without them. A segment holds the whole seconds from its `start` to its `end`,
+  each cut to its whole second, as the transcript is given. A time it keeps ends the item: no full
+  stop and no space after it. A reader has the time as said: it cannot tell
   whether it is right.
 - **A consumer reads all three versions.** `minutes/v1`, `minutes/v2` and `minutes/v3` alike, with
   or without their optional parts; a key it does not know, it leaves aside. An item without a time
