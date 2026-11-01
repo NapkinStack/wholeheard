@@ -891,6 +891,19 @@ def service_named(now: dt.datetime) -> None:
         browser.execute_script("window.restore()")
         browser.execute_script(address_to, "https://hears.example/v1")
         wait_for(browser, lambda b: 'transcription_agreed = "hears.example"' in window.file.read_text(), 5)
+        # Another model saved while Tester asks about the first: the same.
+        model_to = "const m = document.getElementById('transcription-model'); m.value = arguments[0]; m.dispatchEvent(new Event('input')); document.getElementById('transcription-save').click()"
+        browser.execute_script("window.answer = null; window.__TAURI__.core = window.held; document.getElementById('transcription-test').click()")
+        wait_for(browser, lambda b: b.execute_script("return window.answer !== null"), 5)
+        browser.execute_script(model_to, "whisper-2")
+        moved = wait_for(browser, lambda b: 'transcription_model = "whisper-2"' in window.file.read_text(), 5)
+        browser.execute_script("window.answer()")
+        back = wait_for(browser, lambda b: not b.execute_script(testing), 10)
+        check("another model saved while Tester asks: the answer is not said, the button given back",
+              moved and back and not browser.execute_script(said).startswith(hears), browser.execute_script(said))
+        browser.execute_script("window.restore()")
+        browser.execute_script(model_to, "whisper-1")
+        wait_for(browser, lambda b: 'transcription_model = "whisper-1"' in window.file.read_text(), 5)
         # What was saved cannot be read to bind the answer: said, the button given back.
         browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'settings_shown' ? Promise.reject('REFUS') : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; }; document.getElementById('transcription-test').click()")
         told = wait_for(browser, lambda b: b.execute_script(said) == "REFUS" and not b.execute_script(testing), 5)
