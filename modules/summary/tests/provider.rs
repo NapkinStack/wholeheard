@@ -15,7 +15,9 @@ use wholeheard_summary::{
 };
 
 fn asking(address: &str, key: Option<&str>) -> Result<String, Refused> {
-    Provider::new(address, "a-model", key, Duration::from_secs(5))?.ask("the request")
+    Provider::new(address, "a-model", key, Duration::from_secs(5))?
+        .ask("the request")
+        .map(|answer| answer.text)
 }
 
 #[test]
@@ -160,7 +162,7 @@ fn ollama_is_asked_on_its_own_route_with_room_for_the_whole_request() {
     let answer = Provider::new(&address, "a-model", None, Duration::from_secs(5))
         .unwrap()
         .ask(&request);
-    assert_eq!(answer.unwrap(), MINUTES);
+    assert_eq!(answer.unwrap().text, MINUTES);
     assert!(
         received
             .recv_timeout(Duration::from_secs(5))
@@ -303,7 +305,7 @@ fn ollama_is_waited_for_beyond_the_patience_given_as_long_as_it_has_to_read() {
     // One second given, five more for these 100 bytes: an answer after two comes.
     let address = ollama_by_hand("200 OK", Duration::from_secs(2));
     let provider = Provider::new(&address, "m", None, Duration::from_secs(1)).unwrap();
-    assert_eq!(provider.ask(&"a".repeat(100)).unwrap(), "from its own route");
+    assert_eq!(provider.ask(&"a".repeat(100)).unwrap().text, "from its own route");
 
     // And what is said is what was waited: one given, one for these 20 bytes.
     let address = ollama_by_hand("200 OK", Duration::from_secs(4));
@@ -330,4 +332,31 @@ fn a_provider_that_is_not_ollama_is_given_the_patience_it_was_given() {
     assert_eq!(refused.1, Some("provider.too_slow"));
     assert!(began.elapsed() < Duration::from_secs(10), "{:?}", began.elapsed());
     drop(listener);
+}
+
+#[test]
+fn an_answer_hands_back_its_usage_the_number_as_it_was_written() {
+    // Its digits as written, and its exponent as the JSON reader spells one; the number the same.
+    for (written, read) in [
+        ("0.012", "0.012"),
+        ("1.2e-6", "1.2e-6"),
+        ("0.0120", "0.0120"),
+        ("1E-6", "1e-6"),
+        ("1e999", "1e+999"),
+    ] {
+        let body =
+            format!(r#"{{"choices": [{{"message": {{"content": "text"}}, "finish_reason": "stop"}}], "usage": {{"cost": {written}}}}}"#);
+        let (address, _received) = provider("200 OK", body);
+        let answer = Provider::new(&address, "m", None, Duration::from_secs(5))
+            .unwrap()
+            .ask("the request")
+            .unwrap();
+        assert_eq!(answer.usage["cost"].to_string(), read);
+    }
+    let (address, _received) = provider("200 OK", answering("text", "stop"));
+    let answer = Provider::new(&address, "m", None, Duration::from_secs(5))
+        .unwrap()
+        .ask("the request")
+        .unwrap();
+    assert!(answer.usage.is_null());
 }

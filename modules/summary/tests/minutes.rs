@@ -3,7 +3,8 @@
 
 use std::fs;
 
-use wholeheard_summary::{Made, Minutes, Refused, minutes, read_transcript, request, write_minutes};
+use serde_json::json;
+use wholeheard_summary::{Made, Minutes, Refused, Segment, minutes, read_transcript, reported, request, write_minutes};
 
 const HEADER: &str =
     r#"{"type": "header", "contract": "transcript/v1", "engine": "an-engine", "model": "a-model", "language": "fr", "context": null}"#;
@@ -27,6 +28,8 @@ fn made(context: Option<&'static str>) -> Made<'static> {
         provider: "local",
         model: "a-model",
         context,
+        cost: None,
+        segments: &[],
     }
 }
 
@@ -93,6 +96,9 @@ fn the_provider_is_asked_with_the_meeting_the_rules_and_the_users_context() {
     );
     for rule in [
         "Never guess",
+        "End each bullet of the second and third sections with one time, as [mm:ss] copied from the transcript",
+        "never a list",
+        "never make one up",
         "exactly three sections",
         "in the language the meeting is held in, the three titles included",
         "never give them an action",
@@ -145,7 +151,7 @@ fn the_minutes_say_what_made_them_and_hold_the_three_sections() {
     assert_eq!(
         front.lines().collect::<Vec<_>>(),
         [
-            "contract: minutes/v2",
+            "contract: minutes/v3",
             "made: 2026-10-13T15:12:40+02:00",
             "provider: \"local\"",
             "model: \"a-model\"",
@@ -263,6 +269,8 @@ fn the_front_matter_reads_back_whatever_the_context_and_the_model_hold() {
             provider: "local",
             model: "m:7b-\"q4\"\n# x: y",
             context: Some(hostile),
+            cost: None,
+            segments: &[],
         },
     )
     .unwrap();
@@ -293,6 +301,8 @@ fn the_time_is_written_to_the_second_with_its_offset() {
             provider: "local",
             model: "m",
             context: None,
+            cost: None,
+            segments: &[],
         };
         assert_eq!(minutes(ANSWER, &made).unwrap().as_str().lines().nth(2).unwrap(), written);
     }
@@ -510,4 +520,426 @@ fn the_request_asks_for_a_title_on_the_first_line() {
     let asked = request(&[], None);
     assert!(asked.contains("first level"), "{asked}");
     assert!(asked.contains("at most 80 characters"), "{asked}");
+}
+
+/// Segments from 60.7 to 62.9 and 125 to 125.2: seconds 60, 61, 62 and 125 are in the transcript.
+fn segments() -> Vec<Segment> {
+    read_transcript(&transcript(&[
+        r#"{"type": "segment", "speaker": "others", "start": 60.7, "end": 62.9, "text": "Un."}"#,
+        r#"{"type": "segment", "speaker": "me", "start": 125.0, "end": 125.2, "text": "Deux."}"#,
+    ]))
+    .unwrap()
+}
+
+/// The seconds a consumer of `minutes/v3` marks in a body: the contract's reading, written here,
+/// a module knowing another by its contract alone. Only a top-level item's last characters, in its
+/// own words.
+fn marked(body: &str) -> Vec<u32> {
+    use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+
+    let second_of = |said: &str| -> Option<u32> {
+        let (minutes, seconds) = said.split_once(':')?;
+        let digits = |part: &str| part.bytes().all(|c| c.is_ascii_digit());
+        if minutes.len() < 2 || seconds.len() != 2 || !digits(minutes) || !digits(seconds) {
+            return None;
+        }
+        let seconds: u32 = seconds.parse().ok().filter(|seconds| *seconds < 60)?;
+        minutes.parse::<u32>().ok()?.checked_mul(60)?.checked_add(seconds)
+    };
+    let mut found = Vec::new();
+    let (mut titles, mut depth) = (0, 0);
+    let (mut item, mut words, mut text_ended) = (None, None, None);
+    for (event, range) in Parser::new(body).into_offset_iter() {
+        if depth > 0 {
+            words.get_or_insert(range.start);
+        }
+        match &event {
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H2, ..
+            }) => titles += 1,
+            Event::Start(Tag::Item) => {
+                if depth == 0 && titles >= 2 {
+                    item = Some(range.clone());
+                    words = None;
+                }
+                depth += 1;
+            }
+            Event::Start(Tag::BlockQuote(_)) => depth += 1,
+            Event::End(TagEnd::BlockQuote(_) | TagEnd::Item) => depth -= 1,
+            _ => {}
+        }
+        text_ended = match event {
+            Event::Text(_) => Some(range.end),
+            Event::End(TagEnd::Paragraph | TagEnd::Item) => text_ended,
+            _ => None,
+        };
+        if depth == 0 && matches!(event, Event::End(TagEnd::Item)) {
+            let Some(whole) = item.take() else { continue };
+            let written = body[whole.clone()].trim_end_matches(['\n', '\r']);
+            let end = whole.start + written.len();
+            let Some(said) = written.strip_suffix(']').filter(|_| text_ended == Some(end)) else {
+                continue;
+            };
+            let Some(open) = said.rfind(" [") else { continue };
+            if words.is_some_and(|words| words < whole.start + open + 1)
+                && let Some(second) = second_of(&said[open + 2..])
+            {
+                found.push(second);
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn the_reader_marks_a_time_after_a_sub_list_and_the_check_sees_it() {
+    assert_eq!(
+        marked("## A\n\nx\n\n## B\n\n- a\n  - b\n\n  c [99:00]\n\n## C\n\n- z [01:00]\n"),
+        [5940, 60]
+    );
+}
+
+/// What is written for these two items of Actions and Key points, and how many times went.
+fn with_times(action: &str, point: &str) -> (String, usize) {
+    let segments = segments();
+    let answer = format!("## A\n\n- Vu à [09:59].\n\n## B\n\n{action}\n\n## C\n\n{point}\n");
+    let accepted = minutes(
+        &answer,
+        &Made {
+            segments: &segments,
+            ..made(None)
+        },
+    )
+    .unwrap();
+    let body = accepted.as_str().split_once("\n---\n\n").unwrap().1;
+    let (head, rest) = body.split_once("## B\n\n").unwrap();
+    assert_eq!(head, "## A\n\n- Vu à [09:59].\n\n", "the first section holds no time to check");
+    for second in marked(body) {
+        assert!(matches!(second, 60..=62 | 125), "the reader marks {second}, in no segment: {body}");
+    }
+    let (action, point) = rest.split_once("\n\n## C\n\n").unwrap();
+    (format!("{action}|{}", point.trim_end_matches('\n')), accepted.removed())
+}
+
+/// Whether a line ends on what `minutes/v3` reads as a time.
+fn ends_on_a_time(line: &str) -> bool {
+    let Some((_, time)) = line.strip_suffix(']').and_then(|inner| inner.rsplit_once('[')) else {
+        return false;
+    };
+    time.split_once(':').is_some_and(|(minutes, seconds)| {
+        minutes.len() >= 2 && seconds.len() == 2 && seconds < "60" && (minutes.bytes().chain(seconds.bytes())).all(|b| b.is_ascii_digit())
+    })
+}
+
+#[test]
+fn only_the_tail_of_an_item_is_ever_touched_and_a_time_ends_it_only_when_kept() {
+    for (given, expected, removed) in [
+        // Rule 3: each second a segment holds, its start and its end cut to the whole second.
+        ("- a [01:00]", "- a [01:00]", 0),
+        ("- a [01:01]", "- a [01:01]", 0),
+        ("- a [01:02]", "- a [01:02]", 0),
+        ("- a [02:05]", "- a [02:05]", 0),
+        // The stop and the spaces go, a non-breaking one too; one space before it.
+        ("- a [01:00].  ", "- a [01:00]", 0),
+        ("- a. [01:00].", "- a. [01:00]", 0),
+        ("- a [01:00]\u{a0}", "- a [01:00]", 0),
+        ("- a\u{a0}[01:00].\u{a0}", "- a [01:00]", 0),
+        ("- a[01:00]", "- a [01:00]", 0),
+        ("- a    [01:00]", "- a [01:00]", 0),
+        ("- a\n  [01:00]", "- a [01:00]", 0),
+        ("- a, [01:00]", "- a, [01:00]", 0),
+        ("- à é [01:00]", "- à é [01:00]", 0),
+        ("- a à 12:30 [01:00]", "- a à 12:30 [01:00]", 0),
+        // Rule 4: on either side of the segments, and between them.
+        ("- a [00:59]", "- a", 1),
+        ("- a [01:03]", "- a", 1),
+        ("- a [02:04]", "- a", 1),
+        ("- a [02:06]", "- a", 1),
+        ("- a — b — c [99:00]", "- a — b — c", 1),
+        ("- a [120:00]", "- a", 1),
+        ("- a [01:03].  ", "- a", 1),
+        ("- a. [01:03].", "- a.", 1),
+        ("- a\u{a0}[99:00]\u{a0}", "- a", 1),
+        ("- a\u{202f}[99:00].\u{a0}", "- a", 1),
+        // Its own trailing spaces and one `,` or `;`, no more.
+        ("- a, [99:00]", "- a", 1),
+        ("- a; [99:00]", "- a", 1),
+        ("- a , [99:00]", "- a", 1),
+        ("- a,, [99:00]", "- a,", 1),
+        ("- a: [99:00]", "- a:", 1),
+        ("- a — [99:00]", "- a —", 1),
+        // Several times in the tail: all go, in the transcript or not.
+        ("- a [01:00, 01:01, 01:02].  ", "- a", 3),
+        ("- a [01:00 et 01:01]", "- a", 2),
+        ("- a [01:00–01:02]", "- a", 2),
+        ("- a [01:00] [01:01]", "- a", 2),
+        ("- a [01:00], [01:01]", "- a", 2),
+        ("- a [01:00]; [01:01]", "- a", 2),
+        ("- a [01:00],[01:01]", "- a", 2),
+        ("- a, [01:00], [99:00].", "- a", 2),
+        // The separators are spaces, `,` and `;`: anything else ends the tail, and stays.
+        ("- a [00:02] et [00:17]", "- a [00:02] et", 1),
+        ("- a [01:00] / [01:01]", "- a [01:00] /", 1),
+        ("- a [01:00] - [01:01]", "- a [01:00] -", 1),
+        ("- a [01:00] – [01:01]", "- a [01:00] –", 1),
+        ("- a [01:00] — [01:01]", "- a [01:00] —", 1),
+        ("- a [01:00] ou [01:01]", "- a [01:00] ou", 1),
+        ("- a [01:00] puis [01:01].", "- a [01:00] puis", 1),
+        ("- a [01:00] & [01:01]", "- a [01:00] &", 1),
+        ("- a [01:00] . [01:01]", "- a [01:00] .", 1),
+        ("- a [01:00]. [01:01]", "- a [01:00].", 1),
+        // Another time earlier in the item: the one at its end goes, the earlier is its text.
+        ("- RDV [14:30] puis déjeuner [12:00]", "- RDV [14:30] puis déjeuner", 1),
+        // What is left reads as a link's definition, no text to a CommonMark reader: alone in its section, asked again.
+        ("- [00:02]: Envoyer [00:17]\n- y", "- [00:02]: Envoyer\n- y", 1),
+        ("- a [00:02]b [00:17]", "- a [00:02]b", 1),
+        ("- a [99:00] b [01:00]", "- a [99:00] b", 1),
+        ("- a [98:00, 99:00] b [01:00]", "- a [98:00, 99:00] b", 1),
+        ("- `[99:00]` b [01:00]", "- `[99:00]` b", 1),
+        (
+            "- a [01:00] le budget [01:01] et le reste [01:02]",
+            "- a [01:00] le budget [01:01] et le reste",
+            1,
+        ),
+        // Rule 5: no tail, not a byte changes, nothing counted.
+        ("- a [00:02] .", "- a [00:02] .", 0),
+        ("- a [00:02];", "- a [00:02];", 0),
+        ("- a [00:02],", "- a [00:02],", 0),
+        ("- a [00:02]..", "- a [00:02]..", 0),
+        ("- a [12:75].", "- a [12:75].", 0),
+        ("- a [9:00]", "- a [9:00]", 0),
+        ("- a [01:5]", "- a [01:5]", 0),
+        ("- a [09:60]", "- a [09:60]", 0),
+        ("- a [+9:00]", "- a [+9:00]", 0),
+        ("- a [ 99:00 ]", "- a [ 99:00 ]", 0),
+        ("- a [999999999999999999:00]", "- a [999999999999999999:00]", 0),
+        ("- a [01:00:00]", "- a [01:00:00]", 0),
+        ("- a [note]", "- a [note]", 0),
+        ("- a [note 01:00]", "- a [note 01:00]", 0),
+        ("- a [de 10:30 à 11:45 salle B]", "- a [de 10:30 à 11:45 salle B]", 0),
+        ("- a [de 10:30 à 11:45]", "- a [de 10:30 à 11:45]", 0),
+        ("- a [10:30 salle B 11:45]", "- a [10:30 salle B 11:45]", 0),
+        ("- a [10:30 à 11:45 salle]", "- a [10:30 à 11:45 salle]", 0),
+        ("- **[00:02]** b **[00:17]**", "- **[00:02]** b **[00:17]**", 0),
+        ("- a **[99:00]**", "- a **[99:00]**", 0),
+        ("- a `[99:00]`", "- a `[99:00]`", 0),
+        ("- [99:00] puis a", "- [99:00] puis a", 0),
+        ("- [01:00] [01:01] puis a [02:05] b", "- [01:00] [01:01] puis a [02:05] b", 0),
+        ("- a [01:00] ;", "- a [01:00] ;", 0),
+        ("- a", "- a", 0),
+        ("- a.  \n- y", "- a.  \n- y", 0),
+        // Each item has its own; a list inside an item and a second paragraph as before.
+        ("- a [01:00]\n- b [99:00]\n- c [01:01].", "- a [01:00]\n- b\n- c [01:01]", 1),
+        ("- a [99:00]  \n  - b [01:00].\n  - c [98:00]", "- a\n  - b [01:00]\n  - c", 2),
+        ("- a [01:00]\n\n- b [99:00]", "- a [01:00]\n\n- b", 1),
+        ("- a\n\n  b [01:00].", "- a\n\n  b [01:00]", 0),
+        ("- a\n\n  b [99:00]", "- a\n\n  b", 1),
+        ("- a [01:00]\n\n  b", "- a [01:00]\n\n  b", 0),
+        // After a sub-list, the item's last text is the one its reader marks, and all its own text counts.
+        ("- a\n  - b\n\n  c [99:00]", "- a\n  - b\n\n  c", 1),
+        ("- a\n  - b\n\n  c [01:00].", "- a\n  - b\n\n  c [01:00]", 0),
+        ("- a [00:02]\n  - b\n\n  c [00:17]", "- a [00:02]\n  - b\n\n  c", 1),
+        ("- a [00:02]\n  - b\n\n  c [01:00]", "- a [00:02]\n  - b\n\n  c", 1),
+        ("- a\n  - b [98:00]\n\n  c [01:00]", "- a\n  - b\n\n  c [01:00]", 1),
+        ("- a\n  - b\n\n  c\n  - d\n\n  e [99:00]", "- a\n  - b\n\n  c\n  - d\n\n  e", 1),
+        (
+            "- a [00:02]\n  - b\n\n  c\n  - d\n\n  e [01:00]",
+            "- a [00:02]\n  - b\n\n  c\n  - d\n\n  e",
+            1,
+        ),
+        ("- a\n  - b\n\n  [01:00]", "- a\n  - b\n\n  [01:00]", 0),
+        ("- a\n  - b\n\n  c [00:02]\n- y", "- a\n  - b\n\n  c\n- y", 1),
+        ("- a [99:00]\n  - b\n\n  c", "- a [99:00]\n  - b\n\n  c", 0),
+        (
+            "- a\n  - b\n\n  c [00:02]\n  - d\n\n  e [01:00]",
+            "- a\n  - b\n\n  c [00:02]\n  - d\n\n  e",
+            1,
+        ),
+        ("- a\n  - b\n\n  c [99:00]\n  - d", "- a\n  - b\n\n  c\n  - d", 1),
+        // Square brackets with no time neither continue a tail nor count as an earlier time.
+        ("- a [00:02] [note]", "- a [00:02] [note]", 0),
+        ("- a [99:00][12:75]", "- a [99:00][12:75]", 0),
+        ("- a [note] b [01:00]", "- a [note] b [01:00]", 0),
+        ("- a [note] b [99:00]", "- a [note] b", 1),
+        ("* a [01:00].", "* a [01:00]", 0),
+        ("1. a [99:00]", "1. a", 1),
+    ] {
+        let (written, went) = with_times(given, "- z");
+        assert_eq!((written.as_str(), went), (format!("{expected}|- z").as_str(), removed), "{given:?}");
+        let (written, went) = with_times("- z", given);
+        assert_eq!(
+            (written.as_str(), went),
+            (format!("- z|{expected}").as_str(), removed),
+            "{given:?}, key points"
+        );
+        // A reader finds a time at an item's end only where one was kept.
+        if removed > 0 && !given.contains('\n') {
+            assert!(!ends_on_a_time(expected), "{given:?} still ends on a time");
+        }
+    }
+}
+
+#[test]
+fn after_a_tail_went_no_item_ends_on_a_time() {
+    for tail in ["[99:00]", "[01:00] [01:01]", "[01:00, 01:01]", "[01:00], [99:00]."] {
+        for before in [
+            "- a ",
+            "- [00:02] et ",
+            "- [00:02], ",
+            "- [00:02]; ",
+            "- [00:02]  ",
+            "- [00:02]. ",
+            "- [00:02]\u{a0}",
+        ] {
+            let given = format!("{before}{tail}");
+            let (written, went) = with_times(&format!("{given}\n- y"), "- z");
+            assert!(went > 0, "{given:?}");
+            let line = written.split_once('\n').unwrap().0;
+            assert!(!ends_on_a_time(line), "{given:?} gives {line:?}");
+        }
+    }
+}
+
+#[test]
+fn a_time_alone_on_a_line_goes_and_a_section_left_empty_is_no_minutes() {
+    assert_eq!(with_times("- [01:00]\n- [99:00]\n- a", "- z"), ("- [01:00]\n-\n- a|- z".into(), 1));
+    assert_eq!(with_times("- [00:17]\n- a", "- z"), ("-\n- a|- z".into(), 1));
+    let segments = segments();
+    let answer = "## A\n\nVu.\n\n## B\n\n- [00:17]\n\n## C\n\n- z\n";
+    let refused = minutes(
+        answer,
+        &Made {
+            segments: &segments,
+            ..made(None)
+        },
+    )
+    .unwrap_err();
+    assert_eq!(refused.1, Some("answer.not_minutes"));
+    let answer = "## A\n\nVu.\n\n## B\n\n- [00:02]: Envoyer [00:17]\n\n## C\n\n- z\n";
+    let refused = minutes(
+        answer,
+        &Made {
+            segments: &segments,
+            ..made(None)
+        },
+    )
+    .unwrap_err();
+    assert_eq!(refused.1, Some("answer.not_minutes"));
+}
+
+fn priced() -> wholeheard_summary::Cost {
+    reported("openrouter.ai", &json!({ "cost": 0.012 })).unwrap().unwrap()
+}
+
+#[test]
+fn a_cost_goes_bare_after_the_title_with_its_currency() {
+    let accepted = minutes(
+        &format!("# Un titre\n\n{ANSWER}"),
+        &Made {
+            cost: Some(priced()),
+            ..made(None)
+        },
+    )
+    .unwrap();
+    let front = accepted.as_str().split_once("\n---\n\n").unwrap().0;
+    assert_eq!(
+        front.lines().skip(6).collect::<Vec<_>>(),
+        ["title: \"Un titre\"", "cost: 0.012", "currency: USD"]
+    );
+    let without = minutes(ANSWER, &made(None)).unwrap();
+    assert!(!without.as_str().contains("\ncost:") && !without.as_str().contains("\ncurrency:"));
+}
+
+#[test]
+fn a_cost_is_openrouters_as_it_reported_it_or_none_and_said_when_it_was_refused() {
+    let read = |text: &str| serde_json::from_str::<serde_json::Value>(text).unwrap();
+    // As written: no float printed again.
+    for written in ["0.012", "1.2e-6", "0.0120", "0", "0.0", "3"] {
+        let cost = reported(
+            "openrouter.ai",
+            &read(&format!(
+                r#"{{"cost": {written}, "cost_details": {{"upstream_inference_cost": null}}}}"#
+            )),
+        );
+        let accepted = minutes(
+            ANSWER,
+            &Made {
+                cost: cost.unwrap(),
+                ..made(None)
+            },
+        )
+        .unwrap();
+        assert!(
+            accepted.as_str().contains(&format!("\ncost: {written}\ncurrency: USD\n---\n")),
+            "{}",
+            accepted.as_str()
+        );
+    }
+    assert!(
+        reported(
+            "openrouter.ai",
+            &read(r#"{"cost": 0.1, "cost_details": {"upstream_inference_cost": 0}}"#)
+        )
+        .unwrap()
+        .is_some()
+    );
+    assert!(
+        reported(
+            "openrouter.ai",
+            &read(r#"{"cost": 0.1, "cost_details": {"upstream_inference_cost": 0.0}}"#)
+        )
+        .unwrap()
+        .is_some()
+    );
+    assert!(
+        reported("openrouter.ai", &read(r#"{"cost": 0.1, "cost_details": {}}"#))
+            .unwrap()
+            .is_some()
+    );
+    // None reported: nothing to say.
+    for usage in ["null", "{}", r#"{"cost": null}"#, r#"{"prompt_tokens": 3}"#, "7", "[]"] {
+        assert_eq!(reported("openrouter.ai", &read(usage)), Ok(None), "{usage}");
+    }
+    // The user's own key at the model's provider: what OpenRouter charged is not what the call cost.
+    for upstream in ["0.02", "1e-9", r#""0""#, "true", "1e999"] {
+        let usage = read(&format!(
+            r#"{{"cost": 0.001, "cost_details": {{"upstream_inference_cost": {upstream}}}}}"#
+        ));
+        assert_eq!(reported("openrouter.ai", &usage), Ok(None), "{upstream}");
+    }
+    assert_eq!(
+        reported(
+            "openrouter.ai",
+            &read(r#"{"cost": -1, "cost_details": {"upstream_inference_cost": 0.02}}"#)
+        ),
+        Ok(None)
+    );
+    // Not a number at least zero: none, and said.
+    for cost in ["-0.01", r#""0.012""#, "true", "[1]", r#"{"usd": 1}"#, "1e999", "-1e999"] {
+        assert!(
+            reported("openrouter.ai", &read(&format!(r#"{{"cost": {cost}}}"#))).is_err(),
+            "{cost}"
+        );
+    }
+    // This machine pays no one; another host's currency no documentation read here names.
+    assert_eq!(reported("local", &read(r#"{"cost": 0.012}"#)), Ok(None));
+    assert!(reported("api.example.com", &read(r#"{"cost": 0.012}"#)).is_err());
+    assert_eq!(reported("api.example.com", &read(r#"{"prompt_tokens": 3}"#)), Ok(None));
+    assert!(reported("openrouter.ai.example.com", &read(r#"{"cost": 0.012}"#)).is_err());
+    assert!(reported("not-openrouter.ai", &read(r#"{"cost": 0.012}"#)).is_err());
+    assert!(reported("eu.openrouter.ai", &read(r#"{"cost": 0.012}"#)).is_err());
+    // The user's own key, said outright: what is charged is OpenRouter's fee alone, whatever upstream says.
+    for usage in [
+        r#"{"cost": 0.001, "is_byok": true}"#,
+        r#"{"cost": 0.001, "is_byok": true, "cost_details": {"upstream_inference_cost": null}}"#,
+        r#"{"cost": 0.001, "is_byok": true, "cost_details": {"upstream_inference_cost": 0}}"#,
+        r#"{"cost": "bad", "is_byok": true}"#,
+    ] {
+        assert_eq!(reported("openrouter.ai", &read(usage)), Ok(None), "{usage}");
+    }
+    assert!(
+        reported("openrouter.ai", &read(r#"{"cost": 0.001, "is_byok": false}"#))
+            .unwrap()
+            .is_some()
+    );
 }
