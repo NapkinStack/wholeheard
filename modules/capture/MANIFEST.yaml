@@ -19,7 +19,7 @@ module:
   # a day of work | a key, an order, money, personal data. The decider settles it; what
   # each value requires is the table in .nstack/handbook/05-workflow.md §7.
   # prototype | standard | high | critical
-  criticality: "standard"
+  criticality: "critical"
 
   # Does a user see this module? true requires a test sheet on its pull requests from
   # standard up (.nstack/handbook/05-workflow.md §7).
@@ -143,4 +143,4 @@ docs:
   readme: README.md
   agents: AGENTS.md
   adr: docs/adr/
-  # runbook: docs/runbook.md     # required when criticality >= high
+  runbook: docs/runbook.md
