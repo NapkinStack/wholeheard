@@ -31,7 +31,7 @@ flowchart LR
 | `model` | The model's name, as the provider knows it |
 | `context` | The text the provider received with the transcript, or `null` |
 | `title` | Optional: the meeting's name, as the provider gave it — a few words in the meeting's language, on one line, at most 80 characters; never a key nor a path. Absent, the meeting has no name of its own: its date names it |
-| `cost` | Optional: the price the provider reported for the call, a number at least zero, as it reported it. Never an estimate. Absent when the provider reported none |
+| `cost` | Optional: the price the provider reported for the call, a JSON number at least zero, as it reported it — `0.012`, `1.2e-6`. Never an estimate. Absent when the provider reported none |
 | `currency` | Optional: that price's currency, an ISO 4217 code. `cost` and `currency` come both or neither |
 
 Then exactly three sections of second level, in this order, their titles in the meeting's
@@ -64,16 +64,19 @@ the three parts.
   runs over 80 characters — Unicode code points, counted as read — as absent: the minutes still
   read, and the date names the meeting. A producer given such a title writes the minutes without
   it. Whether a title is a key or a path, a reader cannot tell: that is the producer's to keep out.
-- **A cost out of these bounds is no cost.** A reader takes a `cost` that is not a decimal number
+- **A cost out of these bounds is no cost.** A reader takes a `cost` that is not a JSON number
   at least zero, a `currency` that is not three capital letters, or either one without the other,
   as neither: the minutes still read. A producer given such a cost writes the minutes without it.
 - **One time, at the end, or none.** Only the last characters of an item are a time, and an item
   has one: anything else in square brackets is the item's text, and so is `[12:75]`. A time that
-  falls inside no passage of the transcript, or a list of times, the producer does not write: it
-  keeps the line without them. A reader has the time as said: it cannot tell whether it is right.
+  falls inside no segment of the transcript, from its start to its end, or a list of times, the
+  producer does not write: it keeps the line without them. A full stop after a time, the producer
+  does not write either: the time ends the item. A reader has the time as said: it cannot tell
+  whether it is right.
 - **A consumer reads all three versions.** `minutes/v1`, `minutes/v2` and `minutes/v3` alike, with
   or without their optional parts; a key it does not know, it leaves aside. An item without a time
-  reads as it does in v2. The producer writes v3 once its consumers read it.
+  reads as it does in v2. A consumer of v2 alone refuses v3, as that page asks: the producer writes
+  v3 only once its consumers read it.
 - **Versions 1 and 2 are not deprecated.** Minutes already on a user's disk stay as they are, are
   never rewritten for this, and stay readable: neither has a removal date.
 
