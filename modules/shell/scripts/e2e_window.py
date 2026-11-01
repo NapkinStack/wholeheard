@@ -3437,7 +3437,7 @@ def press_on_the_page_left(now: dt.datetime) -> None:
         check("`opened` refused: said, and what is shown takes presses again", said and settled, browser.execute_script("return location.hash"))
         # The list itself not read: nothing is drawn, what is shown takes presses again.
         at_page(browser, asked)
-        browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'listed' ? Promise.reject(new Error('REFUS')) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'listed' ? Promise.reject(Object.assign(new Error('REFUS'), { name: 'ScenarioAS' })) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
         browser.execute_script(f"location.hash = '#/meeting/{left.name}'")
         settled = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/meeting/{left.name}" and b.execute_script(free), 5)
         browser.execute_script("window.restore()")
