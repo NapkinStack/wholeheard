@@ -531,9 +531,9 @@ fn segments() -> Vec<Segment> {
     .unwrap()
 }
 
-/// The seconds the minutes' consumer marks in a body: its reading of `minutes/v3`, as
-/// `modules/shell/src/minutes.rs`'s `times` has it, written again here, a module knowing another by
-/// its contract alone. Only a top-level item's last characters, in its own words.
+/// The seconds a consumer of `minutes/v3` marks in a body: the contract's reading, written here,
+/// a module knowing another by its contract alone. Only a top-level item's last characters, in its
+/// own words.
 fn marked(body: &str) -> Vec<u32> {
     use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
