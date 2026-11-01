@@ -1045,6 +1045,8 @@ function minutesCard(read, words, session, transcript) {
   let maker = fill(words.written_by, read.model ? modelSaid(read.model) : "—");
   if (read.provider) maker += fill(words.written_via, read.provider);
   if (made) maker += ` · ${new Intl.DateTimeFormat(words.locale, day).format(made)} ${words.at} ${new Intl.DateTimeFormat(words.locale, hour).format(made)}`;
+  // What the call cost, as the provider reported it (D51); the shell gives both or neither.
+  if (read.cost !== null) maker += ` · ${new Intl.NumberFormat(words.locale, { style: "currency", currency: read.currency, maximumSignificantDigits: 2 }).format(read.cost)}`;
   card.append(element("p", "maker", maker));
   // The transcript corrected after they were written (D62): said, and made again only on a click.
   const corrected = transcript.state === "present" ? Math.max(0, ...transcript.segments.map((segment) => Date.parse(segment.edited ?? "") || 0)) : 0;
@@ -1068,13 +1070,58 @@ function minutesCard(read, words, session, transcript) {
   const body = element("div", "body");
   body.innerHTML = read.body;
   actionRows(body, words);
+  lineTimes(body, session, transcript, words);
   card.append(body);
   return card;
 }
 
+// A line's time (D75), the shell's own mark: a small link that opens its passage and plays from that
+// second. Nothing to play, it opens the passage and says that alone; nothing to open either, it
+// stays quiet text: the time as said, no link that leads nowhere. Once, on the gesture: the page
+// does not follow what plays (D26).
+function lineTimes(body, session, transcript, words) {
+  const plays = player?.name === nameOf(session);
+  const passages = transcript.state === "present" && transcript.segments.length > 0;
+  for (const time of body.querySelectorAll("time")) {
+    const second = Number(time.dataset.second);
+    // As the transcript and the player write it, past the hour too.
+    time.textContent = clock(second);
+    if (!plays && !passages) continue;
+    const link = element("button", "line-time", clock(second));
+    link.type = "button";
+    link.setAttribute("aria-label", fill(plays ? words.time_listen : words.time_passage, clock(second)));
+    link.title = link.getAttribute("aria-label");
+    link.addEventListener("click", () => {
+      const lines = document.querySelector("#meeting .lines");
+      // A segment holds its second from its start cut to whole, as the contract counts it.
+      const all = lines ? [...lines.children] : [];
+      const line = all.findLast((one) => Math.floor(Number(one.dataset.start)) <= second) ?? all[0];
+      if (line?.hidden) {
+        const search = document.getElementById("search");
+        search.value = "";
+        search.dispatchEvent(new Event("input"));
+      }
+      roam(lines, line);
+      // In view already, the page stays as it is; else its passage comes with what is around it.
+      const box = line?.getBoundingClientRect();
+      if (box && (box.top < 0 || box.bottom > innerHeight)) line.scrollIntoView({ block: "center" });
+      if (player?.name === nameOf(session)) {
+        document.getElementById("not-played").textContent = "";
+        player.seek(second);
+        player.play();
+      } else {
+        // No playback to mark it: marked here, the line asked for alone.
+        for (const one of all) one.classList.toggle("now", one === line);
+      }
+    });
+    time.replaceWith(link);
+  }
+}
+
 // The minutes' actions as rows (D46): « what — who — by when », as `minutes/v1` writes them, shown
 // Qui · Quoi · Pour quand, who in its colour, by when in monospace, the cells named for assistive
-// technology alone; an item that does not split in three is shown as written, in its place.
+// technology alone; an item that does not split in three is shown as written, in its place. A
+// line's time is none of the three (`minutes/v3`): it sits after what.
 function actionRows(body, words) {
   // Every second-level title, as the shell's reader counts them.
   const titles = body.querySelectorAll("h2");
@@ -1090,6 +1137,9 @@ function actionRows(body, words) {
   const rows = element("tbody");
   const unsettled = (text) => [words.unsettled, "non précisé", "not specified"].includes(text.toLowerCase());
   for (const item of list.children) {
+    const time = item.querySelector("time");
+    const held = time?.parentElement;
+    time?.remove();
     const parts = item.querySelector("ul, ol") ? [] : item.textContent.trim().split(" — ").map((part) => part.trim());
     const row = element("tr");
     if (parts.length === 3 && parts.every((part) => part !== "")) {
@@ -1098,11 +1148,13 @@ function actionRows(body, words) {
         // Short, on one line; long, back to the line between words, never pushing the card wider.
         const long = kind !== "what" && text.length > 18 ? " long" : "";
         const cell = element("td", (unsettled(text) ? `${kind} unsettled` : kind) + long, text);
+        if (kind === "what" && time) cell.append(" ", time);
         row.append(cell);
       }
     } else {
       const cell = element("td", "written");
       cell.colSpan = 3;
+      if (time) held.append(time);
       cell.append(...item.childNodes);
       row.append(cell);
     }

@@ -2032,6 +2032,221 @@ def meeting_named(now: dt.datetime) -> None:
         check("its row too", retitled, browser.execute_script(rows_said)[0])
 
 
+def minutes_checked(now: dt.datetime) -> None:
+    """AU. Minutes of `minutes/v3`: what the call cost on the maker's line alone (D51), and a line's
+    time that opens its passage and plays its second (D75); Copy without the times."""
+    print("AU. minutes/v3: the cost on the maker's line, nowhere else (D51); a time opens its passage and plays its second, keyboard too; none copied (D75)")
+    meetings = WORK / "checking"
+    played, freed, unplayable, bare, older, unpriced, secret, dear = (
+        meetings / f"2026-10-2{n}_09-00" for n in range(8))
+    head = '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":"fr","context":null}\n'
+    # A long meeting: a line every two seconds, its passages far below the fold; one that starts within its second.
+    said = "".join(
+        json.dumps({"type": "segment", "speaker": "me", "track": "local", "voice": None, "start": n * 2 + (0.6 if n == 55 else 0.0),
+                    "end": n * 2 + 1.5, "text": f"Ligne numéro {n}, inventée pour cet essai."}, ensure_ascii=False) + "\n"
+        for n in range(60))
+    transcript = head + said + '{"type":"complete","duration":120.0}\n'
+    front = ("---\ncontract: minutes/{version}\nmade: 2026-10-13T12:21:00+02:00\nprovider: openrouter.ai\nmodel: anthropic/claude-sonnet\ncontext: null\n{more}---\n\n")
+    body = ("## 1.\n\nLe budget est validé.\n\n"
+            "## 2.\n\n- Mettre à jour le planning — Marc — aujourd’hui [01:40]\n- Couper un serveur — non précisé — non précisé\n- Relancer le fournisseur — Paul [01:50]\n\n"
+            "## 3.\n\n- Un serveur est gardé. [01:10]\n- La salle reste à trouver [12:75]\n")
+    priced = "cost: 0.01234\ncurrency: USD\n"
+    for folder in (played, unplayable, freed, bare, older, unpriced, secret, dear):
+        session(folder, now - dt.timedelta(days=2), 2, {})
+    for folder in (played, unpriced, secret):
+        with wave.open(str(folder / "local.wav"), "wb") as made:
+            made.setnchannels(2)
+            made.setsampwidth(3)
+            made.setframerate(48000)
+            made.writeframes(bytes(6 * 48000 * 120))
+        (folder / "clock.jsonl").write_text('{"track":"local","sample":0,"at":0.0}\n')
+        record = json.loads((folder / "session.json").read_text())
+        record["tracks"] = {"local": {"device": "Mic"}}
+        (folder / "session.json").write_text(json.dumps(record))
+    # A track the window cannot play: there, and not playable.
+    (unplayable / "local.wav").write_bytes(b"not a sound")
+    for folder in (played, freed, unplayable, older, unpriced, secret):
+        (folder / "transcript.jsonl").write_text(transcript)
+    (secret / "confidential").write_bytes(b"")
+    for folder in (played, freed, unplayable, bare, secret):
+        (folder / "minutes.md").write_text(front.format(version="v3", more=priced) + body)
+    (unpriced / "minutes.md").write_text(front.format(version="v3", more="cost: -1\ncurrency: USD\n") + body)
+    (older / "minutes.md").write_text(front.format(version="v2", more=priced) + body)
+    (dear / "minutes.md").write_text(front.format(version="v3", more="cost: 1e30\ncurrency: EUR\n") + body)
+    open_ = lambda b, folder: (b.execute_script(f"location.hash = '#/meeting/{folder.name}'"), wait_for(
+        b, lambda c: c.execute_script("return document.getElementById('meeting').dataset.name") == folder.name
+        and c.find_elements(By.CSS_SELECTOR, "#meeting .minutes .body h2"), 10))
+    maker = "return document.querySelector('#meeting .minutes .maker').textContent"
+    links = "return [...document.querySelectorAll('#meeting .minutes button.line-time')]"
+    labels = ("return [...document.querySelectorAll('#meeting .minutes button.line-time')].map(l => [l.textContent, l.getAttribute('aria-label')])")
+    row_text = "return [...document.querySelectorAll('#meeting .minutes table.actions tbody tr')].map(r => [...r.cells].map(c => c.textContent.trim()))"
+    audio = "const a = document.querySelector('audio.track'); return a ? [a.currentTime, a.paused] : null"
+    in_view = ("const l = [...document.querySelectorAll('#meeting .lines li')].find(l => l.textContent.includes(`numéro ${arguments[0]},`));"
+               "const r = l.getBoundingClientRect(); return !l.hidden && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight")
+    marked = "return document.querySelector('#meeting .lines li.now')?.textContent ?? ''"
+    # Where the page stands, whichever element of it scrolls.
+    scrolled = "return [...document.querySelectorAll('*')].reduce((sum, e) => sum + e.scrollTop, 0)"
+    away = "[...document.querySelectorAll('*')].forEach(e => e.scrollTop = 0)"
+    stand_in = ("window.__copied = [];Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: (text) =>"
+                " (window.__copied.push(text), Promise.resolve())}})")
+    overflows = ("const wide = [...document.querySelectorAll('#meeting .minutes, #meeting .minutes *')].filter(e => {"
+                 "const r = e.getBoundingClientRect(); return !e.closest('th') && r.width > 0 && r.right > innerWidth + 0.5}).map(e => e.tagName + '.' + e.className);"
+                 "const page = document.scrollingElement; return [page.scrollWidth - page.clientWidth, wide]")
+
+    for language, short, cost, listen, passage, sections in (
+        ("fr_FR.UTF-8", "fr", "0,012 $US", "Écouter depuis", "Voir le passage de", ("Points saillants", "Actions", "Points clés")),
+        ("en_US.UTF-8", "en", "$0.012", "Listen from", "See the passage at", ("Highlights", "Actions", "Key points")),
+    ):
+        with Window(meetings, language, "reminder = false\n") as browser:
+            browser.set_window_size(1100, 800)
+            open_(browser, played)
+            wait_for(browser, lambda b: b.find_elements(By.ID, "play"), 10)
+            got = browser.execute_script(maker)
+            check(f"{short}: the maker's line ends with the cost, in the window's language, its currency, two significant digits", got.endswith(f" · {cost}"), got)
+            colours = browser.execute_script(
+                "const m = getComputedStyle(document.querySelector('#meeting .minutes .maker')).color, p = document.createElement('p');"
+                "p.style.color = 'var(--soft)'; document.body.append(p); const s = getComputedStyle(p).color; p.remove(); return [m, s]")
+            check(f"{short}: in the soft colour", colours[0] == colours[1], colours)
+            got = browser.execute_script(row_text)
+            check(f"{short}: an action's row keeps its three cells, the time beside what, out of by when (D46)",
+                  got[0] == ["Marc", "Mettre à jour le planning 01:40", "aujourd’hui"]
+                  and got[1] == ["non précisé", "Couper un serveur", "non précisé"]
+                  and got[2] == ["Relancer le fournisseur — Paul 01:50"], got)
+            check(f"{short}: an item that does not split in three keeps its time in its place",
+                  browser.execute_script("return document.querySelector('#meeting table.actions td.written button.line-time')?.textContent") == "01:50", got)
+            got = browser.execute_script(labels)
+            check(f"{short}: each time a link that says what it does; a time out of bounds stays the item's text",
+                  got == [[at, f"{listen} {at}"] for at in ("01:40", "01:50", "01:10")]
+                  and "[12:75]" in browser.find_element(By.CSS_SELECTOR, "#meeting .minutes .body").text
+                  and "[01:" not in browser.find_element(By.CSS_SELECTOR, "#meeting .minutes .body").text, got)
+            quiet = browser.execute_script(
+                "const l = document.querySelector('#meeting .minutes button.line-time'), s = getComputedStyle(l),"
+                " b = getComputedStyle(document.querySelector('#meeting .minutes .body li')); return [parseFloat(s.fontSize) < parseFloat(b.fontSize), s.textDecorationLine, s.backgroundColor]")
+            check(f"{short}: small, quiet, and a link by more than its colour", quiet[0] and quiet[1] == "underline" and quiet[2] == "rgba(0, 0, 0, 0)", quiet)
+            check(f"{short}: the passages are below the fold before a click", not browser.execute_script(in_view, 50))
+            browser.execute_script(links)[0].click()
+            shown = wait_for(browser, lambda b: b.execute_script(in_view, 50), 3)
+            playing = wait_for(browser, lambda b: (a := b.execute_script(audio)) and not a[1] and 100.0 <= a[0] < 102.0, 8)
+            check(f"{short}: a click brings its passage into view and plays from that second", shown and playing, browser.execute_script(audio))
+            check(f"{short}: the line being said is marked", "numéro 50," in browser.execute_script(marked) or "numéro 51," in browser.execute_script(marked), browser.execute_script(marked))
+            # D26: left where the user puts it, while it plays on across lines.
+            browser.execute_script(away)
+            at = browser.execute_script(scrolled)
+            time.sleep(2.5)
+            check(f"{short}: the page does not follow what plays (D26)", browser.execute_script(scrolled) == at and not browser.execute_script(audio)[1],
+                  (at, browser.execute_script(scrolled)))
+            # By the keyboard alone: Enter, then Space, the focus staying on the link.
+            third = browser.execute_script(links)[2]
+            browser.execute_script("arguments[0].focus()", third)
+            browser.switch_to.active_element.send_keys(Keys.ENTER)
+            keyed = wait_for(browser, lambda b: b.execute_script(in_view, 35) and (a := b.execute_script(audio)) and 70.0 <= a[0] < 72.0 and not a[1], 8)
+            check(f"{short}: Enter on a time does the same", keyed, browser.execute_script(audio))
+            check(f"{short}: the focus stays on the link", browser.execute_script("return document.activeElement.textContent") == "01:10",
+                  browser.execute_script("return document.activeElement.outerHTML"))
+            outline = browser.execute_script("const a = document.activeElement; return [a.matches(':focus-visible'), getComputedStyle(a).outlineStyle]")
+            check(f"{short}: reached by the keyboard, it shows its focus", outline == [True, "solid"], outline)
+            browser.execute_script(links)[1].send_keys(" ")
+            spaced = wait_for(browser, lambda b: b.execute_script(in_view, 55) and (a := b.execute_script(audio)) and 110.0 <= a[0] < 112.0 and not a[1], 8)
+            check(f"{short}: Space too, without pausing what plays; a line starting within that second is its passage", spaced, browser.execute_script(audio))
+            # A search that hides the passage gives way to it.
+            search = browser.find_element(By.ID, "search")
+            browser.execute_script("arguments[0].scrollIntoView({block: 'nearest'})", search)
+            search.send_keys("numéro 3,")
+            wait_for(browser, lambda b: not b.execute_script(in_view, 50))
+            browser.execute_script(links)[0].click()
+            check(f"{short}: a passage a search hid is shown, the search given up",
+                  wait_for(browser, lambda b: b.execute_script(in_view, 50), 3) and browser.find_element(By.ID, "search").get_attribute("value") == "",
+                  browser.find_element(By.ID, "search").get_attribute("value"))
+            browser.execute_script("document.querySelector('audio.track').pause()")
+            # Copy: D45's body, the times out, every other bracket as written.
+            browser.execute_script(stand_in)
+            press(browser, "copy-minutes")
+            wait_for(browser, lambda b: b.execute_script("return window.__copied.length") == 1, 3)
+            expected = (f"## {sections[0]}\n\nLe budget est validé.\n\n## {sections[1]}\n\n- Mettre à jour le planning — Marc — aujourd’hui\n"
+                        f"- Couper un serveur — non précisé — non précisé\n- Relancer le fournisseur — Paul\n\n## {sections[2]}\n\n- Un serveur est gardé.\n- La salle reste à trouver [12:75]\n")
+            copied = browser.execute_script("return window.__copied")
+            check(f"{short}: Copy leaves the times out, D45's body otherwise as it was", copied == [expected], copied)
+            # Both widths, both themes: nothing overflows, nothing cut.
+            for width, height in ((420, 800), (1100, 800)):
+                browser.set_window_size(width, height)
+                time.sleep(0.4)
+                got = browser.execute_script(overflows)
+                check(f"{short}: at {width} px nothing overflows", got[0] <= 0 and got[1] == [], got)
+                for theme in ("light", "dark"):
+                    browser.execute_script("document.querySelector('#meeting .minutes').scrollIntoView()")
+                    shot_themed(browser, f"d75-{short}-{width}-{theme}", theme)
+
+            # The audio freed: the transcript still answers; what is said never promises a sound.
+            for folder, why, note in ((freed, "freed", True), (unplayable, "not playable", True)):
+                open_(browser, folder)
+                wait_for(browser, lambda b: b.find_elements(By.ID, "no-player") and b.find_elements(By.CSS_SELECTOR, "#meeting .lines li"), 10)
+                got = browser.execute_script(labels)
+                check(f"{short}: its audio {why}: a time brings its passage into view, and says that alone",
+                      got == [[at, f"{passage} {at}"] for at in ("01:40", "01:50", "01:10")], got)
+                browser.execute_script(away)
+                browser.execute_script(links)[0].click()
+                shown = wait_for(browser, lambda b: b.execute_script(in_view, 50), 3)
+                check(f"{short}: its audio {why}: the passage shown and marked, nothing plays, the page's own sentence kept",
+                      shown and "numéro 50," in browser.execute_script(marked) and browser.execute_script(audio) is None
+                      and browser.find_element(By.ID, "no-player").is_displayed(), browser.execute_script(marked))
+                browser.execute_script(links)[2].click()
+                wait_for(browser, lambda b: b.execute_script(in_view, 35), 3)
+                check(f"{short}: one passage marked at a time", browser.execute_script(
+                    "return document.querySelectorAll('#meeting .lines li.now').length") == 1 and "numéro 35," in browser.execute_script(marked), browser.execute_script(marked))
+            shot_themed(browser, f"d75-{short}-freed", "dark")
+            # Nothing to play, nothing to open: the time as plain text, no link that leads nowhere.
+            open_(browser, bare)
+            times = browser.execute_script("return [...document.querySelectorAll('#meeting .minutes .body time')].map(t => [t.textContent, t.closest('button') === null, t.tabIndex])")
+            check(f"{short}: no audio, no transcript: each time is quiet text, no link", browser.execute_script(labels) == []
+                  and times == [["01:40", True, -1], ["01:50", True, -1], ["01:10", True, -1]], times)
+            got = browser.execute_script(row_text)
+            check(f"{short}: and its row keeps its three cells", got[0] == ["Marc", "Mettre à jour le planning 01:40", "aujourd’hui"], got)
+            # Older minutes: exactly as today.
+            open_(browser, older)
+            wait_for(browser, lambda b: b.find_elements(By.ID, "play") or b.find_elements(By.ID, "no-player"), 10)
+            got = browser.execute_script(maker)
+            check(f"{short}: minutes/v2 with the same keys: no cost, no time, their brackets their text",
+                  not got.endswith(cost) and " · " in got and browser.execute_script(labels) == []
+                  and not browser.find_elements(By.CSS_SELECTOR, "#meeting .minutes .body time")
+                  and "[01:10]" in browser.find_element(By.CSS_SELECTOR, "#meeting .minutes .body").text, got)
+            # A cost out of the contract's bounds: the line as it is without one, the times still links.
+            open_(browser, unpriced)
+            wait_for(browser, lambda b: b.find_elements(By.ID, "play"), 10)
+            got = browser.execute_script(maker)
+            check(f"{short}: a cost out of bounds: the line as it is without one", got.count(" · ") == 1, got)
+            # Any number the contract allows stays inside the card, whatever its length.
+            open_(browser, dear)
+            browser.set_window_size(420, 800)
+            time.sleep(0.4)
+            got = browser.execute_script(overflows)
+            check(f"{short}: a cost of thirty digits at 420 px: nothing overflows", got[0] <= 0 and got[1] == [], got)
+            browser.set_window_size(1100, 800)
+            # Said confidential: the same page; nothing here sends anything.
+            open_(browser, secret)
+            wait_for(browser, lambda b: b.find_elements(By.ID, "play"), 10)
+            browser.execute_script(links)[0].click()
+            plays = wait_for(browser, lambda b: (a := b.execute_script(audio)) and not a[1] and 100.0 <= a[0] < 102.0, 8)
+            check(f"{short}: a meeting said confidential: its time plays here too, its lock still said",
+                  plays and browser.execute_script("return document.getElementById('confidential-switch').checked") is True, browser.execute_script(audio))
+            browser.execute_script("document.querySelector('audio.track').pause()")
+
+    # D51's fourth: neither the agreement nor the small window says a price.
+    priced_words = ("return /0[,.]01|\\$|\\bUSD\\b|coût|\\bcost\\b|\\bprix\\b|\\bprice\\b/i.test(document.getElementById(arguments[0]).innerText)")
+    online = 'reminder = false\nafter = "nothing"\nminutes_provider = "https://writes.example/v1"\nminutes_model = "gpt-4.1-mini"\n'
+    with Window(meetings, "fr_FR.UTF-8", online) as browser:
+        browser.execute_script(f"location.hash = '#/agree/{played.name}'")
+        asked = wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"), 10)
+        check("the agreement before a first sending shows no price", asked and not browser.execute_script(priced_words, "agree"),
+              browser.find_element(By.ID, "agree").text)
+    with Window(meetings, "fr_FR.UTF-8", online, small=True) as browser:
+        check("the small window at rest shows no price, its last meetings listed",
+              browser.find_elements(By.ID, "small-record") and not browser.execute_script(priced_words, "small"), browser.find_element(By.ID, "small").text)
+        press(browser, "small-record")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "small-stop") and b.find_element(By.ID, "small-stop").is_displayed(), 10)
+        check("nor while recording, no running count", not browser.execute_script(priced_words, "small"), browser.find_element(By.ID, "small").text)
+        stop_from_small(browser)
+
+
 def word_after_a_gap(now: dt.datetime) -> None:
     """AT. A track with a gap: a line clicked after it plays that line, by the clock's next point (D71)."""
     print("AT. after a gap in a track, a line clicked plays its own second; the track as it was (D71)")
@@ -5387,6 +5602,7 @@ def main() -> int:
     heard_checked(now)
     meeting_named(now)
     word_after_a_gap(now)
+    minutes_checked(now)
     meeting_renamed(now)
     return 1 if FAILED else 0
 

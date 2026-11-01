@@ -465,6 +465,9 @@ pub struct Window {
     pub no_player: &'static str,
     /// Its audio is there, and no track of it is one this version plays.
     pub not_playable: &'static str,
+    /// A line of the minutes' time, as a screen reader says it (D75): what a click on it does.
+    pub time_listen: &'static str,
+    pub time_passage: &'static str,
     /// A track the window could not play; and the drawing as the playback's slider, named.
     pub not_played: &'static str,
     pub playback: &'static str,
@@ -856,6 +859,8 @@ pub fn window(language: Language) -> Window {
             model_recommended: "{} — recommended",
             play: "Listen",
             pause: "Pause",
+            time_listen: "Listen from {}",
+            time_passage: "See the passage at {}",
             not_playable: "Its audio cannot be listened to here: it holds no track this version plays.",
             not_played: "This meeting could not be played here. “Open the folder” shows its tracks, which another player reads.",
             playback: "Where the meeting is played from",
@@ -1238,6 +1243,8 @@ pub fn window(language: Language) -> Window {
             model_recommended: "{} — recommandé",
             play: "Écouter",
             pause: "Pause",
+            time_listen: "Écouter depuis {}",
+            time_passage: "Voir le passage de {}",
             not_playable: "Cette version de Wholeheard ne peut pas lire cet audio.",
             not_played: "Lecture impossible ici. Ouvrez le dossier pour l’écouter avec un autre lecteur.",
             playback: "Position de lecture",
