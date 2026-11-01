@@ -106,7 +106,9 @@ is PipeWire either way.
 
 ## Success criterion
 
-> We will consider this was the right call if, **by the end of cycle 04, 2026-11-02**, the
+Read at 05-best-of-its-kind-to-use's closure, 2026-10-31: not met, no call recorded. Its date moved to the end of cycle 06, the framer's default in the decider's word of that day; the rest unchanged.
+
+> We will consider this was the right call if, **by the end of cycle 06, 2026-11-14**, the
 > decider's call of #436 — Discord on AirPods, the default left on the speaker — recorded again,
 > holds the other side throughout, and the capture's e2e holds it on devices of its own.
 

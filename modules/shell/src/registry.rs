@@ -1,6 +1,7 @@
 //! The models Settings offer (D40, ADR-0010): one list, `registry/models.json`, built in as the
 //! list shipped. A list that does not read as one is refused whole: in a pull request by the
-//! shell's tests, and in Wholeheard by the same reading.
+//! shell's tests, and in Wholeheard by the same reading. Read again, it is taken only signed by
+//! the decider's key (D56): the signature is minisign's, its private key outside any repository.
 
 use std::{collections::HashSet, io::Read, time::Duration};
 
@@ -12,11 +13,22 @@ pub const SHIPPED: &str = include_str!("../registry/models.json");
 /// Where the list is read again from, on the user's gesture: the file on `main`.
 pub const ADDRESS: &str = "https://raw.githubusercontent.com/NapkinStack/wholeheard/main/modules/shell/registry/models.json";
 
+/// The decider's public key, as `minisign -G` writes it on the second line of its `.pub` file.
+/// None until they give it (cycle 05, *Dependency with a date*): no list is read again, Settings
+/// say so, and so does the check of the list in the repository.
+pub const PUBLIC_KEY: Option<&str> = None;
+
+/// What no list is read again without, said to the logs and to whoever reads the check.
+const WAITS: &str = "the list is not read again: it waits on the decider's key";
+
 /// The hosts a model of the list may be fetched from.
 pub const HOSTS: [&str; 1] = ["huggingface.co"];
 
 /// The most a list may weigh, read: a few models take a few hundred bytes each.
 pub const LIMIT: usize = 64 * 1024;
+
+/// The most a signature may weigh, read: minisign's four lines.
+const SIGNATURE_LIMIT: usize = 4 * 1024;
 
 /// What a model is good for, said by a sentence of `words.rs`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,10 +55,12 @@ pub fn host(address: &str) -> &str {
     address.split('/').nth(2).unwrap_or(address)
 }
 
-/// Reads the list again from `address` — `ADDRESS`, or a test's — and takes it only as a list
-/// this build would ship: one that reads, its first model this build's default (ADR-0003),
-/// the model a transcript waits for and the tray fetches.
-pub fn fetch(address: &str) -> Result<Vec<Listed>, String> {
+/// Reads the list again from `address` — `ADDRESS`, or a test's — and takes it only signed by
+/// `key`, and as a list this build would ship: one that reads, its first model this build's
+/// default (ADR-0003), the model a transcript waits for and the tray fetches. With no key, nothing
+/// is asked of anyone.
+pub fn fetch(address: &str, key: Option<&str>) -> Result<Vec<Listed>, String> {
+    let key = key.ok_or(WAITS)?;
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(10)))
         .timeout_recv_response(Some(Duration::from_secs(20)))
@@ -56,26 +70,53 @@ pub fn fetch(address: &str) -> Result<Vec<Listed>, String> {
         .max_redirects(0)
         .build()
         .into();
-    let mut answer = agent
-        .get(address)
-        .call()
-        .map_err(|error| format!("the list could not be read ({error})"))?;
-    let status = answer.status().as_u16();
-    if status != 200 {
-        return Err(format!("the list could not be read (HTTP {status})"));
-    }
-    let mut text = String::new();
-    answer
-        .body_mut()
-        .as_reader()
-        .take(LIMIT as u64 + 1)
-        .read_to_string(&mut text)
-        .map_err(|error| format!("the list could not be read ({error})"))?;
+    let text = answered(&agent, address, LIMIT).map_err(|why| format!("the list {why}"))?;
+    let signature =
+        answered(&agent, &format!("{address}.minisig"), SIGNATURE_LIMIT).map_err(|why| format!("the list's signature {why}"))?;
+    // Nothing of the list is read before it is known to be the decider's.
+    verify(&text, &signature, key)?;
     let listed = read(&text)?;
     if listed[0].published != model::DEFAULT {
         return Err("the list's first model is not this build's default".into());
     }
     Ok(listed)
+}
+
+/// The text `address` answers, read up to one byte over `limit`.
+fn answered(agent: &ureq::Agent, address: &str, limit: usize) -> Result<String, String> {
+    let mut answer = agent.get(address).call().map_err(|error| format!("could not be read ({error})"))?;
+    let status = answer.status().as_u16();
+    if status != 200 {
+        return Err(format!("could not be read (HTTP {status})"));
+    }
+    let mut text = String::new();
+    answer
+        .body_mut()
+        .as_reader()
+        .take(limit as u64 + 1)
+        .read_to_string(&mut text)
+        .map_err(|error| format!("could not be read ({error})"))?;
+    Ok(text)
+}
+
+/// Whether `signature` is `key`'s over the bytes of `list`. minisign's pre-hashed signature only,
+/// what `minisign -S` writes: the legacy form is refused.
+pub fn verify(list: &str, signature: &str, key: &str) -> Result<(), String> {
+    let key = minisign_verify::PublicKey::from_base64(key).map_err(|error| format!("the key built in does not read ({error})"))?;
+    let signature =
+        minisign_verify::Signature::decode(signature).map_err(|error| format!("the list's signature does not read ({error})"))?;
+    key.verify(list.as_bytes(), &signature, false)
+        .map_err(|error| format!("the list's signature does not verify ({error})"))
+}
+
+/// The check of the list in the repository, in every pull request: what it can say of `list`,
+/// or why it is refused. With no key built in, nothing can be verified, and it says that.
+pub fn in_the_repository(list: &str, signature: Option<&str>, key: Option<&str>) -> Result<String, String> {
+    let Some(key) = key else {
+        return Ok(format!("signature not verified, {WAITS} (D56)"));
+    };
+    verify(list, signature.ok_or("the list has no signature")?, key)?;
+    Ok("its signature verifies against the key built in".into())
 }
 
 /// Reads a list of models — version 1 — or says why it is not one. Fields it does not know are

@@ -59,7 +59,7 @@ audio weighs, and above them what all the audio weighs against the transcripts a
 A session being recorded, or one left without its end, says so. It reads `session.json` of
 both forms (`contracts/session-audio`) and writes nothing; it speaks the language chosen in Settings, the system's by default (D64),
 follows its light or dark theme and font, in the colours of D11's boards, and reads the
-folder again whenever it comes forward. In two panes since D61 (its board,
+folder again whenever it comes forward. A folder that cannot be read is said, with a way to try again, never drawn as an empty list (D67). In two panes since D61 (its board,
 [`d61-the-window-in-two-panes`](../../docs/project/drawings/d61-the-window-in-two-panes/README.md)): the
 meetings in a sidebar of 280 px with the recording, a search over what each row says, the weights and
 *Réglages*; the meeting chosen — the last one at first, ↑ and ↓ on the list for the others — and Settings,
@@ -77,7 +77,9 @@ from sessions whose transcript is whole; their transcript and minutes stay.
 **The small window** (D35, D34's board) opens first: *Démarrer un enregistrement* and the shortcut
 as the desktop granted it — or where to choose one —, the last meeting and where it stands, what
 the meetings weigh, and the way to the full window. A recording shows in it (board 6, D33), above
-the other windows until the stop; then it comes back to rest. One window at a time: going from one
+the other windows until the stop; then it comes back to rest. While recording, each side has its
+check (D49): a ring that turns ✓ when it is heard, then fades; a silence capture says is said under
+it, a side with no device too, and *Arrêter* stays where it is as they come. One window at a time: going from one
 to the other replaces it, and the one left — `window` in the settings, `small` or `full` — is the
 one reopened. A settings file that cannot be read opens the full window, where it is said.
 
@@ -100,6 +102,8 @@ tokens. The transcript and the minutes read it as they start: the field is close
 made, or a transcript is left unfinished. Changed after they were made, *Refaire avec ce contexte*
 makes the transcript again with whoever the settings name to hear, then the minutes with whoever
 they name to write — each kept in place until the new one is whole, put back if it is not.
+
+**A meeting's name** (D70): its heading clicked, a name typed, Enter — shown first in the list, its page and *Libérer de l'espace*, as text. It is kept as the meeting's `title.txt` (`contracts/session-audio/v2`), written whole through a file beside it, before the minutes' title (D48), which comes back when the name is emptied; made again, the minutes leave it. A folder is never renamed.
 
 **A meeting said confidential** (D60, [its board](../../docs/project/drawings/d60-confidential/)) is
 made on this computer alone, whatever the settings name.
@@ -140,7 +144,7 @@ once it is there. Turned off, the settings choose again for what is made next.
 without another gesture, on this machine, with the model the settings name; a notification
 says when it is there, and a click on it opens the session's folder under a Linux desktop.
 A meeting's page plays it (D26) as one sound: its tracks placed where the session's clock puts
-them and mixed by the shell as they are read, never written (ADR-0009). The line being said is
+them, gaps included (D71), and mixed by the shell as they are read, never written (ADR-0009). The line being said is
 marked, the page left where the user put it; the drawing of who spoke — a slider — and each line are the controls,
 by mouse or keyboard, and the space bar plays and pauses. The sound comes from a server on the
 loopback interface that answers the run's token and the opened meeting alone (ADR-0008), nothing
@@ -158,8 +162,9 @@ the model is missing: in *Réglages*, and on a meeting waiting for it (D36). *R�
 the Whisper models of [`registry/models.json`](registry/models.json), the list shipped (D40,
 ADR-0010), and for the minutes `qwen3:8b` fetched by Ollama's own pull (`POST /api/pull`) —,
 one fetch at a time. The Whisper models are read again from `main` only on *Mettre à jour la
-liste (raw.githubusercontent.com)*, and offered then until Wholeheard quits; a list that cannot
-be read leaves the one offered, and says so; a model fetched joins those to choose, the choice staying the
+liste (raw.githubusercontent.com)*, and offered then until Wholeheard quits, only when the
+decider's minisign key signed them (D56). Until that key is built in, no list is read again and
+*Réglages* say it waits on it; a list that cannot be read, unsigned, signed by another key or changed since leaves the one offered, and says so; a model fetched joins those to choose, the choice staying the
 user's. With no Ollama answering, the row says where to get it: Wholeheard never installs it (D37). A model the settings name, and which is not
 there, is said with where it was looked for: it is the user's own, never fetched.
 

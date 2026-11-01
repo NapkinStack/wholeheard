@@ -131,7 +131,7 @@ chmod +x "$work/wholeheard-transcription"
 
 say "A. in French: start from the menu, the reminder, a silent source, stop"
 start fr_FR.UTF-8 "transcript = false" "$work/wholeheard-capture"
-check is "$(labels)" "Ouvrir Wholeheard|Démarrer l’enregistrement|Transcrire le dernier enregistrement|Faire le compte rendu du dernier enregistrement|Quitter Wholeheard"
+check is "$(labels)" "Ouvrir Wholeheard|Démarrer un enregistrement|Transcrire le dernier enregistrement|Rédiger le compte rendu de la dernière réunion|Quitter Wholeheard"
 # A window is a web view, a process of WebKit's under Wholeheard: none before the user asks.
 check is "$(windows)" 0
 # Started with the user's session from its first start, in the tray alone (D32).
@@ -151,7 +151,7 @@ check test "$(windows)" -ge 1
 click 4                                           # no session yet: said, nothing heard
 check is "$(titles 'Aucun enregistrement à transcrire')" 1
 click 3
-check is "$(labels)" "Ouvrir Wholeheard|Arrêter l’enregistrement|Transcrire le dernier enregistrement|Faire le compte rendu du dernier enregistrement|Quitter Wholeheard"
+check is "$(labels)" "Ouvrir Wholeheard|Arrêter l’enregistrement|Transcrire le dernier enregistrement|Rédiger le compte rendu de la dernière réunion|Quitter Wholeheard"
 check is "$(cat "$work/sessions/given")" "record $work/sessions"
 check is "$(titles 'Enregistrement en cours')" 1
 check is "$(titles 'Aucun son venant de la réunion')" 1
@@ -162,9 +162,10 @@ check grep -q 'Votre micro est toujours enregistré, et une sortie branchée' "$
 check is "$(titles 'Le son de la réunion est de nouveau enregistré')" 1
 click 3
 check is "$(cat "$work/sessions/told")" "stop"
-check is "$(labels)" "Ouvrir Wholeheard|Démarrer l’enregistrement|Transcrire le dernier enregistrement|Faire le compte rendu du dernier enregistrement|Quitter Wholeheard"
-check is "$(titles 'Enregistrement arrêté')" 1
-check grep -q 'Durée.: 32 min' "$work/notified"
+check is "$(labels)" "Ouvrir Wholeheard|Démarrer un enregistrement|Transcrire le dernier enregistrement|Rédiger le compte rendu de la dernière réunion|Quitter Wholeheard"
+# The window opened above is seen: the stop is not told, the window says it (D44); with none
+# seen, it is told with its length (M, below).
+check is "$(titles 'Enregistrement arrêté')" 0
 check test ! -e "$work/sessions/heard"
 check is "$(grep -c 'La transcription suit' "$work/notified")" 0
 
@@ -374,12 +375,16 @@ check is "$(tail -1 "$work/summarised")" "$meeting --provider https://openrouter
 check is "$(tail -1 "$work/summary-keys")" none
 check is "$(titles 'Compte rendu prêt')" 2
 click 6
-# Chained: a recording stopped, its transcript, then its minutes — no other gesture.
-start fr_FR.UTF-8 "reminder = false\nafter = \"minutes\"\nmodel = \"$work/model.bin\"\nminutes_provider = \"http://127.0.0.1:9/v1\"\nminutes_model = \"mistral\"" "$work/wholeheard-capture"
+# Chained: a recording stopped, its transcript, then its minutes — no other gesture. No window
+# seen: the reminder, the stop and the minutes ready, three notifications and no more (D44).
+reminded=$(titles 'Enregistrement en cours'); ended=$(titles 'Enregistrement arrêté'); heard=$(titles 'Transcription prête')
+start fr_FR.UTF-8 "after = \"minutes\"\nmodel = \"$work/model.bin\"\nminutes_provider = \"http://127.0.0.1:9/v1\"\nminutes_model = \"mistral\"" "$work/wholeheard-capture"
 click 3; click 3; sleep 4
 check test -s "$work/sessions/2026-10-13_14-05/minutes.md"
 check is "$(tail -1 "$work/summarised")" "$work/sessions/2026-10-13_14-05 --provider http://127.0.0.1:9/v1 --model mistral"
 check is "$(titles 'Compte rendu prêt')" 3
+check is "$(( $(titles 'Enregistrement en cours') - reminded ))/$(( $(titles 'Enregistrement arrêté') - ended ))/$(( $(titles 'Transcription prête') - heard ))" "1/1/0"
+check grep -Eq '[0-9] (s|min) enregistrées?\. La transcription suit\.' "$work/notified"
 click 6
 
 say "S. a call takes a microphone in another application: offered once, named; never while recording, nor with offers off (D30)"

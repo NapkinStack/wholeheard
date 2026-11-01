@@ -11,7 +11,7 @@ flowchart LR
     T["transcript.jsonl<br/>context.txt"]:::file --> P["wholeheard-summary<br/>a program, no window"]:::mod
     P -->|"one request"| V["The provider the user configured:<br/>a model on the machine, or online"]:::ext
     V --> P
-    P -->|"minutes/v1, whole or not at all"| M["minutes.md"]:::file
+    P -->|"minutes/v2, whole or not at all"| M["minutes.md"]:::file
     P -.->|"sending · written"| W["Whoever started it"]:::user
 
     classDef file fill:#1e3a8a,color:#fff
@@ -64,6 +64,12 @@ person without doubt, against four. Which of the two does the most is not measur
 no request recovers is the owner of a task said as "I": each track holds two people (cycle 02,
 D16).
 
+Ollama's OpenAI route keeps 4096 tokens and drops the rest in silence, the request's rules first:
+a meeting of 45 minutes did not fit (measured on `qwen3:8b`, 2026-10-31). So an address of that
+form, without a key, whose host answers `GET /api/version` as Ollama does, is asked on Ollama's
+own `/api/chat`, with a window sized to the request, an answer of at most 4096 tokens, and a
+patience that grows with what it has to read: 600 s, and a second for each 20 bytes.
+
 A key, when the provider wants one, is read from `WHOLEHEARD_PROVIDER_KEY` and written nowhere.
 Whatever fails — no network, a refused key, no credit left with the provider, an unknown
 model, an answer cut short or that is not minutes — the reason is one sentence on the error
@@ -85,7 +91,7 @@ section of the [manifest](./MANIFEST.yaml), for this module's stack. What each o
 
 ## Contracts
 
-- Provided: [`minutes/v1`](../../contracts/minutes/v1/README.md), `experimental`; [`summarising/v1`](../../contracts/summarising/v1/README.md) — how it is started and what it says, `experimental`
+- Provided: [`minutes/v2`](../../contracts/minutes/v2/README.md) — written —, and [`minutes/v1`](../../contracts/minutes/v1/README.md) — written before, still read —, `experimental`; [`summarising/v1`](../../contracts/summarising/v1/README.md) — how it is started and what it says, `experimental`
 - Consumed: [`transcript/v1`](../../contracts/transcript/v1/README.md)
 
 ## Decisions

@@ -185,7 +185,7 @@ fn a_segment_of_no_words_is_left_out_and_one_ended_before_it_began_refused() {
 fn the_test_sends_a_sound_of_its_own_and_reads_the_answer() {
     let (address, asked) = served(200, r#"{"text":"","segments":[]}"#);
     let service = Service::new(&address, "a-model", None).unwrap();
-    assert_eq!(service.test(), Ok(()));
+    assert_eq!(service.tested().map_err(|refused| refused.why), Ok(()));
     let (_, body) = asked.recv().unwrap();
     assert!(String::from_utf8_lossy(&body).contains("RIFF"), "a sound was sent");
 }
@@ -291,4 +291,133 @@ fn a_refusal_the_service_explains_is_said_in_its_words_on_one_line() {
         .unwrap_err()
         .to_string();
     assert!(error.contains("choose a model that gives each segment's times"), "{error}");
+}
+
+fn tested(address: &str) -> (bool, String, String) {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+        .args(["--test", "--provider", address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"))
+        .output()
+        .unwrap();
+    (
+        output.status.success(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+#[test]
+fn a_test_that_fails_says_its_cause_on_the_output_s_last_line() {
+    for (status, answered, code) in [
+        (401, "{}", "provider.refused_key"),
+        (403, "{}", "provider.refused_key"),
+        (402, "{}", "provider.no_credit"),
+        (404, "{}", "provider.unknown_model"),
+        (429, "{}", "provider.too_many"),
+        (500, "{}", "provider.down"),
+        (503, "{}", "provider.down"),
+        (418, "{}", "provider.failed"),
+        (300, "{}", "provider.redirected"),
+        (301, "{}", "provider.redirected"),
+        (302, "{}", "provider.redirected"),
+        (303, "{}", "provider.redirected"),
+        (307, "{}", "provider.redirected"),
+        (308, "{}", "provider.redirected"),
+        (304, "{}", "provider.failed"),
+        (305, "{}", "provider.failed"),
+        (499, "{}", "provider.failed"),
+        (600, "{}", "provider.failed"),
+        (599, "{}", "provider.down"),
+        (200, "[]", "provider.failed"),
+        (200, "5", "provider.failed"),
+        (200, r#"{"segments":[{}]}"#, "provider.no_times"),
+        (200, r#"{"segments":[{"start":0.0,"end":1.0}]}"#, "provider.failed"),
+        (200, r#"{"segments":[{"text":"sans temps"}]}"#, "provider.no_times"),
+        (400, "{}", "provider.no_times"),
+        (200, r#"{"text":"no times"}"#, "provider.no_times"),
+        (200, "not json", "provider.failed"),
+    ] {
+        let (address, _asked) = served(status, answered);
+        let (passed, out, err) = tested(&address);
+        assert!(!passed, "{status}");
+        let last: serde_json::Value = serde_json::from_str(out.lines().last().unwrap_or("{}")).unwrap();
+        assert_eq!(
+            (last["event"].as_str(), last["code"].as_str()),
+            (Some("failed"), Some(code)),
+            "{status} {answered}"
+        );
+        assert!(err.starts_with("wholeheard-transcription: "), "{err}");
+    }
+}
+
+#[test]
+fn a_test_that_passes_says_nothing_and_one_in_the_service_s_own_words_names_no_cause() {
+    let (address, _asked) = served(200, SEGMENTS);
+    let (passed, out, _) = tested(&address);
+    assert!(passed && out.is_empty(), "{out}");
+    let (address, _asked) = served(400, r#"{"error":{"message":"model not found"}}"#);
+    let (passed, out, err) = tested(&address);
+    assert!(!passed && out.is_empty(), "{out}");
+    assert!(err.contains("model not found"), "{err}");
+}
+
+#[test]
+fn a_key_a_request_cannot_carry_is_said_before_anything_leaves() {
+    for key in ["clé", "a b", "a\nb", "a\tb", "a\u{7f}b"] {
+        let (address, asked) = served(200, SEGMENTS);
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+            .args(["--test", "--provider", &address, "--model", "a-model"])
+            .env("WHOLEHEARD_PROVIDER_KEY", key)
+            .env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"))
+            .output()
+            .unwrap();
+        let out = String::from_utf8_lossy(&output.stdout);
+        assert!(out.contains("settings.invalid"), "{key:?} {out}");
+        assert!(asked.try_recv().is_err(), "{key:?}: something left");
+    }
+}
+
+#[test]
+fn an_empty_key_sends_no_key() {
+    let (address, asked) = served(200, SEGMENTS);
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+        .args(["--test", "--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_PROVIDER_KEY", "")
+        .env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"))
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let (head, _) = asked.recv().unwrap();
+    assert!(!head.to_lowercase().contains("authorization"), "{head}");
+}
+
+#[test]
+fn an_output_closed_takes_no_line_and_the_sentence_is_still_said() {
+    use std::process::Stdio;
+    let (address, _asked) = served(500, "{}");
+    let mut program = std::process::Command::new(env!("CARGO_BIN_EXE_wholeheard-transcription"))
+        .args(["--test", "--provider", &address, "--model", "a-model"])
+        .env("WHOLEHEARD_LOG_DIR", std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("logs"))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(program.stdout.take());
+    let output = program.wait_with_output().unwrap();
+    let said = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{said}");
+    assert!(
+        said.starts_with("wholeheard-transcription: ") && said.contains("HTTP 500"),
+        "{said}"
+    );
+}
+
+#[test]
+fn a_test_of_no_address_or_nobody_there_says_its_cause() {
+    let (_, out, _) = tested("not an address");
+    assert!(out.contains("settings.invalid"), "{out}");
+    // A port nobody listens on, on this machine.
+    let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+    let (_, out, _) = tested(&format!("http://{free}/v1"));
+    assert!(out.contains("provider.unreachable"), "{out}");
 }

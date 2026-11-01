@@ -80,6 +80,36 @@ function lock() {
   return svg;
 }
 
+// Lucide's icons, inline (ISC, `ui/LUCIDE-LICENSE`): what the page draws for itself, a glyph being the
+// font's to draw (D69). The name goes on what holds it, for assistive technology.
+const ICONS = {
+  check: ["M20 6 9 17l-5-5"],
+  "chevron-left": ["m15 18-6-6 6-6"],
+  x: ["M18 6 6 18", "m6 6 12 12"],
+  "arrow-right": ["M5 12h14", "m12 5 7 7-7 7"],
+  "maximize-2": ["M15 3h6v6", "m21 3-7 7", "m3 21 7-7", "M9 21H3v-6"],
+  "picture-in-picture-2": ["M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4", "M14 13h6a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2"],
+};
+function icon(name) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "glyph");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of ICONS[name]) {
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+function readySaid(text) {
+  const said = element("span", "ready");
+  said.append(icon("check"), ` ${text}`);
+  return said;
+}
+
 function lockedChip(words) {
   const said = chip(words.confidential_chip, "locked");
   said.prepend(lock());
@@ -209,12 +239,19 @@ function holdings(session, words, where) {
   if (session.confidential) holds.append(lockedChip(words));
   if (session.state === "recording") holds.append(chip(words.recording, "live"));
   if (session.state === "interrupted") holds.append(chip(words.interrupted, "cut"));
-  if (session.minutes) holds.append(chip(ran(words.minutes, where?.minutes_here)));
+  if (session.minutes) {
+    const made = chip(ran(words.minutes, where?.minutes_here));
+    // Turned from what was being made: said by one small pop, once (D69).
+    if (chipsMaking.delete(nameOf(session))) made.classList.add("turned");
+    holds.append(made);
+  }
   if (session.transcript) holds.append(chip(ran(words.transcript, true)));
   holds.append(session.audio > 0 ? chip(fill(words.audio, size(session.audio, words))) : chip(words.audio_freed, "gone"));
   // What is being made for it, in the background (D25): painted from `makings`.
   const making = chip("", "making");
   making.dataset.name = nameOf(session);
+  // Minutes there already, made again: the chip that follows has not turned from anything.
+  making.dataset.first = String(!session.minutes);
   making.hidden = true;
   holds.append(making);
   return holds;
@@ -222,6 +259,7 @@ function holdings(session, words, where) {
 
 // What Wholeheard makes in the background (D25): read with the header, painted where it is shown.
 let makings = null;
+const chipsMaking = new Set();
 
 function minutesState(name) {
   if (makings === null) return null;
@@ -285,12 +323,7 @@ function paintState(said, shown, of) {
       const again = element("button", "open", words.try_again);
       again.type = "button";
       again.id = of.again;
-      again.addEventListener("click", async () => {
-        again.disabled = true;
-        await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name }).catch(() => {});
-        said.dataset.key = "";
-        readMakings();
-      });
+      again.addEventListener("click", () => askAgain(of, said, again));
       said.replaceChildren(element("span", "what", words.welcome_ollama_silent), again);
     } else {
       const fetch_ = element("button", "open", fill(words.confidential_fetch, makings.ollama_recommended));
@@ -313,13 +346,7 @@ function paintState(said, shown, of) {
     const again = element("button", "open", words.try_again);
     again.type = "button";
     again.id = of.again;
-    again.addEventListener("click", async () => {
-      again.disabled = true;
-      await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name }).catch(() => {});
-      // Failing again for the same reason is said again: the state drawn anew.
-      said.dataset.key = "";
-      readMakings();
-    });
+    again.addEventListener("click", () => askAgain(of, said, again));
     // What the program said, only in developer mode: the shell sends nothing else (D29).
     const detail = shown.why ? [element("code", "detail", fill(words.program_said, shown.why))] : [];
     // Its cause and gesture, when the program named one (D29): else the step's sentence alone.
@@ -353,7 +380,7 @@ function paintOffered(list = document.getElementById("offered")) {
     if (item.dataset.kind === kind) continue;
     item.dataset.kind = kind;
     const state = item.querySelector(".state");
-    if (kind === "here") state.replaceChildren(element("span", "ready", `✓ ${words.on_this_computer}`));
+    if (kind === "here") state.replaceChildren(readySaid(words.on_this_computer));
     else if (far !== null) state.replaceChildren(element("span", "says", fill(words.offered_far, far)));
     else if (absent) state.replaceChildren(element("span", "says", words.offered_needs_ollama));
     else {
@@ -407,6 +434,7 @@ function paintMakings() {
     const state = minutes ?? transcript;
     chip_.hidden = state === null;
     if (state === null) continue;
+    if (minutes && chip_.dataset.first === "true") chipsMaking.add(chip_.dataset.name);
     chip_.textContent = minutes
       ? { making: words.chip_making, waiting: words.chip_waiting, ollama: words.chip_waiting, awaiting: words.chip_awaiting, failed: words.chip_failed }[state.kind]
       : { making: words.chip_transcribing, waiting: words.chip_waiting, model: words.chip_waiting, failed: words.chip_transcript_failed }[state.kind];
@@ -432,6 +460,46 @@ function paintMakings() {
     });
   }
   paintContext();
+}
+
+// *Réessayer*: fails only when the meeting is gone, said there (D67); a later failure is on this page.
+async function askAgain(of, said, again) {
+  again.disabled = true;
+  try {
+    await window.__TAURI__.core.invoke(of.ask, { name: said.dataset.name });
+  } catch (why) {
+    said.replaceChildren(element("span", "what", fill(words.again_refused, why)));
+    return;
+  }
+  // Failing again for the same reason is said again: the state drawn anew.
+  said.dataset.key = "";
+  readMakings();
+}
+
+// « Enregistré », a moment, under what was changed (D68): the page is drawn again by what it says,
+// so the sentence is put there after the drawing, by the name of what changed.
+let savedFor = null;
+let lastChanged = "";
+const remembered = (event) => {
+  const control = event.target.closest?.("input, select, textarea, button");
+  if (!control) return;
+  lastChanged = control.id ? `#${CSS.escape(control.id)}` : control.name ? `[name="${CSS.escape(control.name)}"][value="${CSS.escape(control.value)}"]` : "";
+};
+document.addEventListener("change", remembered, true);
+document.addEventListener("click", remembered, true);
+function savedSaid(saved) {
+  clearTimeout(savedFor);
+  document.getElementById("saved-said")?.remove();
+  if (!saved) return;
+  const savedSentence = element("p", "says saved-said", words.saved);
+  savedSentence.id = "saved-said";
+  savedSentence.setAttribute("role", "status");
+  const changed = lastChanged ? document.querySelector(`#settings ${lastChanged}`) : null;
+  const row = changed?.closest("label, .row, .field");
+  if (changed) (row ?? changed).after(savedSentence);
+  else document.getElementById("settings").prepend(savedSentence);
+  savedSentence.scrollIntoView({ block: "nearest" });
+  savedFor = setTimeout(() => savedSentence.remove(), 1500);
 }
 
 async function readMakings() {
@@ -480,8 +548,11 @@ function row(session, shape, words) {
   when.className = "when";
   const title = document.createElement("span");
   title.className = "day";
-  title.textContent = heading(session, words);
-  when.append(title);
+  // Named by its minutes (D48): the name whole in its tooltip, the date beneath it.
+  title.textContent = session.title ?? heading(session, words);
+  if (session.title) title.title = session.title;
+  if (session.title) when.append(element("span", "on", heading(session, words)));
+  else when.append(title);
   if (session.seconds !== null) {
     const lasted = document.createElement("span");
     lasted.className = "length";
@@ -495,28 +566,52 @@ function row(session, shape, words) {
   // In the sidebar (D61): the title and its relief on a line, what it holds below.
   const line = element("div", "line");
   line.append(when, drawn);
+  // A name has the row's whole width, its date and relief under it.
+  if (session.title) link.append(title);
   link.append(line, holdings(session, words));
   item.append(link);
   return item;
 }
 
-function show({ words, folder, sessions, shapes, recording, shortcut, folded }) {
+// The header's button, as the shell says the recording is — or as the user just asked it to be,
+// until the command has answered (D68).
+let recordAsked = null;
+let recordRefocus = false;
+function paintRecord(recording, stopping) {
+  const live = recordAsked ?? recording;
+  // Ending, it waits: *Arrêt…*, a click then would ask nothing.
+  const ending = recordAsked === false || (recordAsked === null && stopping);
+  document.getElementById("record-said").textContent = ending ? words.record_stopping : live ? words.record_stop : words.record_start;
+  document.getElementById("record").classList.toggle("live", live);
+  // Disabled, it loses the focus: given back with the button, for whoever stopped by the keyboard.
+  const button = document.getElementById("record");
+  if (ending && document.activeElement === button) recordRefocus = true;
+  button.disabled = ending;
+  if (!ending && recordRefocus) {
+    recordRefocus = false;
+    if (document.activeElement === document.body) button.focus();
+  }
+}
+
+function show({ words, folder, sessions, shapes, recording, stopping, shortcut, folded, unreadable }) {
   document.documentElement.lang = words.locale;
   // The header's gesture, as the board has it: start or stop, with the shortcut beside.
   document.getElementById("free-link").textContent = words.free;
   const small = document.getElementById("small-link");
-  small.textContent = words.small;
+  // An icon with its name: the header's one action stays the recording's (D69, UX review 3.2).
+  small.replaceChildren(icon("picture-in-picture-2"));
+  small.title = words.small;
+  small.setAttribute("aria-label", words.small);
   // At rest too: the small window is the user's to choose (D35).
   small.hidden = false;
-  document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
-  document.getElementById("record").classList.toggle("live", recording);
+  paintRecord(recording, stopping);
   const keys = document.getElementById("header-keys");
   keys.textContent = shortcut ?? "";
   keys.hidden = !shortcut;
   document.getElementById("sidebar").setAttribute("aria-label", words.meetings);
   document.getElementById("sections").setAttribute("aria-label", words.sections);
   document.getElementById("settings-link").textContent = words.settings;
-  document.getElementById("pane-back").textContent = `‹ ${words.back}`;
+  document.getElementById("pane-back").replaceChildren(icon("chevron-left"), words.back);
   // Folded as the user left it (D61), each button named with its shortcut.
   document.body.classList.toggle("folded", folded);
   const folding = /Mac/.test(navigator.platform) ? "⌘B" : "Ctrl+B";
@@ -532,10 +627,13 @@ function show({ words, folder, sessions, shapes, recording, shortcut, folded }) 
   document.getElementById("none-found").textContent = words.none_found;
   const weight = document.getElementById("weight");
   weight.hidden = sessions.length === 0;
-  document.getElementById("none").textContent = fill(words.none, folder);
-  document.getElementById("none-do").textContent = words.none_do;
+  // A folder that cannot be read is no empty list: said, and tried again (D67).
+  document.getElementById("none").textContent = unreadable ? fill(words.list_unread, folder) : fill(words.none, folder);
+  document.getElementById("none-do").textContent = unreadable ? words.list_unread_do : words.none_do;
   document.getElementById("empty-record").textContent = words.record_start;
-  document.getElementById("empty-record").hidden = recording;
+  document.getElementById("empty-record").hidden = recording || unreadable;
+  document.getElementById("empty-again").textContent = words.try_again;
+  document.getElementById("empty-again").hidden = !unreadable;
 
   const audio = sessions.reduce((sum, s) => sum + s.audio, 0);
   const text = sessions.reduce((sum, s) => sum + s.text, 0);
@@ -590,6 +688,11 @@ function sought() {
   }
   document.getElementById("none-found").hidden = any || typed === "";
 }
+
+// How long the small window says the reminder, in seconds (D50).
+const ANNOUNCED_FOR = 15;
+// How long a side's ✓ shows before it fades, in milliseconds (D49).
+const CHECK_SHOWN = 2500;
 
 const element = (tag, className, text) => {
   const made = document.createElement(tag);
@@ -660,7 +763,9 @@ function contextCard(session, { context, transcript, minutes }, words) {
   redo.id = "context-redo";
   redo.addEventListener("click", async () => {
     redo.disabled = true;
-    await window.__TAURI__.core.invoke("context_redo", { name }).catch(() => {});
+    await window.__TAURI__.core.invoke("context_redo", { name }).catch((why) => {
+      said.textContent = fill(words.not_saved, why);
+    });
     await readMakings();
     redo.disabled = false;
   });
@@ -765,6 +870,30 @@ function offer(card, label, id, command, session, words) {
   card.append(button);
 }
 
+// A panel of *Refaire…* closes on *Annuler* or Escape: nothing changed, the focus back on *Refaire…* (D68).
+function closes(panel, go, button, words) {
+  const cancel = element("button", "open", words.redo_cancel);
+  cancel.type = "button";
+  cancel.id = `${panel.id}-cancel`;
+  const close = () => {
+    panel.replaceWith(button);
+    button.focus();
+  };
+  cancel.addEventListener("click", close);
+  // From the panel, or from nowhere — its title clicked; a field elsewhere keeps its own Escape.
+  const onEscape = (event) => {
+    if (!panel.isConnected) return document.removeEventListener("keydown", onEscape);
+    if (event.key !== "Escape") return;
+    const at = document.activeElement;
+    if (at === document.body || panel.contains(at)) close();
+  };
+  document.addEventListener("keydown", onEscape);
+  const row = element("div", "redo-actions");
+  go.replaceWith(row);
+  row.append(go, cancel);
+  return panel;
+}
+
 function redoPanel(choices, session, words, button) {
   const panel = element("section", "redo");
   panel.id = "redo-panel";
@@ -806,7 +935,7 @@ function redoPanel(choices, session, words, button) {
     }
   });
   panel.append(list, element("p", "says", words.redo_note), go);
-  return panel;
+  return closes(panel, go, button, words);
 }
 
 function redoTranscriptPanel(shown, session, words, button, corrected) {
@@ -852,7 +981,7 @@ function redoTranscriptPanel(shown, session, words, button, corrected) {
     panel.append(lost);
   }
   panel.append(go);
-  return panel;
+  return closes(panel, go, button, words);
 }
 
 function minutesCard(read, words, session, transcript) {
@@ -883,7 +1012,9 @@ function minutesCard(read, words, session, transcript) {
   redo.id = "redo-minutes";
   redo.addEventListener("click", async () => {
     const choices = await window.__TAURI__.core.invoke("minutes_shown");
-    redo.replaceWith(redoPanel(choices, session, words, redo));
+    const panel = redoPanel(choices, session, words, redo);
+    redo.replaceWith(panel);
+    panel.querySelector("input, button:enabled").focus();
   });
   // Copied in one click, as written, to paste where the user writes (D45): said in place, a moment.
   const copy = element("button", "open", words.copy_minutes);
@@ -925,7 +1056,9 @@ function minutesCard(read, words, session, transcript) {
     again.id = "redo-corrections";
     again.addEventListener("click", async () => {
       again.disabled = true;
-      await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: null, model: null }).catch(() => {});
+      await window.__TAURI__.core.invoke("minutes_redo", { name: nameOf(session), provider: null, model: null }).catch((why) => {
+        since.append(element("p", "note warn", fill(words.not_saved, why)));
+      });
       readMakings();
     });
     since.append(element("p", "note", words.corrected_since), again);
@@ -1026,7 +1159,9 @@ function transcriptCard(read, words, session) {
   redo.id = "redo-transcript";
   redo.addEventListener("click", async () => {
     const shown = await window.__TAURI__.core.invoke("settings_shown");
-    redo.replaceWith(redoTranscriptPanel(shown, session, words, redo, read.segments.some((segment) => segment.edited)));
+    const panel = redoTranscriptPanel(shown, session, words, redo, read.segments.some((segment) => segment.edited));
+    redo.replaceWith(panel);
+    panel.querySelector("input, button:enabled").focus();
   });
   // Beside who heard it, as board 2 has it: the head keeps its search whole.
   const heard = element("div", "made");
@@ -1335,7 +1470,9 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   const top = element("div", "meeting-top");
   const open = element("button", "open", words.open_folder);
   open.type = "button";
-  open.addEventListener("click", () => window.__TAURI__.core.invoke("open_folder", { name: nameOf(session) }));
+  open.addEventListener("click", () => window.__TAURI__.core.invoke("open_folder", { name: nameOf(session) }).catch((why) => {
+    open.replaceWith(element("p", "note warn", why));
+  }));
   const actions = element("div", "actions");
   // In developer mode: this meeting's logs, to send to whoever looks into it — nothing of the
   // meeting is in them (D29).
@@ -1362,7 +1499,9 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   top.append(actions);
   const title = element("section", "meeting-title");
   const named = element("div", "named");
-  named.append(element("h1", "", heading(session, words)));
+  // Named by its minutes (D48): the date above the name.
+  if (session.title) named.append(element("span", "on", heading(session, words)));
+  named.append(meetingName(session, words));
   if (session.seconds !== null) named.append(element("span", "length", length(session.seconds)));
   // Where the minutes were written, from their own front matter: unread, or naming none, not said.
   const minutesHere = minutes.state === "present" && minutes.provider ? minutes.provider === "local" : undefined;
@@ -1383,6 +1522,11 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
   columns.append(minutesCard(minutes, words, session, transcript), transcriptCard(transcript, words, session));
   // Shown again when the window comes forward: a search in progress in this meeting is kept.
   const searching = page.dataset.name === nameOf(session) ? (document.getElementById("search")?.value ?? "") : "";
+  // A name being typed is kept the same way, with its refusal and where the caret was (D70).
+  const naming = document.querySelector("#naming:not([data-saving])");
+  const namingRefused = document.getElementById("naming-said")?.textContent ?? "";
+  const same = page.dataset.name === nameOf(session);
+  const typing = same && naming ? { value: naming.value, caret: naming.selectionStart, end: naming.selectionEnd, focused: document.activeElement === naming } : null;
   page.dataset.name = nameOf(session);
   const kept = confidentialCard(session, confidential, words);
   kept.append(languageRow(session, language, languages, words, meeting_language, apple, system_language));
@@ -1409,6 +1553,101 @@ function showMeeting({ session, transcript, minutes, developer, listen: listened
     search.value = searching;
     search.dispatchEvent(new Event("input"));
   }
+  if (typing) {
+    const button = document.getElementById("rename");
+    // Typed in, it takes the focus back; the user gone elsewhere, they are not brought back.
+    nameField(button.parentElement, button, session, words, typing.value, namingRefused, typing.focused);
+    if (typing.focused) document.getElementById("naming").setSelectionRange(typing.caret, typing.end);
+  }
+}
+
+// A name refused while its field stays open, until the page is left.
+let nameRefused = null;
+
+// A sentence in the pane, until the next address.
+function paneSays(sentence) {
+  const said = document.getElementById("pane-said");
+  said.textContent = sentence;
+  said.hidden = false;
+}
+
+// The meeting's heading (D70): clicked, a field. Enter or leaving it keeps what is typed, emptied
+// its minutes' title or its date comes back; Escape leaves it as it was.
+function meetingName(session, words) {
+  const heading_ = element("h1");
+  const button = element("button", "rename", session.title ?? heading(session, words));
+  button.type = "button";
+  button.id = "rename";
+  button.title = words.rename_meeting;
+  button.addEventListener("click", () => nameField(heading_, button, session, words, session.title ?? ""));
+  heading_.append(button);
+  return heading_;
+}
+
+function nameField(heading_, button, session, words, typed, refused = "", focused = true) {
+  const field = element("input", "naming");
+  field.type = "text";
+  field.id = "naming";
+  field.maxLength = 80;
+  field.value = typed;
+  field.placeholder = words.name_meeting;
+  field.setAttribute("aria-label", words.name_meeting);
+  const said = element("p", "says");
+  said.id = "naming-said";
+  said.setAttribute("role", "status");
+  said.textContent = refused;
+  said.hidden = refused === "";
+  let done = false;
+  const leave = () => {
+    done = true;
+    nameRefused = null;
+    said.remove();
+    field.replaceWith(button);
+  };
+  const keep = async () => {
+    if (done) return;
+    if (field.value.trim() === (session.title ?? "")) return leave();
+    done = true;
+    // Being saved, no longer being typed: a reading of the page meanwhile does not open it again.
+    field.dataset.saving = "";
+    // An earlier refusal is no longer the last word, nor a sentence for the next address.
+    nameRefused = null;
+    const asked = location.hash;
+    try {
+      await window.__TAURI__.core.invoke("title_saved", { name: nameOf(session), title: field.value });
+      button.textContent = field.value.trim() || heading(session, words);
+      leave();
+      await refresh();
+    } catch (why) {
+      done = false;
+      delete field.dataset.saving;
+      // Its page left or drawn anew meanwhile: said where it stays, never to no one.
+      if (!field.isConnected || location.hash !== asked) return paneSays(fill(words.name_not_saved, why));
+      said.textContent = fill(words.name_not_saved, why);
+      said.hidden = false;
+      // The page left next, by the click that took the focus from here: the pane says it then.
+      nameRefused = said.textContent;
+    }
+  };
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      keep().then(() => document.getElementById("rename")?.focus());
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      leave();
+      button.focus();
+    }
+  });
+  // Another window come forward leaves the field where it was: only a click or a tab elsewhere keeps it.
+  field.addEventListener("blur", () => {
+    if (document.activeElement !== field) keep();
+  });
+  button.replaceWith(field);
+  heading_.after(said);
+  if (!focused) return;
+  field.focus();
+  field.select();
 }
 
 // The settings' page: each change saved at once; nothing offered over a file that cannot be read.
@@ -1491,6 +1730,7 @@ function minutesRow(minutes, words, locked) {
     }
     notSaved = failed;
     await refresh();
+    savedSaid(failed === null);
   };
   // Chosen, not yet saved: who writes them meanwhile is said — going through the list, with the
   // keyboard's arrows too, never changes who does (D25).
@@ -1588,7 +1828,7 @@ function minutesRow(minutes, words, locked) {
         await window.__TAURI__.core.invoke("minutes_tested");
         said = words.test_answered;
       } catch (why) {
-        said = fill(words.test_failed, why);
+        said = why;
       }
       testing = false;
       // Said on the page as it is now: it may have been drawn again meanwhile.
@@ -1647,9 +1887,14 @@ function showSettings(shown, minutes, words) {
     }
     notSaved = failed;
     await refresh();
+    savedSaid(failed === null);
   };
   const parts = [];
-  if (locked) parts.push(element("p", "card note warn", fill(words.settings_unreadable, shown.unreadable)));
+  if (locked) {
+    const unreadable = element("p", "card note warn", shown.unreadable);
+    unreadable.id = "settings-unreadable";
+    parts.push(unreadable);
+  }
   const failed = element("p", "card note warn");
   failed.id = "not-saved";
   // What the last save could not do, said on the page drawn after it — once.
@@ -1781,6 +2026,11 @@ function showSettings(shown, minutes, words) {
   modelsWrap.htmlFor = serviceModels.id;
   modelsWrap.append(element("span", "name", words.service_model), serviceModels);
   serviceModel.parentElement.before(modelsWrap);
+  const modelsRefused = element("p", "note warn");
+  modelsRefused.id = "transcription-models-refused";
+  modelsRefused.setAttribute("role", "status");
+  modelsRefused.hidden = true;
+  modelsWrap.after(modelsRefused);
   const showModel = () => {
     const named = pick.value.startsWith("service:");
     modelsWrap.hidden = !named;
@@ -1788,9 +2038,18 @@ function showSettings(shown, minutes, words) {
     if (named && serviceModels.value !== "") serviceModel.value = serviceModels.value;
   };
   const offerModels = async (index) => {
-    const listed = await window.__TAURI__.core.invoke("hearing_models", { index }).catch(() => []);
+    // Refused: an empty list, and said; the model can still be typed.
+    let listed = [];
+    let refused = "";
+    try {
+      listed = await window.__TAURI__.core.invoke("hearing_models", { index });
+    } catch (why) {
+      refused = fill(words.hearing_models_refused, why);
+    }
     // Another chosen meanwhile: its own list comes.
     if (pick.value !== `service:${index}`) return;
+    modelsRefused.textContent = refused;
+    modelsRefused.hidden = refused === "";
     // The model saved for this service, if it is the one saved; another service starts from its list.
     const typed = index === preset ? (shown.transcription_model ?? "").trim() : "";
     serviceModel.value = typed;
@@ -1878,7 +2137,12 @@ function showSettings(shown, minutes, words) {
   testService.addEventListener("click", async () => {
     testService.disabled = true;
     serviceSaid.textContent = "";
-    serviceSaid.textContent = await window.__TAURI__.core.invoke("transcription_tested").then(() => words.service_tested, (why) => fill(words.test_failed, why));
+    try {
+      await window.__TAURI__.core.invoke("transcription_tested");
+      serviceSaid.textContent = words.service_tested;
+    } catch (why) {
+      serviceSaid.textContent = why;
+    }
     testService.disabled = false;
   });
   service.append(agree, saveService, testService, serviceSaid);
@@ -1950,7 +2214,8 @@ function showSettings(shown, minutes, words) {
   pulled.append(pulledSaid, element("span", "state"));
   offered.append(pulled);
   // The list read again from where it is kept, only on this click, its host shown (D40): read,
-  // the page is drawn with it; refused, the list above stays, and it is said.
+  // the page is drawn with it; refused, the list above stays, and it is said. Until the key that
+  // signs it is built in, no click is offered, and that is said (D56).
   const refreshed = element("p", "says");
   refreshed.id = "offered-refreshed";
   refreshed.setAttribute("role", "status");
@@ -1965,7 +2230,8 @@ function showSettings(shown, minutes, words) {
     refresh_.disabled = false;
     refreshed.textContent = words.offered_refresh_failed;
   });
-  step.append(element("h3", "", words.offered_title), offered, refresh_, refreshed);
+  if (shown.registry_waits) refreshed.textContent = words.offered_refresh_waits;
+  step.append(element("h3", "", words.offered_title), offered, ...(shown.registry_waits ? [] : [refresh_]), refreshed);
   paintOffered(offered);
   models.append(step, minutesRow(minutes, words, locked), element("p", "says", words.models_note));
   parts.push(models);
@@ -2151,7 +2417,7 @@ function showSettings(shown, minutes, words) {
     element("span", "says", chosen ? fill(words.model_here, size(chosen.bytes, words)) : ""),
   );
   state.append(stateSaid);
-  if (chosen) state.append(element("span", "ready", `✓ ${words.model_ready}`));
+  if (chosen) state.append(readySaid(words.model_ready));
   else state.dataset.missing = "true";
   state.id = "model-state";
   paintModel(state);
@@ -2231,7 +2497,9 @@ function showAgreement(name, agreement, words) {
     const line = element("li", mark);
     const said = element("div", "");
     said.append(element("strong", "", title), element("span", "says", fill(says, ...values)));
-    line.append(element("span", "sign", mark === "leaves" ? "→" : "×"), said);
+    const sign = element("span", "sign");
+    sign.append(icon(mark === "leaves" ? "arrow-right" : "x"));
+    line.append(sign, said);
     return line;
   };
   goes.append(item("leaves", words.agree_leaves, Math.max(1, Math.round(agreement.seconds / 60)), agreement.words.toLocaleString(document.documentElement.lang)));
@@ -2304,7 +2572,8 @@ function showSmall(words) {
   const invoke = window.__TAURI__.core.invoke;
   const full = (where) => invoke("full_window", { page: where ?? null });
   const toFull = (id) => {
-    const button = element("button", "open icon", "⤢");
+    const button = element("button", "open icon");
+    button.append(icon("maximize-2"));
     button.type = "button";
     button.id = id;
     button.title = words.small_full;
@@ -2316,10 +2585,25 @@ function showSmall(words) {
   const rest = element("div", "small-rest");
   const restTop = element("div", "small-top");
   restTop.append(element("span", "small-brand", "Wholeheard"), toFull("small-full"));
+  // Its new state at once, disabled until the recording's own says otherwise (D68). Answered, a press
+  // the shell took for the same one, or a start that failed, gives the button back.
+  let unanswered = false;
+  const asking = async (button, said, wanted, back) => {
+    button.disabled = true;
+    button.textContent = said;
+    unanswered = true;
+    await window.__TAURI__.core.invoke("record");
+    unanswered = false;
+    const header = await window.__TAURI__.core.invoke("header");
+    if (header.recording !== wanted) {
+      button.disabled = false;
+      button.textContent = back;
+    }
+  };
   const start = element("button", "primary", words.record_start);
   start.type = "button";
   start.id = "small-record";
-  start.addEventListener("click", () => invoke("record"));
+  start.addEventListener("click", () => asking(start, words.record_starting, true, words.record_start));
   const keys = element("button", "hint");
   keys.type = "button";
   keys.id = "small-keys";
@@ -2331,8 +2615,10 @@ function showSmall(words) {
   const time = element("span", "time", "00:00:00");
   const top = element("div", "small-top");
   top.append(element("span", "live-dot"), time, toFull("small-full-live"));
-  // Each level under what it is recorded from, as the system names it (D33).
-  const meter = (label, id, device) => {
+  // Each level under what it is recorded from, as the system names it (D33); before that name, a
+  // check that turns ✓ when the side is heard, then fades; under it, what a silence asks (D49).
+  const checks = [];
+  const meter = (label, id, device, says) => {
     const row = element("div", "meter");
     const bar = element("span", "track");
     bar.setAttribute("role", "meter");
@@ -2345,30 +2631,82 @@ function showSmall(words) {
     const said = element("span", "said");
     const named = element("span", "device");
     named.id = device;
-    said.append(element("span", "side", label), named);
-    row.append(said, bar);
+    const mark = element("span", "check");
+    mark.append(icon("check"));
+    const status = element("span", "check-said");
+    status.setAttribute("role", "status");
+    mark.append(status);
+    const slot = element("span", "slot");
+    slot.append(mark, named);
+    said.append(element("span", "side", label), slot);
+    const sentence = element("p", "says check-says");
+    sentence.setAttribute("role", "status");
+    row.append(said, bar, sentence);
+    checks.push({ slot, status, sentence, says, heard: fill(words.small_heard, label), since: 0 });
     return row;
   };
+  // The reminder where the user looks, the recording's first seconds, its announcement one click
+  // away (D50). Gone, its room stays: Arrêter never moves.
+  const announce = element("div", "small-announce");
+  announce.id = "small-announce";
+  // Not offered before the first reading gives its sentence: a click would copy nothing.
+  announce.hidden = true;
+  const announced = element("button", "link", words.copy_announcement);
+  announced.type = "button";
+  announced.id = "small-announce-copy";
+  const said_copied = element("span", "says copied");
+  said_copied.id = "small-announce-copied";
+  said_copied.setAttribute("role", "status");
+  announce.append(element("span", "says", words.small_announce), announced, said_copied);
+  let announcement = null;
+  announced.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(announcement);
+      said_copied.textContent = words.minutes_copied;
+    } catch {
+      said_copied.textContent = words.announcement_not_copied;
+    }
+    setTimeout(() => (said_copied.textContent = ""), 2000);
+  });
   const stop = element("button", "danger", words.small_stop);
   stop.type = "button";
   stop.id = "small-stop";
-  stop.addEventListener("click", () => invoke("record"));
+  stop.addEventListener("click", () => asking(stop, words.record_stopping, false, words.small_stop));
   const meters = element("div", "meters");
-  meters.append(meter(words.small_mic, "level-me", "device-me"), meter(words.small_meeting, "level-others", "device-others"));
+  meters.append(
+    meter(words.small_mic, "level-me", "device-me", { silent: words.small_silent_me, nothing: words.small_nothing, waiting: words.small_waiting_me }),
+    meter(words.small_meeting, "level-others", "device-others", { silent: words.small_silent_others, waiting: words.small_waiting_others }),
+  );
   const note = element("p", "says", words.small_note);
   note.id = "small-note";
   note.hidden = true;
   // The meeting's context (D59): closed by default, opened in place of the note — Arrêter never
   // moves. Kept as it is typed, once the meeting's folder holds its session.
-  const meeting = { name: null, saved: null, typed: null };
-  const keep = async () => {
+  const meeting = { name: null, saved: null, typed: null, refused: null };
+  // What could not be kept: it outlasts the recording (D67).
+  const unkept = new Map();
+  const unkeptSaid = element("p", "note warn small-said");
+  unkeptSaid.id = "small-said";
+  unkeptSaid.setAttribute("role", "status");
+  unkeptSaid.hidden = true;
+  const smallSaid = (what, sentence) => {
+    if (sentence === null) unkept.delete(what);
+    else unkept.set(what, sentence);
+    unkeptSaid.textContent = [...unkept.values()].join("\n");
+    unkeptSaid.hidden = unkept.size === 0;
+  };
+  const keep = async (last = false) => {
     const { name, typed } = meeting;
     if (name === null || typed === null || typed === meeting.saved) return;
+    // Refused: tried again when it changes, and when the recording stops; each try is a line in the log.
+    if (typed === meeting.refused && !last) return;
     try {
       await invoke("context_saved", { name, text: typed });
       meeting.saved = typed;
+      smallSaid("context", null);
     } catch {
-      // Tried again at the next tick.
+      meeting.refused = typed;
+      smallSaid("context", words.context_not_saved);
     }
   };
   const field = contextField(words, "", (text) => {
@@ -2409,25 +2747,32 @@ function showSmall(words) {
   // Said confidential (D60): under Arrêter, above the context; kept as it is turned, once the
   // meeting's folder holds its session.
   const secret = confidentialSwitch(words, "small-confidential");
-  const mark = { wanted: null };
+  const mark = { wanted: null, refused: 0 };
   const marked = async () => {
     if (meeting.name === null || mark.wanted === null) return;
     const wanted = mark.wanted;
     try {
       await invoke("confidential_set", { name: meeting.name, on: wanted });
       if (mark.wanted === wanted) mark.wanted = null;
+      smallSaid("mark", null);
+      secret.row.classList.toggle("on", secret.box.checked);
     } catch {
-      // Tried again at the next tick.
+      // Said, its lock off: on with nothing kept would promise what is not so. Asked again every
+      // five seconds, not every tick: each try is a line in the log.
+      mark.refused = Date.now();
+      secret.row.classList.remove("on");
+      smallSaid("mark", words.confidential_not_saved);
     }
   };
   secret.box.addEventListener("change", () => {
     mark.wanted = secret.box.checked;
+    mark.refused = 0;
     secret.row.classList.toggle("on", secret.box.checked);
     marked();
   });
-  live.append(top, meters, stop, secret.row, disclose, opened, note);
+  live.append(top, announce, meters, stop, secret.row, disclose, opened, note);
   live.hidden = true;
-  page.replaceChildren(rest, live);
+  page.replaceChildren(rest, live, unkeptSaid);
 
   // At rest: drawn again only when what it says changes, so that a link under the focus stays.
   const drawRest = async () => {
@@ -2437,14 +2782,14 @@ function showSmall(words) {
     const sessions = listing.sessions.filter((session) => session.state !== "recording");
     const shown = sessions[0] ?? null;
     const weight = sessions.reduce((sum, session) => sum + session.audio + session.text, 0);
-    const key = JSON.stringify([listing.shortcut, shown && [nameOf(shown), shown.minutes, shown.transcript, shown.audio, shown.seconds], sessions.length, weight]);
+    const key = JSON.stringify([listing.unreadable, listing.shortcut, shown && [nameOf(shown), shown.minutes, shown.transcript, shown.audio, shown.seconds], sessions.length, weight]);
     if (rest.dataset.key !== key) {
       rest.dataset.key = key;
       keys.textContent = listing.shortcut ? fill(words.small_keys, listing.shortcut) : words.small_no_keys;
       keys.disabled = Boolean(listing.shortcut);
       keys.onclick = listing.shortcut ? null : () => full("#/settings");
       if (shown === null) {
-        last.replaceChildren(element("p", "none", words.small_none));
+        last.replaceChildren(element("p", "none", listing.unreadable ? words.small_unread : words.small_none));
         foot.replaceChildren();
       } else {
         const card = element("div", "last");
@@ -2473,10 +2818,27 @@ function showSmall(words) {
     if (now.recording !== recording) {
       const first = recording === null;
       // What was typed last, kept before the field is emptied for the next recording.
-      if (recording) await keep();
+      if (recording) {
+        await keep(true);
+        await marked();
+        // Refused to the end: at rest no switch is left, and what remains is said as it is.
+        smallSaid("mark", mark.wanted === true ? words.small_not_confidential : null);
+      }
+      // A new recording starts clean; one that ended keeps saying what it could not keep.
+      if (now.recording) {
+        smallSaid("context", null);
+        smallSaid("mark", null);
+      }
+      // Under the switch while recording, *Arrêter* staying where it is; first of all at rest.
+      if (now.recording) secret.row.after(unkeptSaid);
+      else page.prepend(unkeptSaid);
       recording = now.recording;
+      start.disabled = false;
+      start.textContent = words.record_start;
+      stop.disabled = false;
+      stop.textContent = words.small_stop;
       // Each recording its own context: nothing of the one before.
-      Object.assign(meeting, { name: null, saved: null, typed: null });
+      Object.assign(meeting, { name: null, saved: null, typed: null, refused: null });
       mark.wanted = null;
       secret.box.checked = false;
       secret.row.classList.remove("on");
@@ -2489,7 +2851,14 @@ function showSmall(words) {
       // Opened at rest, the recording's gesture has the focus.
       if (first && !recording) start.focus();
     }
-    if (!recording) return;
+    if (!recording) {
+      // A start that failed late: the shell has let it go, and no recording will come to give it back.
+      if (start.disabled && !unanswered && !(await window.__TAURI__.core.invoke("header")).recording) {
+        start.disabled = false;
+        start.textContent = words.record_start;
+      }
+      return;
+    }
     const whole = Math.floor(now.seconds);
     time.textContent = [Math.floor(whole / 3600), Math.floor((whole % 3600) / 60), whole % 60].map((n) => String(n).padStart(2, "0")).join(":");
     for (const [index, id] of ["level-me", "level-others"].entries()) {
@@ -2505,7 +2874,21 @@ function showSmall(words) {
       // Its name hidden while the context is open: said on its meter still (D60).
       named.closest(".meter").title = now.devices[index] ?? "";
     }
-    stop.disabled = !now.recording;
+    // Written when it changes alone: a tick that rewrites text under a click loses it in WebKitGTK.
+    for (const [index, check] of checks.entries()) {
+      const state = now.checks[index];
+      if (check.slot.dataset.check !== state) {
+        check.slot.dataset.check = state;
+        check.since = performance.now();
+        check.status.textContent = state === "heard" ? check.heard : "";
+        check.sentence.textContent = check.says[state] ?? "";
+      }
+      check.slot.classList.toggle("faded", state === "heard" && performance.now() - check.since >= CHECK_SHOWN);
+    }
+    announcement = now.announcement;
+    announce.hidden = announcement === null;
+    announce.classList.toggle("gone", now.seconds >= ANNOUNCED_FOR);
+    stop.disabled ||= !now.recording;
     note.dataset.follows = String(now.transcript_follows);
     note.hidden = !now.transcript_follows || !opened.hidden;
     // The meeting's folder there: what it holds already is shown, what was typed before is kept.
@@ -2529,7 +2912,7 @@ function showSmall(words) {
       secret.box.checked = now.confidential;
       secret.row.classList.toggle("on", now.confidential);
     }
-    marked();
+    if (Date.now() - mark.refused >= 5000) marked();
   };
   setInterval(tick, 100);
   setInterval(() => recording === false && drawRest(), 1500);
@@ -2591,7 +2974,9 @@ function showFree(listing, busy, words) {
         draw();
       });
       const said = element("span", "said");
-      said.append(element("span", "name", heading(s, words)), element("span", "length", s.seconds !== null ? length(s.seconds) : ""));
+      // Named (D70): the date stays beside the length, what tells two of one name apart.
+      const lasted = s.seconds !== null ? length(s.seconds) : "";
+      said.append(element("span", "name", s.title ?? heading(s, words)), element("span", "length", s.title ? `${heading(s, words)} · ${lasted}` : lasted));
       row.append(box, said, element("span", "weighs", size(weight(s), words)));
       item.append(row);
       list.append(item);
@@ -2600,7 +2985,7 @@ function showFree(listing, busy, words) {
       const item = element("li");
       const row = element("div", "card freeable busy");
       const said = element("span", "said");
-      said.append(element("span", "name", heading(s, words)), element("span", "length", words.free_busy));
+      said.append(element("span", "name", s.title ?? heading(s, words)), element("span", "length", s.title ? `${heading(s, words)} · ${words.free_busy}` : words.free_busy));
       row.append(said);
       item.append(row);
       list.append(item);
@@ -2812,7 +3197,7 @@ async function showWelcome(again, words) {
       // Apple's model, fetched by macOS on this click, as Settings fetch it (D42).
       primary = button("welcome-go", "primary", words.speech_fetch, async () => {
         if (!(await save())) return;
-        invoke("speech_installed").catch(() => {});
+        invoke("speech_installed").catch((why) => pageFailed(why));
         done();
       });
     } else if (engine === "whisper" && fetchable) {
@@ -2920,7 +3305,11 @@ async function refresh(again = false) {
   if (agreeing) {
     try {
       agreement = await window.__TAURI__.core.invoke("agreement_shown", { name: decodeURIComponent(agreeing[1]) });
-    } catch {
+    } catch (why) {
+      // Said in the pane: the list drawn again keeps it, until the next address.
+      const said = document.getElementById("pane-said");
+      said.textContent = fill(words.agreement_refused, why);
+      said.hidden = false;
       // No hashchange follows a replaced address: the list's address is drawn here (D61).
       history.replaceState(null, "", "#/");
       if (!again) return refresh(true);
@@ -2944,6 +3333,9 @@ async function refresh(again = false) {
       player?.stop();
       player = null;
       history.replaceState(null, "", "#/");
+      // No hashchange follows a replaced address: a name refused on that page is said now.
+      if (nameRefused) paneSays(nameRefused);
+      nameRefused = null;
       if (!again) return refresh(true);
     }
   }
@@ -3003,7 +3395,15 @@ async function fold(folded) {
   document.body.classList.toggle("folded", folded);
   const gone = document.getElementById(folded ? "sidebar" : "unfold");
   if (gone.contains(document.activeElement)) document.getElementById(folded ? "unfold" : "fold").focus();
-  await window.__TAURI__.core.invoke("settings_saved", { change: { folded } }).catch(() => {});
+  // Not kept: said; the sidebar stays as asked until the next start.
+  const said = document.getElementById("pane-said");
+  try {
+    await window.__TAURI__.core.invoke("settings_saved", { change: { folded } });
+    said.hidden = true;
+  } catch (why) {
+    said.textContent = fill(words.fold_not_kept, why);
+    said.hidden = false;
+  }
 }
 document.getElementById("fold").addEventListener("click", () => fold(true));
 document.getElementById("unfold").addEventListener("click", () => fold(false));
@@ -3029,8 +3429,20 @@ document.getElementById("groups").addEventListener("keydown", (event) => {
 });
 // The empty pane's own gesture (D61's board 5): the sidebar's, offered where the eye is.
 document.getElementById("empty-record").addEventListener("click", () => document.getElementById("record").click());
+document.getElementById("empty-again").addEventListener("click", () => refresh());
+// Its new state at once, the command answering after it; a second click meanwhile asks nothing.
+// Answered, the shell's word: a press it took for the same one, or a start that failed, shows (D68).
 document.getElementById("record").addEventListener("click", async () => {
-  await window.__TAURI__.core.invoke("record");
+  if (recordAsked !== null) return;
+  recordAsked = !document.getElementById("record").classList.contains("live");
+  paintRecord(recordAsked, false);
+  try {
+    await window.__TAURI__.core.invoke("record");
+  } finally {
+    recordAsked = null;
+  }
+  const { recording, stopping } = await window.__TAURI__.core.invoke("header");
+  paintRecord(recording, stopping);
   // The recording says it started, or stopped, a moment later: then the header follows.
   setTimeout(refresh, 1200);
 });
@@ -3041,9 +3453,8 @@ setInterval(async () => {
   const asked = await window.__TAURI__.core.invoke("header").catch(() => null);
   if (asked === null) return;
   readMakings();
-  const { recording, shortcut } = asked;
-  document.getElementById("record-said").textContent = recording ? words.record_stop : words.record_start;
-  document.getElementById("record").classList.toggle("live", recording);
+  const { recording, stopping, shortcut } = asked;
+  paintRecord(recording, stopping);
   const keys = document.getElementById("header-keys");
   keys.textContent = shortcut ?? "";
   keys.hidden = !shortcut;
@@ -3059,6 +3470,9 @@ window.addEventListener("focus", () => {
   if (!choosing) refresh();
 });
 window.addEventListener("hashchange", () => {
+  document.getElementById("pane-said").hidden = true;
+  if (nameRefused) paneSays(nameRefused);
+  nameRefused = null;
   // Another address: the assistant, shown again, is drawn anew — even if the drawing that left it was cut short.
   delete document.getElementById("welcome").dataset.shown;
   refresh();

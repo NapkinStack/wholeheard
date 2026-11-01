@@ -40,13 +40,14 @@ and nowhere else.
 
 | File | Written by | Holds |
 |---|---|---|
-| `session.json` | `capture`, at the start, at each change of device, and once more at the stop | The fields below |
+| `session.json` | `capture`, at the start, at each change of device, when a track is gained, and once more at the stop | The fields below |
 | `local.wav` | `capture`, while recording | What the microphone delivered: one person, or a room — and the loudspeakers, when there is no headset |
 | `remote.wav` | `capture`, while recording | What the machine played: one person, or several |
 | `clock.jsonl` | `capture`, while recording | Where each track's samples are on the session's clock |
 | `context.txt` | The user, at any time; optional | A few lines of plain text, UTF-8, handed to the steps that follow |
 | `confidential` | The shell, on the user's word; optional | Nothing: an empty file. Present, it asks that the meeting be transcribed and summarised on this computer alone. Only the shell reads it, and chooses who transcribes and who writes accordingly; the steps that follow need not read it |
 | `language` | The shell, on the user's word; optional | One line, UTF-8: the language the meeting is spoken in, a code of ISO 639-1 — `fr`, `en`. Absent, or a line that is not one such code, the meeting names no language of its own. Only the shell reads it, and tells the transcription the language spoken; the steps that follow need not read it |
+| `title.txt` | The shell, on the user's word; optional | One line, UTF-8, at most 80 characters: the name the user gave the meeting, plain text, shown as text, never read as markup or as a path. Absent, blank, or more than that one line, the meeting has no name given. It is the name shown before any other: the folder keeps its own. Only the shell reads it; the steps that follow need not read it |
 | `derived/` | Consumers; optional | Whatever they make from the tracks. Not described here: nothing in it is a source |
 
 **`session.json`**, UTF-8:
@@ -56,12 +57,12 @@ and nowhere else.
 | `contract` | string | `session-audio/v2` |
 | `started` | string | The instant 0 of the session's clock: ISO 8601 with the local offset |
 | `stopped` | string, absent while recording | When the recording was stopped. **Absent means: still recording, or ended by a crash** |
-| `tracks` | object | For each track the session holds — `local`, `remote` — `device`: the name the system gave the source when the recording started; `changed`, when the source was recorded from another device after it: each change, in order, as `at`, seconds on the session's clock as `clock.jsonl`'s, and `device`, the name of the device from then on — `null` when the system named none, and the track holds zeros of the capture there (`clock.jsonl`'s silences) until the next. A source that could not be opened has **no entry and no file** |
+| `tracks` | object | For each track the session holds — `local`, `remote` — `device`: the name the system gave the source when the recording started, or when its track was gained (*A track gained later*); `changed`, when the source was recorded from another device after it: each change, in order, as `at`, seconds on the session's clock as `clock.jsonl`'s, and `device`, the name of the device from then on — `null` when the system named none, the call let go of the microphone or its stream failed: **a gap**, nothing coming from the source (*What a consumer reads*). A source that could not be opened has **no entry and no file**, unless it gains a track later |
 
 **A track** is a WAV file, PCM, 24 bits, at the sample rate and with the channels its source
 delivered — read from the file's own header, never assumed: 48,000 samples a second in two
 channels on one machine, 44,100 in one on another. Its **source** is the stream the system
-opened for it when the recording started: the sound the system delivers, which is the
+opened for it when the recording started, or when it gained its track: the sound the system delivers, which is the
 device's own as far as the system leaves it so.
 
 - **As delivered.** Nothing in a track was resampled, mixed down, centred, faded, cleaned of
@@ -117,6 +118,33 @@ cut by a crash is ignored. Two kinds of line:
   instants and may hold different numbers of frames a second; only the clock says which
   frame of one is the same instant as which frame of the other.
 
+**A track gained later** (cycle 05, D66): the local source, not opened at the start because its
+microphone waited or was refused, may gain its track during the recording, as the graph changes: a
+call takes a microphone, or the default input changes.
+
+- **Its file** appears once it has a track, in the form negotiated then, and that form holds from
+  its first frame to its last. Its frames from 0 up to that moment, `n`, are zeros of the capture:
+  the clock says them, as `silence: [0, n]`. The file and that line come before the entry in
+  `tracks`, so a track named there has its file.
+- **Its first point** comes with its first sound, at `n` when that comes within 1.5 s. Later, another
+  `silence` precedes it, and it is at a later frame. On a stop before the first sound, it has none.
+- **Its entry**: a track gained during a recording is in `session.json` when gained, before `device`
+  names it; its first device is no `changed`. Each later `changed` is as above.
+
+**What a consumer reads**, for where a track holds sound and where it does not:
+
+- **`clock.jsonl`'s silences say which frames the capture wrote**, on any track, and only those. A
+  reader places a frame by the points around it, whatever the track's first frames hold, never by
+  the file's length or its date.
+- **`changed` with `device: null` says when a gap began, on the clock**: not a device moved. Under
+  1.5 s, it leaves no `silence`: the next point alone shows it. Longer, it leaves zeros that stop
+  0.5 to 1.5 s of frames short of the clock, and frames after a gap are read from the point that
+  follows it, never counted from the start.
+- **The entry after it names a stream that received its format** (`recording/v1`): sound may come
+  later, zeros going on. The point after it says when sound came back.
+- **`tracks` is read at the end**: while recording, a source without an entry may yet gain one. With
+  `stopped` written, a source without an entry never had a track.
+
 ## What it never does
 
 - It never promises that a track holds a voice: a permission refused gives no track, an
@@ -160,6 +188,31 @@ Valid, while recording:
 
 Valid, a microphone that could not be opened: `tracks` holds `remote` alone, the folder has
 no `local.wav`, and `clock.jsonl` no line for `local`.
+
+Valid, a microphone that waited, at 48,000 samples a second, taken by a call at 30 seconds, let go at
+39, given its format at 42.6 and sound at 43, let go at 50 and taken at 51, then stopped; the lines of `local`
+alone:
+
+```json
+{"contract": "session-audio/v2", "started": "2026-10-14T14:05:12+02:00", "stopped": "2026-10-14T14:06:07+02:00",
+ "tracks": {"local": {"device": "Headset Microphone",
+                      "changed": [{"at": 39.0, "device": null},
+                                  {"at": 42.6, "device": "Headset Microphone"},
+                                  {"at": 50.0, "device": null},
+                                  {"at": 51.0, "device": "Headset Microphone"}]},
+            "remote": {"device": "Speaker"}}}
+```
+
+```text
+{"track": "local", "silence": [0, 1440000]}
+{"track": "local", "sample": 1440000, "at": 30.012}
+{"track": "local", "sample": 1680000, "at": 35.012}
+{"track": "local", "silence": [1871424, 1957824]}
+{"track": "local", "silence": [1957824, 2008224]}
+{"track": "local", "sample": 2008224, "at": 43.012}
+{"track": "local", "sample": 2248224, "at": 48.012}
+{"track": "local", "sample": 2343648, "at": 51.012}
+```
 
 To refuse: a folder whose `session.json` is missing or names another `contract`; a track
 named in `tracks` whose file is missing; a track that is not PCM in 24 bits — a consumer

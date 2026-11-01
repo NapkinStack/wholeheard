@@ -16,6 +16,17 @@ use crate::{
 /// How long reaching the service may take, whatever the span.
 const CONNECT: Duration = Duration::from_secs(15);
 
+/// What failed, in one sentence for the log, and the cause a person acts on (`transcript/v1`).
+#[derive(Debug)]
+pub struct Refused {
+    pub code: Option<&'static str>,
+    pub why: String,
+}
+
+fn refused<T>(code: &'static str, why: String) -> Result<T, Refused> {
+    Err(Refused { code: Some(code), why })
+}
+
 pub struct Service {
     uri: String,
     host: String,
@@ -37,18 +48,23 @@ impl Service {
         if model.trim().is_empty() {
             return Err("a model is named for the service".into());
         }
+        // No space either: a header cannot carry it, and the request would fail as if nobody listened.
+        let key = key.filter(|key| !key.is_empty());
+        if key.is_some_and(|key| !key.chars().all(|c| c.is_ascii_graphic())) {
+            return Err("the key holds a space or a character a request cannot carry".into());
+        }
         Ok(Service {
             // With its port: two services of one host are two hearers, never one transcript continued.
             host: authority.as_str().to_string(),
             uri,
             model: model.to_string(),
-            key: key.filter(|key| !key.is_empty()).map(str::to_string),
+            key: key.map(str::to_string),
         })
     }
 
     /// A second of a sound of the program's own, sent as a span is: the service answers, and its
-    /// answer reads — nothing of a meeting.
-    pub fn test(&self) -> Result<(), String> {
+    /// answer reads — nothing of a meeting. What failed has its cause (`transcript/v1`, *A test of a service*).
+    pub fn tested(&self) -> Result<(), Refused> {
         let tone: Vec<f32> = (0..RATE)
             .map(|n| 0.2 * (std::f32::consts::TAU * 440.0 * n as f32 / RATE as f32).sin())
             .collect();
@@ -56,10 +72,13 @@ impl Service {
     }
 
     /// One span sent, its segments read — or what failed, in one sentence.
-    fn ask(&self, sound: &[f32], language: Option<&str>, context: Option<&str>) -> Result<Vec<Segment>, String> {
+    fn ask(&self, sound: &[f32], language: Option<&str>, context: Option<&str>) -> Result<Vec<Segment>, Refused> {
         let host = &self.host;
         let mut audio = Vec::new();
-        write_span(&mut audio, sound).map_err(|error| format!("the span could not be made ({error})"))?;
+        write_span(&mut audio, sound).map_err(|error| Refused {
+            code: None,
+            why: format!("the span could not be made ({error})"),
+        })?;
         let boundary = format!("wholeheard-{}-{}", std::process::id(), sound.len());
         let mut body = Vec::new();
         let mut field = |name: &str, value: &str| {
@@ -99,31 +118,63 @@ impl Service {
         if let Some(key) = &self.key {
             call = call.header("Authorization", format!("Bearer {key}"));
         }
-        let mut response = call.send(&body[..]).map_err(|error| match error {
-            ureq::Error::Timeout(_) => format!("{host} did not answer in time"),
-            error => format!("{host} could not be reached: {error}"),
-        })?;
+        let mut response = match call.send(&body[..]) {
+            Ok(response) => response,
+            Err(ureq::Error::Timeout(ureq::Timeout::Resolve | ureq::Timeout::Connect)) => {
+                return refused("provider.unreachable", format!("{host} could not be reached in time"));
+            }
+            Err(ureq::Error::Timeout(_)) => return refused("provider.too_slow", format!("{host} did not answer in time")),
+            Err(error) => return refused("provider.unreachable", format!("{host} could not be reached: {error}")),
+        };
         match response.status().as_u16() {
             200 => {}
-            status @ (401 | 403) => return Err(format!("{host} refused the key (HTTP {status})")),
-            404 => return Err(format!("{host} does not know this model or this address (HTTP 404)")),
+            status @ (401 | 403) => return refused("provider.refused_key", format!("{host} refused the key (HTTP {status})")),
+            402 => return refused("provider.no_credit", format!("{host} refused for lack of credit (HTTP 402)")),
+            404 => {
+                return refused(
+                    "provider.unknown_model",
+                    format!("{host} does not know this model or this address (HTTP 404)"),
+                );
+            }
+            429 => {
+                return refused(
+                    "provider.too_many",
+                    format!("{host} refused for too many requests or a quota (HTTP 429)"),
+                );
+            }
             // What the service said of it, when it says it as OpenAI does — a prompt too long, a
             // format it does not give —; otherwise the likeliest cause, a model without times.
             400 => {
                 let answer: serde_json::Value = response.body_mut().read_json().unwrap_or_default();
-                return Err(match said(&answer) {
-                    Some(said) => format!("{host} refused the request (HTTP 400): {said}"),
-                    None => format!("{host} refused the request (HTTP 400): choose a model that gives each segment's times"),
-                });
+                return match said(&answer) {
+                    // In its own words: no code, a sentence is never read for a cause.
+                    Some(said) => Err(Refused {
+                        code: None,
+                        why: format!("{host} refused the request (HTTP 400): {said}"),
+                    }),
+                    None => refused(
+                        "provider.no_times",
+                        format!("{host} refused the request (HTTP 400): choose a model that gives each segment's times"),
+                    ),
+                };
             }
-            status => return Err(format!("{host} failed (HTTP {status})")),
+            status @ (300 | 301 | 302 | 303 | 307 | 308) => {
+                return refused(
+                    "provider.redirected",
+                    format!("{host} sent the request elsewhere, and it was not followed (HTTP {status})"),
+                );
+            }
+            status @ 500..=599 => return refused("provider.down", format!("{host} failed (HTTP {status})")),
+            status => return refused("provider.failed", format!("{host} failed (HTTP {status})")),
         }
-        let answer: serde_json::Value = response
-            .body_mut()
-            .read_json()
-            .map_err(|_| format!("{host} sent an answer that could not be read"))?;
+        let Ok(answer) = response.body_mut().read_json::<serde_json::Value>() else {
+            return refused("provider.failed", format!("{host} sent an answer that could not be read"));
+        };
+        if !answer.is_object() {
+            return refused("provider.failed", format!("{host} sent an answer that could not be read"));
+        }
         let Some(segments) = answer["segments"].as_array() else {
-            return Err(format!("{host} gives no times: choose another model"));
+            return refused("provider.no_times", format!("{host} gives no times: choose another model"));
         };
         segments
             .iter()
@@ -136,7 +187,9 @@ impl Service {
                         end,
                         text: text.trim().to_string(),
                     }),
-                    _ => Err(format!("{host} sent a segment without its times")),
+                    // Its times are there and its text is not: another model would not help.
+                    (Some(_), Some(_), None) => refused("provider.failed", format!("{host} sent a segment without its text")),
+                    _ => refused("provider.no_times", format!("{host} sent a segment without its times")),
                 },
             )
             .collect()
@@ -170,6 +223,7 @@ impl Engine for Service {
     }
 
     fn hear(&mut self, sound: &[f32], language: Option<&str>, context: Option<&str>) -> std::io::Result<Vec<Segment>> {
-        self.ask(sound, language, context).map_err(std::io::Error::other)
+        self.ask(sound, language, context)
+            .map_err(|refused| std::io::Error::other(refused.why))
     }
 }

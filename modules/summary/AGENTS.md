@@ -22,6 +22,7 @@ Writes the minutes of a transcript.
 - `src/lib.rs` knows no network; `src/provider.rs` holds the one connection; `src/main.rs` the
   program. `tests/program.rs` plays a provider on this machine: no test calls a real one.
 - The request is written in English and asks for the meeting's language.
+- The answer may open on one title of first level: the meeting's name, written as `title` when `minutes/v2` lets it, never judged as a section.
 - An answer is minutes when it holds exactly three sections of second level, none empty.
 
 ## Business invariants
@@ -49,9 +50,12 @@ Writes the minutes of a transcript.
 - The key is looked for in an answer as it is written: sent back in another case or encoded,
   it is not caught. A key that is a common word turns honest minutes away.
 
+- Ollama's `/v1` ignores `options.num_ctx` and cuts a long request from its head, silently:
+  the native route is why the rules still reach the model.
+
 ## Areas not to change without approval
 
-- The format of `minutes.md`: it is `contracts/minutes/v1`.
+- The format of `minutes.md`: it is `contracts/minutes/v2`.
 - The rules of the request in `request()`: they are D5's third criterion.
 
 ## Non-standard commands

@@ -46,9 +46,10 @@ rpmbuild -bb /wholeheard.spec --define 'artefacts /artefacts' --define 'wholehea
     ls "$dist"/*.zip
     ;;
   windows-x64)
-    # No container: Windows' zip is made on Windows, GitHub's runner (D53).
-    [ "${OS:-}" = Windows_NT ] || { echo "release: Windows' zip is made on Windows" >&2; exit 2; }
+    # No container: Windows' zip and package are made on Windows, GitHub's runner (D53, D54).
+    [ "${OS:-}" = Windows_NT ] || { echo "release: Windows' zip and package are made on Windows" >&2; exit 2; }
     python "$here/windows/build.py" "$artefacts" "$version" "$dist"
+    python "$here/windows/msix.py" "$artefacts" "$version" "$dist"
     ;;
   *)
     echo "release: no package is made for '$target' here (fedora-<n>, ubuntu-<n>.<n>, macos-arm64, windows-x64)" >&2

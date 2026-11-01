@@ -15,6 +15,11 @@
   *the app* — never in a container. Its Info.plist and French strings: `mac/info.py`, from
   `mac/words.json`, the sentences macOS shows when it asks for the microphone and the sound the
   Mac plays.
+- `windows-x64`: the zip (`windows/build.py`) and `Wholeheard-<version>-x64.msix` (`windows/msix.py`,
+  from `AppxManifest.xml.in`, `identity.json` and `Assets/`), made on Windows. `windows/trial.ps1`,
+  run by `windows-app.yml`, signs it for the run and installs, upgrades and removes it; `windows/certify.ps1`
+  has the certification kit test it, `windows/appcert.py` says its report — read in `scripts/test.sh` from
+  `tests/appcert-report.xml`, cut from a report the kit wrote on the runner.
 - Each package is made in a throwaway container of its system, so that `rpmbuild`, `dpkg` and the
   libraries they read are that system's, and nothing is installed on the workstation.
 
@@ -29,6 +34,8 @@
 
 - The Mac's app is signed ad hoc after everything is in it: a file added to the bundle after
   `codesign` breaks its seal, and macOS says a downloaded app so changed is *damaged*.
+- A package's writes under `AppData` go to its own data and go with it; a test outside the package reads
+  them at `%LOCALAPPDATA%\Packages\<family>\LocalCache`, never at `%APPDATA%`.
 - A program run, not linked, by another (capture runs `pw-metadata`), or a library opened at run
   time (the shell's tray: appindicator) → name its package in the spec's `Requires` and in
   `deb/build.sh`'s `depends`: rpmbuild and dpkg-shlibdeps see linked libraries only.

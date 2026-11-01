@@ -1,6 +1,6 @@
 ---
 goal: "Day to day, Wholeheard is the best of its kind to use: a meeting ends in one notification that opens it, named, its actions read at a glance, its minutes copied in one click, said in a French that sounds native — and the first run holds the user's hand, the announcement one click away — and what a first Store submission waits on: Windows' package made and tried, capture `critical`, the list of models signed, the listing and the privacy policy written"
-status: accepted          # proposed | accepted | closed | stopped — the decider accepts
+status: closed            # proposed | accepted | closed | stopped — the decider accepts
 appetite_weeks: 3         # the time the decider WANTS to spend, not an estimate
 start: 2026-10-29         # YYYY-MM-DD
 end: 2026-11-19           # start + appetite: the first day the cycle is over — the circuit breaker
@@ -8,7 +8,7 @@ deliverables:
   - id: D44
     title: "A meeting's notifications are fewer, and a click on one opens the meeting in Wholeheard"
     module: shell
-    state: ready
+    state: accepted
     acceptance:
       - "Given a recording stopped while a Wholeheard window is visible — shown and not minimized, as the toolkit reports it —, when it stops, then no notification says the stop; with no Wholeheard window visible, the stop is said as today"
       - "Given Settings set to make the minutes after the stop (`after = \"minutes\"`), when the transcript is written and the minutes follow, then no notification says the transcript, and one says the minutes; a failure of either step is always said"
@@ -17,7 +17,7 @@ deliverables:
   - id: D45
     title: "A meeting's minutes are copied in one click, ready to paste where the user writes"
     module: shell
-    state: ready
+    state: accepted
     acceptance:
       - "Given a meeting with minutes, when the user clicks « Copier le compte rendu » / \"Copy the minutes\", beside *Refaire…*, then the clipboard holds the minutes' body as Markdown text, without its front matter, and « Copié » / \"Copied\" is said in place (`role=status`) for a moment"
       - "Given a meeting without minutes, or minutes that do not read, when its page shows, then no copy is offered"
@@ -25,7 +25,7 @@ deliverables:
   - id: D46
     title: "A meeting's actions are rows: Qui · Quoi · Pour quand"
     module: shell
-    state: ready
+    state: accepted
     acceptance:
       - "Given minutes whose section 2 holds items written as `minutes/v1` says — what — who — by when, separated by ` — ` —, when the meeting's page shows them, then each is one row of three cells, who in its colour and by when in monospace, with no visible headers, as board 2 of D11 drew them — Qui, Quoi, Pour quand their names for assistive technology —, in the order the decider settles (open question)"
       - "Given an item that does not split into exactly three parts on ` — `, when it shows, then it is shown as written, never cut or guessed"
@@ -33,7 +33,7 @@ deliverables:
   - id: D47
     title: "Wholeheard speaks a native, short French — and never shows English to a French user"
     module: shell
-    state: ready
+    state: accepted
     acceptance:
       - "Given the wording table of the review of 2026-10-26 (`docs/project/reviews/2026-10-26-ux.md` §10), as the decider amends it at the cycle's acceptance, when Wholeheard speaks French, then each of its sentences is the one adopted, and the English sentences the review names beside them are rewritten with them"
       - "Given every French sentence the window and the notifications say, when the shell's tests run, then a test refuses one without U+202F before `? ! ;` or without U+00A0 before `:` — times (`12:21`) and addresses (`https:`) aside"
@@ -41,9 +41,9 @@ deliverables:
   - id: D48
     title: "A meeting has a name: the one its minutes give it"
     module: summary
-    state: ready
+    state: accepted
     acceptance:
-      - "Given `contracts/minutes/v1`, when its page is changed, then it says an optional `title` in the front matter — one line, a few words in the meeting's language, at most 80 characters, never a key or a path — in a pull request of the contracts module alone, merged before the summary writes it; the shell, which reads the front matter into a table of keys (`minutes.rs`'s reader), reads minutes with or without it unchanged"
+      - "Given `contracts/minutes/v2`, a new version of `minutes/v1` (ADR-0005 keeps v1, a page of Markdown, frozen), when its page is written, then it says an optional `title` in the front matter — one line, a few words in the meeting's language, at most 80 characters, never a key or a path — in a pull request of the contracts module alone, merged before the summary writes it; the shell reads `minutes/v1` and `minutes/v2` alike, with or without a title, before the summary writes v2"
       - "Given a transcript, when the summary writes its minutes, then their front matter carries the title the provider's answer gives, where it gives one — a real model's title is a scenario of the sheet; given a model that gives none, or one longer than 80 characters or on several lines, then the minutes are written whole without it, never refused for it"
       - "Given the list of meetings and a meeting's page, when a meeting's minutes carry a title, then the row and the page's heading show the title — the date beneath it in the list (board 1), above it on the page (board 2); without minutes, or minutes made before, the date as today"
       - "Given a title that holds markup — `<img src=x onerror=alert(1)>` —, when it shows, then it is shown as text, never as markup, held by a test (`security.md`)"
@@ -51,7 +51,7 @@ deliverables:
   - id: D49
     title: "The first recording holds the user's hand: each side heard checked live"
     module: shell
-    state: ready
+    state: accepted
     acceptance:
       - "Given a recording started, when it records, then the small window shows, for each side — « Votre micro » / \"Your microphone\", « Le son de la réunion » / \"The meeting's sound\" —, a check that turns ✓ as soon as its levels rise above silence (`level`, `recording/v1`), then fades"
       - "Given a side that stays silent, when capture says it silent, then the small window says under its check what to do, as well as the notification it says today: for a microphone that sends nothing (`Said::Nothing`, #457), the sentence of `sends_nothing` — check the device's own mute; otherwise (`Said::Silent`), speak, or play a sound in the call"
@@ -59,7 +59,7 @@ deliverables:
   - id: D50
     title: "The reminder to announce the recording is kept, shown where the user looks, the announcement one click away"
     module: shell
-    state: ready
+    state: accepted
     acceptance:
       - "Given a settings file that does not say `reminder`, or none, when Wholeheard starts, then the reminder is on (`Settings::default().reminder`), held by a test; Settings still let the user turn it off (charter, 2026-10-13)"
       - "Given a recording with the reminder on, when it records, then the small window says « Prévenez les participants que cette réunion est enregistrée. » / its English, under the timer, in the soft colour, for the recording's first fifteen seconds *(framer, to confirm: UX review 1.2)* — as well as the notification at the start, so that it shows with notifications off or held back"
@@ -68,7 +68,7 @@ deliverables:
   - id: D54
     title: "On Windows, Wholeheard installs from one MSIX package the Microsoft Store can take, and removing it keeps the meetings"
     module: install
-    state: ready
+    state: deferred
     acceptance:
       - "Given the Windows workflow on main, when it runs, then it leaves beside the zip Wholeheard-<version>-x64.msix, made with the Windows SDK's MakeAppx from an AppxManifest.xml that names Wholeheard, its version in four parts the last 0, its logos, the identity the decider reserved in Partner Center — or a placeholder the run says is one —, `runFullTrust` and the microphone, and the shell started with `--window`; the four programs inside it"
       - "Given that package signed for the run with a certificate made for it, when GitHub's Windows runner installs it (`Add-AppxPackage`), then Wholeheard's process starts from it with its window; when a later version is installed over it, then a meeting folder placed under Documents\\Wholeheard and the settings are still there; and when it is removed (`Remove-AppxPackage`), then the meeting folder is still there"
@@ -77,7 +77,7 @@ deliverables:
   - id: D55
     title: "capture is critical before the first build published outside the project"
     module: capture
-    state: ready
+    state: deferred
     acceptance:
       - "Given capture's MANIFEST.yaml, when it is read, then its criticality is `critical`, as PDR-0002 decided for the first build published outside the project — the Store's (PDR-0004)"
       - "Given capture's manifest, when the fitness functions run, then it declares its runbook (`docs.runbook`), and the runbook says how a recording that failed is found in the logs, what a user is told, and how a release is rolled back — on Linux, the previous package installed again (`dnf downgrade`, tried once by the framer on a Fedora made for it, its date written); in the Store, which takes no lower version, the previous code submitted again under a higher one"
@@ -85,7 +85,7 @@ deliverables:
   - id: D56
     title: "The list of models read again is refused unless the decider's key signed it"
     module: shell
-    state: ready
+    state: deferred
     acceptance:
       - "Given `registry/models.json` and its signature `models.json.minisig` on main, made with minisign by the decider's key — the public key built into the shell, the private one never in a repository —, when the list is read again on the user's gesture, then it is offered only when its signature verifies; a list unsigned, signed by another key, or changed after it was signed is refused, and the shipped list stays, said in one sentence (ADR-0010, *Rejected alternatives*)"
       - "Given a pull request that changes the list, when its checks run, then a list whose signature does not verify against the built-in key is refused; until the decider's key is given, no list is read again, and Settings and the check say it waits on that key — the colleagues' builds lose today's reading again, said in the cycle's closure"
@@ -94,14 +94,14 @@ deliverables:
   - id: D57
     title: "The Store's listing and Wholeheard's privacy policy are written, in French and in English"
     module: null
-    state: ready
+    state: deferred
     acceptance:
       - "Given the repository, when `docs/privacy.md` is read on GitHub, then it says in French and in English what Wholeheard records, where it keeps it, what leaves the machine only when the user chose a service and to which host, that nothing is sent otherwise, and how to remove it all — its URL the one Partner Center is given"
       - "Given `docs/store/listing.md`, when it is read, then it holds the Store's description, its short features and the screenshots it needs, in French and in English, said as PDR-0001's promise — the decider reads it and says it claims nothing the product does not do"
   - id: D38
     title: "On a Mac, Wholeheard opens from one app the forge made, its four programs inside it"
     module: install
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a run of the macOS workflow on main, or one started by hand, when it ends, then it leaves one artifact, Wholeheard-<version>-macos-arm64.zip, holding Wholeheard.app: wholeheard and the three programs side by side in Contents/MacOS, and an Info.plist naming the application, its version, and the sentences macOS shows when it asks for the microphone and for the sound the Mac plays; the bundle signed ad hoc, `codesign --verify --deep --strict` passing on it"
       - "Given that zip on the colleague's Mac — an Apple chip, macOS later than 14.6 — when they open the app as macOS lets an unsigned one open (System Settings → Privacy & Security → Open Anyway), then Wholeheard's icon is in the menu bar and its window opens from it, with nothing installed before it and no terminal"
@@ -109,21 +109,21 @@ deliverables:
   - id: D39
     title: "Spike — does a real call recorded on a Mac hold both sides, with nothing added to the Mac?"
     module: capture
-    state: ready
+    state: deferred
     acceptance:
       - "Given D38's app on the colleague's Mac, when they record a real call of at least five minutes with it, then the cycle records, for each track — local, the microphone; remote, what the Mac plays: whether it holds the call's speech, its sample rate and channels, its gaps of zeros, and what macOS asked before it recorded"
       - "Given that record, when it is read against the threshold — both tracks hold the call's speech, as the colleague hears it at the start, the middle and the end of each, and capture's code holds no line added for macOS —, then ADR-0002's criterion is met for macOS; below it, what was missing — a permission, a device, the system's interface — is recorded for the next framing. A refuted result is a delivered one"
   - id: D27
     title: "Wholeheard installs on Ubuntu from one package, its programs built on the system they ship to"
     module: install
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given Ubuntu 24.04, when a user installs Wholeheard from one package file (`sudo apt install ./wholeheard_<version>_amd64.deb`), then Wholeheard is in the applications menu and starts in the tray with nothing built and no variable set, and removing it leaves the user's meetings and settings"
       - "Given a release for a system — Fedora or Ubuntu —, when the programs are built, then they are built in a container of that system, so that no package depends on the machine that made it"
   - id: D41
     title: "On Linux, a call heard on an output other than the system's default is recorded there"
     module: capture
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a call — an application other than capture holding a microphone — whose sound plays on an output other than the system's default, when it is recorded, then the remote track holds what the call plays, and capture says `device` with that output's name"
       - "Given the call's sound moved to another output while recording, or back to the default, when it moves, then the remote track follows it within two seconds and the move is kept in `session.json` with when"
@@ -133,7 +133,7 @@ deliverables:
   - id: D42
     title: "On a Mac with macOS 26, Apple's SpeechAnalyzer hears a meeting, chosen in Settings"
     module: transcription
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a session and Apple's model of the system's language — French or English — on a Mac with macOS 26, when it is transcribed with `--engine speechanalyzer`, then `transcript/v1` is written by the step as ever — each segment on its track with its times —, its header naming the engine SpeechAnalyzer, and no line of `src/step.rs` changed to add it"
       - "Given the macOS workflow, when it runs, then it builds `wholeheard-speech` beside the other programs and transcribes back the words of a French sentence `say` speaks; where the runner offers no SpeechTranscriber or no French voice, the step says it was not run, and this criterion is met on the colleague's Mac instead"
@@ -143,7 +143,7 @@ deliverables:
   - id: D53
     title: "On Windows, Wholeheard opens from one zip the forge made — and does a call recorded there hold both sides?"
     module: install
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a run of the Windows workflow on main, or one started by hand, when it ends, then each program's tests pass on GitHub's Windows runner, and it leaves one artifact, Wholeheard-<version>-windows-x64.zip, holding wholeheard.exe and the three programs side by side, kept 7 days as the Mac's"
       - "Given that zip on the colleague's Windows 11, when they unpack it and open wholeheard.exe — past SmartScreen's warning on an unsigned program —, then Wholeheard's icon is in the notification area and its window opens from it, with nothing installed before it and no terminal"
@@ -151,7 +151,7 @@ deliverables:
   - id: D58
     title: "At the first start, one or two questions set Wholeheard up, said plainly"
     module: shell
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given a start where the setting `welcomed` is not true and the folder of meetings holds none, when Wholeheard starts — with `--window` or not, on Linux, macOS and Windows —, then the full window opens on the assistant of D58's board (`docs/project/drawings/d58-the-first-run/`) and `welcomed` is written true at once, so that it opens by itself once only — a start with the session included, the one departure from D35's « started again with the session, nothing does », once —; a start with a meeting already there, or with `welcomed` true, never shows it, and closing it midway changes nothing else"
       - "Given the first screen, nothing chosen in advance, when the user answers « Oui, souvent » or « Je ne sais pas », goes on with none, or chooses « Passer », then the setting is private: the transcription on this computer — Whisper with the model the settings name, or Apple's SpeechAnalyzer where it is chosen already — and the minutes by Ollama on this computer, its model the settings name or the recommended one; given « Rarement ou jamais » and « Un service en ligne », then the last screen's « Choisir mon service » opens Settings at the minutes, where the service, its model and key are chosen and tested as ever, its host agreed before the first sending as ever"
@@ -161,12 +161,24 @@ deliverables:
   - id: D63
     title: "A service that hears is chosen as the minutes' is: from a list, its transcription models offered"
     module: shell
-    state: in-progress
+    state: deferred
     acceptance:
       - "Given Settings, when the user chooses who hears online, then the services the minutes offer that publish OpenAI's `audio/transcriptions` — OpenRouter, OpenAI, and Mistral if it does — are offered by name, their address filled in as the minutes' are, and « Un service que je choisis » keeps an address of their own"
       - "Given a service chosen, when Settings show it, then its transcription models are offered to choose from — OpenRouter's read from its public list, `models?output_modalities=transcription`, asked with no key and nothing of a meeting; the others' that give segments and their times named in the repository —, a model typed by hand still possible, and *Tester* says whether the one chosen gives segment times, the list not saying it; its key kept in the system's keyring as the minutes' is"
       - "Given a service and a model chosen, when the user tests it or a meeting is transcribed, then it is as D43 says — a sound of the test's own, the host agreed first, a model that gives no segment times refused and said —, with the service's own address"
       - "Given the shell's tests and the window's e2e, when they run, then a stand-in service listing its models is offered, chosen and tested, and its key never written in the settings"
+  - id: D66
+    title: "A recording holds the microphone the call holds, and never touches a Bluetooth headset's profile"
+    module: capture
+    state: deferred
+    acceptance:
+      - "Given a call holding a microphone other than the default input, when a recording runs, then `me` records that one — its name in `session.json` and the `device` event — and, when the call changes it, follows it, the track going on; held on virtual devices by capture's e2e, a stand-in call on a source of its own"
+      - "Given a source carrying `bluez5.loopback=true`, when capture records it, then its stream says its version's passive value (ADR-0015, as corrected by #574, merged after this amendment), the source never runs from it alone and no profile switch comes from it, within one known window: a default input turning into a headset during a recording stays on an active stream until a reading of the graph closes it, within a few seconds, and for as long as the graph does not read; in that window WirePlumber's decision to switch came 4 times in 10 measured, on a stand-in with no card; held by capture's e2e on a stand-in source, read in `pw-dump` — WirePlumber's decision testable on a stand-in carrying `device.id` —, and `others` is unchanged. Given no call holding a microphone, then capture records the meeting's sound and says in one sentence that the microphone waits when the default input is such a source; records the default input, as today, when it is not"
+      - "Given a call that lets go of the microphone, when it leaves, then capture lets go of it too: within what WirePlumber's restore takes, it holds no HFP profile by a stream of its own and the source no longer runs — held by the same e2e, the source's state in `pw-dump`, and by the decider's trial, the card's profile"
+      - "Given a transport failure during a recording — a source taken away, on the e2e's stand-in —, when it fails, then the recording continues, the track's gap is marked as `session-audio/v2` allows (`clock.jsonl`'s `silence`, `changed` with `device: null`), and one sentence says it (`recording/v1`, an optional field, additive; the shell's words in its own pull request)"
+      - "Given the decider's AirPods and a real WhatsApp Web call, when they start and stop a recording during it, at least five times, then the call is never cut, no `Failure in Bluetooth audio transport` is logged within two seconds of capture opening or closing a stream, and `local.wav` holds their voice each time; an acceptance issue says what was seen"
+outcome: shipped
+ended_on: 2026-10-31
 ---
 
 # Cycle 05 — The best day to day
@@ -230,7 +242,7 @@ everywhere · red: D54–D57, what a first submission waits on.
 ## Deliverables
 
 Each is the shell's but D48, whose minutes are written by the summary, D54, install's package, and
-D55, capture's, and D57, words outside the modules. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
+D55 and D66, capture's, and D57, words outside the modules. Ordered by the framer — the review's value over cost (UX review §11), where a deliverable leans on
 another, after it: the order to build them in. **Cut first** if the breaker nears: D47's errors, then D49's live check. D54–D57 are not cut:
 they are what publishing waits on.
 D44, D45, D47 and D50 all touch `words.rs` and the « Copié » status: one session at a time on them.
@@ -276,6 +288,12 @@ D44, D45, D47 and D50 all touch `words.rs` and the « Copié » status: one sess
 - *Transcript* or *Transcription* in French: see *Open questions*.
 
 ### D48
+
+- **`minutes/v2`, not `minutes/v1`**, on the decider's word, 2026-10-30, choosing « minutes/v2 » among
+  three: ADR-0005, accepted, keeps `minutes/v1` frozen — a page of Markdown, which the project's
+  comparator of JSON Schemas cannot judge. The title goes in a new version: `minutes/v2` is v1 and an
+  optional `title`; the shell reads v1 and v2, then the summary writes v2. #562, which gave v1's
+  front matter a schema to change it, is closed.
 
 **The title written by the minutes, rather than the review's cheap fix** *(framer, to confirm)*.
 The UX review weighed two forms (3.1):
@@ -387,6 +405,32 @@ to make room, the appetite unchanged — the framer's cut, the decider's to reve
 - The listing's words say what the README and PDR-0001 say; its screenshots are the window's, as
   the e2e takes them. No module: words only.
 
+### D66
+
+**Added on the decider's word, 2026-10-30**, « corriger de manière fiable et stable, durable », after
+the decider's call of that day on the laptop's muted microphone and #494. A defect that became a
+deliverable, for what its fix decides: [ADR-0015](../../adr/0015-the-local-side-records-the-microphone-the-call-holds-passively.md),
+proposed, holds the evidence and the options; the recommended build is the `pipewire` crate, for this
+stream, on Linux.
+
+- **Built in order**, in pull requests of one module each: the unknowns of ADR-0015 tried first —
+  a passive stream with no call above all; the words of `recording/v1` and `session-audio/v2`, no field
+  added, alone; capture; the shell's sentence. macOS and Windows: the same product contract, other adapters: **not in this deliverable**.
+- **The sentences**: no field says why, so the shell's sentence says what is true whatever the reason:
+  « Votre micro n'est pas enregistré pour l'instant. Le son de la réunion est toujours enregistré. » /
+  "Your microphone is not recorded for now. The meeting's sound is still recorded." `device: null` no
+  longer says the computer has no microphone left.
+- **Not built** (ADR-0015, *Rejected alternatives*): the user's configuration written or the autoswitch
+  off, a card's profile forced, `stream.monitor=true` set to hide from the script, heuristics per headset,
+  a modal on each device.
+- **If the appetite does not hold**: it does not move, and D66 comes before the cuts named above, a
+  recording that cuts a call being worse than any of them. Inside D66, the gap's sentence goes first —
+  the gap stays marked in the track — then the following of a microphone that changes mid-call; never
+  the second criterion.
+- **The criteria that need a person**: the fifth is the decider's; what a machine holds without Bluetooth
+  is the graph, and WirePlumber's decision on a stand-in carrying `device.id`; never a card's profile
+  moved, there being no card.
+
 ### Moved from cycle 04
 
 D27, D38, D39, D41, D42, D53, D58 and D63 moved here on 2026-10-29, when the decider closed cycle 04.
@@ -456,6 +500,8 @@ And for this cycle:
 - Naming the other side by hand, once, everywhere; meeting types as contexts (market review 7, 8).
 - A notification's click on a Mac.
 - A meeting renamed by hand — the decider's [#504](https://github.com/NapkinStack/wholeheard/issues/504), a title given while recording or on its page.
+- The source chosen by hand beside *Auto*, as [Granola's](https://docs.granola.ai/help-center/troubleshooting/transcription-issues) (after D66).
+- A discreet indication when a new device arrives — never a dialog, as Discord's is criticised *(the decider's reading, no source read)*.
 - The rest of the UX review's ranked list: the full window's empty state and a caught `listed`
   failure (3.7), *Démarrer*'s instant feedback (3.3), *Refaire…*'s *Annuler* (4.4), playback
   speed (4.7), search highlighted (4.6), the tray's repair entries (6.3, departs from D34's board).
@@ -486,6 +532,7 @@ the two leads its comment names (cpal's one `node.group` for both streams, the v
 input's autoswitch) are not tried yet. It is a defect: a pull request labelled `out-of-cycle`, with
 the line `Out of cycle: <reason>` (`framing.md` §4). The `node.group` lead is read with `pw-dump`
 on virtual devices; the transport's failure itself needs the decider's AirPods and a test call.
+*(2026-10-30: the autoswitch lead read and tried, the `node.group` lead not isolated: [D66](#d66) and ADR-0015 replace this paragraph's way.)*
 
 ## Open questions
 
@@ -527,6 +574,73 @@ on virtual devices; the transport's failure itself needs the decider's AirPods a
 
 ## Closure
 
-<Written at the end.>
+**Closed on 2026-10-31, shipped, on the decider's word that day, in the session that proposed it:**
+« 05 fermé, D44 à D50 acceptés ; 06 accepté, défauts du cadreur ». D44 to D50 are accepted on their sheets; the other thirteen are `deferred`, moved to cycle 06;
+7 of 20 accepted. Each record's new date is the framer's default. **Not in that word**: accepting
+ADR-0015, and #580's S3 and S4, which stay theirs.
 
-**Documents brought current:** <at the closure>
+```mermaid
+flowchart LR
+    A["Built, every sheet passed,<br/>only the decider's word left:<br/>D44 D45 D46 D47 D48 D49 D50"]:::done
+    B["Built, the last gesture a person's:<br/>D54 D55 D56 D57 D66"]:::wait
+    C["Built in cycle 04, a trial left:<br/>D27 D38 D39 D41 D42 D53 D58 D63"]:::open
+    A -->|"their word"| X["Accepted"]:::end5
+    B --> N["Cycle 06, proposed"]:::next
+    C --> N
+    classDef done fill:#065f46,color:#fff
+    classDef wait fill:#92400e,color:#fff
+    classDef open fill:#374151,color:#fff
+    classDef end5 fill:#0f766e,color:#fff
+    classDef next fill:#1e3a8a,color:#fff
+```
+
+**Legend** — green: built and verified · teal: where the decider's word put them · amber: built,
+waiting on one gesture of a person · grey: moved once already, a person's trial left · blue: where they move.
+
+**State, by what is true on `main` f8d2d9d.** The front matter says `in-progress` for each one held:
+it said `ready`, behind its holds.
+
+| Deliverable | Pull requests | Built and verified | Left, and whose |
+|---|---|---|---|
+| D44 notifications | #561 | Sheet passed. A desktop's real click stood in by the signal it sends. **Not checked**: `is_minimized()` under GNOME Wayland, the decider's own session, may leave a stop unsaid (#561's verifier) | **The decider's word** |
+| D45 copy | #559 | Sheet passed. The clipboard stood in. At 420 px the refusal's sentence moves the buttons under the pointer (#559's verifier) | **The decider's word**; a real paste on Linux is theirs, no criterion waits on it |
+| D46 actions as rows | #560 | Sheet passed | **The decider's word** |
+| D47 French | Criterion 1 #570, 2 #563, 3 #577 | Sheets passed. A verifier's remarks left to cycle 06: D67, D72 | **The decider's word** |
+| D48 title | Criterion 1 #564, #565; 2 #571; 3, 4, 5 #567 | Sheets passed, `qwen3:8b` by Ollama writing titles; an online model not tried | **The decider's word** |
+| D49 live check | #575 | Sheet passed. Below -40 dB and above capture's silence, a side says nothing (*Later*, cycle 06) | **The decider's word** |
+| D50 reminder | #569 | Sheet passed. The clipboard stood in; S5 passed by a probe, scenario AM having drawn the dark theme twice (#569's verifier) | **The decider's word** |
+| D54 package | #576 | Criteria 1–3, sheet passed, on the runner. **Criterion 4 not done** | The colleague's real call from the package, #482 |
+| D55 capture critical | #568 **open**, head 485fad7, blocked | Sheet passed at bd84ed6, S5 read, not run; the rollback tried on a Fedora container. **Owed at the head: every scenario re-run by the verifier (`critical`: `05-workflow.md` §7), attest, green checks** | An agent, then **the decider merges**: its `CODEOWNERS` line is theirs |
+| D56 list signed | #578 | Sheet passed with a key made for the tests. **No list is read again until the key comes**, and the colleagues' builds lose it from the next build: said here, as its criterion asks | **The decider's key** |
+| D57 listing, privacy | #566 | Both written, FR and EN | **The decider's reading** of `docs/store/listing.md` |
+| D66 microphone | #572, #579, #574; #580 **open** | Sheets passed on virtual devices; #580's S3 and S4 fail on their stale *expected*, not on the code | **The decider**: S3 and S4's words; the AirPods trial; ADR-0015 |
+| D27, D38, D39, D41, D42, D53, D58, D63 | Cycle 04's | As *Moved from cycle 04* says | Colleagues, the decider: unchanged |
+
+**The goal.** Its day-to-day half is built: one notification that opens the meeting, a name, actions as
+rows, a copy in one click, a French that passed its test, a first run that holds the hand. **Whether
+it is the best of its kind to use is not measured**: nobody but its builders has used it. Its Store
+half is not ready: the package carries a placeholder identity and version `0.2.0.0`, whose first part
+the Store refuses; the certification kit has not run on it (D77); capture is not `critical` until #568
+is merged; the list of models waits on a key; GPL-3.0 beside the Store's licence terms is unread.
+
+**Success criteria**: none moved. The charter's second and third wait on the colleagues' trials.
+
+**Decisions anchored to this cycle**, read at this closure, each record gaining its one line:
+
+| Record | Its criterion | Read today |
+|---|---|---|
+| ADR-0015, the microphone the call holds | Before the end of cycle 05, the decider's call on AirPods | Due at this closure, not met: the trial was not run. New date, the default: cycle 06's end, 2026-11-14 |
+| ADR-0011, the other side where the call plays | By 2026-11-02, the call of #436 | Its date falls in cycle 06, no call recorded. New date, the default: cycle 06's end, 2026-11-14 |
+| ADR-0012, SpeechAnalyzer | By 2026-11-02, a colleague's call | The same. New date, the default: cycle 06's end, 2026-11-14 |
+| ADR-0010, the list of models | By 2027-06-30 | Its date not reached; option 4 adopted by #578 |
+| ADR-0014, PDR-0002, PDR-0004 | 2026-12-31, 2026-12-31, 2027-06-30 | Their dates not reached |
+
+**Defects open**: [#494](https://github.com/NapkinStack/wholeheard/issues/494) waits on D66's trial;
+[#459](https://github.com/NapkinStack/wholeheard/issues/459), a test's *Text file busy*.
+
+**Where the next framing starts**: [cycle 06](06-the-minutes-you-can-check.md), from
+[the market as read on 2026-10-30](../reviews/2026-10-30-market.md).
+
+**Documents brought current:** the modules' pages in #571, #574, #575, #576, #578; the decisions' index
+in #572; contracts' pages in #565 and #579; the module map unchanged — no module was added. The front
+page, last touched by #428 on 2026-10-26, is brought current by this closure's pull request, #581.

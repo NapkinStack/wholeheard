@@ -61,7 +61,7 @@ fn the_minutes_are_written_from_the_transcript_the_context_and_the_providers_ans
     );
 
     let minutes = fs::read_to_string(folder.path().join("minutes.md")).unwrap();
-    assert!(minutes.starts_with("---\ncontract: minutes/v1\nmade: "), "{minutes}");
+    assert!(minutes.starts_with("---\ncontract: minutes/v2\nmade: "), "{minutes}");
     assert!(
         minutes.contains("\nprovider: \"local\"\nmodel: \"a-model\"\ncontext: \"Quatre personnes, réunion d'organisation.\"\n---\n"),
         "{minutes}"
@@ -205,6 +205,18 @@ fn a_proxy_named_by_the_environment_is_never_used() {
     assert!(output.status.success(), "{}", said(&output).1);
     assert!(received.recv().is_ok());
     assert!(seen_by_proxy.try_recv().is_err(), "the proxy of the environment was contacted");
+}
+
+#[test]
+fn a_key_spelled_through_a_titles_marks_is_never_written() {
+    for above in ["# a-key-**for**-the-test", "# a-key-for&#45;the-test", "# a-key\\-for-the-test"] {
+        let folder = session(None);
+        let (address, _received) = provider("200 OK", answering(&format!("{above}\n\n{MINUTES}"), "stop"));
+        let output = run(folder.path(), &address, Some("a-key-for-the-test"));
+        let (_, err) = said(&output);
+        assert!(!output.status.success() && err.contains("sent the key back"), "{above}: {err}");
+        assert!(!folder.path().join("minutes.md").exists(), "{above}");
+    }
 }
 
 #[test]
@@ -379,6 +391,7 @@ fn the_log_says_each_step_under_the_makings_id_and_nothing_of_the_meeting() {
             "summary.started",
             "summary.read",
             "summary.sending",
+            "summary.route",
             "summary.answered",
             "summary.written"
         ]
@@ -456,7 +469,7 @@ fn a_level_asked_shows_more_and_a_library_says_nothing() {
         .unwrap();
     assert!(output.status.success(), "{}", said(&output).1);
     let lines = logged(logs.path());
-    assert_eq!(steps(&lines), ["summary.testing", "summary.answered"]);
+    assert_eq!(steps(&lines), ["summary.testing", "summary.route", "summary.answered"]);
 }
 
 #[test]
@@ -513,7 +526,7 @@ fn a_run_removes_the_day_files_of_more_than_fourteen_days() {
         .unwrap();
     assert!(output.status.success());
     assert!(!logs.path().join("shell.2026-01-01.jsonl").exists());
-    assert_eq!(logged(logs.path()).len(), 2);
+    assert_eq!(logged(logs.path()).len(), 3);
 }
 
 /// A log folder whose day file cannot take a byte: every write to it fails.
@@ -584,7 +597,17 @@ fn a_failure_a_person_acts_on_differently_ends_the_output_with_its_code() {
         ("403 Forbidden", "{}".to_string(), "provider.refused_key"),
         ("402 Payment Required", "{}".to_string(), "provider.no_credit"),
         ("404 Not Found", "{}".to_string(), "provider.unknown_model"),
-        ("500 Internal Server Error", "oops".to_string(), "provider.failed"),
+        ("500 Internal Server Error", "oops".to_string(), "provider.down"),
+        ("503 Service Unavailable", "oops".to_string(), "provider.down"),
+        ("429 Too Many Requests", "{}".to_string(), "provider.too_many"),
+        ("418 I'm a teapot", "{}".to_string(), "provider.failed"),
+        ("499 Client Closed", "{}".to_string(), "provider.failed"),
+        ("428 Precondition Required", "{}".to_string(), "provider.failed"),
+        ("430 Unassigned", "{}".to_string(), "provider.failed"),
+        ("502 Bad Gateway", "oops".to_string(), "provider.down"),
+        ("504 Gateway Timeout", "oops".to_string(), "provider.down"),
+        ("599 Network Connect Timeout", "oops".to_string(), "provider.down"),
+        ("600 Beyond", "{}".to_string(), "provider.failed"),
         ("300 Multiple Choices", String::new(), "provider.redirected"),
         // 304 and 305 send nowhere one can follow (RFC 9110 §15.4): another refusal.
         ("304 Not Modified", String::new(), "provider.failed"),

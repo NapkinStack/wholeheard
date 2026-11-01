@@ -142,7 +142,7 @@ fn minutes_that_are_not_of_this_version_are_said_unreadable_and_none_are_absent(
     assert_eq!(minutes::minutes(folder.path(), NAMES), Read::Absent);
     for wrong in [
         MINUTES.replacen("---\ncontract", "contract", 1),
-        MINUTES.replace("minutes/v1", "minutes/v2"),
+        MINUTES.replace("minutes/v1", "minutes/v3"),
         MINUTES.replace("## Points clés", "Points clés"),
         format!("{MINUTES}\n## Encore\n"),
     ] {
@@ -203,4 +203,85 @@ fn the_minutes_copied_are_their_markdown_without_the_front_matter_titled_as_the_
         panic!("not read")
     };
     assert!(raw.markdown.contains("avec <b>le 10</b> en seconde date."));
+}
+
+fn titled(title: &str) -> String {
+    MINUTES
+        .replace("minutes/v1", "minutes/v2")
+        .replace("context: null\n", &format!("context: null\ntitle: {title}\n"))
+}
+
+#[test]
+fn a_title_is_read_from_minutes_v2_and_minutes_v1_have_none() {
+    let Read::Present(two) = read(&titled("\"Date de l'événement : \\\"jeudi\\\"\"")) else {
+        panic!("v2 not read")
+    };
+    assert_eq!(two.title.as_deref(), Some("Date de l'événement : \"jeudi\""));
+    let Read::Present(untitled) = read(&MINUTES.replace("minutes/v1", "minutes/v2")) else {
+        panic!("v2 without its optional title not read")
+    };
+    assert_eq!(untitled.title, None);
+    let Read::Present(one) = read(MINUTES) else { panic!("v1 not read") };
+    assert_eq!(one.title, None);
+    // A key this version does not know is left aside, as the contract says.
+    let Read::Present(more) = read(&titled("\"Un nom\"").replace("provider:", "later: 1\nprovider:")) else {
+        panic!("a key not known made them unreadable")
+    };
+    assert_eq!(more.title.as_deref(), Some("Un nom"));
+}
+
+/// The contract's bounds, at their edge: 80 characters, not bytes.
+#[test]
+fn a_title_out_of_the_contract_is_no_title_and_the_minutes_still_read() {
+    let longest = "é".repeat(80);
+    let Read::Present(kept) = read(&titled(&format!("\"{longest}\""))) else {
+        panic!("not read")
+    };
+    assert_eq!(kept.title.as_deref(), Some(longest.as_str()));
+    for wrong in [
+        format!("\"{}\"", "é".repeat(81)),
+        "\"deux\\nlignes\"".to_string(),
+        "\"un\\u2028saut\"".to_string(),
+        "\"un\\u2029saut\"".to_string(),
+        "\"une\\ttabulation\"".to_string(),
+        "\"\\u200b\"".to_string(),
+        "\"guillemet non fermé".to_string(),
+        "\"   \"".to_string(),
+        "null".to_string(),
+        "\"\"".to_string(),
+    ] {
+        let Read::Present(minutes) = read(&titled(&wrong)) else {
+            panic!("{wrong} made them unreadable")
+        };
+        assert_eq!(minutes.title, None, "{wrong}");
+    }
+}
+
+#[test]
+fn a_session_listed_says_its_minutes_title() {
+    let sessions = tempfile::tempdir().unwrap();
+    let write = |name: &str, minutes: Option<&str>| {
+        let folder = sessions.path().join(name);
+        fs::create_dir(&folder).unwrap();
+        fs::write(
+            folder.join("session.json"),
+            r#"{"contract":"session-audio/v2","started":"2026-10-13T15:00:00+02:00"}"#,
+        )
+        .unwrap();
+        if let Some(minutes) = minutes {
+            fs::write(folder.join("minutes.md"), minutes).unwrap();
+        }
+    };
+    write("titled", Some(&titled("\"Un nom\"")));
+    write("old", Some(MINUTES));
+    write("none", None);
+    write("broken", Some(&titled("\"Un nom\"").replace("## Actions", "Actions")));
+    let long = format!("\"{}\"", "é".repeat(81));
+    write("long", Some(&titled(&long)));
+    let listed = wholeheard_shell::sessions::list(sessions.path(), None);
+    let title = |name: &str| listed.iter().find(|session| session.folder.ends_with(name)).unwrap().title.clone();
+    assert_eq!(title("titled").as_deref(), Some("Un nom"));
+    for untitled in ["old", "none", "broken", "long"] {
+        assert_eq!(title(untitled), None, "{untitled}");
+    }
 }

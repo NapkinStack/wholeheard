@@ -7,7 +7,7 @@ What this module is for, who owns it and how critical it is: its
 flowchart LR
     M["shell · capture · transcription · summary<br/>each module's release"]:::mod --> D["dist/&lt;module&gt;/<br/>their programs, the desktop entry, the icon"]:::art
     D --> B["install's release<br/>rpmbuild or dpkg, in a container<br/>of the system WHOLEHEARD_TARGET names;<br/>the Mac's app on a Mac"]:::this
-    B --> R["dist/install/<br/>wholeheard-‹version›.x86_64.rpm · wholeheard_‹version›_amd64.deb ·<br/>Wholeheard-‹version›-macos-arm64.zip, made on a Mac"]:::out
+    B --> R["dist/install/<br/>wholeheard-‹version›.x86_64.rpm · wholeheard_‹version›_amd64.deb ·<br/>Wholeheard-‹version›-macos-arm64.zip, made on a Mac ·<br/>Wholeheard-‹version›-windows-x64.zip and -x64.msix, made on Windows"]:::out
     classDef mod fill:#374151,color:#fff
     classDef art fill:#92400e,color:#fff
     classDef this fill:#065f46,color:#fff
@@ -39,3 +39,12 @@ its four programs in `Contents/MacOS` and transcription's `wholeheard-speech` (D
 it on every change to a program on `main` (`.github/workflows/macos-app.yml`, the job *the app*; on a pull request only when it changes install) and keeps it 7
 days on the run. Opened the first time through System Settings → Privacy & Security → Open
 Anyway (D38).
+
+On Windows, `nstack release` also makes `dist/install/Wholeheard-<version>-x64.msix`, the package the
+Microsoft Store takes (D54, PDR-0004), unsigned; it needs the Windows SDK. `windows-app.yml` signs it
+for the run with a certificate it throws away, installs it, upgrades it and removes it
+(`windows/trial.ps1`), has the Windows App Certification Kit test it (`windows/certify.ps1`, each
+failed test named in the run), and keeps it 7 days with the public certificate and the kit's report,
+`appcert-report.xml`: a colleague runs, as
+administrator, `Import-Certificate .\Wholeheard-this-run.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople`,
+then opens the package. What certification reads: [`windows/certification.md`](./windows/certification.md).
