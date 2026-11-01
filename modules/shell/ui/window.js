@@ -2205,9 +2205,21 @@ function showSettings(shown, minutes, words) {
     const mine = (serviceAnswer = { said: "", asking: true });
     testService.disabled = true;
     serviceSaid.textContent = "";
+    // The service asked, as saved: an answer for one no longer saved is no answer for what is.
+    const asking = async () => {
+      const { transcription_provider, transcription_model } = await window.__TAURI__.core.invoke("settings_shown");
+      return JSON.stringify([transcription_provider, transcription_model]);
+    };
     try {
-      await window.__TAURI__.core.invoke("transcription_tested");
-      mine.said = words.service_tested;
+      const asked = await asking();
+      let answer;
+      try {
+        await window.__TAURI__.core.invoke("transcription_tested");
+        answer = words.service_tested;
+      } catch (why) {
+        answer = why;
+      }
+      if ((await asking()) === asked) mine.said = answer;
     } catch (why) {
       mine.said = why;
     }
