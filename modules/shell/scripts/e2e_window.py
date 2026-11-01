@@ -3360,6 +3360,113 @@ def corrections_gated(now: dt.datetime) -> None:
         server.shutdown()
 
 
+def press_on_the_page_left(now: dt.datetime) -> None:
+    """AS. Another meeting asked for: the page still shown takes no press until the new one is drawn;
+    what is agreed to names its meeting."""
+    print("AS. a press on the page being left starts nothing, sends nothing; the agreement names its meeting")
+    meetings = WORK / "pressed"
+    minutes = ("---\ncontract: minutes/v2\nmade: 2026-10-28T10:00:00+01:00\nprovider: writes.example\nmodel: m\ncontext: null\n{}---\n\n"
+               "## 1.\n\nLe budget.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
+    left, asked = meetings / "2026-10-26_09-00", meetings / "2026-10-26_11-00"
+    for folder, named in ((left, 'title: "Le budget inventé"\n'), (asked, "")):
+        session(folder, now - dt.timedelta(days=3), 0.1, {"local.wav": 1000})
+        (folder / "transcript.jsonl").write_text(
+            '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
+            '{"type":"segment","speaker":"me","track":"local","voice":null,"start":0.4,"end":1.2,"text":"Le budget.","edited":"2026-10-29T09:00:00+01:00"}\n'
+            '{"type":"complete","duration":1.0}\n')
+        (folder / "minutes.md").write_text(minutes.format(named))
+    written = (left / "minutes.md").read_text()
+    args = WORK / "summary-args"
+    service = 'reminder = false\nminutes_provider = "https://writes.example/v1"\nminutes_model = "m"\n'
+    # `opened` answers late; for the meeting `refused` names, with a refusal.
+    late = ("const real = window.__TAURI__.core; window.refused = arguments[0]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => {"
+            " if (asked !== 'opened') return real.invoke(asked, ...rest); await new Promise((r) => setTimeout(r, 800));"
+            " if (rest[0].name === window.refused) throw 'REFUS'; return real.invoke(asked, ...rest); } }; window.restore = () => { window.__TAURI__.core = real; };")
+    page_of = "return document.getElementById('meeting').hidden ? null : document.getElementById('minutes-state')?.dataset.name"
+    free = "return !document.getElementById('meeting').inert"
+    def at_page(browser, folder):
+        browser.execute_script(f"location.hash = '#/meeting/{folder.name}'")
+        wait_for(browser, lambda b: b.execute_script(page_of) == folder.name and b.execute_script(free), 10)
+    def pressed(browser, element):
+        # As a pointer does, at its place on the screen; refused or not, what counts is what follows.
+        try:
+            element.click()
+        except WebDriverException:
+            pass
+    with Window(meetings, "fr_FR.UTF-8", service + 'minutes_agreed = "writes.example"\n') as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: b.execute_script(page_of) is not None, 10)
+        for kind, nothing in (("redo-minutes", lambda b: not b.find_elements(By.ID, "redo-panel")), ("redo-corrections", lambda b: True), ("confidential-switch", lambda b: not (left / "confidential").exists())):
+            at_page(browser, left)
+            args.unlink(missing_ok=True)
+            found = browser.find_element(By.ID, kind)
+            browser.execute_script("arguments[0].focus()", found)
+            browser.execute_script(late, None)
+            browser.execute_script(f"location.hash = '#/meeting/{asked.name}'")
+            # Left as soon as it is asked: well within `opened`'s wait, whatever a mutant does.
+            wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').inert && !document.getElementById('meeting').contains(document.activeElement)"), 0.3)
+            pressed(browser, found)
+            during = browser.execute_script("return [document.getElementById('meeting').contains(document.activeElement), document.getElementById('minutes-state').dataset.name, !!document.getElementById('redo-panel')]")
+            drawn = wait_for(browser, lambda b: b.execute_script(page_of) == asked.name, 5)
+            browser.execute_script("window.restore()")
+            check(f"{kind} pressed while another meeting is asked for: the focus out of the page left, then the new page drawn", drawn and during == [False, left.name, False], during)
+            check(f"{kind} pressed: nothing started, nothing sent, nothing changed", read(browser, nothing) and not args.exists() and (left / "minutes.md").read_text() == written and not (left / "confidential").exists(), args.read_text() if args.exists() else "")
+            check(f"{kind}: the new page takes presses, the focus where one can be", browser.execute_script(
+                "const e = document.activeElement; return !document.getElementById('meeting').inert && !e.closest('[inert]') && e.isConnected"))
+        # Refused: what is shown takes presses again.
+        at_page(browser, asked)
+        browser.execute_script(late, left.name)
+        browser.execute_script(f"location.hash = '#/meeting/{left.name}'")
+        said = wait_for(browser, lambda b: b.find_element(By.ID, "pane-said").is_displayed() and "REFUS" in b.find_element(By.ID, "pane-said").get_attribute("textContent"), 5)
+        settled = wait_for(browser, lambda b: b.execute_script(page_of) is not None and b.execute_script(free), 5)
+        browser.execute_script("window.restore()")
+        check("`opened` refused: said, and what is shown takes presses again", said and settled, browser.execute_script("return location.hash"))
+        # The list itself not read: nothing is drawn, what is shown takes presses again.
+        at_page(browser, asked)
+        browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'listed' ? Promise.reject(new Error('REFUS')) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script(f"location.hash = '#/meeting/{left.name}'")
+        settled = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/meeting/{left.name}" and b.execute_script(free), 5)
+        browser.execute_script("window.restore()")
+        check("the list not read on the way: what is shown takes presses again", settled)
+    # The agreement page: Envoyer is a send.
+    window = Window(meetings, "fr_FR.UTF-8", service)
+    with window as browser:
+        browser.set_window_size(1100, 800)
+        wait_for(browser, lambda b: b.execute_script(page_of) is not None, 10)
+        browser.execute_script(f"location.hash = '#/agree/{left.name}'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "agree-send"), 10)
+        args.unlink(missing_ok=True)
+        found = browser.find_element(By.ID, "agree-send")
+        browser.execute_script(late, None)
+        browser.execute_script(f"location.hash = '#/meeting/{asked.name}'")
+        wait_for(browser, lambda b: b.execute_script("return document.getElementById('agree').inert"), 0.3)
+        pressed(browser, found)
+        drawn = wait_for(browser, lambda b: b.execute_script(page_of) == asked.name, 5)
+        browser.execute_script("window.restore()")
+        check("Envoyer pressed while another meeting is asked for: nothing sent, nothing agreed to",
+              drawn and not args.exists() and (left / "minutes.md").read_text() == written and "minutes_agreed" not in window.file.read_text(), window.file.read_text())
+    # What is agreed to names its meeting, as its page and the list do.
+    for language, says in (("fr_FR.UTF-8", "Le texte de «\u00a0{}\u00a0» va quitter votre ordinateur"), ("en_US.UTF-8", "The text of “{}” is about to leave your computer")):
+        with Window(meetings, language, service) as browser:
+            browser.set_window_size(1100, 800)
+            for folder in (left, asked):
+                at_page(browser, folder)
+                named = browser.find_element(By.ID, "rename").text
+                browser.execute_script(f"location.hash = '#/agree/{folder.name}'")
+                wait_for(browser, lambda b: b.execute_script("return location.hash.startsWith('#/agree/') && document.querySelector('#agree h1')?.textContent") == says.format(named), 10)
+                title = browser.execute_script("return document.querySelector('#agree h1').textContent")
+                check(f"the agreement names its meeting: {'its title' if folder == left else 'its date'} ({language})", title == says.format(named) and named != "", title)
+            # A folder the list does not hold: named by its folder, never by nothing.
+            odd = meetings / "hors-liste"
+            odd.mkdir(exist_ok=True)
+            (odd / "session.json").write_text('{"contract":"another/v1"}')
+            (odd / "transcript.jsonl").write_text((left / "transcript.jsonl").read_text())
+            browser.execute_script("location.hash = '#/agree/hors-liste'")
+            wait_for(browser, lambda b: b.execute_script("return document.querySelector('#agree h1')?.textContent") == says.format("hors-liste"), 10)
+            title = browser.execute_script("return document.querySelector('#agree h1').textContent")
+            check(f"a folder the list does not hold: named by its folder ({language})", title == says.format("hors-liste"), title)
+
+
 def context_written(now: dt.datetime) -> None:
     """O. A meeting's context (D59): written during a recording, by the keyboard, heard by the
     transcript and the minutes; changed after, made again with it; the field closed meanwhile."""
@@ -5113,7 +5220,7 @@ def main() -> int:
         page = browser.find_element(By.ID, "agree").text
         check(
             "what leaves is said — the transcript, its length and words, the context —, what stays, to whom",
-            "Le texte de cette réunion va quitter votre ordinateur" in page
+            "Le texte de «" in page and "» va quitter votre ordinateur" in page
             and "20 minutes, environ 7 mots" in page and "Environ 4 mots" in page
             and "Reste ici : l’audio" in page and "openrouter.ai" in page and "a-model" in page,
             page,
@@ -5949,6 +6056,7 @@ def main() -> int:
     meeting_language(now)
     transcript_corrected(now)
     corrections_gated(now)
+    press_on_the_page_left(now)
     context_gaps(now)
     two_panes(now)
     sidebar_folded(now)

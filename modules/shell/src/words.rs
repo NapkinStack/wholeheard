@@ -964,7 +964,7 @@ pub fn window(language: Language) -> Window {
             record_start: "Start a recording",
             record_stop: "Stop the recording",
             agree_eyebrow: "Before the first minutes online",
-            agree_title: "This meeting’s text is about to leave your computer",
+            agree_title: "The text of “{}” is about to leave your computer",
             agree_lead: "To write the minutes, Wholeheard sends the transcript to the service you chose. Here is exactly what leaves.",
             agree_leaves: [
                 "Leaves: the transcript",
@@ -1350,7 +1350,7 @@ pub fn window(language: Language) -> Window {
             record_start: "Démarrer un enregistrement",
             record_stop: "Arrêter l’enregistrement",
             agree_eyebrow: "Avant le premier compte rendu en ligne",
-            agree_title: "Le texte de cette réunion va quitter votre ordinateur",
+            agree_title: "Le texte de «\u{a0}{}\u{a0}» va quitter votre ordinateur",
             agree_lead: "Pour écrire le compte rendu, Wholeheard envoie la transcription au service que vous avez choisi. Voici exactement ce qui part.",
             agree_leaves: [
                 "Part\u{a0}: la transcription",

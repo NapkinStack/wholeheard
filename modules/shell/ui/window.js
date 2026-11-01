@@ -2577,10 +2577,10 @@ function showSettings(shown, minutes, words) {
 // Before a meeting first leaves for a host (D11's fifth board): what leaves, what stays, to
 // whom; the user's word — once, or for this service —; or the minutes written on this computer.
 // Nothing here is sent before a click.
-function showAgreement(name, agreement, words) {
+function showAgreement(name, agreement, words, session) {
   const page = document.getElementById("agree");
   const card = element("section", "card agreement");
-  card.append(element("p", "eyebrow", words.agree_eyebrow), element("h1", "", words.agree_title), element("p", "says", words.agree_lead));
+  card.append(element("p", "eyebrow", words.agree_eyebrow), element("h1", "", fill(words.agree_title, session ? session.title ?? heading(session, words) : name)), element("p", "says", words.agree_lead));
   const goes = element("ul", "goes");
   const item = (mark, [title, says], ...values) => {
     const line = element("li", mark);
@@ -3342,6 +3342,10 @@ let drawing = 0;
 const narrow = matchMedia("(max-width: 839px)");
 narrow.addEventListener("change", () => refresh());
 
+function takesPresses(takes) {
+  for (const id of ["meeting", "agree"]) document.getElementById(id).inert = !takes;
+}
+
 // What the meeting's page was drawn from, to know whether it changed since.
 let drawnMeeting = null;
 
@@ -3441,12 +3445,16 @@ async function refresh(again = false) {
     }
   }
   if (mine !== drawing) return;
+  takesPresses(true);
   document.getElementById("empty").hidden = !listed || listing.sessions.length > 0;
   // No meeting yet: under 840 px, the sidebar and what to do, one under the other.
   document.body.classList.toggle("no-meeting", listing.sessions.length === 0);
   document.getElementById("agree").hidden = agreement === null;
   // Shown or emptied: never a question left hidden under another page.
-  if (agreement) showAgreement(decodeURIComponent(agreeing[1]), agreement, words);
+  if (agreement) {
+    const asked = decodeURIComponent(agreeing[1]);
+    showAgreement(asked, agreement, words, listing.sessions.find((session) => nameOf(session) === asked));
+  }
   else document.getElementById("agree").replaceChildren();
   document.getElementById("meeting").hidden = opened === null;
   // Not shown, not kept: a page hidden under another is never found in its place.
@@ -3571,12 +3579,19 @@ window.addEventListener("focus", () => {
   if (!choosing) refresh();
 });
 window.addEventListener("hashchange", () => {
+  // Another address: the page still shown, or its agreement, acts on its own meeting: no press and
+  // no focus there until what was asked is drawn — never one sent for a meeting left.
+  takesPresses(false);
   document.getElementById("pane-said").hidden = true;
   serviceAnswer = null;
   if (nameRefused) paneSays(nameRefused);
   nameRefused = null;
   // Another address: the assistant, shown again, is drawn anew — even if the drawing that left it was cut short.
   delete document.getElementById("welcome").dataset.shown;
-  refresh();
+  // A reading that fails draws nothing: what is shown takes presses again.
+  refresh().catch((why) => {
+    takesPresses(true);
+    pageFailed(why);
+  });
   window.scrollTo(0, 0);
 });
