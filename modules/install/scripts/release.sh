@@ -37,6 +37,7 @@ rpmbuild -bb /wholeheard.spec --define 'artefacts /artefacts' --define 'wholehea
       -v "$artefacts:/artefacts:ro" -v "$here/deb:/deb:ro" -v "$dist:/out" \
       "docker.io/library/ubuntu:${target#ubuntu-}" bash -euo pipefail /deb/build.sh
     ls "$dist"/*.deb
+    cp "$dist"/*.deb "$here/deb/"
     ;;
   macos-arm64)
     # No container: a Mac's app is made on a Mac, GitHub's runner (D38).
