@@ -806,7 +806,7 @@ fn a_provider_on_this_machine_writes_no_cost_even_if_it_says_one() {
 /// own: the only way a test reaches the host's own rule, no test ever calling the real one. `None`
 /// where this system lets no user make one: that test then proves nothing, and says so.
 #[cfg(target_os = "linux")]
-fn at_openrouter(body: String) -> Option<(String, Vec<serde_json::Value>)> {
+fn at_openrouter(answers: Vec<String>) -> Option<(String, Vec<serde_json::Value>)> {
     let free = std::process::Command::new("unshare").args(["-Urm", "true"]).output();
     if !free.is_ok_and(|output| output.status.success()) {
         eprintln!("NOT RUN: this system lets no user make a namespace");
@@ -816,7 +816,7 @@ fn at_openrouter(body: String) -> Option<(String, Vec<serde_json::Value>)> {
     let logs = tempfile::tempdir().unwrap();
     let hosts = folder.path().join("hosts");
     fs::write(&hosts, "127.0.0.1 openrouter.ai\n").unwrap();
-    let (address, received) = provider("200 OK", body);
+    let (address, received) = providing(answers.into_iter().map(|body| ("200 OK", body)).collect());
     let address = address.replace("127.0.0.1", "openrouter.ai");
     let output = std::process::Command::new("unshare")
         .args(["-Urm", "sh", "-c", r#"mount --bind "$1" /etc/hosts && shift && exec "$@""#, "sh"])
@@ -843,19 +843,34 @@ fn at_openrouter(body: String) -> Option<(String, Vec<serde_json::Value>)> {
 #[test]
 fn openrouters_cost_reaches_the_front_matter_as_it_reported_it() {
     let priced = |usage: &str| answering(MINUTES, "stop").replacen('{', &format!(r#"{{"usage": {usage},"#), 1);
-    let Some((minutes, warnings)) = at_openrouter(priced(r#"{"cost": 1.20e-6, "cost_details": {"upstream_inference_cost": null}}"#)) else {
+    let Some((minutes, warnings)) = at_openrouter(vec![priced(
+        r#"{"cost": 1.20e-6, "cost_details": {"upstream_inference_cost": null}}"#,
+    )]) else {
         return;
     };
     assert!(minutes.contains("\nprovider: \"openrouter.ai\"\n"), "{minutes}");
     assert!(minutes.contains("\ncost: 1.20e-6\ncurrency: USD\n---\n"), "{minutes}");
     assert!(warnings.is_empty(), "{warnings:?}");
 
-    let (minutes, warnings) = at_openrouter(priced(r#"{"cost": "0.012"}"#)).unwrap();
+    let (minutes, warnings) = at_openrouter(vec![priced(r#"{"cost": "0.012"}"#)]).unwrap();
     assert!(!minutes.contains("\ncost:") && !minutes.contains("\ncurrency:"), "{minutes}");
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert_eq!(warnings[0]["message"], "summary.cost_refused");
 
-    let (minutes, warnings) = at_openrouter(priced(r#"{"cost": 0.001, "cost_details": {"upstream_inference_cost": 0.02}}"#)).unwrap();
+    let (minutes, warnings) = at_openrouter(vec![priced(
+        r#"{"cost": 0.001, "cost_details": {"upstream_inference_cost": 0.02}}"#,
+    )])
+    .unwrap();
     assert!(!minutes.contains("\ncost:"), "{minutes}");
+    assert!(warnings.is_empty(), "{warnings:?}");
+
+    let (minutes, warnings) = at_openrouter(vec![priced(r#"{"cost": 0.001, "is_byok": true}"#)]).unwrap();
+    assert!(!minutes.contains("\ncost:"), "{minutes}");
+    assert!(warnings.is_empty(), "{warnings:?}");
+
+    // Asked again: the cost of the answer written.
+    let refused = answering("une phrase", "stop").replacen('{', r#"{"usage": {"cost": 0.1},"#, 1);
+    let (minutes, warnings) = at_openrouter(vec![refused, priced(r#"{"cost": 0.2}"#)]).unwrap();
+    assert!(minutes.contains("\ncost: 0.2\ncurrency: USD\n---\n"), "{minutes}");
     assert!(warnings.is_empty(), "{warnings:?}");
 }

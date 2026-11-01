@@ -96,7 +96,8 @@ fn the_provider_is_asked_with_the_meeting_the_rules_and_the_users_context() {
     );
     for rule in [
         "Never guess",
-        "with one time, as [mm:ss] copied from the transcript",
+        "End each bullet of the second and third sections with one time, as [mm:ss] copied from the transcript",
+        "never a list",
         "never make one up",
         "exactly three sections",
         "in the language the meeting is held in, the three titles included",
@@ -584,11 +585,42 @@ fn a_time_inside_a_segment_ends_its_item_and_any_other_goes_the_line_kept() {
         ("- a [ 99:00 ]", "- a [ 99:00 ]", 0),
         ("- a [01:00:00]", "- a [01:00:00]", 0),
         ("- a [note]", "- a [note]", 0),
-        ("- a [01:00 et 01:01]", "- a [01:00 et 01:01]", 0),
+        ("- a [01:5]", "- a [01:5]", 0),
+        ("- a [09:60]", "- a [09:60]", 0),
+        ("- a [+9:00]", "- a [+9:00]", 0),
+        ("- a [999999999999999999:00]", "- a [999999999999999999:00]", 0),
+        ("- a [note 01:00]", "- a [note 01:00]", 0),
         ("- a [99999999999999999999:00]", "- a [99999999999999999999:00]", 0),
         // Only the last characters are a time.
         ("- [99:00] puis a", "- [99:00] puis a", 0),
-        ("- a [99:00] b [01:00]", "- a [99:00] b [01:00]", 0),
+        ("- a à 12:30 [01:00]", "- a à 12:30 [01:00]", 0),
+        // More than one time, wherever they are and whatever joins them, is a list: none stays.
+        ("- a [00:02] et [00:17]", "- a", 2),
+        ("- a [01:00] ou [01:01]", "- a", 2),
+        ("- a [01:00] and [01:01]", "- a", 2),
+        ("- a [01:00] puis [01:01].", "- a", 2),
+        ("- a [01:00] to [01:01]", "- a", 2),
+        ("- a [01:00] à [01:01]", "- a", 2),
+        ("- a [01:00] & [01:01]", "- a", 2),
+        ("- a [01:00] + [01:01]", "- a", 2),
+        ("- a [01:00] | [01:01]", "- a", 2),
+        ("- a [01:00] · [01:01]", "- a", 2),
+        ("- a [01:00] . [01:01]", "- a", 2),
+        ("- a [01:00 et 01:01]", "- a", 2),
+        ("- a [01:00] le budget [01:01] et le reste [01:02]", "- a le budget et le reste", 3),
+        ("- a [[01:00, 01:01]", "- a [", 2),
+        ("- a [99:00] b [01:00]", "- a", 2),
+        ("- a [99:00] b c [01:00] d", "- a b c d", 2),
+        ("- a [99:00] le long mot [01:00] c", "- a le long mot c", 2),
+        ("- [01:00] puis a [02:05]", "- puis a", 2),
+        ("- a [01:00] [01:01] b", "- a b", 2),
+        ("- a [01:00, 01:01] b", "- a b", 2),
+        // A space that does not break is a space.
+        ("- a [01:00]\u{a0}", "- a [01:00]", 0),
+        ("- a\u{a0}[01:00].\u{a0}", "- a [01:00]", 0),
+        ("- a\u{a0}[99:00]\u{a0}", "- a", 1),
+        ("- a\u{202f}[99:00].\u{a0}", "- a", 1),
+        ("- a; [99:00]", "- a", 1),
         ("- a [01:00] ;", "- a [01:00] ;", 0),
         ("- a `[99:00]`", "- a `[99:00]`", 0),
         ("- a", "- a", 0),
@@ -726,4 +758,20 @@ fn a_cost_is_openrouters_as_it_reported_it_or_none_and_said_when_it_was_refused(
     assert!(reported("api.example.com", &read(r#"{"cost": 0.012}"#)).is_err());
     assert_eq!(reported("api.example.com", &read(r#"{"prompt_tokens": 3}"#)), Ok(None));
     assert!(reported("openrouter.ai.example.com", &read(r#"{"cost": 0.012}"#)).is_err());
+    assert!(reported("not-openrouter.ai", &read(r#"{"cost": 0.012}"#)).is_err());
+    assert!(reported("eu.openrouter.ai", &read(r#"{"cost": 0.012}"#)).is_err());
+    // The user's own key, said outright: what is charged is OpenRouter's fee alone, whatever upstream says.
+    for usage in [
+        r#"{"cost": 0.001, "is_byok": true}"#,
+        r#"{"cost": 0.001, "is_byok": true, "cost_details": {"upstream_inference_cost": null}}"#,
+        r#"{"cost": 0.001, "is_byok": true, "cost_details": {"upstream_inference_cost": 0}}"#,
+        r#"{"cost": "bad", "is_byok": true}"#,
+    ] {
+        assert_eq!(reported("openrouter.ai", &read(usage)), Ok(None), "{usage}");
+    }
+    assert!(
+        reported("openrouter.ai", &read(r#"{"cost": 0.001, "is_byok": false}"#))
+            .unwrap()
+            .is_some()
+    );
 }
