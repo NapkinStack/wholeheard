@@ -7,7 +7,8 @@ publish = false
 [dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 pulldown-cmark = { version = "0.13.4", default-features = false }
-serde_json = "1.0.154"
+# arbitrary_precision: a provider's number stays as it was written (minutes/v3's `cost`).
+serde_json = { version = "1.0.154", features = ["arbitrary_precision"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "json", "env-filter", "std"] }

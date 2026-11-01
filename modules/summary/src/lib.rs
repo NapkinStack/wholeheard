@@ -1,5 +1,5 @@
 //! What `summary` reads and writes, with no provider in sight: the transcript of a session as
-//! `contracts/transcript/v1` describes it, and its minutes as `contracts/minutes/v2` does.
+//! `contracts/transcript/v1` describes it, and its minutes as `contracts/minutes/v3` does.
 //!
 //! The minutes exist whole or not at all: an answer that is not minutes is refused before a
 //! byte is written, and the file takes its name only once it is complete.
@@ -12,13 +12,14 @@ pub mod provider;
 /// The contract this module reads, as the transcript's first line names it.
 pub const TRANSCRIPT: &str = "transcript/v1";
 /// The contract this module provides, as the minutes' front matter names it.
-pub const MINUTES: &str = "minutes/v2";
+pub const MINUTES: &str = "minutes/v3";
 
 /// A stretch of speech, as the transcript holds it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Segment {
     pub speaker: String,
     pub start: f64,
+    pub end: f64,
     pub text: String,
 }
 
@@ -95,6 +96,7 @@ pub fn read_transcript(text: &str) -> Result<Vec<Segment>, Refused> {
             segments.push(Segment {
                 speaker: speaker.into(),
                 start,
+                end,
                 text: text.into(),
             });
         }
@@ -152,7 +154,10 @@ pub fn request(segments: &[Segment], context: Option<&str>) -> String {
          does one said as a need — something that must be done, prepared, sent again or kept \
          in reserve. A task belongs here, not in the third section.\n\
          3. What was decided, the figures, the dates, what stays open, one bullet each.\n\
-         A section with nothing to say says that there is none.\n\n",
+         A section with nothing to say says that there is none.\n\
+         End each bullet of the second and third sections with one time, as [mm:ss] copied from \
+         the transcript, of the passage it came from: never a list, nothing after it, and never \
+         make one up.\n\n",
     );
     if let Some(context) = context.map(str::trim).filter(|context| !context.is_empty()) {
         asked.push_str(&format!("Context given by the user:\n{context}\n\n"));
@@ -179,15 +184,60 @@ pub struct Made<'a> {
     pub provider: &'a str,
     pub model: &'a str,
     pub context: Option<&'a str>,
+    /// What the call cost, when the provider reported it (`reported`).
+    pub cost: Option<Cost>,
+    /// The transcript the times of the answer are checked against.
+    pub segments: &'a [Segment],
+}
+
+/// A price as a provider reported it, its number's text untouched: made by [`reported`] alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cost {
+    amount: String,
+    currency: &'static str,
+}
+
+/// The one host whose cost is read, and the currency its documentation names: "a credit system
+/// where the base currency is US dollars" (openrouter.ai/docs/faq, read 2026-11-01).
+const PRICED: (&str, &str) = ("openrouter.ai", "USD");
+
+/// The cost in the `usage` of an answer from `host`, as reported (`minutes/v3`, D51): `Err` says
+/// why one that was there is not written, for the log. Never estimated.
+pub fn reported(host: &str, usage: &serde_json::Value) -> Result<Option<Cost>, &'static str> {
+    let cost = &usage["cost"];
+    // The user's own key at the model's provider: what was charged here is not what the call cost.
+    let upstream = &usage["cost_details"]["upstream_inference_cost"];
+    let own_key = usage["is_byok"] == true || !(upstream.is_null() || upstream.as_f64() == Some(0.0));
+    if cost.is_null() || host == "local" || own_key {
+        return Ok(None);
+    }
+    if host != PRICED.0 {
+        return Err("a provider whose currency no documentation read here names");
+    }
+    match cost
+        .as_number()
+        .filter(|number| number.as_f64().is_some_and(|amount| amount >= 0.0))
+    {
+        Some(number) => Ok(Some(Cost {
+            amount: number.to_string(),
+            currency: PRICED.1,
+        })),
+        None => Err("not a number at least zero"),
+    }
 }
 
 /// Minutes this module accepted: the only thing [`write_minutes`] writes.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Minutes(String);
+pub struct Minutes(String, usize);
 
 impl Minutes {
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// How many times the answer held that were not written.
+    pub fn removed(&self) -> usize {
+        self.1
     }
 }
 
@@ -257,7 +307,7 @@ fn not_minutes(body: &str) -> Option<String> {
 }
 
 /// An answer without the one title of first level it opens on (#353, D48): never judged as a
-/// section; said apart, the meeting's name when `minutes/v2` lets it be one. Any other title
+/// section; said apart, the meeting's name when `minutes/v3` lets it be one. Any other title
 /// stays, and is judged.
 fn without_title(body: &str) -> (Option<String>, &str) {
     use pulldown_cmark::{Event, HeadingLevel, Parser, Tag};
@@ -273,10 +323,10 @@ fn without_title(body: &str) -> (Option<String>, &str) {
     }
 }
 
-/// The most a title holds, in characters (`minutes/v2`).
+/// The most a title holds, in characters (`minutes/v3`).
 const TITLE_MOST: usize = 80;
 
-/// The words of a title of first level, its marks left out, when `minutes/v2` lets them name a
+/// The words of a title of first level, its marks left out, when `minutes/v3` lets them name a
 /// meeting: on one line, at most 80 characters, no path. Otherwise none: the minutes are written
 /// without it, never refused for it. A key is the program's to refuse, in the whole answer.
 fn title(written: &str) -> Option<String> {
@@ -292,13 +342,153 @@ fn title(written: &str) -> Option<String> {
     }
     let words = words.trim();
     // Whether words name a path no rule can tell: a slash of any kind leaves the date to name it,
-    // « Q3/Q4 » too — a meeting loses a name, never shows a path (`minutes/v2`).
+    // « Q3/Q4 » too — a meeting loses a name, never shows a path (`minutes/v3`).
     let path = words.contains(['/', '\\']);
     let one_line = !words.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'));
     let says = words
         .chars()
         .any(|c| c.is_alphanumeric() && !matches!(c, '\u{3164}' | '\u{115f}' | '\u{1160}' | '\u{ffa0}'));
     (one_line && !path && says && words.chars().count() <= TITLE_MOST).then(|| words.to_string())
+}
+
+/// The seconds of a time as `minutes/v3` writes one: minutes in two digits or more, seconds from
+/// 00 to 59. Anything else, or a time no number can hold, is text.
+fn seconds(time: &str) -> Option<u64> {
+    let (minutes, seconds) = time.split_once(':')?;
+    let digits = |text: &str| text.bytes().all(|b| b.is_ascii_digit());
+    if minutes.len() < 2 || seconds.len() != 2 || !digits(minutes) || !digits(seconds) {
+        return None;
+    }
+    let seconds: u64 = seconds.parse().ok().filter(|seconds| *seconds < 60)?;
+    minutes.parse::<u64>().ok()?.checked_mul(60)?.checked_add(seconds)
+}
+
+/// The times these square brackets hold: `[12:31]`, or a list of them — `[12:31, 14:02]`,
+/// `[12:31 et 14:02]`, one word at most between two. Any other words make them text.
+fn times_in(inside: &str) -> Vec<u64> {
+    if let Some(time) = seconds(inside) {
+        return vec![time];
+    }
+    let read: Vec<Option<u64>> = inside
+        .split(|c: char| !c.is_alphanumeric() && c != ':')
+        .filter(|word| !word.is_empty())
+        .map(seconds)
+        .collect();
+    let list = read.first().is_some_and(Option::is_some)
+        && read.last().is_some_and(Option::is_some)
+        && read.len() > 1
+        && read.windows(2).all(|pair| pair[0].is_some() || pair[1].is_some());
+    if list { read.into_iter().flatten().collect() } else { Vec::new() }
+}
+
+/// Where the tail of an item opens, and its times: at the end of the text, past its spaces and one
+/// full stop, square brackets holding times, one group or several separated by spaces, `,` or `;`.
+fn tail(text: &str) -> Option<(usize, Vec<u64>)> {
+    let trimmed = text.trim_end();
+    let mut left = trimmed.strip_suffix('.').unwrap_or(trimmed);
+    let (mut first, mut times) = (None, Vec::new());
+    while let Some(open) = left.strip_suffix(']').and_then(|inner| inner.rfind('[')) {
+        let found = times_in(&left[open + 1..left.len() - 1]);
+        if found.is_empty() {
+            break;
+        }
+        times.extend(found);
+        first = Some(open);
+        left = left[..open].trim_end_matches(|c: char| c.is_whitespace() || matches!(c, ',' | ';'));
+    }
+    first.map(|first| (first, times))
+}
+
+/// Whether square brackets somewhere in `text` hold a time.
+fn holds_a_time(text: &str) -> bool {
+    text.match_indices('[').any(|(open, _)| {
+        text[open + 1..]
+            .split_once(']')
+            .is_some_and(|(inside, _)| !times_in(inside).is_empty())
+    })
+}
+
+/// What `minutes/v3` lets an item of Actions or Key points write of its tail: its one time, when it
+/// lies in a segment and the item holds no other; otherwise nothing, the line kept. Nothing before
+/// the tail ever changes, and an item without one is left as it is: anything else in square
+/// brackets is its text. `text` is the item's last text of its own, `earlier` whether what it said
+/// before held a time: the answer is where the end to replace starts, with what, and how many times
+/// went.
+fn item_end(text: &str, earlier: bool, segments: &[Segment]) -> Option<(usize, String, usize)> {
+    let (first, times) = tail(text)?;
+    let before = &text[..first];
+    if let [time] = times[..]
+        && !earlier
+        && !holds_a_time(before)
+        && segments
+            .iter()
+            .any(|segment| segment.start as u64 <= time && time <= segment.end as u64)
+    {
+        let trimmed = text.trim_end();
+        let bracket = trimmed.strip_suffix('.').unwrap_or(trimmed);
+        // Alone on its line, after a sub-list, it stays where it is: joined up, it would be the sub-list's.
+        if before.trim().is_empty() {
+            return Some((first, bracket[first..].to_string(), 0));
+        }
+        return Some((before.trim_end().len(), format!(" {}", &bracket[first..]), 0));
+    }
+    let kept = before.trim_end();
+    let kept = kept.strip_suffix([',', ';']).unwrap_or(kept).trim_end();
+    Some((kept.len(), String::new(), times.len()))
+}
+
+/// The body with only the times `minutes/v3` lets it write, and how many went. Read by the
+/// CommonMark reader: only the items under the second and third titles hold one, each its own.
+fn with_times_checked(body: &str, segments: &[Segment]) -> (String, usize) {
+    use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+
+    let (mut section, mut open, mut edits, mut removed) = (0, Vec::<(usize, Vec<std::ops::Range<usize>>)>::new(), Vec::new(), 0);
+    for (event, range) in Parser::new(body).into_offset_iter() {
+        match event {
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H2, ..
+            }) => section += 1,
+            Event::Start(Tag::Item) => open.push((range.start, Vec::new())),
+            // An item's own text is all of it but the lists inside it, as the minutes' reader has it.
+            Event::Start(Tag::List(_)) => {
+                if let Some((_, lists)) = open.last_mut() {
+                    lists.push(range);
+                }
+            }
+            Event::End(TagEnd::Item) => {
+                let Some((start, lists)) = open.pop() else { continue };
+                let mut own = Vec::new();
+                let mut from = start;
+                for list in lists {
+                    own.push(from..list.start);
+                    from = list.end;
+                }
+                own.push(from..range.end);
+                let Some(last) = own.iter().rposition(|text| !body[text.clone()].trim().is_empty()) else {
+                    continue;
+                };
+                let earlier = own[..last].iter().any(|text| holds_a_time(&body[text.clone()]));
+                let text = &body[own[last].clone()];
+                if section >= 2
+                    && let Some((from, written, went)) = item_end(text, earlier, segments)
+                {
+                    // To the end of its text, and the spaces that follow on its line.
+                    let start = own[last].start;
+                    let end = start + text.trim_end().len();
+                    let spaces = body[end..].trim_start_matches(|c: char| c.is_whitespace() && c != '\n');
+                    removed += went;
+                    edits.push((start + from..body.len() - spaces.len(), written));
+                }
+            }
+            _ => {}
+        }
+    }
+    edits.sort_by_key(|(range, _): &(std::ops::Range<usize>, String)| std::cmp::Reverse(range.start));
+    let mut checked = body.to_string();
+    for (range, written) in edits {
+        checked.replace_range(range, &written);
+    }
+    (checked, removed)
 }
 
 /// A text as one YAML string: quoted, on one line, with every character a YAML reader
@@ -326,7 +516,9 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
     // carriage return, and the file is written with the line ends it was judged with.
     let unified = answer.replace("\r\n", "\n").replace('\r', "\n");
     let (title, body) = without_title(unified.trim().trim_start_matches('\u{feff}').trim());
-    if let Some(why) = not_minutes(body) {
+    // Judged as it will be written: a section that held only a time it may not keep is empty.
+    let (body, removed) = with_times_checked(body, made.segments);
+    if let Some(why) = not_minutes(&body) {
         return refused("answer.not_minutes", format!("the provider's answer is not minutes: {why}"));
     }
     let context = made
@@ -335,12 +527,18 @@ pub fn minutes(answer: &str, made: &Made) -> Result<Minutes, Refused> {
         .filter(|context| !context.is_empty())
         .map_or("null".into(), quoted);
     let named = title.map_or(String::new(), |title| format!("title: {}\n", quoted(&title)));
-    Ok(Minutes(format!(
-        "---\ncontract: {MINUTES}\nmade: {}\nprovider: {}\nmodel: {}\ncontext: {context}\n{named}---\n\n{body}\n",
-        made.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
-        quoted(made.provider),
-        quoted(made.model),
-    )))
+    let priced = made.cost.as_ref().map_or(String::new(), |cost| {
+        format!("cost: {}\ncurrency: {}\n", cost.amount, cost.currency)
+    });
+    Ok(Minutes(
+        format!(
+            "---\ncontract: {MINUTES}\nmade: {}\nprovider: {}\nmodel: {}\ncontext: {context}\n{named}{priced}---\n\n{body}\n",
+            made.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, false),
+            quoted(made.provider),
+            quoted(made.model),
+        ),
+        removed,
+    ))
 }
 
 /// Puts the minutes in the session's folder: under their name only once they are whole. The
