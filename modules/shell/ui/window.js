@@ -3345,13 +3345,37 @@ narrow.addEventListener("change", () => refresh());
 function takesPresses(takes) {
   for (const id of ["meeting", "agree"]) document.getElementById(id).inert = !takes;
 }
+// What had the focus when the address changed: the page kept, it gets it back, keystrokes with it.
+let focusHeld = null;
+function giveFocusBack() {
+  if (focusHeld?.isConnected && document.activeElement === document.body) focusHeld.focus({ preventScroll: true });
+  focusHeld = null;
+}
+let pageNotShown = false;
 
 // What the meeting's page was drawn from, to know whether it changed since.
 let drawnMeeting = null;
 
 // `again`: the list's address drawn once more after a page gone — never more than once.
+// Whoever asked: a drawing still the current one that fails gives the page its presses back and says
+// so; one superseded answers for nothing. The failure goes on to `page_failed`, with its stack.
 async function refresh(again = false) {
   const mine = ++drawing;
+  try {
+    return await draw(mine, again);
+  } catch (why) {
+    if (mine === drawing) {
+      takesPresses(true);
+      if (words) {
+        paneSays(words.page_not_shown);
+        pageNotShown = true;
+      }
+    }
+    throw why;
+  }
+}
+
+async function draw(mine, again) {
   // The small window is its own: it draws its view once, and asks for nothing else.
   if (location.hash === "#/small") {
     if (!document.body.classList.contains("small-window")) {
@@ -3446,6 +3470,8 @@ async function refresh(again = false) {
   }
   if (mine !== drawing) return;
   takesPresses(true);
+  if (pageNotShown) document.getElementById("pane-said").hidden = true;
+  pageNotShown = false;
   document.getElementById("empty").hidden = !listed || listing.sessions.length > 0;
   // No meeting yet: under 840 px, the sidebar and what to do, one under the other.
   document.body.classList.toggle("no-meeting", listing.sessions.length === 0);
@@ -3483,6 +3509,7 @@ async function refresh(again = false) {
     showMeeting(opened, words);
     drawnMeeting = fresh;
   }
+  giveFocusBack();
   if (opened) page.dataset.at = address;
   else delete page.dataset.at;
   paintMakings();
@@ -3581,17 +3608,16 @@ window.addEventListener("focus", () => {
 window.addEventListener("hashchange", () => {
   // Another address: the page still shown, or its agreement, acts on its own meeting: no press and
   // no focus there until what was asked is drawn — never one sent for a meeting left.
+  const focused = document.activeElement;
+  focusHeld = focused.closest("#meeting, #agree") ? focused : null;
   takesPresses(false);
   document.getElementById("pane-said").hidden = true;
+  pageNotShown = false;
   serviceAnswer = null;
   if (nameRefused) paneSays(nameRefused);
   nameRefused = null;
   // Another address: the assistant, shown again, is drawn anew — even if the drawing that left it was cut short.
   delete document.getElementById("welcome").dataset.shown;
-  // A reading that fails draws nothing: what is shown takes presses again.
-  refresh().catch((why) => {
-    takesPresses(true);
-    pageFailed(why);
-  });
+  refresh();
   window.scrollTo(0, 0);
 });

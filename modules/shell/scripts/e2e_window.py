@@ -1584,11 +1584,11 @@ def meeting_language(now: dt.datetime) -> None:
         browser.execute_script("location.hash = '#/settings'")
         wait_for(browser, lambda b: b.find_elements(By.ID, "meetings-language"), 10)
         choose(browser, "meetings-language", "")
-        wait_for(browser, lambda b: "meeting_language" not in window.file.read_text(), 5)
+        wait_for(browser, lambda b: "meeting_language =" not in window.file.read_text(), 5)
         args.unlink(missing_ok=True)
         browser.execute_script("window.__TAURI__.core.invoke('transcript_redo', {name: arguments[0], model: arguments[1]})", heard.name, str(model))
         detected = wait_for(browser, lambda b: told() != "", 15)
-        check("« Détectée »: no language told, the engine detects it", detected and "--language" not in told() and "meeting_language" not in window.file.read_text(), (told(), window.file.read_text()))
+        check("« Détectée »: no language told, the engine detects it", detected and "--language" not in told() and "meeting_language =" not in window.file.read_text(), (told(), window.file.read_text()))
         refused = [browser.execute_script(
             "return window.__TAURI__.core.invoke('language_set', {name: arguments[0], language: arguments[1]}).then(() => 'kept', (why) => String(why))", heard.name, text)
             for text in ("Deutsch", "zz")]
@@ -3367,8 +3367,13 @@ def press_on_the_page_left(now: dt.datetime) -> None:
     meetings = WORK / "pressed"
     minutes = ("---\ncontract: minutes/v2\nmade: 2026-10-28T10:00:00+01:00\nprovider: writes.example\nmodel: m\ncontext: null\n{}---\n\n"
                "## 1.\n\nLe budget.\n\n## 2.\n\n- Rien\n\n## 3.\n\n- Rien\n")
-    left, asked = meetings / "2026-10-26_09-00", meetings / "2026-10-26_11-00"
-    for folder, named in ((left, 'title: "Le budget inventé"\n'), (asked, "")):
+    left, asked, third = meetings / "2026-10-26_09-00", meetings / "2026-10-26_11-00", meetings / "2026-10-26_13-00"
+    # `listed` refused, by `refusing` calls from now, each answering `after` ms late.
+    refused_list = ("const real = window.__TAURI__.core; window.refusing = arguments[0]; const after = arguments[1]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => {"
+                    " if (asked === 'opened') await new Promise((r) => setTimeout(r, 800));"
+                    " if (asked === 'listed' && window.refusing > 0) { window.refusing -= 1; await new Promise((r) => setTimeout(r, after)); throw Object.assign(new Error('REFUS'), { name: 'ScenarioAS' }); }"
+                    " return real.invoke(asked, ...rest); } }; window.restore = () => { window.__TAURI__.core = real; };")
+    for folder, named in ((left, 'title: "Le budget inventé"\n'), (asked, ""), (third, "")):
         session(folder, now - dt.timedelta(days=3), 0.1, {"local.wav": 1000})
         (folder / "transcript.jsonl").write_text(
             '{"type":"header","contract":"transcript/v1","engine":"whisper.cpp","model":"m","language":null,"context":null}\n'
@@ -3437,11 +3442,91 @@ def press_on_the_page_left(now: dt.datetime) -> None:
         check("`opened` refused: said, and what is shown takes presses again", said and settled, browser.execute_script("return location.hash"))
         # The list itself not read: nothing is drawn, what is shown takes presses again.
         at_page(browser, asked)
-        browser.execute_script("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'listed' ? Promise.reject(Object.assign(new Error('REFUS'), { name: 'ScenarioAS' })) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.execute_script("window.logged = []; const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'page_failed' ? (window.logged.push(rest[0]), real.invoke(asked, ...rest)) : asked === 'listed' ? Promise.reject(Object.assign(new Error('REFUS'), { name: 'ScenarioAS' })) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
         browser.execute_script(f"location.hash = '#/meeting/{left.name}'")
         settled = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/meeting/{left.name}" and b.execute_script(free), 5)
         browser.execute_script("window.restore()")
         check("the list not read on the way: what is shown takes presses again", settled)
+        said = browser.execute_script("const p = document.getElementById('pane-said'); return [p.hidden, p.textContent]")
+        check("the list not read on the way: said on the screen", said == [False, "Cette page n’a pas pu être affichée\u00a0: réessayez."], said)
+        # The next reading that works: the sentence goes; the failure was logged with its kind.
+        logged = browser.execute_script("return window.logged")
+        check("the list not read on the way: logged, with its kind", bool(logged) and logged[0]["kind"] == "ScenarioAS", logged)
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        check("read again: the sentence goes", wait_for(browser, lambda b: b.execute_script("return document.getElementById('pane-said').hidden"), 5))
+        # Across the WHOLE wait, late too: held from the address to the new page. Two addresses,
+        # the first's reading answering while the second's waits: it frees nothing.
+        watching = ("const target = arguments[0]; window.freed = 0; window.at = performance.now(); const m = document.getElementById('meeting'); let held = false;"
+                    "window.watch = setInterval(() => { if (document.getElementById('minutes-state')?.dataset.name === target) clearInterval(window.watch); else if (m.inert) held = true; else if (held) window.freed += 1; }, 10);")
+        third_page = "return document.getElementById('minutes-state')?.dataset.name"
+        def late_press(browser, ms):
+            wait_for(browser, lambda b: b.execute_script("return performance.now() - window.at") > ms, 5)
+            kept = browser.find_elements(By.ID, "redo-minutes")
+            if kept:
+                pressed(browser, kept[0])
+            return browser.execute_script("return !!document.getElementById('redo-panel')")
+        at_page(browser, left)
+        args.unlink(missing_ok=True)
+        browser.execute_script(watching, third.name)
+        browser.execute_script(late, None)
+        browser.execute_script(f"location.hash = '#/meeting/{asked.name}'; setTimeout(() => {{ location.hash = '#/meeting/{third.name}'; }}, 400);")
+        panel = late_press(browser, 1000)
+        drawn = wait_for(browser, lambda b: b.execute_script(third_page) == third.name, 5)
+        browser.execute_script("window.restore()")
+        check("two addresses, the first's `opened` answering while the second's waits: held to the end, a late press acts on nothing",
+              drawn and browser.execute_script("return window.freed") == 0 and not panel and not args.exists(), browser.execute_script("return window.freed"))
+        at_page(browser, left)
+        browser.execute_script(watching, asked.name)
+        browser.execute_script(late, None)
+        browser.execute_script(f"location.hash = '#/meeting/{asked.name}'")
+        panel = late_press(browser, 650)
+        drawn = wait_for(browser, lambda b: b.execute_script(third_page) == asked.name, 5)
+        browser.execute_script("window.restore()")
+        check("one address: held to the end of the wait, a late press acts on nothing", drawn and browser.execute_script("return window.freed") == 0 and not panel, browser.execute_script("return window.freed"))
+        # The first's `listed` refused while the second's `opened` waits: stale, it gives nothing back and says nothing.
+        at_page(browser, left)
+        browser.execute_script(watching, third.name)
+        browser.execute_script(refused_list, 1, 300)
+        browser.execute_script(f"location.hash = '#/meeting/{asked.name}'; setTimeout(() => {{ location.hash = '#/meeting/{third.name}'; }}, 50);")
+        panel = late_press(browser, 500)
+        hidden = browser.execute_script("return document.getElementById('pane-said').hidden")
+        drawn = wait_for(browser, lambda b: b.execute_script(third_page) == third.name, 5)
+        browser.execute_script("window.restore()")
+        check("a stale drawing's `listed` refused: presses stay held, nothing said, a late press acts on nothing",
+              drawn and browser.execute_script("return window.freed") == 0 and not panel and hidden, (browser.execute_script("return window.freed"), panel, hidden))
+        # A drawing not from the address, current, its `listed` refused: the page is not left dead.
+        at_page(browser, left)
+        browser.execute_script(refused_list, 1, 0)
+        browser.execute_script("window.refusing = 0")
+        browser.execute_script(f"location.hash = '#/meeting/{asked.name}'; setTimeout(() => {{ window.refusing = 1; window.dispatchEvent(new Event('focus')); }}, 100);")
+        said = wait_for(browser, lambda b: b.execute_script("return !document.getElementById('pane-said').hidden && !document.getElementById('meeting').inert"), 3)
+        browser.execute_script("window.restore()")
+        check("a focus's reading refused while the address waits: said, and the page takes presses again", said, browser.execute_script("return document.getElementById('meeting').inert"))
+        # That failure no longer the last word: a meeting then refused keeps its own sentence.
+        browser.execute_script("location.hash = '#/meeting/gone'")
+        kept_said = wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/" and b.execute_script(free) and not b.execute_script("return document.getElementById('meeting').hidden"), 5)
+        check("then a meeting gone: its own sentence, said and kept", kept_said and browser.execute_script("const p = document.getElementById('pane-said'); return !p.hidden && p.textContent.startsWith('Cette réunion n’a pas pu être ouverte')"), browser.execute_script("return document.getElementById('pane-said').textContent"))
+        browser.execute_script(f"location.hash = '#/meeting/{asked.name}'")
+        wait_for(browser, lambda b: b.execute_script(page_of) == asked.name and b.execute_script(free), 5)
+        # The same page at its own address: the focus comes back to the field, what is typed goes in it.
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.execute_script("return (location.hash === '' || location.hash === '#/') && !document.getElementById('meeting').hidden && !document.getElementById('meeting').inert"), 5)
+        shown_now = browser.execute_script(third_page)
+        browser.execute_script("document.getElementById('context-text').focus(); window.__kept = document.getElementById('meeting').firstElementChild")
+        browser.execute_script(f"location.hash = '#/meeting/{{}}'".format(shown_now))
+        back = wait_for(browser, lambda b: b.execute_script("return location.hash.startsWith('#/meeting/') && !document.getElementById('meeting').inert && document.activeElement.id === 'context-text' && window.__kept.isConnected"), 5)
+        check("the page kept at its own address: the focus back in its field", back, browser.execute_script("return document.activeElement.id"))
+        # The focus taken elsewhere meanwhile: it stays there.
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.execute_script("return (location.hash === '' || location.hash === '#/') && !document.getElementById('meeting').hidden && !document.getElementById('meeting').inert"), 5)
+        browser.execute_script("document.getElementById('context-text').focus()")
+        browser.execute_script(late, None)
+        browser.execute_script("location.hash = '#/meeting/{}'".format(shown_now))
+        wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').inert"), 0.3)
+        browser.execute_script("document.getElementById('find').focus()")
+        wait_for(browser, lambda b: not b.execute_script("return document.getElementById('meeting').inert"), 5)
+        browser.execute_script("window.restore()")
+        check("the focus taken elsewhere meanwhile: it stays there", browser.execute_script("return document.activeElement.id") == "find", browser.execute_script("return document.activeElement.id"))
     # The agreement page: Envoyer is a send.
     window = Window(meetings, "fr_FR.UTF-8", service)
     with window as browser:
@@ -3459,6 +3544,12 @@ def press_on_the_page_left(now: dt.datetime) -> None:
         browser.execute_script("window.restore()")
         check("Envoyer pressed while another meeting is asked for: nothing sent, nothing agreed to",
               drawn and not args.exists() and (left / "minutes.md").read_text() == written and "minutes_agreed" not in window.file.read_text(), window.file.read_text())
+        # Back at the agreement: its button is given back, and sends.
+        browser.execute_script(f"location.hash = '#/agree/{left.name}'")
+        wait_for(browser, lambda b: b.execute_script("return location.hash.startsWith('#/agree/') && !document.getElementById('agree').hidden"), 10)
+        browser.execute_script("document.getElementById('agree-send').focus()")
+        pressed(browser, browser.find_element(By.ID, "agree-send"))
+        check("back at the agreement: not held, Envoyer sends", wait_for(browser, lambda b: args.exists(), 10), browser.execute_script("return document.getElementById('agree').inert"))
     # What is agreed to names its meeting, as its page and the list do.
     for language, says in (("fr_FR.UTF-8", "Le texte de «\u00a0{}\u00a0» va quitter votre ordinateur"), ("en_US.UTF-8", "The text of “{}” is about to leave your computer")):
         with Window(meetings, language, service) as browser:
