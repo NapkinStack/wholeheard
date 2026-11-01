@@ -77,6 +77,8 @@ flowchart LR
   `nstack claim D30 --person @you` — and an agent adds `--session <its session>`. `nstack plan`
   says who holds what; two agents of one person are two holders; a hold nobody works on goes stale and may be taken over
   (`.nstack/handbook/project.md`, *Who holds a deliverable*).
+- **Delivered is recorded, not requested**: once merged and each criterion held,
+  `nstack deliver D30 --held '#412'`. No pull request, and the plan says it.
 - **Any coding agent works**, under an identity of its own (*Joining the project*); the skills
   `nstack skills` makes under `.claude/skills/` are one tool's shortcut to the same playbooks
   (`.nstack/playbooks/`).

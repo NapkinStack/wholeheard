@@ -147,21 +147,23 @@ from then on the plan check refuses an accepted charter over a form left as it c
   request with the `out-of-cycle` label and the line `Out of cycle: <reason>`.
 - **A deliverable** moves `proposed` → `ready` (testable acceptance criteria, set by the
   framer, confirmed when the decider accepts the cycle) → `in-progress` — its hold says so the
-  moment it is claimed; the cycle file follows in the plan's own pull requests, never in a
-  delivery's — → `accepted`: its
-  test sheet run and its pull request approved, or the decider's word quoted where approval is
-  waived (§3) — or, for a spike outside the code, its result
+  moment it is claimed; the cycle file never follows in a delivery's pull request — → `delivered`, computed from
+  a record, below → `accepted`, written at the closure: its
+  test sheet run and its pull request approved, or, where approval is waived (§3), the decider's
+  word quoted once, at that closure, for the cycle — or, for a spike outside the code, its result
   approved by the decider: a decision record when it binds the project (*Decisions* below),
   otherwise a line in the project's log issue, which the deliverable's section links. A deliverable that several pull requests
   deliver, or that a person must try, is `accepted` when **each of its criteria** is held by a
   scenario of one of their sheets or by an answer in its acceptance issue
   (`.nstack/handbook/05-workflow.md` §7); the cycle names that issue beside the state.
-  A deliverable one approved pull request delivered, its sheet run, owes the decider no further
-  request. The plan's own pull request records the states, and may record several together.
+  During the cycle, nobody writes that state: the agent records the delivery (`nstack deliver`,
+  `.nstack/handbook/project.md`), and the plan computes `delivered`. It asks the decider nothing.
+  A criterion only a person can try waits for their answer. The closure writes `accepted`, from the
+  records, in one pull request, reading them: a rule sees that a merge exists, not that a criterion holds.
 
 ## 5. The end of a cycle
 
-**Every deliverable accepted** — write the closure: what was delivered, which success
+**Every deliverable delivered or accepted** — `nstack deliver --write-states`, then write the closure: what was delivered, which success
 criteria moved, what was deferred, and **which documents the cycle brought current** — the
 front page and the module map first, each with its pull request; set `status: closed`,
 `outcome: completed`, `ended_on`.
@@ -171,11 +173,12 @@ started; the latest record is its state, and `nstack plan` counts the criteria m
 When a spike refutes what the charter rests on, present stopping the project too.
 
 **The end date reached first** — the circuit breaker: nothing is extended. Present the
-three choices, with the state of every deliverable:
+three choices, with the state of every deliverable. Whichever is chosen, `nstack deliver --write-states` comes
+first, while the cycle is still accepted: it is what brings the records into the cycle file.
 
 | The decider chooses | `status` | `outcome` |
 |---|---|---|
-| Ship what is accepted | `closed` | `shipped` |
+| Ship what is delivered or accepted | `closed` | `shipped` |
 | Frame a new cycle, with a new appetite | `stopped` | `reframed` |
 | Stop the project | `stopped` | `stopped` |
 
