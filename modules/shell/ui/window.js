@@ -771,6 +771,8 @@ function contextCard(session, { context, transcript, minutes }, words) {
   });
   changed.append(element("p", "says", words.context_changed[minutes.state === "present" ? 1 : 0]), redo);
   const save = async (text) => {
+    // Written now: what it could not read back is no longer the last word.
+    delete card.dataset.unread;
     try {
       const shown = await window.__TAURI__.core.invoke("context_saved", { name, text });
       card.dataset.changed = String(shown.changed);
@@ -2189,7 +2191,9 @@ function showSettings(shown, minutes, words) {
     const saved = await invoke("transcription_saved", {
       provider: address.value, model: serviceModel.value, key: serviceKey.value || null, agreed: agreeBox.checked,
     }).then((notKept) => (notKept === null ? fill(words.service_saved, hostOf(address.value)) : fill(words.key_not_kept, notKept)), (why) => fill(words.not_saved, why));
-    serviceAnswer = { said: saved, asking: false };
+    // A Tester still asking stays: its answer comes after this, the button its own.
+    serviceAnswer ??= { said: "", asking: false };
+    serviceAnswer.said = saved;
     serviceSaid.textContent = saved;
   });
   const testService = element("button", "open", words.service_test);
@@ -2220,6 +2224,7 @@ function showSettings(shown, minutes, words) {
   pick.addEventListener("change", () => {
     serviceAnswer = null;
     serviceSaid.textContent = "";
+    testService.disabled = locked;
     service.hidden = !pick.value.startsWith("service");
     if (pick.value.startsWith("service")) {
       chooseService();

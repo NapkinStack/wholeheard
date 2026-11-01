@@ -1526,6 +1526,8 @@ pub fn shown_detail(said: &str, developer: bool) -> String {
 pub enum Failure {
     Unexpected,
     NoMeeting,
+    /// Said at the list, where its page was asked: nowhere to go back to.
+    MeetingGone,
     Busy,
     NotComplete,
     MeetingFile,
@@ -1559,6 +1561,8 @@ pub fn failure(failure: Failure, language: Language) -> String {
         (Failure::Trash(refusal), _) => return audio_trashed(language, &Err(refusal)).body,
         (Failure::Unexpected, English) => "Wholeheard could not do this: try again, and restart it if it happens again.",
         (Failure::Unexpected, French) => "Wholeheard n’a pas pu le faire\u{a0}: réessayez, et redémarrez-le si cela se reproduit.",
+        (Failure::MeetingGone, English) => "this meeting is no longer in the meetings’ folder.",
+        (Failure::MeetingGone, French) => "cette réunion n’est plus dans le dossier des réunions.",
         (Failure::NoMeeting, English) => "this meeting is no longer in the meetings’ folder: go back to the list.",
         (Failure::NoMeeting, French) => "cette réunion n’est plus dans le dossier des réunions\u{a0}: revenez à la liste.",
         (Failure::Busy, English) => "this meeting is being recorded or made: try again once that is done.",
