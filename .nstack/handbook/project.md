@@ -15,9 +15,9 @@ cycle before working (`AGENTS.md` §4).
 ```mermaid
 flowchart LR
     P["proposed"]:::draft -->|"the decider accepts"| A["accepted<br/>running from start"]:::run
-    A -->|"every deliverable accepted"| C["closed<br/>completed"]:::ok
+    A -->|"every deliverable delivered or accepted"| C["closed<br/>completed"]:::ok
     A -->|"end date reached"| B{"Circuit breaker<br/>the decider chooses"}:::stop
-    B -->|"ship what is accepted"| S["closed<br/>shipped"]:::ok
+    B -->|"ship what is delivered or accepted"| S["closed<br/>shipped"]:::ok
     B -->|"new cycle"| R["stopped<br/>reframed"]:::stop
     B -->|"stop the project"| X["stopped<br/>stopped"]:::stop
 
@@ -71,10 +71,22 @@ Cycle 03-the-window: 10 of 14 accepted · 2 in progress · 2 ready · day 5 of 2
 Holds in 03-the-window: 3 held, of which 0 stale (from origin; stale after 7 days without work):
 ```
 
-Below the holds, `nstack plan` names each deliverable still open whose commits on the default branch name
-it in their title or a `Deliverable:` line since the cycle started, and how many, a revert taken off. It
-reads titles, checks no approval and moves no state: several pull requests may deliver one deliverable.
-The plan's own pull request records the states, and may record several together.
+Nobody writes progress down during a cycle. Once a deliverable's work is merged and each criterion holds,
+the agent records it, with no pull request and nothing under `docs/`, and the plan computes `delivered`:
+
+```bash
+nstack deliver D30 --held '#412'                 # every criterion held by that pull request
+nstack deliver D30 --held '1=#412' --held '2=#415'   # criterion by criterion; an acceptance issue the cycle names counts
+```
+
+It is refused with no merge of the deliverable on the default branch since the cycle started, with a criterion
+unanswered, or with an answer that is no merge of it, nor the acceptance issue the cycle names for it. Carried from
+an earlier cycle, its merges there, only that issue answers. A session on the hold, its person or the decider records it, a stale hold
+being taken over first. A delivered deliverable is not held, never goes stale, cannot be taken, and its issue
+closes; its recorder or the decider withdraws a record found wrong with `nstack unclaim`, and once a merge it names or every merge is seen reverted it reads as back in work; a revert that names nothing it undoes is not seen.
+The rule sees that a merge exists, never that a criterion is really met: the closure's reading is what
+catches a false record. Below the holds, `nstack plan` names what is merged and not recorded, read from commit
+titles, no approval checked. The closure writes the states, in one pull request: `nstack deliver --write-states`.
 
 *Accepted* counts what the decider accepted; a `dropped` deliverable counts in nothing. From its
 end date — the first day the cycle is over — the line says the circuit breaker fell and the
@@ -90,7 +102,7 @@ day — so that a new holder shows within a day —, the workflow *Plan on the f
 closed or stopped is a **milestone** — titled by the cycle file's heading, due on its end date,
 its description carrying the line above, counts only — and each deliverable an **issue** in it: its acceptance
 criteria as a checklist, its module and state, who holds it, the pull requests that name it.
-An issue closes as *completed* when the deliverable is accepted, as *not planned* when it is
+An issue closes as *completed* when the deliverable is delivered or accepted, as *not planned* when it is
 dropped, deferred, or left unfinished by a closed cycle.
 
 Nothing is maintained by hand and nothing on the forge is the plan: an issue or a milestone edited
@@ -149,7 +161,7 @@ them never deliver it twice:
 ```bash
 nstack claim D30 --person @alice --session <session>   # held; its first work branch d30-… made, unless one exists
 nstack plan                                             # who holds what, since when; what is stale
-nstack unclaim D30                                      # given back: by its holder's session, the decider, anyone once stale
+nstack unclaim D30                                      # given back: by its holder's session, the decider, anyone once stale; a record: who made it, the decider
 nstack claim D30 --take-over --person @alice            # a hold nobody worked on for hold_days, or your own person's other session
 ```
 

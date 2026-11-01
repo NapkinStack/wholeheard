@@ -82,7 +82,7 @@ test needed (a typo, a local rename): do it, run the local checks, summarise. No
 10. Sync         merge the default branch in before the pull request: a conflict is
                  its author's to settle, here; a number taken in sequence is taken now
 11. Summarise    done / verified / assumed / not verified / risks
-12. Close        once merged, its branch is gone: on the forge, here, its worktree, and the empty start branch `nstack plan` names for this deliverable
+12. Close        once merged and each criterion held, nstack deliver D<n> --held '#<pull request>'; its branch is gone: on the forge, here, its worktree, and the empty start branch `nstack plan` names for this deliverable
 ```
 
 Before writing any file, present steps 1 to 3, the oracle you will write (4) and the size (5),
