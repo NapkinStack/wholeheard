@@ -3413,6 +3413,20 @@ def press_on_the_page_left(now: dt.datetime) -> None:
             check(f"{kind} pressed: nothing started, nothing sent, nothing changed", read(browser, nothing) and not args.exists() and (left / "minutes.md").read_text() == written and not (left / "confidential").exists(), args.read_text() if args.exists() else "")
             check(f"{kind}: the new page takes presses, the focus where one can be", browser.execute_script(
                 "const e = document.activeElement; return !document.getElementById('meeting').inert && !e.closest('[inert]') && e.isConnected"))
+        # By the keyboard: the button had the focus when the address changed; Enter and Space go nowhere.
+        for kind, key, named in (("redo-minutes", Keys.ENTER, "Enter"), ("redo-minutes", Keys.SPACE, "Space"), ("redo-corrections", Keys.ENTER, "Enter"), ("redo-corrections", Keys.SPACE, "Space"), ("confidential-switch", Keys.SPACE, "Space")):
+            at_page(browser, left)
+            args.unlink(missing_ok=True)
+            browser.execute_script("document.getElementById(arguments[0]).focus()", kind)
+            browser.execute_script(late, None)
+            browser.execute_script(f"location.hash = '#/meeting/{asked.name}'")
+            wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').inert && !document.getElementById('meeting').contains(document.activeElement)"), 0.3)
+            ActionChains(browser).send_keys(key).perform()
+            during = browser.execute_script("return [document.getElementById('minutes-state').dataset.name, !!document.getElementById('redo-panel')]")
+            drawn = wait_for(browser, lambda b: b.execute_script(page_of) == asked.name, 5)
+            browser.execute_script("window.restore()")
+            check(f"{named} on {kind} while another meeting is asked for: nothing started, nothing sent, nothing changed",
+                  drawn and during == [left.name, False] and not args.exists() and (left / "minutes.md").read_text() == written and not (left / "confidential").exists(), (during, args.read_text() if args.exists() else ""))
         # Refused: what is shown takes presses again.
         at_page(browser, asked)
         browser.execute_script(late, left.name)
