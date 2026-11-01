@@ -3,7 +3,8 @@
 
 use std::fs;
 
-use wholeheard_summary::{Made, Minutes, Refused, minutes, read_transcript, request, write_minutes};
+use serde_json::json;
+use wholeheard_summary::{Made, Minutes, Refused, Segment, minutes, read_transcript, reported, request, write_minutes};
 
 const HEADER: &str =
     r#"{"type": "header", "contract": "transcript/v1", "engine": "an-engine", "model": "a-model", "language": "fr", "context": null}"#;
@@ -27,6 +28,8 @@ fn made(context: Option<&'static str>) -> Made<'static> {
         provider: "local",
         model: "a-model",
         context,
+        cost: None,
+        segments: &[],
     }
 }
 
@@ -93,6 +96,8 @@ fn the_provider_is_asked_with_the_meeting_the_rules_and_the_users_context() {
     );
     for rule in [
         "Never guess",
+        "with one time, as [mm:ss] copied from the transcript",
+        "never make one up",
         "exactly three sections",
         "in the language the meeting is held in, the three titles included",
         "never give them an action",
@@ -145,7 +150,7 @@ fn the_minutes_say_what_made_them_and_hold_the_three_sections() {
     assert_eq!(
         front.lines().collect::<Vec<_>>(),
         [
-            "contract: minutes/v2",
+            "contract: minutes/v3",
             "made: 2026-10-13T15:12:40+02:00",
             "provider: \"local\"",
             "model: \"a-model\"",
@@ -263,6 +268,8 @@ fn the_front_matter_reads_back_whatever_the_context_and_the_model_hold() {
             provider: "local",
             model: "m:7b-\"q4\"\n# x: y",
             context: Some(hostile),
+            cost: None,
+            segments: &[],
         },
     )
     .unwrap();
@@ -293,6 +300,8 @@ fn the_time_is_written_to_the_second_with_its_offset() {
             provider: "local",
             model: "m",
             context: None,
+            cost: None,
+            segments: &[],
         };
         assert_eq!(minutes(ANSWER, &made).unwrap().as_str().lines().nth(2).unwrap(), written);
     }
@@ -510,4 +519,211 @@ fn the_request_asks_for_a_title_on_the_first_line() {
     let asked = request(&[], None);
     assert!(asked.contains("first level"), "{asked}");
     assert!(asked.contains("at most 80 characters"), "{asked}");
+}
+
+/// Segments from 60.7 to 62.9 and 125 to 125.2: seconds 60, 61, 62 and 125 are in the transcript.
+fn segments() -> Vec<Segment> {
+    read_transcript(&transcript(&[
+        r#"{"type": "segment", "speaker": "others", "start": 60.7, "end": 62.9, "text": "Un."}"#,
+        r#"{"type": "segment", "speaker": "me", "start": 125.0, "end": 125.2, "text": "Deux."}"#,
+    ]))
+    .unwrap()
+}
+
+/// What is written for these two items of Actions and Key points, and how many times went.
+fn with_times(action: &str, point: &str) -> (String, usize) {
+    let segments = segments();
+    let answer = format!("## A\n\n- Vu à [09:59].\n\n## B\n\n{action}\n\n## C\n\n{point}\n");
+    let accepted = minutes(
+        &answer,
+        &Made {
+            segments: &segments,
+            ..made(None)
+        },
+    )
+    .unwrap();
+    let body = accepted.as_str().split_once("\n---\n\n").unwrap().1;
+    let (head, rest) = body.split_once("## B\n\n").unwrap();
+    assert_eq!(head, "## A\n\n- Vu à [09:59].\n\n", "the first section holds no time to check");
+    let (action, point) = rest.split_once("\n\n## C\n\n").unwrap();
+    (format!("{action}|{}", point.trim_end_matches('\n')), accepted.removed())
+}
+
+#[test]
+fn a_time_inside_a_segment_ends_its_item_and_any_other_goes_the_line_kept() {
+    for (given, expected, removed) in [
+        // Each second a segment holds, its start and its end cut to the whole second.
+        ("- a [01:00]", "- a [01:00]", 0),
+        ("- a [01:01]", "- a [01:01]", 0),
+        ("- a [01:02]", "- a [01:02]", 0),
+        ("- a [02:05]", "- a [02:05]", 0),
+        // On either side of them, and between them.
+        ("- a [00:59]", "- a", 1),
+        ("- a [01:03]", "- a", 1),
+        ("- a [02:04]", "- a", 1),
+        ("- a [02:06]", "- a", 1),
+        ("- a — b — c [99:00]", "- a — b — c", 1),
+        ("- a [120:00]", "- a", 1),
+        // What the models wrote: a full stop and two spaces, kept or not.
+        ("- a [01:00].  ", "- a [01:00]", 0),
+        ("- a. [01:00].", "- a. [01:00]", 0),
+        ("- a [01:03].  ", "- a", 1),
+        ("- a. [01:03].", "- a.", 1),
+        // Written against the text, or far from it: one space.
+        ("- a[01:00]", "- a [01:00]", 0),
+        ("- a    [01:00]", "- a [01:00]", 0),
+        ("- a\n  [01:00]", "- a [01:00]", 0),
+        // A list of times is not written, whether its times are in the transcript or not.
+        ("- a [01:00, 01:01, 01:02].  ", "- a", 3),
+        ("- a [01:00] [01:01]", "- a", 2),
+        ("- a, [01:00], [99:00].", "- a", 2),
+        ("- a [01:00–01:02]", "- a", 2),
+        // Square brackets that are no time are the item's text, its full stop and spaces with them.
+        ("- a [12:75].", "- a [12:75].", 0),
+        ("- a [9:00]", "- a [9:00]", 0),
+        ("- a [ 99:00 ]", "- a [ 99:00 ]", 0),
+        ("- a [01:00:00]", "- a [01:00:00]", 0),
+        ("- a [note]", "- a [note]", 0),
+        ("- a [01:00 et 01:01]", "- a [01:00 et 01:01]", 0),
+        ("- a [99999999999999999999:00]", "- a [99999999999999999999:00]", 0),
+        // Only the last characters are a time.
+        ("- [99:00] puis a", "- [99:00] puis a", 0),
+        ("- a [99:00] b [01:00]", "- a [99:00] b [01:00]", 0),
+        ("- a [01:00] ;", "- a [01:00] ;", 0),
+        ("- a `[99:00]`", "- a `[99:00]`", 0),
+        ("- a", "- a", 0),
+        ("- à é [01:00]", "- à é [01:00]", 0),
+        // Each item of a list has its own, a list within an item too.
+        ("- a [01:00]\n- b [99:00]\n- c [01:01].", "- a [01:00]\n- b\n- c [01:01]", 1),
+        ("- a [99:00]  \n  - b [01:00].\n  - c [98:00]", "- a\n  - b [01:00]\n  - c", 2),
+        ("- a [01:00]\n\n- b [99:00]", "- a [01:00]\n\n- b", 1),
+        ("* a [01:00].", "* a [01:00]", 0),
+        ("1. a [99:00]", "1. a", 1),
+    ] {
+        let (written, went) = with_times(given, "- z");
+        assert_eq!((written.as_str(), went), (format!("{expected}|- z").as_str(), removed), "{given:?}");
+        let (written, went) = with_times("- z", given);
+        assert_eq!(
+            (written.as_str(), went),
+            (format!("- z|{expected}").as_str(), removed),
+            "{given:?}, key points"
+        );
+    }
+}
+
+#[test]
+fn a_time_alone_on_a_line_goes_and_a_section_left_empty_is_no_minutes() {
+    assert_eq!(with_times("- [01:00]\n- [99:00]\n- a", "- z"), ("- [01:00]\n-\n- a|- z".into(), 1));
+    let segments = segments();
+    let answer = "## A\n\nVu.\n\n## B\n\n- [99:00]\n\n## C\n\n- z\n";
+    let refused = minutes(
+        answer,
+        &Made {
+            segments: &segments,
+            ..made(None)
+        },
+    )
+    .unwrap_err();
+    assert_eq!(refused.1, Some("answer.not_minutes"));
+}
+
+fn priced() -> wholeheard_summary::Cost {
+    reported("openrouter.ai", &json!({ "cost": 0.012 })).unwrap().unwrap()
+}
+
+#[test]
+fn a_cost_goes_bare_after_the_title_with_its_currency() {
+    let accepted = minutes(
+        &format!("# Un titre\n\n{ANSWER}"),
+        &Made {
+            cost: Some(priced()),
+            ..made(None)
+        },
+    )
+    .unwrap();
+    let front = accepted.as_str().split_once("\n---\n\n").unwrap().0;
+    assert_eq!(
+        front.lines().skip(6).collect::<Vec<_>>(),
+        ["title: \"Un titre\"", "cost: 0.012", "currency: USD"]
+    );
+    let without = minutes(ANSWER, &made(None)).unwrap();
+    assert!(!without.as_str().contains("\ncost:") && !without.as_str().contains("\ncurrency:"));
+}
+
+#[test]
+fn a_cost_is_openrouters_as_it_reported_it_or_none_and_said_when_it_was_refused() {
+    let read = |text: &str| serde_json::from_str::<serde_json::Value>(text).unwrap();
+    // As written: no float printed again.
+    for written in ["0.012", "1.2e-6", "0.0120", "0", "0.0", "3"] {
+        let cost = reported(
+            "openrouter.ai",
+            &read(&format!(
+                r#"{{"cost": {written}, "cost_details": {{"upstream_inference_cost": null}}}}"#
+            )),
+        );
+        let accepted = minutes(
+            ANSWER,
+            &Made {
+                cost: cost.unwrap(),
+                ..made(None)
+            },
+        )
+        .unwrap();
+        assert!(
+            accepted.as_str().contains(&format!("\ncost: {written}\ncurrency: USD\n---\n")),
+            "{}",
+            accepted.as_str()
+        );
+    }
+    assert!(
+        reported(
+            "openrouter.ai",
+            &read(r#"{"cost": 0.1, "cost_details": {"upstream_inference_cost": 0}}"#)
+        )
+        .unwrap()
+        .is_some()
+    );
+    assert!(
+        reported(
+            "openrouter.ai",
+            &read(r#"{"cost": 0.1, "cost_details": {"upstream_inference_cost": 0.0}}"#)
+        )
+        .unwrap()
+        .is_some()
+    );
+    assert!(
+        reported("openrouter.ai", &read(r#"{"cost": 0.1, "cost_details": {}}"#))
+            .unwrap()
+            .is_some()
+    );
+    // None reported: nothing to say.
+    for usage in ["null", "{}", r#"{"cost": null}"#, r#"{"prompt_tokens": 3}"#, "7", "[]"] {
+        assert_eq!(reported("openrouter.ai", &read(usage)), Ok(None), "{usage}");
+    }
+    // The user's own key at the model's provider: what OpenRouter charged is not what the call cost.
+    for upstream in ["0.02", "1e-9", r#""0""#, "true", "1e999"] {
+        let usage = read(&format!(
+            r#"{{"cost": 0.001, "cost_details": {{"upstream_inference_cost": {upstream}}}}}"#
+        ));
+        assert_eq!(reported("openrouter.ai", &usage), Ok(None), "{upstream}");
+    }
+    assert_eq!(
+        reported(
+            "openrouter.ai",
+            &read(r#"{"cost": -1, "cost_details": {"upstream_inference_cost": 0.02}}"#)
+        ),
+        Ok(None)
+    );
+    // Not a number at least zero: none, and said.
+    for cost in ["-0.01", r#""0.012""#, "true", "[1]", r#"{"usd": 1}"#, "1e999", "-1e999"] {
+        assert!(
+            reported("openrouter.ai", &read(&format!(r#"{{"cost": {cost}}}"#))).is_err(),
+            "{cost}"
+        );
+    }
+    // This machine pays no one; another host's currency no documentation read here names.
+    assert_eq!(reported("local", &read(r#"{"cost": 0.012}"#)), Ok(None));
+    assert!(reported("api.example.com", &read(r#"{"cost": 0.012}"#)).is_err());
+    assert_eq!(reported("api.example.com", &read(r#"{"prompt_tokens": 3}"#)), Ok(None));
+    assert!(reported("openrouter.ai.example.com", &read(r#"{"cost": 0.012}"#)).is_err());
 }

@@ -24,8 +24,8 @@ use std::{
 };
 
 use serde_json::json;
-use tracing::{error, info};
-use wholeheard_summary::{Made, Refused, TEST, log, minutes, provider::Provider, read_transcript, request, write_minutes};
+use tracing::{error, info, warn};
+use wholeheard_summary::{Made, Refused, TEST, log, minutes, provider::Provider, read_transcript, reported, request, write_minutes};
 
 fn main() -> ExitCode {
     let _run = log::start("summary");
@@ -137,9 +137,10 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
     // An answer that is not minutes is asked for once more — a model's form varies from one
     // answer to the next (#366); any other failure is not.
     let mut again = true;
-    let written = loop {
+    let (written, cost) = loop {
         let sent = Instant::now();
-        let answer = provider.ask(&asked)?;
+        let answered = provider.ask(&asked)?;
+        let answer = answered.text;
         info!(
             milliseconds = sent.elapsed().as_millis() as u64,
             characters = answer.chars().count(),
@@ -152,18 +153,21 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
                 None,
             ));
         }
+        let cost = reported(&provider.host(), &answered.usage);
         let at = chrono::Local::now().fixed_offset();
         let made = Made {
             at,
             provider: &provider.host(),
             model,
             context: context.as_deref(),
+            cost: cost.clone().ok().flatten(),
+            segments: &segments,
         };
         match minutes(&answer, &made) {
             Err(Refused(why, Some("answer.not_minutes"))) if std::mem::take(&mut again) => {
                 info!(detail = %why, "summary.asked_again");
             }
-            done => break done?,
+            done => break (done?, cost),
         }
     };
     // Nor when the title, its marks read, spells it (D48): what is judged is what is written.
@@ -172,6 +176,13 @@ fn summarise(folder: &Path, address: &str, model: &str) -> Result<(), Refused> {
             format!("{} sent the key back in its answer: nothing was written", provider.named()),
             None,
         ));
+    }
+    // Of the answer written alone, and counted: never what it held.
+    if written.removed() > 0 {
+        warn!(removed = written.removed(), "summary.times_removed");
+    }
+    if let Err(why) = cost {
+        warn!(detail = why, "summary.cost_refused");
     }
     write_minutes(folder, &written)
         .map_err(|error| Refused(format!("the minutes could not be written ({error})"), Some("minutes.unwritable")))?;

@@ -61,7 +61,7 @@ fn the_minutes_are_written_from_the_transcript_the_context_and_the_providers_ans
     );
 
     let minutes = fs::read_to_string(folder.path().join("minutes.md")).unwrap();
-    assert!(minutes.starts_with("---\ncontract: minutes/v2\nmade: "), "{minutes}");
+    assert!(minutes.starts_with("---\ncontract: minutes/v3\nmade: "), "{minutes}");
     assert!(
         minutes.contains("\nprovider: \"local\"\nmodel: \"a-model\"\ncontext: \"Quatre personnes, réunion d'organisation.\"\n---\n"),
         "{minutes}"
@@ -737,4 +737,125 @@ fn an_answer_that_is_not_minutes_is_asked_for_once_more_and_only_that_one() {
         assert!(!run(folder.path(), &address, None).status.success());
         assert!(received.recv().is_ok() && received.try_recv().is_err(), "{status}: asked again");
     }
+}
+
+const TIMED: &str = "## A\n\nVu.\n\n## B\n\n- a — b — c [00:01].  \n- d [99:00]\n\n## C\n\n- e [99:00, 98:00]\n";
+
+/// A run in its own log folder: what it wrote, and the warnings it logged.
+fn warned(body: String) -> (String, Vec<serde_json::Value>) {
+    let folder = session(None);
+    let logs = tempfile::tempdir().unwrap();
+    let (address, _received) = provider("200 OK", body);
+    let output = program()
+        .arg(folder.path())
+        .args(["--provider", &address, "--model", "a-model"])
+        .env_remove("WHOLEHEARD_PROVIDER_KEY")
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .env_remove("WHOLEHEARD_LOG")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", said(&output).1);
+    let warnings = logged(logs.path()).into_iter().filter(|line| line["level"] == "WARN").collect();
+    (fs::read_to_string(folder.path().join("minutes.md")).unwrap(), warnings)
+}
+
+#[test]
+fn times_in_no_segment_go_the_lines_kept_and_one_warning_counts_them_saying_none() {
+    let (minutes, warnings) = warned(answering(TIMED, "stop"));
+    assert!(minutes.ends_with("## B\n\n- a — b — c [00:01]\n- d\n\n## C\n\n- e\n"), "{minutes}");
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert_eq!(warnings[0]["message"], "summary.times_removed");
+    assert_eq!(warnings[0]["removed"], 3);
+    assert!(!warnings[0].to_string().contains("99:00"), "{}", warnings[0]);
+    // Every time in a segment: nothing to say.
+    let (_, warnings) = warned(answering("## A\n\nVu.\n\n## B\n\n- a [00:03]\n\n## C\n\n- e\n", "stop"));
+    assert!(warnings.is_empty(), "{warnings:?}");
+}
+
+#[test]
+fn an_answer_asked_again_warns_for_the_one_written_only() {
+    let folder = session(None);
+    let logs = tempfile::tempdir().unwrap();
+    let priced = |text: &str| answering(text, "stop").replacen('{', r#"{"usage": {"cost": 0.1},"#, 1);
+    let (address, _received) = providing(vec![
+        ("200 OK", priced("une phrase [99:00]")),
+        ("200 OK", priced("## A\n\nVu.\n\n## B\n\n- a [99:00]\n\n## C\n\n- e\n")),
+    ]);
+    let output = program()
+        .arg(folder.path())
+        .args(["--provider", &address, "--model", "a-model"])
+        .env_remove("WHOLEHEARD_PROVIDER_KEY")
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .env_remove("WHOLEHEARD_LOG")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", said(&output).1);
+    let warnings: Vec<_> = logged(logs.path()).into_iter().filter(|line| line["level"] == "WARN").collect();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert_eq!(warnings[0]["removed"], 1);
+}
+
+#[test]
+fn a_provider_on_this_machine_writes_no_cost_even_if_it_says_one() {
+    let (minutes, warnings) = warned(answering(MINUTES, "stop").replacen('{', r#"{"usage": {"cost": 0.012},"#, 1));
+    assert!(!minutes.contains("\ncost:") && !minutes.contains("\ncurrency:"), "{minutes}");
+    assert!(warnings.is_empty(), "{warnings:?}");
+}
+
+/// The program as if the machine's name for OpenRouter led to the stand-in, in a namespace of its
+/// own: the only way a test reaches the host's own rule, no test ever calling the real one. `None`
+/// where this system lets no user make one: that test then proves nothing, and says so.
+#[cfg(target_os = "linux")]
+fn at_openrouter(body: String) -> Option<(String, Vec<serde_json::Value>)> {
+    let free = std::process::Command::new("unshare").args(["-Urm", "true"]).output();
+    if !free.is_ok_and(|output| output.status.success()) {
+        eprintln!("NOT RUN: this system lets no user make a namespace");
+        return None;
+    }
+    let folder = session(None);
+    let logs = tempfile::tempdir().unwrap();
+    let hosts = folder.path().join("hosts");
+    fs::write(&hosts, "127.0.0.1 openrouter.ai\n").unwrap();
+    let (address, received) = provider("200 OK", body);
+    let address = address.replace("127.0.0.1", "openrouter.ai");
+    let output = std::process::Command::new("unshare")
+        .args(["-Urm", "sh", "-c", r#"mount --bind "$1" /etc/hosts && shift && exec "$@""#, "sh"])
+        .arg(&hosts)
+        .arg(env!("CARGO_BIN_EXE_wholeheard-summary"))
+        .arg(folder.path())
+        .args(["--provider", &address, "--model", "a-model"])
+        .env_remove("WHOLEHEARD_PROVIDER_KEY")
+        .env("WHOLEHEARD_LOG_DIR", logs.path())
+        .env_remove("WHOLEHEARD_LOG")
+        .output()
+        .unwrap();
+    if !output.status.success() && said(&output).1.contains("mount") {
+        eprintln!("NOT RUN: this system lets no user mount: {}", said(&output).1);
+        return None;
+    }
+    assert!(output.status.success(), "{}", said(&output).1);
+    received.recv().unwrap();
+    let warnings = logged(logs.path()).into_iter().filter(|line| line["level"] == "WARN").collect();
+    Some((fs::read_to_string(folder.path().join("minutes.md")).unwrap(), warnings))
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn openrouters_cost_reaches_the_front_matter_as_it_reported_it() {
+    let priced = |usage: &str| answering(MINUTES, "stop").replacen('{', &format!(r#"{{"usage": {usage},"#), 1);
+    let Some((minutes, warnings)) = at_openrouter(priced(r#"{"cost": 1.20e-6, "cost_details": {"upstream_inference_cost": null}}"#)) else {
+        return;
+    };
+    assert!(minutes.contains("\nprovider: \"openrouter.ai\"\n"), "{minutes}");
+    assert!(minutes.contains("\ncost: 1.20e-6\ncurrency: USD\n---\n"), "{minutes}");
+    assert!(warnings.is_empty(), "{warnings:?}");
+
+    let (minutes, warnings) = at_openrouter(priced(r#"{"cost": "0.012"}"#)).unwrap();
+    assert!(!minutes.contains("\ncost:") && !minutes.contains("\ncurrency:"), "{minutes}");
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert_eq!(warnings[0]["message"], "summary.cost_refused");
+
+    let (minutes, warnings) = at_openrouter(priced(r#"{"cost": 0.001, "cost_details": {"upstream_inference_cost": 0.02}}"#)).unwrap();
+    assert!(!minutes.contains("\ncost:"), "{minutes}");
+    assert!(warnings.is_empty(), "{warnings:?}");
 }

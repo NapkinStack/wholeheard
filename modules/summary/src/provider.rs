@@ -35,6 +35,14 @@ fn refused<T>(code: &'static str, why: impl Into<String>) -> Result<T, Refused> 
     Err(Refused(why.into(), Some(code)))
 }
 
+/// What a provider answered: its text, and what it says of the call, untouched.
+#[derive(Debug)]
+pub struct Answer {
+    pub text: String,
+    /// The answer's `usage`; `null` when it has none.
+    pub usage: serde_json::Value,
+}
+
 /// Where the minutes are asked for.
 pub struct Provider {
     uri: Uri,
@@ -198,7 +206,7 @@ impl Provider {
     }
 
     /// Asks once, and gives the answer's text — or what failed, in one sentence.
-    pub fn ask(&self, request: &str) -> Result<String, Refused> {
+    pub fn ask(&self, request: &str) -> Result<Answer, Refused> {
         let host = self.named();
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .max_redirects(0)
@@ -296,7 +304,10 @@ impl Provider {
             _ => return refused("provider.failed", format!("{host} stopped before the end of its answer")),
         }
         match said.as_str() {
-            Some(text) if !text.trim().is_empty() => Ok(text.to_string()),
+            Some(text) if !text.trim().is_empty() => Ok(Answer {
+                text: text.to_string(),
+                usage: answer["usage"].clone(),
+            }),
             _ => refused("provider.failed", format!("{host} answered without any text")),
         }
     }
