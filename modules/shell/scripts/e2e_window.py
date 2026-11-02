@@ -1492,10 +1492,10 @@ def first_run(now: dt.datetime) -> None:
             press(browser, "welcome-again")
             until_question(browser)
             browser.execute_script("document.querySelector('#welcome input[value=rarely]').click()")
-            # Come, and read by the page — Settings, hidden, say it no longer missing —; its drawing
-            # then given a second to end.
-            came = wait_for(browser, lambda b: fetched.exists() and b.execute_script(
-                "return document.getElementById('model-state')?.dataset.kind") == "named", 15)
+            # Come; the page read again, as a model come or a fetch ended does: its drawing then
+            # given a second to end. Settings left, nothing of them is there to ask for it.
+            came = wait_for(browser, lambda b: fetched.exists(), 15)
+            browser.execute_script("refresh()")
             time.sleep(1)
             check("the model come while the assistant is answered: the answer chosen stays, never drawn over",
                   came and browser.execute_script(picked) == "rarely", browser.execute_script(picked))
@@ -3464,10 +3464,12 @@ def press_on_the_page_left(now: dt.datetime) -> None:
         browser.execute_script(f"location.hash = '#/meeting/{beside}'")
         wait_for(browser, lambda b: b.execute_script(page_of) == beside, 5)
         # A focus's drawing that fails on the page asked for: it stays; said.
+        browser.execute_script("window.stopped = false; player = { name: arguments[0], stop() { window.stopped = true; } }", beside)
         browser.execute_script(late, 1, 0)
         browser.execute_script("window.dispatchEvent(new Event('focus'))")
         told = wait_for(browser, lambda b: b.execute_script(said) == not_shown, 5)
-        check("a drawing that fails on the page shown: said, the page stays", told and browser.execute_script(page_of) == beside, browser.execute_script(page_of))
+        check("a drawing that fails on the page shown: said, the page stays, what plays plays on", told and browser.execute_script(page_of) == beside and browser.execute_script("return window.stopped") is False, browser.execute_script(page_of))
+        browser.execute_script("player = null")
         browser.execute_script("window.restore()")
         # A throw in the drawing: nothing of the page left, said; tried again, drawn; logged.
         at_page(browser, left)
@@ -3504,25 +3506,65 @@ def press_on_the_page_left(now: dt.datetime) -> None:
             browser.execute_script("window.refusing = 0; window.restore()")
             browser.find_element(By.ID, "pane-again").click()
             check(f"retried at {size_[0]}: the list and no sentence", wait_for(browser, lambda b: b.execute_script(said) == "" and b.find_elements(By.CSS_SELECTOR, "#groups .session")[0].is_displayed(), 5))
+            if narrow:
+                # On the list itself, shown: a drawing that fails there says so above it.
+                browser.execute_script(late, 1, 0)
+                browser.execute_script("window.dispatchEvent(new Event('focus'))")
+                wait_for(browser, lambda b: b.execute_script(said) == not_shown, 5)
+                above = ("const y = (e) => e.getBoundingClientRect(); const p = y(document.getElementById('pane-said')), a = y(document.getElementById('pane-again')), r = y(document.querySelector('#groups .session'));"
+                         " return [p.top >= 0, p.bottom <= a.top, a.bottom <= r.top, r.height > 0]")
+                check("at 420, on the list: the sentence, its retry, then the list", browser.execute_script(above) == [True, True, True, True], browser.execute_script(above))
+                browser.execute_script("window.restore()")
+                browser.find_element(By.ID, "pane-again").click()
+                wait_for(browser, lambda b: b.execute_script(said) == "", 5)
         browser.set_window_size(1100, 800)
         wait_for(browser, lambda b: b.execute_script("return innerWidth >= 840"), 5)
-        # The row asked for, clicked again with no hashchange: drawn.
+        # That sentence no longer the last word: a meeting then gone keeps its own, its retry gone.
         at_page(browser, left)
         browser.execute_script(late, 1, 0)
         browser.execute_script(f"location.hash = '#/meeting/{asked.name}'")
         wait_for(browser, lambda b: b.execute_script(said) == not_shown, 5)
         browser.execute_script("window.restore()")
-        # That sentence no longer the last word: a meeting then gone keeps its own.
         browser.execute_script("location.hash = '#/meeting/gone'")
         wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/" and b.execute_script(page_of) is not None, 5)
-        check("then a meeting gone: its own sentence, said and kept", browser.execute_script(said).startswith("Cette réunion n’a pas pu être ouverte"), browser.execute_script(said))
+        check("then a meeting gone: its own sentence, said and kept, no retry", browser.execute_script(said).startswith("Cette réunion n’a pas pu être ouverte") and not browser.find_element(By.ID, "pane-again").is_displayed(), browser.execute_script(said))
+        # A failure's row and link: nothing marked for a page no longer shown.
         at_page(browser, left)
         browser.execute_script(late, 1, 0)
         browser.execute_script(f"location.hash = '#/meeting/{asked.name}'")
         wait_for(browser, lambda b: b.execute_script(said) == not_shown, 5)
         browser.execute_script("window.restore()")
-        browser.find_element(By.CSS_SELECTOR, f"#groups .session[href='#/meeting/{asked.name}']").click()
-        check("the row asked for, clicked again with no hashchange: drawn", wait_for(browser, lambda b: b.execute_script(page_of) == asked.name and b.execute_script(said) == "", 5), browser.execute_script(said))
+        check("a failure: no row left marked", browser.execute_script("return document.querySelectorAll('#groups .session[aria-current]').length") == 0)
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "sessions"), 5)
+        browser.execute_script(late, 1, 0)
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.execute_script(said) == not_shown, 5)
+        browser.execute_script("window.restore()")
+        check("a failure: Réglages no longer marked", browser.execute_script("return document.getElementById('settings-link').getAttribute('aria-current')") != "page")
+        browser.find_element(By.ID, "pane-again").click()
+        wait_for(browser, lambda b: b.execute_script(said) == "", 5)
+        # An address that is none: the page goes, the drawing's failure says so.
+        at_page(browser, left)
+        browser.execute_script("location.hash = '#/meeting/%E0%A4%A'")
+        told = wait_for(browser, lambda b: b.execute_script(said) == not_shown, 5)
+        check("an address that does not decode: the page gone, said", told and browser.execute_script("return document.getElementById('meeting').childElementCount") == 0, browser.execute_script(said))
+        # Settings: a link to where it is draws nothing, what is typed stays; left and back, nothing kept, as ever.
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "sessions"), 5)
+        browser.execute_script("const f = document.getElementById('sessions'); f.value = '/typed'; f.dispatchEvent(new Event('input'))")
+        browser.execute_script("const real = window.__TAURI__.core; window.drawn = 0; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => { if (asked === 'settings_shown') window.drawn += 1; return real.invoke(asked, ...rest); } }; window.restore = () => { window.__TAURI__.core = real; };")
+        browser.find_element(By.ID, "settings-link").click()
+        # Nothing to wait for if it holds: a drawing, had it come, comes within this.
+        wait_for(browser, lambda b: b.execute_script("return window.drawn") > 0, 0.7)
+        drawing_ = browser.execute_script("return [window.drawn, document.getElementById('sessions').value]")
+        browser.execute_script("window.restore()")
+        check("Réglages clicked again: nothing drawn, what is typed stays", drawing_ == [0, "/typed"], drawing_)
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.execute_script(page_of) is not None, 5)
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "sessions"), 5)
+        check("left and back: what was typed and not saved is gone, as ever", browser.execute_script("return document.getElementById('sessions').value") != "/typed")
     # The agreement page: Envoyer is a send.
     for key in (None, Keys.ENTER, Keys.SPACE):
         window = Window(meetings, "fr_FR.UTF-8", service)
@@ -3541,6 +3583,47 @@ def press_on_the_page_left(now: dt.datetime) -> None:
             browser.execute_script("window.restore()")
             check(f"Envoyer ({'pointer' if key is None else 'key'}) while another meeting is asked for: nothing sent, nothing agreed to",
                   drawn and nothing_sent() and "minutes_agreed" not in window.file.read_text(), window.file.read_text())
+    # Pages that act on no meeting act all the same: a press on them while `listed` holds the way out.
+    held = ("const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => {"
+            " if (asked === 'listed') await new Promise((r) => setTimeout(r, 1000)); return real.invoke(asked, ...rest); } }; window.restore = () => { window.__TAURI__.core = real; };")
+    for key in (None, Keys.ENTER):
+        window = Window(meetings, "fr_FR.UTF-8", service)
+        with window as browser:
+            browser.set_window_size(1100, 800)
+            wait_for(browser, lambda b: b.execute_script(page_of) is not None, 10)
+            browser.execute_script("location.hash = '#/free'")
+            wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#free .freeable input"), 10)
+            browser.execute_script("document.querySelector('#free .freeable input').click()")
+            wait_for(browser, lambda b: b.execute_script("return document.getElementById('free-do')?.disabled === false"), 5)
+            files = sorted(meetings.glob("*/local.wav"))
+            found = browser.find_element(By.ID, "free-do")
+            browser.execute_script("arguments[0].focus()", found)
+            browser.execute_script(held)
+            browser.execute_script("location.hash = '#/'")
+            pressed(browser, found, key)
+            during = browser.execute_script("return document.getElementById('free').childElementCount")
+            settled = wait_for(browser, lambda b: b.execute_script(page_of) is not None, 5)
+            browser.execute_script("window.restore()")
+            check(f"Libérer ({'pointer' if key is None else 'key'}) while another page is asked for: the file still there",
+                  settled and during == 0 and all(file.exists() for file in files), (during, [file.parent.name for file in files if not file.exists()]))
+            browser.execute_script("location.hash = '#/settings'")
+            wait_for(browser, lambda b: b.find_elements(By.ID, "reminder"), 10)
+            before = window.file.read_text()
+            found = browser.find_element(By.ID, "reminder")
+            browser.execute_script("arguments[0].focus()", found)
+            browser.execute_script(held)
+            browser.execute_script("location.hash = '#/'")
+            pressed(browser, found, Keys.SPACE if key else None)
+            during = browser.execute_script("return document.getElementById('settings').childElementCount")
+            settled = wait_for(browser, lambda b: b.execute_script(page_of) is not None, 5)
+            browser.execute_script("window.restore()")
+            check(f"a setting ({'pointer' if key is None else 'key'}) while another page is asked for: not changed",
+                  settled and during == 0 and window.file.read_text() == before, during)
+            # Coming back: each is drawn again.
+            browser.execute_script("location.hash = '#/free'")
+            free_back = wait_for(browser, lambda b: b.find_elements(By.ID, "free-do"), 5)
+            browser.execute_script("location.hash = '#/settings'")
+            check("left, then back: Libérer and Réglages are drawn again", free_back and wait_for(browser, lambda b: b.find_elements(By.ID, "reminder"), 5))
     # What is agreed to names its meeting, as its page and the list do.
     for language, says, sentence in (("fr_FR.UTF-8", "Le texte de « {} » va quitter votre ordinateur", not_shown), ("en_US.UTF-8", "The text of “{}” is about to leave your computer", "This page could not be shown: try again.")):
         with Window(meetings, language, service) as browser:
@@ -4686,6 +4769,12 @@ def window_looks(now: dt.datetime) -> None:
         browser.set_window_size(1100, 800)
         wait_for(browser, lambda b: b.find_element(By.ID, "meeting").is_displayed(), 10)
         check("less motion asked: the page's query says so", browser.execute_script(LESS_MOTION))
+        browser.execute_script("location.hash = '#/settings'")
+        wait_for(browser, lambda b: b.find_elements(By.ID, "sessions"), 5)
+        browser.execute_script("location.hash = '#/'")
+        wait_for(browser, lambda b: b.find_elements(By.CSS_SELECTOR, "#meeting.arriving > *"), 5)
+        arrives = browser.execute_script("return getComputedStyle(document.querySelector('#meeting.arriving > *')).animationName")
+        check("a page come after one left, less motion asked: it does not fade", arrives == "none", arrives)
         browser.execute_script(WATCH_MOTION)
         browser.execute_script("const real = window.__TAURI__.core, name = arguments[0]; window.__TAURI__.core = { ...real, invoke: async (asked, ...rest) => { const answer = await real.invoke(asked, ...rest); return asked === 'makings' ? { ...answer, minutes: { name, model: 'm', provider: 'p' } } : answer; } }; window.restore = () => { window.__TAURI__.core = real; };", made.name)
         wait_for(browser, lambda b: b.execute_script("return [...document.querySelectorAll('.chip.making')].some(c => !c.hidden)"), 8)

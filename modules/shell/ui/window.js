@@ -3342,16 +3342,20 @@ let drawing = 0;
 const narrow = matchMedia("(max-width: 839px)");
 narrow.addEventListener("change", () => refresh());
 
-// The address asks for another page: what is shown acts on the meeting it shows, so it goes at once,
-// as a page does when it navigates; the drawing fills it. Its own address keeps it, what is typed too.
+// The address changed: what is shown acts as it stands, so it goes at once, as a page does when it
+// navigates; the drawing fills it. Only a meeting's own address keeps it, reached from beside the
+// list. Compared as written: an address that does not decode is another, its drawing's failure says so.
 function leavePage() {
   const page = document.getElementById("meeting");
   document.getElementById("agree").replaceChildren();
-  const asked = location.hash.match(/^#\/meeting\/(.+)$/);
-  if (asked && decodeURIComponent(asked[1]) === page.dataset.name) return;
+  document.getElementById("free").replaceChildren();
+  document.getElementById("settings").replaceChildren();
+  document.getElementById("settings-link").setAttribute("aria-current", "false");
+  if (location.hash === `#/meeting/${encodeURIComponent(page.dataset.name ?? "")}`) return;
   page.replaceChildren();
   delete page.dataset.name;
   delete page.dataset.at;
+  document.querySelector("#groups .session[aria-current]")?.removeAttribute("aria-current");
 }
 // A drawing that failed: said in the pane, at any width, with a way to try again.
 let pageNotShown = false;
@@ -3577,11 +3581,6 @@ document.getElementById("groups").addEventListener("keydown", (event) => {
 document.getElementById("empty-record").addEventListener("click", () => document.getElementById("record").click());
 document.getElementById("empty-again").addEventListener("click", () => refresh());
 document.getElementById("pane-again").addEventListener("click", () => refresh());
-// A link to the address already asked for: no hashchange follows, it is drawn again all the same.
-document.addEventListener("click", (event) => {
-  const link = event.target.closest?.('a[href^="#/"]');
-  if (link && link.getAttribute("href") === location.hash) refresh();
-});
 // Its new state at once, the command answering after it; a second click meanwhile asks nothing.
 // Answered, the shell's word: a press it took for the same one, or a start that failed, shows (D68).
 document.getElementById("record").addEventListener("click", async () => {

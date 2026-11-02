@@ -316,6 +316,10 @@ evidence:
     - pattern: '^(?=.*"message":"shell\.page_failed")(?=.*"kind":"ScenarioAS")'
       level: error
       scenario: AS
+    # An address that does not decode: its drawing fails, said on the page.
+    - pattern: '^(?=.*"message":"shell\.page_failed")(?=.*"kind":"URIError")'
+      level: error
+      scenario: AS
 
 docs:
   readme: README.md
