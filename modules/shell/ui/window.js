@@ -3348,24 +3348,30 @@ function takesPresses(takes) {
 // What had the focus when the address changed: the page kept, it gets it back, keystrokes with it.
 let focusHeld = null;
 function giveFocusBack() {
-  if (focusHeld?.isConnected && document.activeElement === document.body) focusHeld.focus({ preventScroll: true });
-  focusHeld = null;
+  if (focusHeld?.isConnected) focusHeld.focus();
 }
+// The focus gone anywhere since: the user moved, nothing to give back.
+document.addEventListener("focusin", () => {
+  focusHeld = null;
+});
 let pageNotShown = false;
+let addressDrawn = null;
 
 // What the meeting's page was drawn from, to know whether it changed since.
 let drawnMeeting = null;
 
 // `again`: the list's address drawn once more after a page gone — never more than once.
-// Whoever asked: a drawing still the current one that fails gives the page its presses back and says
-// so; one superseded answers for nothing. The failure goes on to `page_failed`, with its stack.
+// Whoever asked: a drawing still the current one that fails says so; one superseded answers for
+// nothing. The page shown takes presses again only if it is what the address asks for: a press never
+// sends the meeting left, the sidebar is the way out. The failure goes on to `page_failed`, with its stack.
 async function refresh(again = false) {
   const mine = ++drawing;
   try {
     return await draw(mine, again);
   } catch (why) {
     if (mine === drawing) {
-      takesPresses(true);
+      if (location.hash === addressDrawn) takesPresses(true);
+      focusHeld = null;
       if (words) {
         paneSays(words.page_not_shown);
         pageNotShown = true;
@@ -3470,6 +3476,7 @@ async function draw(mine, again) {
   }
   if (mine !== drawing) return;
   takesPresses(true);
+  addressDrawn = location.hash;
   if (pageNotShown) document.getElementById("pane-said").hidden = true;
   pageNotShown = false;
   document.getElementById("empty").hidden = !listed || listing.sessions.length > 0;

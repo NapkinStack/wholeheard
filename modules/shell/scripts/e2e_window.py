@@ -3444,9 +3444,10 @@ def press_on_the_page_left(now: dt.datetime) -> None:
         at_page(browser, asked)
         browser.execute_script("window.logged = []; const real = window.__TAURI__.core; window.__TAURI__.core = { ...real, invoke: (asked, ...rest) => asked === 'page_failed' ? (window.logged.push(rest[0]), real.invoke(asked, ...rest)) : asked === 'listed' ? Promise.reject(Object.assign(new Error('REFUS'), { name: 'ScenarioAS' })) : real.invoke(asked, ...rest) }; window.restore = () => { window.__TAURI__.core = real; };")
         browser.execute_script(f"location.hash = '#/meeting/{left.name}'")
-        settled = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/meeting/{left.name}" and b.execute_script(free), 5)
+        settled = wait_for(browser, lambda b: not b.execute_script("return document.getElementById('pane-said').hidden"), 5)
         browser.execute_script("window.restore()")
-        check("the list not read on the way: what is shown takes presses again", settled)
+        check("the list not read on the way: said, the page left still held, the sidebar the way out",
+              settled and not browser.execute_script(free) and browser.execute_script(page_of) == asked.name and browser.find_element(By.ID, "fold").is_enabled(), browser.execute_script(free))
         said = browser.execute_script("const p = document.getElementById('pane-said'); return [p.hidden, p.textContent]")
         check("the list not read on the way: said on the screen", said == [False, "Cette page n’a pas pu être affichée\u00a0: réessayez."], said)
         # The next reading that works: the sentence goes; the failure was logged with its kind.
@@ -3454,6 +3455,23 @@ def press_on_the_page_left(now: dt.datetime) -> None:
         check("the list not read on the way: logged, with its kind", bool(logged) and logged[0]["kind"] == "ScenarioAS", logged)
         browser.execute_script("window.dispatchEvent(new Event('focus'))")
         check("read again: the sentence goes", wait_for(browser, lambda b: b.execute_script("return document.getElementById('pane-said').hidden"), 5))
+        # A meeting refused by a reading with no address: its sentence stays, the earlier failure forgotten.
+        wait_for(browser, lambda b: b.execute_script(page_of) == left.name, 5)
+        browser.execute_script(late, left.name)
+        browser.execute_script("window.dispatchEvent(new Event('focus'))")
+        kept_said = wait_for(browser, lambda b: "REFUS" in b.execute_script("return document.getElementById('pane-said').textContent") and b.execute_script("return location.hash") == "#/" and b.execute_script(page_of) not in (None, left.name), 5)
+        browser.execute_script("window.restore()")
+        check("then the meeting refused on a focus: its sentence stays", kept_said and not browser.execute_script("return document.getElementById('pane-said').hidden"), browser.execute_script("return document.getElementById('pane-said').textContent"))
+        # The page shown IS what the address asks for: given back. One failure away, one back.
+        at_page(browser, left)
+        browser.execute_script(refused_list, 2, 0)
+        browser.execute_script(f"location.hash = '#/meeting/{asked.name}'")
+        away = wait_for(browser, lambda b: b.execute_script("return location.hash") == f"#/meeting/{asked.name}" and not b.execute_script("return document.getElementById('pane-said').hidden"), 5)
+        held_away = not browser.execute_script(free)
+        browser.execute_script(f"location.hash = '#/meeting/{left.name}'")
+        back = wait_for(browser, lambda b: not b.execute_script("return document.getElementById('pane-said').hidden") and b.execute_script(free), 5)
+        browser.execute_script("window.restore()")
+        check("failed on the way away: held; failed coming back to the address drawn: given back, said", away and held_away and back, (away, held_away, back))
         # Across the WHOLE wait, late too: held from the address to the new page. Two addresses,
         # the first's reading answering while the second's waits: it frees nothing.
         watching = ("const target = arguments[0]; window.freed = 0; window.at = performance.now(); const m = document.getElementById('meeting'); let held = false;"
@@ -3499,9 +3517,9 @@ def press_on_the_page_left(now: dt.datetime) -> None:
         browser.execute_script(refused_list, 1, 0)
         browser.execute_script("window.refusing = 0")
         browser.execute_script(f"location.hash = '#/meeting/{asked.name}'; setTimeout(() => {{ window.refusing = 1; window.dispatchEvent(new Event('focus')); }}, 100);")
-        said = wait_for(browser, lambda b: b.execute_script("return !document.getElementById('pane-said').hidden && !document.getElementById('meeting').inert"), 3)
+        said = wait_for(browser, lambda b: b.execute_script("return !document.getElementById('pane-said').hidden"), 3)
         browser.execute_script("window.restore()")
-        check("a focus's reading refused while the address waits: said, and the page takes presses again", said, browser.execute_script("return document.getElementById('meeting').inert"))
+        check("a focus's reading refused while the address waits: said, the page left still held", said and not browser.execute_script(free), browser.execute_script(free))
         # That failure no longer the last word: a meeting then refused keeps its own sentence.
         browser.execute_script("location.hash = '#/meeting/gone'")
         kept_said = wait_for(browser, lambda b: b.execute_script("return location.hash") == "#/" and b.execute_script(free) and not b.execute_script("return document.getElementById('meeting').hidden"), 5)
@@ -3527,6 +3545,45 @@ def press_on_the_page_left(now: dt.datetime) -> None:
         wait_for(browser, lambda b: not b.execute_script("return document.getElementById('meeting').inert"), 5)
         browser.execute_script("window.restore()")
         check("the focus taken elsewhere meanwhile: it stays there", browser.execute_script("return document.activeElement.id") == "find", browser.execute_script("return document.activeElement.id"))
+        # Then let go before the drawing: nothing brings back the field left.
+        def own_address(browser, during):
+            browser.execute_script("location.hash = '#/'")
+            wait_for(browser, lambda b: b.execute_script("return (location.hash === '' || location.hash === '#/') && !document.getElementById('meeting').hidden && !document.getElementById('meeting').inert"), 5)
+            during(browser)
+        def moved_then_gone(browser):
+            browser.execute_script("document.getElementById('context-text').focus()")
+            browser.execute_script(late, None)
+            browser.execute_script("location.hash = '#/meeting/{}'".format(shown_now))
+            wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').inert"), 0.3)
+            browser.execute_script("document.getElementById('find').focus(); document.activeElement.blur()")
+            wait_for(browser, lambda b: b.execute_script(free), 5)
+            browser.execute_script("window.restore()")
+        own_address(browser, moved_then_gone)
+        check("the user moved during the wait: the field left is not given the focus back", browser.execute_script("return document.activeElement === document.body"), browser.execute_script("return document.activeElement.id"))
+        # Focus outside the page when the address changed, let go meanwhile: it is not brought back.
+        def outside(browser):
+            browser.execute_script("document.getElementById('find').focus()")
+            browser.execute_script(late, None)
+            browser.execute_script("location.hash = '#/meeting/{}'".format(shown_now))
+            wait_for(browser, lambda b: b.execute_script("return document.getElementById('meeting').inert"), 0.3)
+            browser.execute_script("document.activeElement.blur()")
+            wait_for(browser, lambda b: b.execute_script(free), 5)
+            browser.execute_script("window.restore()")
+        own_address(browser, outside)
+        check("a focus outside the page: not held for it", browser.execute_script("return document.activeElement === document.body"), browser.execute_script("return document.activeElement.id"))
+        # A failed drawing forgets it: the next one, keeping the page, does not bring the field back.
+        def failed(browser):
+            browser.execute_script("document.getElementById('context-text').focus()")
+            # Refused late enough for the field to have lost the focus to `inert`, which WebKit does at its next layout.
+            browser.execute_script(refused_list, 1, 400)
+            browser.execute_script("location.hash = '#/meeting/{}'".format(shown_now))
+            wait_for(browser, lambda b: b.execute_script("return document.activeElement === document.body"), 0.3)
+            wait_for(browser, lambda b: not b.execute_script("return document.getElementById('pane-said').hidden"), 5)
+            browser.execute_script("window.restore()")
+            browser.execute_script("window.dispatchEvent(new Event('focus'))")
+            wait_for(browser, lambda b: b.execute_script(free) and b.execute_script("return document.getElementById('pane-said').hidden"), 5)
+        own_address(browser, failed)
+        check("after a failed drawing: the field left does not get the focus back", browser.execute_script("return document.activeElement.id") != "context-text", browser.execute_script("return document.activeElement.id"))
     # The agreement page: Envoyer is a send.
     window = Window(meetings, "fr_FR.UTF-8", service)
     with window as browser:
@@ -3545,8 +3602,8 @@ def press_on_the_page_left(now: dt.datetime) -> None:
         check("Envoyer pressed while another meeting is asked for: nothing sent, nothing agreed to",
               drawn and not args.exists() and (left / "minutes.md").read_text() == written and "minutes_agreed" not in window.file.read_text(), window.file.read_text())
         # Back at the agreement: its button is given back, and sends.
-        browser.execute_script(f"location.hash = '#/agree/{left.name}'")
-        wait_for(browser, lambda b: b.execute_script("return location.hash.startsWith('#/agree/') && !document.getElementById('agree').hidden"), 10)
+        browser.execute_script(f"location.hash = '#/agree/{third.name}'")
+        wait_for(browser, lambda b: b.execute_script("return location.hash === arguments[0] && !document.getElementById('agree').hidden && document.getElementById('agree').childElementCount > 0", f"#/agree/{third.name}"), 10)
         browser.execute_script("document.getElementById('agree-send').focus()")
         pressed(browser, browser.find_element(By.ID, "agree-send"))
         check("back at the agreement: not held, Envoyer sends", wait_for(browser, lambda b: args.exists(), 10), browser.execute_script("return document.getElementById('agree').inert"))
@@ -3561,6 +3618,14 @@ def press_on_the_page_left(now: dt.datetime) -> None:
                 wait_for(browser, lambda b: b.execute_script("return location.hash.startsWith('#/agree/') && document.querySelector('#agree h1')?.textContent") == says.format(named), 10)
                 title = browser.execute_script("return document.querySelector('#agree h1').textContent")
                 check(f"the agreement names its meeting: {'its title' if folder == left else 'its date'} ({language})", title == says.format(named) and named != "", title)
+            # A page not shown: said in the user's language.
+            at_page(browser, left)
+            browser.execute_script(refused_list, 1, 0)
+            browser.execute_script(f"location.hash = '#/meeting/{asked.name}'")
+            not_shown = "Cette page n’a pas pu être affichée\u00a0: réessayez." if language.startswith("fr") else "This page could not be shown: try again."
+            said_it = wait_for(browser, lambda b: b.execute_script("return document.getElementById('pane-said').textContent") == not_shown, 5)
+            browser.execute_script("window.restore()")
+            check(f"a page not shown: said ({language})", said_it, browser.execute_script("return document.getElementById('pane-said').textContent"))
             # A folder the list does not hold: named by its folder, never by nothing.
             odd = meetings / "hors-liste"
             odd.mkdir(exist_ok=True)
