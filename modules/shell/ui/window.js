@@ -2577,10 +2577,10 @@ function showSettings(shown, minutes, words) {
 // Before a meeting first leaves for a host (D11's fifth board): what leaves, what stays, to
 // whom; the user's word — once, or for this service —; or the minutes written on this computer.
 // Nothing here is sent before a click.
-function showAgreement(name, agreement, words) {
+function showAgreement(name, agreement, words, session) {
   const page = document.getElementById("agree");
   const card = element("section", "card agreement");
-  card.append(element("p", "eyebrow", words.agree_eyebrow), element("h1", "", words.agree_title), element("p", "says", words.agree_lead));
+  card.append(element("p", "eyebrow", words.agree_eyebrow), element("h1", "", fill(words.agree_title, session ? session.title ?? heading(session, words) : name)), element("p", "says", words.agree_lead));
   const goes = element("ul", "goes");
   const item = (mark, [title, says], ...values) => {
     const line = element("li", mark);
@@ -3342,12 +3342,55 @@ let drawing = 0;
 const narrow = matchMedia("(max-width: 839px)");
 narrow.addEventListener("change", () => refresh());
 
+// The address changed: what is shown acts as it stands, so it goes at once, as a page does when it
+// navigates; the drawing fills it. Only a meeting's own address keeps it, reached from beside the
+// list. Compared as written: an address that does not decode is another, its drawing's failure says so.
+function leavePage() {
+  const page = document.getElementById("meeting");
+  document.getElementById("agree").replaceChildren();
+  document.getElementById("free").replaceChildren();
+  document.getElementById("settings").replaceChildren();
+  document.getElementById("settings-link").setAttribute("aria-current", "false");
+  if (location.hash === `#/meeting/${encodeURIComponent(page.dataset.name ?? "")}`) return;
+  page.replaceChildren();
+  delete page.dataset.name;
+  delete page.dataset.at;
+  document.querySelector("#groups .session[aria-current]")?.removeAttribute("aria-current");
+}
+// A drawing that failed: said in the pane, at any width, with a way to try again.
+let pageNotShown = false;
+function notShown(said) {
+  pageNotShown = said;
+  document.getElementById("pane-again").hidden = !said;
+}
 // What the meeting's page was drawn from, to know whether it changed since.
 let drawnMeeting = null;
 
 // `again`: the list's address drawn once more after a page gone — never more than once.
+// Whoever asked: a drawing still the current one that fails says so; one superseded answers for
+// nothing. The failure goes on to `page_failed`, with its stack.
 async function refresh(again = false) {
   const mine = ++drawing;
+  try {
+    return await draw(mine, again);
+  } catch (why) {
+    if (mine === drawing) {
+      // Nothing left to stop it with.
+      if (document.getElementById("meeting").childElementCount === 0) {
+        player?.stop();
+        player = null;
+      }
+      if (words) {
+        paneSays(words.page_not_shown);
+        document.getElementById("pane-again").textContent = words.try_again;
+        notShown(true);
+      }
+    }
+    throw why;
+  }
+}
+
+async function draw(mine, again) {
   // The small window is its own: it draws its view once, and asks for nothing else.
   if (location.hash === "#/small") {
     if (!document.body.classList.contains("small-window")) {
@@ -3441,12 +3484,17 @@ async function refresh(again = false) {
     }
   }
   if (mine !== drawing) return;
+  if (pageNotShown) document.getElementById("pane-said").hidden = true;
+  notShown(false);
   document.getElementById("empty").hidden = !listed || listing.sessions.length > 0;
   // No meeting yet: under 840 px, the sidebar and what to do, one under the other.
   document.body.classList.toggle("no-meeting", listing.sessions.length === 0);
   document.getElementById("agree").hidden = agreement === null;
   // Shown or emptied: never a question left hidden under another page.
-  if (agreement) showAgreement(decodeURIComponent(agreeing[1]), agreement, words);
+  if (agreement) {
+    const asked = decodeURIComponent(agreeing[1]);
+    showAgreement(asked, agreement, words, listing.sessions.find((session) => nameOf(session) === asked));
+  }
   else document.getElementById("agree").replaceChildren();
   document.getElementById("meeting").hidden = opened === null;
   // Not shown, not kept: a page hidden under another is never found in its place.
@@ -3471,6 +3519,7 @@ async function refresh(again = false) {
   const fresh = opened ? JSON.stringify(opened) : null;
   const kept = opened && page.dataset.name === name && page.dataset.at === "#/" && address !== "#/" && fresh === drawnMeeting;
   if (opened && !kept) {
+    page.classList.toggle("arriving", page.childElementCount === 0);
     makings = seen;
     showMeeting(opened, words);
     drawnMeeting = fresh;
@@ -3531,6 +3580,7 @@ document.getElementById("groups").addEventListener("keydown", (event) => {
 // The empty pane's own gesture (D61's board 5): the sidebar's, offered where the eye is.
 document.getElementById("empty-record").addEventListener("click", () => document.getElementById("record").click());
 document.getElementById("empty-again").addEventListener("click", () => refresh());
+document.getElementById("pane-again").addEventListener("click", () => refresh());
 // Its new state at once, the command answering after it; a second click meanwhile asks nothing.
 // Answered, the shell's word: a press it took for the same one, or a start that failed, shows (D68).
 document.getElementById("record").addEventListener("click", async () => {
@@ -3571,7 +3621,11 @@ window.addEventListener("focus", () => {
   if (!choosing) refresh();
 });
 window.addEventListener("hashchange", () => {
+  // Another address: the page still shown, or its agreement, acts on its own meeting: no press and
+  // no focus there until what was asked is drawn — never one sent for a meeting left.
+  leavePage();
   document.getElementById("pane-said").hidden = true;
+  notShown(false);
   serviceAnswer = null;
   if (nameRefused) paneSays(nameRefused);
   nameRefused = null;

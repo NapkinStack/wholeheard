@@ -451,6 +451,10 @@ body.small-window .frame { display: none; }
 .saved-said { margin: 4px 0 0; color: var(--ok); font-size: 13px; }
 .redo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .pane > .back { display: none; }
+#pane-again { margin: 8px 16px; align-self: flex-start; }
+/* A page come after one left: it arrives, rather than blinks. */
+.arriving > * { animation: page-arrives 120ms ease-out; }
+@keyframes page-arrives { from { opacity: 0.4; } }
 /* Folding the sidebar (D61): its button at its top, the one that brings it back at the pane's. */
 .icon-button { width: 34px; min-height: 34px; padding: 0; border-radius: 9px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font-size: 17px; cursor: pointer; }
 .pane > #unfold { display: none; margin: 14px 0 0 16px; }
@@ -480,7 +484,7 @@ body.small-window .frame { display: none; }
      children — what to do with no meeting — staying under the header. */
   body[data-at="list"]:has(#pane-said:not([hidden])) .frame { flex-direction: column; align-items: stretch; }
   body[data-at="list"]:has(#pane-said:not([hidden])) .pane { display: contents; }
-  body[data-at="list"]:has(#pane-said:not([hidden])) #pane-said { order: -1; }
+  body[data-at="list"]:has(#pane-said:not([hidden])) #pane-said, body[data-at="list"]:has(#pane-said:not([hidden])) #pane-again { order: -1; }
   body[data-at="list"]:has(#pane-said:not([hidden])) .pane > .back { display: none; }
   .pane > .back { display: inline-block; margin: 8px 0 0 16px; }
   .pane > main { padding: 12px 16px 40px; }
