@@ -3342,39 +3342,44 @@ let drawing = 0;
 const narrow = matchMedia("(max-width: 839px)");
 narrow.addEventListener("change", () => refresh());
 
-function takesPresses(takes) {
-  for (const id of ["meeting", "agree"]) document.getElementById(id).inert = !takes;
+// The address asks for another page: what is shown acts on the meeting it shows, so it goes at once,
+// as a page does when it navigates; the drawing fills it. Its own address keeps it, what is typed too.
+function leavePage() {
+  const page = document.getElementById("meeting");
+  document.getElementById("agree").replaceChildren();
+  const asked = location.hash.match(/^#\/meeting\/(.+)$/);
+  if (asked && decodeURIComponent(asked[1]) === page.dataset.name) return;
+  page.replaceChildren();
+  delete page.dataset.name;
+  delete page.dataset.at;
 }
-// What had the focus when the address changed: the page kept, it gets it back, keystrokes with it.
-let focusHeld = null;
-function giveFocusBack() {
-  if (focusHeld?.isConnected) focusHeld.focus();
-}
-// The focus gone anywhere since: the user moved, nothing to give back.
-document.addEventListener("focusin", () => {
-  focusHeld = null;
-});
+// A drawing that failed: said in the pane, at any width, with a way to try again.
 let pageNotShown = false;
-let addressDrawn = null;
-
+function notShown(said) {
+  pageNotShown = said;
+  document.getElementById("pane-again").hidden = !said;
+}
 // What the meeting's page was drawn from, to know whether it changed since.
 let drawnMeeting = null;
 
 // `again`: the list's address drawn once more after a page gone — never more than once.
 // Whoever asked: a drawing still the current one that fails says so; one superseded answers for
-// nothing. The page shown takes presses again only if it is what the address asks for: a press never
-// sends the meeting left, the sidebar is the way out. The failure goes on to `page_failed`, with its stack.
+// nothing. The failure goes on to `page_failed`, with its stack.
 async function refresh(again = false) {
   const mine = ++drawing;
   try {
     return await draw(mine, again);
   } catch (why) {
     if (mine === drawing) {
-      if (location.hash === addressDrawn) takesPresses(true);
-      focusHeld = null;
+      // Nothing left to stop it with.
+      if (document.getElementById("meeting").childElementCount === 0) {
+        player?.stop();
+        player = null;
+      }
       if (words) {
         paneSays(words.page_not_shown);
-        pageNotShown = true;
+        document.getElementById("pane-again").textContent = words.try_again;
+        notShown(true);
       }
     }
     throw why;
@@ -3475,10 +3480,8 @@ async function draw(mine, again) {
     }
   }
   if (mine !== drawing) return;
-  takesPresses(true);
-  addressDrawn = location.hash;
   if (pageNotShown) document.getElementById("pane-said").hidden = true;
-  pageNotShown = false;
+  notShown(false);
   document.getElementById("empty").hidden = !listed || listing.sessions.length > 0;
   // No meeting yet: under 840 px, the sidebar and what to do, one under the other.
   document.body.classList.toggle("no-meeting", listing.sessions.length === 0);
@@ -3512,11 +3515,11 @@ async function draw(mine, again) {
   const fresh = opened ? JSON.stringify(opened) : null;
   const kept = opened && page.dataset.name === name && page.dataset.at === "#/" && address !== "#/" && fresh === drawnMeeting;
   if (opened && !kept) {
+    page.classList.toggle("arriving", page.childElementCount === 0);
     makings = seen;
     showMeeting(opened, words);
     drawnMeeting = fresh;
   }
-  giveFocusBack();
   if (opened) page.dataset.at = address;
   else delete page.dataset.at;
   paintMakings();
@@ -3573,6 +3576,12 @@ document.getElementById("groups").addEventListener("keydown", (event) => {
 // The empty pane's own gesture (D61's board 5): the sidebar's, offered where the eye is.
 document.getElementById("empty-record").addEventListener("click", () => document.getElementById("record").click());
 document.getElementById("empty-again").addEventListener("click", () => refresh());
+document.getElementById("pane-again").addEventListener("click", () => refresh());
+// A link to the address already asked for: no hashchange follows, it is drawn again all the same.
+document.addEventListener("click", (event) => {
+  const link = event.target.closest?.('a[href^="#/"]');
+  if (link && link.getAttribute("href") === location.hash) refresh();
+});
 // Its new state at once, the command answering after it; a second click meanwhile asks nothing.
 // Answered, the shell's word: a press it took for the same one, or a start that failed, shows (D68).
 document.getElementById("record").addEventListener("click", async () => {
@@ -3615,11 +3624,9 @@ window.addEventListener("focus", () => {
 window.addEventListener("hashchange", () => {
   // Another address: the page still shown, or its agreement, acts on its own meeting: no press and
   // no focus there until what was asked is drawn — never one sent for a meeting left.
-  const focused = document.activeElement;
-  focusHeld = focused.closest("#meeting, #agree") ? focused : null;
-  takesPresses(false);
+  leavePage();
   document.getElementById("pane-said").hidden = true;
-  pageNotShown = false;
+  notShown(false);
   serviceAnswer = null;
   if (nameRefused) paneSays(nameRefused);
   nameRefused = null;
