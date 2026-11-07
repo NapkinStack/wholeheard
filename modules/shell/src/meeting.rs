@@ -155,9 +155,10 @@ pub struct Track {
 }
 
 /// The tracks a meeting's folder holds, as `session-audio` describes them, each where its first
-/// frame is: version 1's from the session's start; version 2's where `clock.jsonl`'s first point
-/// of the track puts its frame 0 — a track that opened on a silence starts later. A file that is
-/// not there, or is a link, is no track: freed audio leaves nothing to play.
+/// frame is: version 1's from the session's start; version 2's and 3's where `clock.jsonl`'s first
+/// point of the track puts its frame 0 — a track that opened on a silence starts later. A file that
+/// is not there, or is a link, is no track: freed audio leaves nothing to play. In version 3 a track
+/// is its WAV while the WAV is there and opens, its FLAC otherwise — never a `.flac.part`.
 pub fn tracks(folder: &Path) -> Vec<Track> {
     let Some(session) = fs::read_to_string(folder.join("session.json"))
         .ok()
@@ -165,21 +166,33 @@ pub fn tracks(folder: &Path) -> Vec<Track> {
     else {
         return Vec::new();
     };
-    let named: Vec<(&str, &str)> = match session["contract"].as_str() {
-        Some("session-audio/v1") => vec![("local", "me.wav"), ("remote", "others.wav")],
-        Some("session-audio/v2") => [("local", "local.wav"), ("remote", "remote.wav")]
+    let named: Vec<(&str, &[&str])> = match session["contract"].as_str() {
+        Some("session-audio/v1") => vec![("local", &["me.wav"]), ("remote", &["others.wav"])],
+        Some("session-audio/v2") => [("local", &["local.wav"][..]), ("remote", &["remote.wav"])]
             .into_iter()
             .filter(|(name, _)| session["tracks"].get(name).is_some())
             .collect(),
+        Some("session-audio/v3") => [
+            ("local", &["local.wav", "local.flac"][..]),
+            ("remote", &["remote.wav", "remote.flac"]),
+        ]
+        .into_iter()
+        .filter(|(name, _)| session["tracks"].get(name).is_some())
+        .collect(),
         _ => return Vec::new(),
     };
     let clock = fs::read_to_string(folder.join("clock.jsonl")).unwrap_or_default();
     let points: Vec<serde_json::Value> = clock.lines().filter_map(|line| serde_json::from_str(line).ok()).collect();
     named
         .into_iter()
-        .filter_map(|(name, file)| {
-            let path = std::path::absolute(folder.join(file)).ok()?;
-            fs::symlink_metadata(&path).ok().filter(fs::Metadata::is_file)?;
+        .filter_map(|(name, files)| {
+            // The first of its files that is there, no link, and opens (`session-audio/v3`): a WAV
+            // that opens and is no track is no track — its FLAC is not read in its place.
+            let path = files.iter().find_map(|file| {
+                let path = std::path::absolute(folder.join(file)).ok()?;
+                fs::symlink_metadata(&path).ok().filter(fs::Metadata::is_file)?;
+                fs::File::open(&path).ok().map(|_| path)
+            })?;
             let rate = rate(&path)?;
             let mut placed: Vec<(u64, f64)> = points
                 .iter()
@@ -224,9 +237,12 @@ fn runs(points: &[(u64, f64)], rate: f64) -> Vec<(u64, f64)> {
     runs
 }
 
-/// A WAV file's sample rate, from its own `fmt ` chunk — never assumed.
+/// A track's sample rate, from a WAV's own `fmt ` chunk or a FLAC's STREAMINFO — never assumed.
 fn rate(path: &Path) -> Option<f64> {
     use std::io::Read;
+    if crate::flac::is_flac(path) {
+        return crate::flac::form(path).map(|form| f64::from(form.rate));
+    }
     let mut head = [0u8; 4096];
     let read = fs::File::open(path).ok()?.read(&mut head).ok()?;
     let head = &head[..read];

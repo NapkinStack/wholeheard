@@ -4,6 +4,9 @@ use std::fs;
 
 use kitokey_shell::meeting::{self, Read};
 
+mod kept;
+use kept::kept_as_flac;
+
 #[test]
 fn the_transcript_is_read_in_the_meeting_s_order_with_each_segment_s_track_and_voice() {
     let folder = tempfile::tempdir().unwrap();
@@ -250,4 +253,68 @@ fn a_meeting_s_tracks_are_played_where_the_session_s_clock_puts_them() {
     std::os::unix::fs::symlink(v2.path().join("elsewhere.wav"), v2.path().join("local.wav")).unwrap();
     assert!(meeting::tracks(v2.path()).is_empty());
     assert!(meeting::tracks(&v2.path().join("absent")).is_empty());
+}
+
+#[test]
+fn a_version_3_track_is_its_wav_while_it_is_there_and_its_flac_once_it_is_gone() {
+    let v3 = tempfile::tempdir().unwrap();
+    let folder = v3.path();
+    fs::write(
+        folder.join("session.json"),
+        r#"{"contract":"session-audio/v3","started":"2026-11-07T10:00:00+01:00","stopped":"2026-11-07T10:01:00+01:00","tracks":{"local":{"device":"Mic"},"remote":{"device":"Speaker"}}}"#,
+    )
+    .unwrap();
+    wav(&folder.join("local.wav"), 48_000, 2, 24, 10);
+    // The remote track at 44.1 kHz, its rate read from the FLAC: its frame 44,100 heard at 2.0 s.
+    wav(&folder.join("remote.wav"), 44_100, 2, 24, 50_000);
+    fs::write(
+        folder.join("clock.jsonl"),
+        r#"{"track":"remote","sample":44100,"at":2.0}"#.to_string() + "\n",
+    )
+    .unwrap();
+    kept_as_flac(&folder.join("remote.wav"));
+    let file = |track: &meeting::Track| track.path.file_name().unwrap().to_string_lossy().into_owned();
+    let tracks = meeting::tracks(folder);
+    let said: Vec<(String, f64, String)> = tracks.iter().map(|track| (track.name.clone(), track.starts, file(track))).collect();
+    assert_eq!(
+        said,
+        [
+            ("local".into(), 0.0, "local.wav".into()),
+            ("remote".into(), 1.0, "remote.flac".into())
+        ]
+    );
+    assert!(tracks.iter().all(|track| track.path.is_absolute()));
+
+    // Both there — the WAV not removed yet —: the WAV is the track.
+    wav(&folder.join("again.wav"), 48_000, 2, 24, 10);
+    let local_flac = kept_as_flac(&folder.join("again.wav"));
+    fs::rename(&local_flac, folder.join("local.flac")).unwrap();
+    assert_eq!(file(&meeting::tracks(folder)[0]), "local.wav");
+    // The WAV gone: its FLAC. A FLAC still being written is never read: no track.
+    fs::remove_file(folder.join("local.wav")).unwrap();
+    assert_eq!(file(&meeting::tracks(folder)[0]), "local.flac");
+    fs::rename(folder.join("local.flac"), folder.join("local.flac.part")).unwrap();
+    let names: Vec<String> = meeting::tracks(folder).into_iter().map(|track| track.name).collect();
+    assert_eq!(names, ["remote"]);
+}
+
+#[test]
+fn a_version_3_wav_that_opens_and_is_no_track_is_no_track_its_flac_not_read_in_its_place() {
+    let folder = tempfile::tempdir().unwrap();
+    let root = folder.path();
+    fs::write(
+        root.join("session.json"),
+        r#"{"contract":"session-audio/v3","started":"2026-10-14T14:05:12+02:00","tracks":{"local":{"device":"a microphone"}}}"#,
+    )
+    .unwrap();
+    fs::write(root.join("clock.jsonl"), "{\"track\":\"local\",\"sample\":0,\"at\":0.0}\n").unwrap();
+    wav(&root.join("other.wav"), 48_000, 1, 24, 4_800);
+    fs::rename(kept_as_flac(&root.join("other.wav")), root.join("local.flac")).unwrap();
+    fs::write(root.join("local.wav"), b"not sound").unwrap();
+    assert!(
+        meeting::tracks(root).is_empty(),
+        "the FLAC was read in place of a WAV that is no track"
+    );
+    fs::remove_file(root.join("local.wav")).unwrap();
+    assert_eq!(meeting::tracks(root).len(), 1);
 }

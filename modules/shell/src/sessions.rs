@@ -1,5 +1,5 @@
 //! The sessions in the user's folder, as the window lists them: each one's day, length, what it
-//! holds and what it weighs. Read from `session.json` (`contracts/session-audio`, both forms)
+//! holds and what it weighs. Read from `session.json` (`contracts/session-audio`, its three forms)
 //! and the files beside it; nothing here writes, moves or opens a file for writing.
 
 use std::io::ErrorKind;
@@ -96,7 +96,7 @@ fn read(folder: &Path, recording: Option<&Path>) -> Option<Listed> {
     let text = fs::read_to_string(folder.join("session.json")).ok()?;
     let session: serde_json::Value = serde_json::from_str(&text).ok()?;
     let contract = session.get("contract")?.as_str()?;
-    if !matches!(contract, "session-audio/v1" | "session-audio/v2") {
+    if !matches!(contract, "session-audio/v1" | "session-audio/v2" | "session-audio/v3") {
         return None;
     }
     let started = session.get("started")?.as_str()?.to_string();
@@ -125,7 +125,7 @@ fn read(folder: &Path, recording: Option<&Path>) -> Option<Listed> {
 }
 
 /// The sound of the sessions stopped more than `days` days before `now` (seconds since 1970): every
-/// `.wav` in each such session's folder, what was made from the tracks too — never through a link.
+/// sound file ([`sound`]) in each such session's folder, what was made from the tracks too — never through a link.
 /// A session keeps its sound while it is being recorded, was left without its end, cannot be
 /// dated, stopped before it started — a clock gone back —, or holds no whole transcript: its
 /// sound is then all there is of what was said.
@@ -151,7 +151,7 @@ fn complete(folder: &Path) -> bool {
     matches!(crate::meeting::transcript(folder), crate::meeting::Read::Present(transcript) if transcript.complete)
 }
 
-/// A meeting's audio: every `.wav` under its folder, never through a link — what freeing its audio
+/// A meeting's audio: every sound file ([`sound`]) under its folder, never through a link — what freeing its audio
 /// alone sends to the trash.
 pub fn audio_of(folder: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
@@ -159,22 +159,32 @@ pub fn audio_of(folder: &Path) -> Vec<PathBuf> {
     found
 }
 
-/// Every `.wav` under a folder.
+/// Whether a file is a meeting's sound, by its name: a `.wav`, a `.flac` — a track kept as FLAC once
+/// stopped (`session-audio/v3`) —, and a `.flac.part`. That one is no part of the session, and no
+/// reader reads it; but it holds what was said as its WAV does, as heavy on the disk: it is weighed as
+/// sound, and goes with the meeting's audio, never left behind once the audio is freed.
+fn sound(path: &Path) -> bool {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    [".wav", ".flac", ".flac.part"].iter().any(|end| name.ends_with(end))
+}
+
+/// Every sound file under a folder.
 fn sounds(folder: &Path, found: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(folder) else { return };
     for entry in entries.filter_map(Result::ok) {
         let path = entry.path();
         match entry.file_type() {
             Ok(kind) if kind.is_dir() => sounds(&path, found),
-            Ok(kind) if kind.is_file() && path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("wav")) => {
-                found.push(path)
-            }
+            Ok(kind) if kind.is_file() && sound(&path) => found.push(path),
             _ => {}
         }
     }
 }
 
-/// Adds up a folder's files: sound — a `.wav`, wherever it is — and the rest.
+/// Adds up a folder's files: sound — a [`sound`] file, wherever it is — and the rest.
 fn weigh(folder: &Path, audio: &mut u64, text: &mut u64) {
     let Ok(entries) = fs::read_dir(folder) else { return };
     for entry in entries.filter_map(Result::ok) {
@@ -184,7 +194,7 @@ fn weigh(folder: &Path, audio: &mut u64, text: &mut u64) {
             weigh(&path, audio, text);
         } else if kind.is_file() {
             let size = entry.metadata().map_or(0, |data| data.len());
-            if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("wav")) {
+            if sound(&path) {
                 *audio += size;
             } else {
                 *text += size;

@@ -453,3 +453,37 @@ fn a_folder_that_cannot_be_read_is_no_empty_list_and_one_not_made_yet_is() {
         assert!(said);
     }
 }
+
+#[test]
+fn a_version_3_session_is_listed_and_its_tracks_kept_as_flac_are_its_sound() {
+    let folder = tempfile::tempdir().unwrap();
+    let root = folder.path();
+    // Stopped, one track kept as FLAC, the other's still being written beside its WAV.
+    session(
+        &root.join("kept"),
+        r#"{"contract":"session-audio/v3","started":"2026-10-01T09:00:00Z","stopped":"2026-10-01T10:00:00Z","tracks":{}}"#,
+        &[
+            ("local.flac", 70),
+            ("remote.wav", 300),
+            ("remote.flac.part", 20),
+            ("transcript.jsonl", 0),
+            ("notes.part", 4),
+        ],
+    );
+    let listed = sessions::list(root, None);
+    let [kept] = &listed[..] else { panic!("{listed:?}") };
+    assert_eq!((kept.state, kept.seconds, kept.transcript), (State::Done, Some(3600.0), true));
+    // A FLAC is sound, and so is one left half written: its WAV's samples, as heavy on the disk.
+    assert_eq!(kept.audio, 390);
+    let mut found = sessions::audio_of(&kept.folder);
+    found.sort();
+    let sounds = [
+        root.join("kept/local.flac"),
+        root.join("kept/remote.flac.part"),
+        root.join("kept/remote.wav"),
+    ];
+    assert_eq!(found, sounds);
+    let mut gone = sessions::expired_audio(root, 14, instant("2026-10-17T10:00:00Z").unwrap());
+    gone.sort();
+    assert_eq!(gone, sounds);
+}
